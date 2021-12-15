@@ -1,0 +1,12 @@
+# Matlab related
+*.asv
+*.mexw64
+*.mexa64
+*.mat
+*.fig
+
+# Other
+*.pdf
+
+# Folders
+old
