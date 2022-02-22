@@ -30,6 +30,8 @@ add_library(
     ${RANDOM123_DIR}/Random123/philox.h
     ${RANDOM123_DIR}/Random123/uniform.hpp
     src/sparseops.cc
+    src/determiter.cc 
+    src/rblasutil.cc
 )
 target_link_libraries(
     rblas

@@ -1,4 +1,5 @@
-#include <sparseops.hh>
+#include <rblasutil.hh>
+#include <determiter.hh>
 #include <blas.hh>
 #include "gtest/gtest.h"
 
