@@ -5,9 +5,8 @@ Most directories at the top of this repo are for a CMake-organized C++ library c
 The folders "lib", "bin", and "include" should all be empty (or only contain .git-keep) upon cloning.
 The directory "z_scratch/" is a scratch workspace for debugging, preparing examples, and informal benchmarking.
 
-### RBLAS dependencies
+## RBLAS dependencies
 
-The Makefile calls this project "rblas".
 RBLAS dependencies are BLAS++ and Random123.
 
 Managing the BLAS++ dependency:
@@ -33,7 +32,7 @@ Managing the Random123 dependency:
   are stored in ``/opt/random123/include/Random123``. Nothing else needs to go in ``/opt/random123``.
 
 
-### The z_scratch/ directory 
+## The z_scratch/ directory 
 
 If you work in this repo, create a folder with your name in ``z_scratch/``.
 You have total authority over what goes in that folder.
