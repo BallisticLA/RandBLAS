@@ -6,15 +6,7 @@
 
 
 int main(int argc, char *argv[]) {
-    //int64_t n = 20;
-    //int64_t m = 2*n;
-    //run_pcgls_ex(n, m);
-
-    double a[25];
-    int64_t k = 5;
-	// genmat(k, k, a, 0); 
-
-    struct SJLT sjl;
+    /*struct SJLT sjl;
     sjl.ori = ColumnWise;
     sjl.n_rows = 6000;
     sjl.n_cols = 100000;
@@ -25,8 +17,8 @@ int main(int argc, char *argv[]) {
     sjl.cols = cols;
     double *vals = new double[sjl.vec_nnz * sjl.n_cols];
     sjl.vals = vals;
-
     fill_colwise_sjlt(sjl, 0, 0);
+    */
     //print_sjlt(sjl);
 
     ::testing::InitGoogleTest(&argc, argv);

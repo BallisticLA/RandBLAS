@@ -9,6 +9,7 @@ include_directories(lib/googletest/googletest/include)
 add_executable(
     rblas_tests
     main.cc
+    src/test_sparseops.cc
 )
 target_link_libraries(
     rblas_tests
