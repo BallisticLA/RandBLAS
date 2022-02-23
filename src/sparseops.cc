@@ -6,7 +6,6 @@ void fill_colwise_sjlt(SJLT sjl, uint64_t seed_key, uint64_t seed_ctr) {
 
     // Load shorter names into the workspace
     uint64_t k = sjl.vec_nnz;
-    uint64_t nnz = k * sjl.n_cols;
     uint64_t n_rows = sjl.n_rows;
     uint64_t n_cols = sjl.n_cols; 
     double *vals = sjl.vals; // point to array of length nnz 
@@ -67,14 +66,6 @@ void fill_colwise_sjlt(SJLT sjl, uint64_t seed_key, uint64_t seed_ctr) {
 
 void print_sjlt(SJLT sjl)
 {
-    if (sjl.ori == ColumnWise)
-    {
-        uint64_t nnz = sjl.vec_nnz * sjl.n_cols;
-    }
-    else
-    {
-        uint64_t nnz = sjl.vec_nnz *  sjl.n_rows;
-    }
     std::cout << "SJLT information" << std::endl;
     std::cout << "\tn_rows = " << sjl.n_rows << std::endl;
     std::cout << "\tn_cols = " << sjl.n_cols << std::endl;

@@ -34,11 +34,11 @@ class ColWiseSJLTTest : public ::testing::Test
         // sampled without replacement from 0,...,n_rows - 1.
         std::set<uint64_t> s;
         uint64_t offset = 0;
-        for (int i = 0; i < sjl.n_cols; ++i)
+        for (uint64_t i = 0; i < sjl.n_cols; ++i)
         {
             offset = sjl.vec_nnz * i;
             s.clear();
-            for (int j = 0; j < sjl.vec_nnz; ++j)
+            for (uint64_t j = 0; j < sjl.vec_nnz; ++j)
             {
                 uint64_t row = sjl.rows[offset + j];
                 EXPECT_EQ(s.count(row), 0);

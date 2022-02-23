@@ -2,11 +2,18 @@ cmake_minimum_required(VERSION 3.2)
 
 project(rblas)
 
+
+# Evironment variables needed by CMake
+# set(CXXFLAGS "-Wall -pedantic-errors -std=c++11 -O0 -g")
+# set(BLASPP_DIR /opt/slate/blaspp)
+# set(RANDOM123_DIR /opt/random123/include)
+
 set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O0 -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXXFLAGS}")
+
+message(WARNING ${CMAKE_CXX_FLAGS})
 
 set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR})
-set(BLASPP_DIR /opt/slate/blaspp)
 
 find_library(BLASPP blaspp ${BLASPP_DIR}/lib)
 
@@ -17,7 +24,6 @@ set(RBLAS_INSTALL_LIB_DIR ${PROJECT_SOURCE_DIR}/lib)
 set(RBLAS_HEADERS_DIR ${PROJECT_SOURCE_DIR}/src/)
 
 set(BLASPP_HEADERS_DIR ${BLASPP_DIR}/include)
-set(RANDOM123_DIR /opt/random123/include)
 
 include_directories(${RBLAS_INSTALL_INCLUDE_DIR})
 include_directories(${RBLAS_HEADERS_DIR})
@@ -29,6 +35,7 @@ add_library(
     ${BLASPP_HEADERS_DIR}/blas.hh
     ${RANDOM123_DIR}/Random123/philox.h
     ${RANDOM123_DIR}/Random123/uniform.hpp
+    ${RANDOM123_DIR}/Random123/threefry.h
     src/sparseops.cc
     src/determiter.cc 
     src/rblasutil.cc
