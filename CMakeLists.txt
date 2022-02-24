@@ -13,15 +13,15 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXXFLAGS}")
 
 message(WARNING ${CMAKE_CXX_FLAGS})
 
-set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR})
-
 find_library(BLASPP blaspp ${BLASPP_DIR}/lib)
 
 message(WARNING ${BLASPP})
 
-set(RBLAS_INSTALL_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include)
-set(RBLAS_INSTALL_LIB_DIR ${PROJECT_SOURCE_DIR}/lib)
-set(RBLAS_HEADERS_DIR ${PROJECT_SOURCE_DIR}/src/)
+set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/install)
+set(RBLAS_INSTALL_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/install/include)
+set(RBLAS_INSTALL_LIB_DIR ${PROJECT_SOURCE_DIR}/install/lib)
+set(RBLAS_INSTALL_BIN_DIR ${PROJECT_SOURCE_DIR}/install/bin)
+set(RBLAS_HEADERS_DIR ${PROJECT_SOURCE_DIR}/include)
 
 set(BLASPP_HEADERS_DIR ${BLASPP_DIR}/include)
 
@@ -36,9 +36,13 @@ add_library(
     ${RANDOM123_DIR}/Random123/philox.h
     ${RANDOM123_DIR}/Random123/uniform.hpp
     ${RANDOM123_DIR}/Random123/threefry.h
-    src/sparseops.cc
-    src/determiter.cc 
-    src/rblasutil.cc
+    include/rblas.hh
+    include/rblas/sjlts.hh
+    include/rblas/util.hh
+    src/sjlts.cc
+    src/util.cc
+    include/determiter.hh
+    src/determiter.cc
 )
 target_link_libraries(
     rblas

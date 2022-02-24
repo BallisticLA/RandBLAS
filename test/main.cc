@@ -1,6 +1,6 @@
-#include <rblasutil.hh>
+#include <rblas/util.hh>
 #include <determiter.hh>
-#include <sparseops.hh>
+#include <rblas/sjlts.hh>
 #include <blas.hh>
 #include "gtest/gtest.h"
 

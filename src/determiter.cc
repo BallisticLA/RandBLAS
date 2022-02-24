@@ -1,8 +1,5 @@
-// This file doesn't actually belong in RBLAS.
+#include <determiter.hh>
 #include <iostream>
-#include <blas.hh>
-#include <vector>
-#include <stdio.h>
 
 
 template <typename T>

@@ -1,9 +1,9 @@
 #include <iostream>
-#include <blas.hh>
 #include <stdio.h>
 #include <Random123/philox.h>
 #include <Random123/uniform.hpp>
 
+namespace rblas::util {
 
 void genmat(
 	int64_t n_rows,
@@ -26,4 +26,4 @@ void genmat(
 		std::cout << "ctr: " << ctr << " Philox4x64<>(ctr,key): " << x << ' ' << y << std::endl;
 	}
 }
-
+} // end namespace

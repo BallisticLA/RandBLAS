@@ -1,4 +1,4 @@
-#include <sparseops.hh>
+#include <rblas.hh>
 #include <gtest/gtest.h>
 
 
@@ -17,8 +17,8 @@ class ColWiseSJLTTest : public ::testing::Test
 
     virtual void proper_construction(uint64_t key_index, uint64_t nnz_index)
     {
-        struct SJLT sjl;
-        sjl.ori = ColumnWise;
+        struct rblas::sjlts::SJLT sjl;
+        sjl.ori = rblas::sjlts::ColumnWise;
         sjl.n_rows = n_rows;
         sjl.n_cols = n_cols;
         sjl.vec_nnz = vec_nnzs[nnz_index];
@@ -29,7 +29,7 @@ class ColWiseSJLTTest : public ::testing::Test
         double *vals = new double[sjl.vec_nnz * sjl.n_cols];
         sjl.vals = vals;
 
-        fill_colwise_sjlt(sjl, keys[key_index], 0);
+        rblas::sjlts::fill_colwise(sjl, keys[key_index], 0);
         // check that each block of sjl.vec_nnz entries of sjl.rows is
         // sampled without replacement from 0,...,n_rows - 1.
         std::set<uint64_t> s;

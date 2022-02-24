@@ -49,7 +49,7 @@
 .idea/*.xml
 
 build/**/*
-
+install/**
 include/*
 lib/*
 bin/*

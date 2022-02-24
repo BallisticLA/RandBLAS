@@ -1,7 +1,9 @@
-#include <sparseops.hh>
+#include "rblas/sjlts.hh"
+#include "Random123/threefry.h"
 
+namespace rblas::sjlts {
 
-void fill_colwise_sjlt(SJLT sjl, uint64_t seed_key, uint64_t seed_ctr) {
+void fill_colwise(SJLT sjl, uint64_t seed_key, uint64_t seed_ctr) {
     // Use Fisher-Yates
 
     // Load shorter names into the workspace
@@ -96,3 +98,5 @@ void print_sjlt(SJLT sjl)
     }
     std::cout << std::endl;
 }
+
+} // end namespace rblas::sjlts
