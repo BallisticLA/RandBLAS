@@ -1,5 +1,10 @@
 #include "rblas/sjlts.hh"
-#include "Random123/threefry.h"
+#include <iostream>
+#include <stdio.h>
+#include <Random123/philox.h>
+#include <Random123/threefry.h>
+#include <Random123/uniform.hpp>
+
 
 namespace rblas::sjlts {
 

@@ -49,6 +49,7 @@
 .idea/*.xml
 
 build/**/*
+!build/.gitkeep
 install/**
 !install/.gitkeep
 !install/bin/.gitkeep

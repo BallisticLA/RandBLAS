@@ -4,7 +4,7 @@ project(rblas)
 
 
 # Evironment variables needed by CMake
-# set(CXXFLAGS "-Wall -pedantic-errors -std=c++11 -O0 -g")
+# set(CXXFLAGS "-Wall -std=c++11 -O0 -g")
 # set(BLASPP_DIR /opt/slate/blaspp)
 # set(RANDOM123_DIR /opt/random123/include)
 
