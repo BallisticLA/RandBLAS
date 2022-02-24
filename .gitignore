@@ -50,7 +50,10 @@
 
 build/**/*
 install/**
-include/*
+!install/.gitkeep
+!install/bin/.gitkeep
+!install/lib/.gitkeep
+!install/include/.gitkeep
 lib/*
 bin/*
 test/test_runner
