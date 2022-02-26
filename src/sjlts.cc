@@ -1,6 +1,7 @@
 #include "rblas/sjlts.hh"
 #include <iostream>
 #include <stdio.h>
+#include <omp.h>
 #include <Random123/philox.h>
 #include <Random123/threefry.h>
 #include <Random123/uniform.hpp>
@@ -102,6 +103,44 @@ void print_sjlt(SJLT sjl)
         std::cout << sjl.vals[i] << ", ";
     }
     std::cout << std::endl;
+}
+
+
+void sketch_cscrow(SJLT sjl, uint64_t n, double *a, double *a_hat, int threads){
+
+	// Identify the range of rows to be processed by each thread.
+    int avg = sjl.n_rows / threads;
+    if (avg == 0) avg = 1; // this is unusual, but can happen in small experiments.
+	int blocks[threads + 1];
+	blocks[0] = 0;
+    for(int i = 1; i < threads + 1; ++i)
+		blocks[i] = blocks[i - 1] + avg;
+	blocks[threads] += (sjl.n_rows % threads); // add the remainder to the last element
+
+    omp_set_num_threads(threads);
+	#pragma omp parallel default(shared)
+	{
+		int my_id = omp_get_thread_num();
+		#pragma omp for schedule(static)
+		for(int outer = 0; outer < threads; ++outer)
+        {
+			for(int c = 0; c < sjl.n_cols; ++c)
+            {
+				double *a_row = &a[c * n];
+				int offset = c * sjl.vec_nnz;
+                for (int r = 0; r < sjl.vec_nnz; ++r)
+                {
+					int inner = offset + r;
+					int row = sjl.rows[inner];
+					if(row >= blocks[my_id] && row < blocks[my_id + 1])
+                    {
+						double scale = sjl.vals[inner];
+                        blas::axpy(n, scale, a_row, 1, &a_hat[row * n], 1);
+					}	
+				} // end processing of column c
+			}
+		} 
+	}
 }
 
 } // end namespace rblas::sjlts

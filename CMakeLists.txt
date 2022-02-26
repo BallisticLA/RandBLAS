@@ -9,7 +9,7 @@ project(rblas)
 # set(RANDOM123_DIR /opt/random123/include)
 
 set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXXFLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
 message(WARNING ${CMAKE_CXX_FLAGS})
 
@@ -44,10 +44,17 @@ add_library(
     include/determiter.hh
     src/determiter.cc
 )
+
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    set(OMP_LIB "OpenMP::OpenMP_CXX")
+endif()
+
 target_link_libraries(
     rblas
     PUBLIC
     ${BLASPP}
+    ${OMP_LIB}
 )
 
 install(TARGETS rblas DESTINATION ${RBLAS_INSTALL_LIB_DIR})

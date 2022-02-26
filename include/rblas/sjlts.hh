@@ -22,6 +22,8 @@ struct SJLT {
 
 void fill_colwise(SJLT sjl, uint64_t seed_key, uint64_t seed_ctr);
 
+void sketch_cscrow(SJLT sjl, uint64_t n, double *a, double *a_hat, int threads);
+
 void print_sjlt(SJLT sjl);
 
 } // end namespace rblas::sjlts
