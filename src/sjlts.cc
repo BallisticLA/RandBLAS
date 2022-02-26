@@ -126,7 +126,6 @@ void sketch_cscrow(SJLT sjl, uint64_t n, double *a, double *a_hat, int threads){
         {
 			for(int c = 0; c < sjl.n_cols; ++c)
             {
-				//printf("c: %d, id: %d\n", c, omp_get_thread_num());
 				double *a_row = &a[c * n];
 				int offset = c * sjl.vec_nnz;
                 for (int r = 0; r < sjl.vec_nnz; ++r)
