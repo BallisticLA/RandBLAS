@@ -59,7 +59,10 @@ void fill_colwise(SJLT sjl, uint64_t seed_key, uint64_t seed_ctr) {
             }
             cols[j + offset] = i;
         }
-        // restore row_work for next iteration of Fisher-Yates
+        // Restore row_work for next iteration of Fisher-Yates.
+        //      This isn't necessary from a statistical perspective,
+        //      but it makes debugging much easier (particularly in
+        //      future parallel implementations).
         for (j = 1; j <= k; ++j)
         {
             int jj = k - j;
