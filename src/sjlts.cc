@@ -1,7 +1,9 @@
-#include "rblas/sjlts.hh"
+#include "sjlts.hh"
+
 #include <iostream>
 #include <stdio.h>
 #include <omp.h>
+
 #include <Random123/philox.h>
 #include <Random123/threefry.h>
 #include <Random123/uniform.hpp>
