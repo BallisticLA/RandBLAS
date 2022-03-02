@@ -1,5 +1,9 @@
 #include <rblas.hh>
 #include <gtest/gtest.h>
+#include <math.h>
+
+#define RELDTOL 1e-10;
+#define ABSDTOL 1e-12;
 
 
 class TestSJLTConstruction : public ::testing::Test
@@ -144,12 +148,17 @@ class TestApplyCscRowMaj : public ::testing::Test
             0.0, a_hat_expect, ldahat);
 
         // check the result
+        double reldtol = RELDTOL;
         for (uint64_t i = 0; i < d; ++i)
         {
             for (uint64_t j = 0; j < n; ++j)
             {
                 uint64_t ell = i*n + j;
-                ASSERT_DOUBLE_EQ(a_hat[ell], a_hat_expect[ell]);
+                double expect = a_hat_expect[ell];
+                double actual = a_hat[ell];
+                double atol = reldtol * std::min(abs(actual), abs(expect));
+                if (atol == 0.0) atol = ABSDTOL;
+                ASSERT_NEAR(actual, expect, atol);
             }    
         }
     }
