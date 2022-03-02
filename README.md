@@ -5,14 +5,14 @@ for very rough benchmarking.
 
 The directory "z_scratch/" is a scratch workspace for debugging, preparing examples, and informal benchmarking.
 
-## Installing proto RBLAS
+## Installing RBLAS
 ### Dependencies
-proto RBLAS can be compiled with a C++11 compliant compiler and depends on CMake,
-BLAS++ and Random123. proto RBLAS has optional dependencies on GTest and OpenMP.
+RBLAS can be compiled with a C++11 compliant compiler and depends on CMake,
+BLAS++ and Random123. RBLAS has optional dependencies on GTest and OpenMP.
 
 #### BLAS++
 Blas++ is a C++ API for the Basic Linear Algebra Subroutines. BLAS++ can be
-installed with GNU make or CMake. proto RBLAS depends on the CMake install of
+installed with GNU make or CMake. RBLAS depends on the CMake install of
 BLAS++.  One may compile and install BLAS++ from
 [source](https://bitbucket.org/icl/blaspp/src/master/) using CMake with the
 following recipe:
@@ -57,27 +57,27 @@ OpemMP is an open standard that enables code to be parallelized as it is
 compiled. RBLAS detects the presence of OpenMP automatically and makes use of
 it if it's found.
 
-### proto RBLAS
-proto RBLAS is configured with CMake and built with GNU make. First, see the section above
-on installing [proto RBLAS dependencies](Dependencies). Once the dependencies are installed
+### RBLAS
+RBLAS is configured with CMake and built with GNU make. First, see the section above
+on installing [RBLAS dependencies](Dependencies). Once the dependencies are installed
 RBLAS may be compiled and installed using the following recipe:
 
 ```shell
-git clone git@github.com:BallisticLA/proto_rblas.git
-mkdir proto_rblas-build
-cd proto_rblas-build
+git clone git@github.com:BallisticLA/rblas.git
+mkdir rblas-build
+cd rblas-build
 cmake -DCMNAKE_BUILD_TYPE=Release \
     -Dblaspp_DIR=`pwd`/../blaspp-install/lib64/blaspp/ \
     -DRandom123_DIR=`pwd`/../random123-install/include/ \
-    -DCMAKE_INSTALL_PREFIX=`pwd`/../proto_rblas-install \
-    ../proto_rblas/
+    -DCMAKE_INSTALL_PREFIX=`pwd`/../rblas-install \
+    ../rblas/
 make -j install
 ```
 Note: this recipe assumes the directory structured used in the [above recipes](Dependencies)
 for installing dependencies.
 
 #### Testing
-From the proto RBLAS build directory:
+From the RBLAS build directory:
 
 ```
 ctest
@@ -85,11 +85,11 @@ ctest
 
 Note: tests are only available if GTest was found during the build.
 
-## Using proto RBLAS
-Once proto RBLAS has been compiled and installed (See [Installing proto
-RBLAS](Installing-proto-RBLAS)) it can be used like any other CMake project.
+## Using RBLAS
+Once RBLAS has been compiled and installed (See [Installing
+RBLAS](Installing-RBLAS)) it can be used like any other CMake project.
 For instance, the following CMakeLists.txt demonstrates how an executable can
-be linked to the proto RBLAS library:
+be linked to the RBLAS library:
 
 ```cmake
 cmake_minimum_required(VERSION 3.0)
