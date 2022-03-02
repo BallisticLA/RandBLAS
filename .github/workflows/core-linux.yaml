@@ -1,0 +1,42 @@
+name: core-linux
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: build_and_test
+        run: |
+          # os level stuff
+          set -x
+          export DEBIAN_FRONTEND="noninteractive"
+          export TZ="America/Los_Angeles"
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y git-core gcc g++ gfortran cmake subversion automake m4 libgtest-dev libmkl-dev libopenblas-openmp-dev
+          # blaspp
+          cd ..
+          git clone https://bitbucket.org/icl/blaspp.git
+          mkdir blaspp-build
+          cd blaspp-build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=`pwd`/../blaspp-install -Dbuild_tests=OFF ../blaspp
+          make -j2 install
+          cd ..
+          # random123
+          git clone https://github.com/DEShawResearch/random123.git
+          cd random123/
+          make prefix=`pwd`/../random123-install install-include
+          cd ..
+          # rblas
+          mkdir proto_rblas-build
+          cd proto_rblas-build
+          cmake -DCMNAKE_BUILD_TYPE=Debug -Dblaspp_DIR=`pwd`/../blaspp-install/lib/blaspp/ -DRandom123_DIR=`pwd`/../random123-install/include/ -DCMAKE_INSTALL_PREFIX=`pwd`/../proto_rblas-install ../proto_rblas/
+          make -j2 install
+          ctest --output-on-failure

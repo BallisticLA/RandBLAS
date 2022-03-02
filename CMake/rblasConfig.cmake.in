@@ -1,0 +1,30 @@
+include(CMakeFindDependencyMacro)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
+
+set(RBLAS_VERSION "@RBLAS_VERSION@")
+set(RBLAS_VERSION_MAJOR "@RBLAS_VERSION_MAJOR@")
+set(RBLAS_VERSION_MINOR "@RBLAS_VERSION_MINOR@")
+set(RBLAS_VERSION_PATCH "@RBLAS_VERSION_PATCH@")
+set(RBLAS_VERSION_DEVEL "@RBLAS_VERSION_DEVEL@")
+
+# BLAS++
+if (NOT blaspp_DIR)
+    set(blaspp_DIR @blaspp_DIR@)
+endif ()
+find_dependency(blaspp)
+include(rblas_blaspp)
+
+# Random123
+if (NOT Random123_DIR)
+    set(Random123_DIR @Random123_DIR@)
+endif ()
+find_dependency(Random123)
+include(rblas_Random123)
+
+# OpenMP
+set(RBLAS_HAS_OpenMP @RBLAS_HAS_OpenMP@)
+if (RBLAS_HAS_OpenMP)
+    include(rblas_OpenMP)
+endif()
+
+include(rblas)

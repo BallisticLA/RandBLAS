@@ -48,13 +48,13 @@
 .vscode/*
 .idea/*.xml
 
-build/**/*
-!build/.gitkeep
-install/**
-!install/.gitkeep
-!install/bin/.gitkeep
-!install/lib/.gitkeep
-!install/include/.gitkeep
+rblas-build/**/*
+!rblas-build/.gitkeep
+rblas-install/**
+!rblas-install/.gitkeep
+!rblas-install/bin/.gitkeep
+!rblas-install/lib/.gitkeep
+!rblas-install/include/.gitkeep
 lib/*
 bin/*
 test/test_runner

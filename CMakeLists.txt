@@ -2,61 +2,21 @@ cmake_minimum_required(VERSION 3.2)
 
 project(rblas)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
 
-# Evironment variables needed by CMake
-# set(CXXFLAGS "-Wall -std=c++11 -O0 -g")
-# set(BLASPP_DIR /opt/slate/blaspp)
-# set(RANDOM123_DIR /opt/random123/include)
+# configure the build
+enable_testing()
+include(build_options)
+include(version)
 
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+# find dependencies
+include(blaspp)
+include(Random123)
+include(OpenMP)
 
-message(WARNING ${CMAKE_CXX_FLAGS})
-
-find_library(BLASPP blaspp ${BLASPP_DIR}/lib)
-
-message(WARNING ${BLASPP})
-
-set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/install)
-set(RBLAS_INSTALL_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/install/include)
-set(RBLAS_INSTALL_LIB_DIR ${PROJECT_SOURCE_DIR}/install/lib)
-set(RBLAS_INSTALL_BIN_DIR ${PROJECT_SOURCE_DIR}/install/bin)
-set(RBLAS_HEADERS_DIR ${PROJECT_SOURCE_DIR}/include)
-
-set(BLASPP_HEADERS_DIR ${BLASPP_DIR}/include)
-
-include_directories(${RBLAS_INSTALL_INCLUDE_DIR})
-include_directories(${RBLAS_HEADERS_DIR})
-include_directories(${BLASPP_HEADERS_DIR})
-include_directories(${RANDOM123_DIR})
-
-add_library(
-    rblas
-    ${BLASPP_HEADERS_DIR}/blas.hh
-    ${RANDOM123_DIR}/Random123/philox.h
-    ${RANDOM123_DIR}/Random123/uniform.hpp
-    ${RANDOM123_DIR}/Random123/threefry.h
-    include/rblas.hh
-    include/rblas/sjlts.hh
-    include/rblas/util.hh
-    src/sjlts.cc
-    src/util.cc
-    include/determiter.hh
-    src/determiter.cc
-)
-
-find_package(OpenMP)
-if(OpenMP_CXX_FOUND)
-    set(OMP_LIB "OpenMP::OpenMP_CXX")
-endif()
-
-target_link_libraries(
-    rblas
-    PUBLIC
-    ${BLASPP}
-    ${OMP_LIB}
-)
-
-install(TARGETS rblas DESTINATION ${RBLAS_INSTALL_LIB_DIR})
-
+# compile sources
+add_subdirectory(src)
 add_subdirectory(test)
+
+# export the configuration
+include(config)

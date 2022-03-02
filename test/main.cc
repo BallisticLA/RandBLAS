@@ -1,9 +1,10 @@
-#include <rblas/util.hh>
+#include <util.hh>
 #include <determiter.hh>
-#include <rblas/sjlts.hh>
-#include <blas.hh>
-#include "gtest/gtest.h"
+#include <sjlts.hh>
 
+#include <blas.hh>
+
+#include <gtest/gtest.h>
 
 int main(int argc, char *argv[])
 {    
