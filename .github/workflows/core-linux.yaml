@@ -28,24 +28,24 @@ jobs:
       - name: install BLAS++
         run: |
           cd ..
-          echo `pwd`
-          echo `ls`
+          pwd
+          ls
           git clone https://bitbucket.org/icl/blaspp.git
           mkdir blaspp-build
           cd blaspp-build
-          echo `pwd`
-          cmake \ 
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=`pwd`/../blaspp-install \
-            -Dbuild_tests=OFF \
-            `pwd`/../blaspp
+          pwd
+          cmake -DCMAKE_BUILD_TYPE=Release \ 
+             -DCMAKE_INSTALL_PREFIX=`pwd`/../blaspp-install \ 
+             -DCMAKE_BINARY_DIR=`pwd` \ 
+             -Dbuild_tests=OFF \ 
+             ../blaspp
           make -j2 install
 
       - name: install Random123  
         run: |
           cd ..
-          echo `pwd`
-          echo `ls`
+          pwd
+          ls
           git clone https://github.com/DEShawResearch/Random123.git
           cd Random123/
           make prefix=`pwd`/../Random123-install install-include
@@ -57,11 +57,11 @@ jobs:
           echo `ls`
           mkdir RandBLAS-build
           cd RandBLAS-build
-          cmake \
-            -DCMAKE_BUILD_TYPE=Debug \
+          cmake -DCMAKE_BUILD_TYPE=Debug \
             -Dblaspp_DIR=`pwd`/../blaspp-install/lib/blaspp/ \
             -DRandom123_DIR=`pwd`/../Random123-install/include/ \
             -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
+            -DCMAKE_BINARY_DIR=`pwd` \
             `pwd`/../proto_rblas
           make -j2 install
 
