@@ -4,9 +4,9 @@ set(tmp FALSE)
 if (GTest_FOUND)
     set(tmp TRUE)
 
-    add_executable(rblas_tests src/test_sjlts.cc)
-    target_link_libraries(rblas_tests rblas GTest::GTest GTest::Main)
-    gtest_discover_tests(rblas_tests)
+    add_executable(RandBLAS_tests src/test_sjlts.cc)
+    target_link_libraries(RandBLAS_tests RandBLAS GTest::GTest GTest::Main)
+    gtest_discover_tests(RandBLAS_tests)
 
 endif()
 message(STATUS "Checking for regression tests ... ${tmp}")

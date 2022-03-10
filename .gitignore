@@ -39,8 +39,10 @@
 **/*.cbp
 **/CMakeScripts
 **/compile_commands.json
-
-
+**build/
+!**build/.gitkeep
+**install/
+!**install/.gitkeep
 
 
 ## Local 

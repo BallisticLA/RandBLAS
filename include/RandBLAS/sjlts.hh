@@ -3,10 +3,10 @@
 #define BLAS_HH
 #endif
 
-#ifndef RBLAS_SJLTS_HH
-#define RBLAS_SJLTS_HH
+#ifndef RandBLAS_SJLTS_HH
+#define RandBLAS_SJLTS_HH
 
-namespace rblas::sjlts {
+namespace RandBLAS::sjlts {
 
 enum sjlt_orientation {ColumnWise, RowWise};
 
@@ -26,6 +26,6 @@ void sketch_cscrow(SJLT sjl, uint64_t n, double *a, double *a_hat, int threads);
 
 void print_sjlt(SJLT sjl);
 
-} // end namespace rblas::sjlts
+} // end namespace RandBLAS::sjlts
 
-#endif // define RBLAS_SJLTS_HH
+#endif // define RandBLAS_SJLTS_HH

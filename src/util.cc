@@ -7,7 +7,7 @@
 #include <Random123/uniform.hpp>
 
 
-namespace rblas::util {
+namespace RandBLAS::util {
 
 void genmat(
 	int64_t n_rows,
@@ -62,4 +62,4 @@ void print_colmaj(uint64_t n_rows, uint64_t n_cols, double *a, char label[])
 }
 
 
-} // end namespace rblas::util
+} // end namespace RandBLAS::util

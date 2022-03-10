@@ -3,10 +3,10 @@
 #define BLAS_HH
 #endif
 
-#ifndef RBLAS_UTIL_HH
-#define RBLAS_UTIL_HH
+#ifndef RandBLAS_UTIL_HH
+#define RandBLAS_UTIL_HH
 
-namespace rblas::util {
+namespace RandBLAS::util {
 
 
 void genmat(
@@ -21,6 +21,6 @@ void genmat(
 
 void print_colmaj(uint64_t n_rows, uint64_t n_cols, double *a, char label[]);
 
-} // end namespace rblas::util
+} // end namespace RandBLAS::util
 
-#endif  // define RBLAS_UTIL_HH
+#endif  // define RandBLAS_UTIL_HH

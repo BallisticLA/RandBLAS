@@ -11,12 +11,12 @@ message(STATUS "Checking for blaspp ... ${blaspp_VERSION}")
 #
 
 # interface libarary for use elsewhere in the project
-add_library(rblas_blaspp INTERFACE)
+add_library(RandBLAS_blaspp INTERFACE)
 
-target_link_libraries(rblas_blaspp INTERFACE blaspp)
+target_link_libraries(RandBLAS_blaspp INTERFACE blaspp)
 
-install(TARGETS rblas_blaspp EXPORT rblas_blaspp)
+install(TARGETS RandBLAS_blaspp EXPORT RandBLAS_blaspp)
 
-install(EXPORT rblas_blaspp
+install(EXPORT RandBLAS_blaspp
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake"
     EXPORT_LINK_INTERFACE_LIBRARIES)
