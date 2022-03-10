@@ -12,31 +12,55 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
-
-      - name: build_and_test
+      
+      - name: configure OS
         run: |
           # os level stuff
+          echo `pwd`
+          echo `ls`
           set -x
           export DEBIAN_FRONTEND="noninteractive"
           export TZ="America/Los_Angeles"
           sudo apt-get update -qq
-          sudo apt-get install -qq -y git-core gcc g++ gfortran cmake subversion automake m4 libgtest-dev libmkl-dev libopenblas-openmp-dev
-          # blaspp
+          sudo apt-get install -qq -y git-core gcc g++ \
+            gfortran cmake subversion automake  m4 \
+            libgtest-dev libmkl-dev libopenblas-openmp-dev
+      
+      - name: install BLAS++
+        run: |
           cd ..
+          echo `pwd`
+          echo `ls`
           git clone https://bitbucket.org/icl/blaspp.git
           mkdir blaspp-build
           cd blaspp-build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=`pwd`/../blaspp-install -Dbuild_tests=OFF ../blaspp
+          cmake \ 
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=`pwd`/../blaspp-install \
+            -Dbuild_tests=OFF \
+            ../blaspp
           make -j2 install
+
+      - name: install Random123  
+        run: |
           cd ..
-          # random123
-          git clone https://github.com/DEShawResearch/random123.git
-          cd random123/
-          make prefix=`pwd`/../random123-install install-include
+          git clone https://github.com/DEShawResearch/Random123.git
+          cd Random123/
+          make prefix=`pwd`/../Random123-install install-include
+      
+      -name: build RandBLAS
+       run: |
           cd ..
-          # rblas
-          mkdir proto_rblas-build
-          cd proto_rblas-build
-          cmake -DCMNAKE_BUILD_TYPE=Debug -Dblaspp_DIR=`pwd`/../blaspp-install/lib/blaspp/ -DRandom123_DIR=`pwd`/../random123-install/include/ -DCMAKE_INSTALL_PREFIX=`pwd`/../proto_rblas-install ../proto_rblas/
+          mkdir RandBLAS-build
+          cd RandBLAS-build
+          cmake \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -Dblaspp_DIR=`pwd`/../blaspp-install/lib/blaspp/ \
+            -DRandom123_DIR=`pwd`/../Random123-install/include/ \
+            -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
+            ../RandBLAS/
           make -j2 install
+          
+      -name: test RandBLAS
+       run: |
           ctest --output-on-failure

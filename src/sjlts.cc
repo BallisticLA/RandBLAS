@@ -9,7 +9,7 @@
 #include <Random123/uniform.hpp>
 
 
-namespace rblas::sjlts {
+namespace RandBLAS::sjlts {
 
 void fill_colwise(SJLT sjl, uint64_t seed_key, uint64_t seed_ctr) {
     // Use Fisher-Yates
@@ -148,4 +148,4 @@ void sketch_cscrow(SJLT sjl, uint64_t n, double *a, double *a_hat, int threads){
 	}
 }
 
-} // end namespace rblas::sjlts
+} // end namespace RandBLAS::sjlts
