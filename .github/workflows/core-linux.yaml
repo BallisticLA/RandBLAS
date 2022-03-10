@@ -46,9 +46,9 @@ jobs:
           git clone https://github.com/DEShawResearch/Random123.git
           cd Random123/
           make prefix=`pwd`/../Random123-install install-include
-      
-      -name: build RandBLAS
-       run: |
+
+      - name: build RandBLAS
+        run: |
           cd ..
           mkdir RandBLAS-build
           cd RandBLAS-build
@@ -59,7 +59,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
             ../RandBLAS/
           make -j2 install
-          
-      -name: test RandBLAS
-       run: |
+
+      - name: test RandBLAS
+        run: |
           ctest --output-on-failure
