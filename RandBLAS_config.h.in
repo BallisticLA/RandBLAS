@@ -1,5 +1,5 @@
-#ifndef rblas_config_h
-#define rblas_config_h
+#ifndef RandBLAS_config_h
+#define RandBLAS_config_h
 
 #define RandBLAS_VERSION "@RandBLAS_VERSION@"
 #define RandBLAS_VERSION_MAJOR @RandBLAS_VERSION_MAJOR@
