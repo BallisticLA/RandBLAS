@@ -34,11 +34,7 @@ jobs:
           mkdir blaspp-build
           cd blaspp-build
           pwd
-          cmake -DCMAKE_BUILD_TYPE=Release \ 
-             -DCMAKE_INSTALL_PREFIX=`pwd`/../blaspp-install \ 
-             -DCMAKE_BINARY_DIR=`pwd` \ 
-             -Dbuild_tests=OFF \ 
-             ../blaspp
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=`pwd`/../blaspp-install -Dbuild_tests=OFF ../blaspp
           make -j2 install
 
       - name: install Random123  
