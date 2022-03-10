@@ -15,8 +15,8 @@ jobs:
       - name: configure OS
         run: |
           # os level stuff
-          echo `pwd`
-          echo `ls`
+          pwd
+          ls
           set -x
           export DEBIAN_FRONTEND="noninteractive"
           export TZ="America/Los_Angeles"
@@ -49,8 +49,8 @@ jobs:
       - name: build RandBLAS
         run: |
           cd ..
-          echo `pwd`
-          echo `ls`
+          pwd
+          ls
           mkdir RandBLAS-build
           cd RandBLAS-build
           cmake -DCMAKE_BUILD_TYPE=Release \
