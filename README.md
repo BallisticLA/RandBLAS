@@ -7,9 +7,10 @@ The eventual goal of RandBLAS is to provide a standard library that supports ran
 Our ideal outcome is that RandBLAS will eventually become a standard like the BLAS, in that hardware vendors might release their own optimized implementations of algorithms which confirm to the RandBLAS API.
 Achieving this goal will involve many community-wide conversations about RandBLAS' scope and its API.
 
-This library will surely undergo several major revisions before its API stabilizes.
-Therefore we insist that no one use RandBLAS as a dependency in a larger project for now.
-While RandBLAS is dependency for a library called ["RandLAPACK"](https://github.com/BallisticLA/proto_randlapack) which we are also developing, we are preparred to make major changes to RandLAPACK whenever a major change is made to RandBLAS.
+This library will surely undergo several major revisions before its API stabilizes. 
+Therefore we insist that no one use RandBLAS as a dependency in a larger project for now. 
+While RandBLAS is a dependency for a library called "[RandLAPACK](https://github.com/BallisticLA/proto_randlapack)" which we are also developing, we are prepared to make major changes to RandLAPACK whenever a major change is made to RandBLAS.
+
 
 ## Notes for collaborators
 
