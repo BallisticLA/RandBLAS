@@ -19,9 +19,9 @@ of the BLAS++ instructions in Section 1.
 BLAS++ is a C++ API for the Basic Linear Algebra Subroutines.
 BLAS++ can be installed with GNU make or CMake;
 RandBLAS requires the CMake install of BLAS++. 
-Random123 is collection of counter-based random number generators.
+Random123 is a collection of counter-based random number generators.
 
-We give recipies for installing BLAS++ and Random123 below.
+We give recipes for installing BLAS++ and Random123 below.
 Later on, we'll assume these recipes were executed from a directory
 that contains (or will contain) the ``RandBLAS`` project directory as a subdirectory.
 
@@ -62,7 +62,7 @@ it if it's found.
 RandBLAS is configured with CMake and built with GNU make.
 The configuration and build processes are simple once RandBLAS' dependencies are in place. 
 
-Assuming you used the recipies from Section 1 to get RandBLAS' dependencies,
+Assuming you used the recipes from Section 1 to get RandBLAS' dependencies,
 you can build download, build, and install RandBLAS as follows:
 
 ```shell
@@ -138,11 +138,11 @@ RandLAPACK, and so it's prudent to configure BLAS++ and LAPACK++ at the same tim
 
 We recommend you install BLAS++ and LAPACK++ so they link to Intel MKL
 version 2022 or higher.
-That version of MKL will come with CMake figuration files.
+That version of MKL will come with CMake configuration files.
 Those configuration files are extremely useful if
 you want to make a project that connects RandBLAS and Intel MKL.
 Such a situation might arise if you want to use RandBLAS together with
-MKL's sparse linear algebra functionaliy.
+MKL's sparse linear algebra functionality.
 
 One of the RandBLAS developers (Riley) has run into trouble
 getting BLAS++ to link to MKL as intended.
