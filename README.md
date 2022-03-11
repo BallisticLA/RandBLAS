@@ -9,11 +9,10 @@ This library will surely undergo several major revisions before its API stabiliz
 Therefore we insist that no one use RandBLAS as a dependency in a larger project for now.
 While RandBLAS is dependency for a library called ["RandLAPACK"](https://github.com/BallisticLA/proto_randlapack) which we are also developing, we are preparred to make major changes to RandLAPACK whenever a major change is made to RandBLAS.
 
+## Notes for collaborators
+
 Refer to ``INSTALL.md`` for directions on how to install RandBLAS' dependencies, install
 RandBLAS itself, and use RandBLAS in other projects.
-
-
-## Notes on scratch code workspaces and basic benchmarking 
 
 We'll need to conduct experiments for proofs-of-concept and benchmarking while developing RandBLAS.
 Those experiments should be kept under version control.
