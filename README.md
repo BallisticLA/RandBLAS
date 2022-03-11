@@ -4,7 +4,7 @@ RandBLAS will be a C++ library for sketching in randomized linear algebra.
 **It is currently in a pre-alpha stage of development.**
 
 The eventual goal of RandBLAS is to provide a standard library that supports randomized linear algebra algorithms in other libraries.
-Our ideal outcome is that RandBLAS will eventually become a *standard* like the BLAS, in that hardware vendors might release their own optimized implementations of algorithms which confirm to the RandBLAS API.
+Our ideal outcome is that RandBLAS will eventually become a standard like the BLAS, in that hardware vendors might release their own optimized implementations of algorithms which confirm to the RandBLAS API.
 Achieving this goal will involve many community-wide conversations about RandBLAS' scope and its API.
 
 This library will surely undergo several major revisions before its API stabilizes.
