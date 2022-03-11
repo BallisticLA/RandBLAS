@@ -1,0 +1,11 @@
+#ifndef RandBLAS_config_h
+#define RandBLAS_config_h
+
+#define RandBLAS_VERSION "@RandBLAS_VERSION@"
+#define RandBLAS_VERSION_MAJOR @RandBLAS_VERSION_MAJOR@
+#define RandBLAS_VERSION_MINOR @RandBLAS_VERSION_MINOR@
+#define RandBLAS_VERSION_PATCH @RandBLAS_VERSION_PATCH@
+
+#CMAKEDEFINE RandBLAS_HAS_OpenMP
+
+#endif
