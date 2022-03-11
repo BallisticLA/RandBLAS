@@ -1,28 +1,35 @@
 # RandBLAS
 
-RandBLAS is a C++ library for the most basic operation in randomized numerical linear algebra: sketching.
-We want RandBLAS to eventually become a standard like the BLAS.
-Our goal is for the code at this repository to merely be "Reference RandBLAS."
+RandBLAS is a **pre-alpha release** C++ library for sketching in randomized linear algebra.
+Our goal is for RandBLAS to become a standard library that supports randomized linear algebra algorithms
+in other libraries.
+In fact, we want RandBLAS to eventually become a *standard* like the BLAS, in that hardware vendors might release their own optimized implementations of algorithms which confirm to the RandBLAS API.
 
-The library hosted here will surely undergo several major revisions before its API stabilizes.
-Therefore we insist that no one use RandBLAS as a dependency in a larger project for the time being.
+This library will surely undergo several major revisions before its API stabilizes.
+Therefore we insist that no one use RandBLAS as a dependency in a larger project for now.
 While RandBLAS is dependency for a library called ["RandLAPACK"](https://github.com/BallisticLA/proto_randlapack) which we are also developing, we are preparred to make major changes to RandLAPACK whenever a major change is made to RandBLAS.
 
 Refer to ``INSTALL.md`` for directions on how to install RandBLAS' dependencies, install
 RandBLAS itself, and use RandBLAS in other projects.
 
 
-## The z_scratch/ directory 
+## Notes on scratch code workspaces and basic benchmarking 
 
-This is a scratch workspace for debugging, preparing examples, and informal benchmarking.
+We'll need to conduct experiments for proofs-of-concept and benchmarking while developing RandBLAS.
+Those experiments should be kept under version control.
+If you want to make such an experiment, create a branch like
+```
+git checkout -b experiments/riley-sjltidea-220311
+```
+The branch name should always have the prefix "experiments/[your name]".
+The example name above includes keywords on the nature of the branch and date in YYMMDD format.
+If you want to share that example with others then you can push the branch to the ``BallisticLA/RandBLAS``
+repository.
 
-If you work in this repo, create a folder with your name in ``z_scratch/``.
-You have total authority over what goes in that folder.
-If you have something presentable that you want to reference later, then a copy should be kept in the "sharing" folder.
+Using branches is important because the RandBLAS API is nowhere near settled;
+an example or benchmark written to work for the state of ``main`` today might break
+badly on the state of ``main`` tomorrow.
+If you get to the point of a clean example which you would like to refer to in the past,
+we recommend that you use [git tags](https://en.wikibooks.org/wiki/Git/Advanced#Tags) for important
+commits on your experiment branch.
 
-When you make an entry in the sharing folder you should has the format "year-mm-dd-[your initials]-[letter]".
- * You substitute-in "[your initials]" with whatever short character string is appropriate for you (for Riley John Murray, that's rjm).
-The "[letter]" should start every day with "a" and then increment along the alphabet.
- * Hopefully you won't have more than 26 folders you'd want to add to "sharing" on one day.
-
-If you need source code for a third-party library in order to run your experiments, add a git submodule.
