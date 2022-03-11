@@ -66,7 +66,7 @@ Assuming you used the recipies from Section 1 to get RandBLAS' dependencies,
 you can build download, build, and install RandBLAS as follows:
 
 ```shell
-git clone git@github.com:BallisticLA/proto_rblas.git
+git clone git@github.com:BallisticLA/RandBLAS.git
 mkdir RandBLAS-build
 cd RandBLAS-build
 cmake -DCMAKE_BUILD_TYPE=Release \
@@ -74,7 +74,7 @@ cmake -DCMAKE_BUILD_TYPE=Release \
     -DRandom123_DIR=`pwd`/../random123-install/include/ \
     -DCMAKE_BINARY_DIR=`pwd` \
     -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
-    ../proto_rblas/
+    ../RandBLAS/
 make -j install  # might need "sudo make -j install"
 ctest  # run unit tests (only if GTest was found by CMake)
 ```

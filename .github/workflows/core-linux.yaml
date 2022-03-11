@@ -58,6 +58,6 @@ jobs:
             -DRandom123_DIR=`pwd`/../Random123-install/include/ \
             -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
             -DCMAKE_BINARY_DIR=`pwd` \
-            `pwd`/../proto_rblas
+            `pwd`/../RandBLAS
           make -j2 install
           ctest --output-on-failure
