@@ -23,7 +23,7 @@ Random123 is collection of counter-based random number generators.
 
 We give recipies for installing BLAS++ and Random123 below.
 Later on, we'll assume these recipes were executed from a directory
-that contains (or will contain) the ``proto_rblas`` project directory as a subdirectory.
+that contains (or will contain) the ``RandBLAS`` project directory as a subdirectory.
 
 One can compile and install BLAS++ from
 [source](https://bitbucket.org/icl/blaspp/src/master/) using CMake by running
@@ -34,7 +34,7 @@ cd blaspp-build
 cmake -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=`pwd`/../blaspp-install \
     -DCMAKE_BINARY_DIR=`pwd` \ 
-    -Dbuild_tests=no \
+    -Dbuild_tests=OFF \
     ../blaspp
 make -j install
 ```
@@ -169,7 +169,7 @@ Here's how Riley configured his BLAS++ and LAPACK++ installations:
     cmake -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/opt/mklpp \
         -DBLAS_LIBRARIES='-lmkl_intel_ilp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread' \
-        -Dbuild_tests=no ..
+        -Dbuild_tests=OFF ..
     ```
     Note how the MKL BLAS and threading libraries are specified explicitly with the ``-DBLAS_LIBRARIES`` flag.
     Using that flag is in contrast with simply setting ``-Dblas=mkl``,
@@ -184,7 +184,7 @@ Here's how Riley configured his BLAS++ and LAPACK++ installations:
        -Dblaspp_DIR=/opt/mklpp/lib/blaspp \
        -DCMAKE_INSTALL_PREFIX=/opt/mklpp \
        -DCMAKE_BINARY_DIR=`pwd` \
-       -Dbuild_tests=no ..
+       -Dbuild_tests=OFF ..
     make -j2 install
     ```
 
@@ -199,7 +199,7 @@ when running ``cmake``.
 ### Installation trouble
 
 RandBLAS has a GitHub Actions workflow to install it from scratch and run its suite of unit tests.
-If you're having trouble installing RandBLAS, you can always refer to [that workflow file](https://github.com/BallisticLA/proto_rblas/tree/main/.github/workflows).
+If you're having trouble installing RandBLAS, you can always refer to [that workflow file](https://github.com/BallisticLA/RandBLAS/tree/main/.github/workflows).
 The workflow includes statements which print the working directory
 and list the contents of that directory at various points in the installation.
 We do that so that it's easier to infer a valid choice of directory structure for building RandBLAS.
