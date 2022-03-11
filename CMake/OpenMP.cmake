@@ -7,19 +7,19 @@ if (OpenMP_CXX_FOUND)
     set(tmp TRUE)
 
     # interface libarary for use elsewhere in the project
-    add_library(rblas_OpenMP INTERFACE)
+    add_library(RandBLAS_OpenMP INTERFACE)
 
-    target_include_directories(rblas_OpenMP
+    target_include_directories(RandBLAS_OpenMP
         SYSTEM INTERFACE "${OpenMP_CXX_INCLUDE_DIRS}")
 
-    target_link_libraries(rblas_OpenMP INTERFACE ${OpenMP_CXX_LIBRARIES})
+    target_link_libraries(RandBLAS_OpenMP INTERFACE ${OpenMP_CXX_LIBRARIES})
 
-    install(TARGETS rblas_OpenMP EXPORT rblas_OpenMP)
+    install(TARGETS RandBLAS_OpenMP EXPORT RandBLAS_OpenMP)
 
-    install(EXPORT rblas_OpenMP
+    install(EXPORT RandBLAS_OpenMP
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake"
         EXPORT_LINK_INTERFACE_LIBRARIES)
 
 endif()
-set(RBLAS_HAS_OpenMP ${tmp} CACHE BOOL "Set if we have a working OpenMP")
-message(STATUS "Checking for OpenMP ... ${RBLAS_HAS_OpenMP}")
+set(RandBLAS_HAS_OpenMP ${tmp} CACHE BOOL "Set if we have a working OpenMP")
+message(STATUS "Checking for OpenMP ... ${RandBLAS_HAS_OpenMP}")
