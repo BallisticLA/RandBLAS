@@ -150,8 +150,7 @@ Here's how Riley configured his BLAS++ and LAPACK++ installations:
 
 0. Install and configure MKL. You can get MKL [here](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html?operatingsystem=linux&distributions=webdownload&options=online).
    Once you've installed it you need to edit your `.bashrc` file.
-   The minimal change is to set the environment variable `MKLROOT`  to something like
-   `~/intel/oneapi/mkl/latest`. Riley's bashrc file was updated to contain the line
+   Riley's bashrc file was updated to contain the line
    ```
    export MAIN_MKL_LIBS="/home/riley/intel/oneapi/mkl/latest/lib/intel64"
    export LD_LIBRARY_PATH="${MAIN_MKL_LIBS}:${LD_LIBRARY_PATH}"
