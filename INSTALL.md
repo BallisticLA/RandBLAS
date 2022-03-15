@@ -151,33 +151,41 @@ Here's how Riley configured his BLAS++ and LAPACK++ installations:
 0. Install and configure MKL. You can get MKL [here](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html?operatingsystem=linux&distributions=webdownload&options=online).
    Once you've installed it you need to edit your `.bashrc` file.
    The minimal change is to set the environment variable `MKLROOT`  to something like
-   `~/intel/oneapi/mkl/latest`. The preferred change is to execute an MKL-provided script
-   that changes several environment variables automatically. That script is usually called
-   `setvars.sh`. Riley's bashrc file was updated to contain the line
+   `~/intel/oneapi/mkl/latest`. Riley's bashrc file was updated to contain the line
    ```
-   source ~/intel/oneapi/setvars.sh
+   export MAIN_MKL_LIBS="/home/riley/intel/oneapi/mkl/latest/lib/intel64"
+   export LD_LIBRARY_PATH="${MAIN_MKL_LIBS}:${LD_LIBRARY_PATH}"
+   export LIBRARY_PATH="${MAIN_MKL_LIBS}:${LIBRARY_PATH}"
    ```
+
 1. Download BLAS++ source, create a new folder called ``build``
    at the top level of the BLAS++ project directory, and ``cd`` into that
    folder.
-2. Run ``export CXX=gcc`` so that ``gcc`` is the default compiler for
+
+2. Run ``export CXX=g++`` so that ``gcc`` is the default compiler for
    the current bash session.
+
 3. Decide a common prefix for where you'll put BLAS++ and LAPACK++
    installation files. We recommend ``/opt/mklpp``.
+
 4. Run the following CMake command 
     ```
     cmake -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/opt/mklpp \
-        -DBLAS_LIBRARIES='-lmkl_intel_ilp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread' \
+        -Dblas=mkl \
+        -Dblas_int=int64 \
         -Dbuild_tests=OFF ..
     ```
-    Note how the MKL BLAS and threading libraries are specified explicitly with the ``-DBLAS_LIBRARIES`` flag.
-    Using that flag is in contrast with simply setting ``-Dblas=mkl``,
-    in which case the BLAS++ CMake recipe tries to configure MKL for you.
+   Save the output of that command somewhere. It contains information
+   on the precise BLAS libraries linked to BLAS++.
+
 5. Run ``cmake --build .``
-6. Run ``sudo make -j2 install``
+
+6. Run ``sudo make install``
+
 7. Download LAPACK++ source, create a new folder called ``build`` at the top level
    of the LAPACK++ project directory, and ``cd`` into that folder.
+
 8. Run the following CMake command
    ```
     cmake -DCMAKE_BUILD_TYPE=Release \
@@ -189,7 +197,7 @@ Here's how Riley configured his BLAS++ and LAPACK++ installations:
     ```
 
 You can then link to BLAS++ and LAPACK++ in other CMake projects
-just by including ``find_package(blaspp)`` and ``find_package(lapackpp)``
+just by including ``find_package(blaspp REQUIRED)`` and ``find_package(lapackpp REQUIRED)``
 in your ``CMakeLists.txt`` file, and then passing build flags
 ```
 -Dblaspp_DIR=/opt/mklpp/lib/blaspp -Dlapackpp_DIR=/opt/mklpp/lib/lapackpp
