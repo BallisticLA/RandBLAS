@@ -6,7 +6,6 @@
 #include <Random123/philox.h>
 #include <Random123/uniform.hpp>
 
-
 namespace RandBLAS::util {
 
 void genmat(
@@ -60,6 +59,5 @@ void print_colmaj(uint64_t n_rows, uint64_t n_cols, double *a, char label[])
     printf("\n");
     return;
 }
-
 
 } // end namespace RandBLAS::util
