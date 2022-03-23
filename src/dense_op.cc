@@ -50,7 +50,7 @@ void gen_rmat_unif(int64_t n_rows, int64_t n_cols, float* mat, uint64_t seed)
 
 
 
-void gen_rmat_normal(int64_t n_rows, int64_t n_cols, float* mat, uint64_t seed)
+void gen_rmat_norm(int64_t n_rows, int64_t n_cols, float* mat, uint64_t seed)
 {
         // 4 32-bit generated values
         typedef r123::Philox4x32 CBRNG;
