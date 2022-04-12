@@ -5,6 +5,7 @@
 #include <omp.h>
 
 #include <math.h>
+#include <typeinfo>
 
 #include <Random123/philox.h>
 #include <Random123/boxmuller.hpp>
@@ -18,7 +19,7 @@ Note from Random123: Simply incrementing the counter (or key) is effectively ind
 from a sequence of samples of a uniformly distributed random variable.
 Question: does it matter in which order (row vs col) we fill in data here?
 */
-
+/*
 void gen_rmat_unif(int64_t n_rows, int64_t n_cols, float* mat, uint64_t seed)
 {
         // 4 32-bit generated values
@@ -47,7 +48,6 @@ void gen_rmat_unif(int64_t n_rows, int64_t n_cols, float* mat, uint64_t seed)
                 mat[i + 3] = r123::uneg11<float>(r.v[3]);
         }
 }
-
 
 
 void gen_rmat_norm(int64_t n_rows, int64_t n_cols, float* mat, uint64_t seed)
@@ -81,5 +81,5 @@ void gen_rmat_norm(int64_t n_rows, int64_t n_cols, float* mat, uint64_t seed)
                 mat[i + 3] = pair_2.y;
         }
 }
-
+*/
 } // end namespace RandBLAS::dense_op
