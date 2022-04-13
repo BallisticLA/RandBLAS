@@ -26,6 +26,62 @@ for the distribution type (Philox4x32, Philox4x64, etc), but that might get ugly
 and hard to use.
 */
 
+
+
+// Actual work - uniform dirtibution
+template <typename T, typename T_gen>
+static void gen_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
+{
+        typename T_gen::key_type key = {{12}};
+        // Same return type as counter
+        typename T_gen::ctr_type ctr = {{0,0,0,0}};
+        // Definde the generator
+        T_gen gen;
+
+        int64_t dim = n_rows * n_cols;
+
+        // Need every thread to have its own version of key for the outer loop to be parallelizable
+        // Need to figure out when fork/join overhead becomes less than time saved by parallelization
+
+        // Effectively, below structure is similar to unrolling by a factor of 4
+        int i = 0;
+        // Compensation code - we would effectively not use 1 random number every time here - what could be done about that?
+        int comp = dim % 4;
+        if (comp){
+                // Adding critical section around the increment should make outer loop parallelizable?
+                // Easier to increment the ctr
+                ++ctr[0];
+                typename T_gen::ctr_type r = gen(ctr, key);
+
+                // Only 3 cases here, so will allow myself uglieness
+                mat[i] = r123::uneg11<T>(r.v[0]);
+                ++i;
+                if ((i) < comp)
+                {
+                        mat[i] = r123::uneg11<T>(r.v[1]);
+                        ++i;
+                        if ((i) < comp)
+                        {
+                                mat[i] = r123::uneg11<T>(r.v[2]);
+                                ++i;
+                        }
+                }
+        }
+        for (; i < dim; i += 4)
+        {
+                // Adding critical section around the increment should make outer loop parallelizable?
+                // Easier to increment the ctr
+                ++ctr[0];
+                typename T_gen::ctr_type r = gen(ctr, key);
+
+                // Parallelizable, but too few iterations
+                mat[i] = r123::uneg11<T>(r.v[0]);
+                mat[i + 1] = r123::uneg11<T>(r.v[1]);
+                mat[i + 2] = r123::uneg11<T>(r.v[2]);
+                mat[i + 3] = r123::uneg11<T>(r.v[3]);
+        }
+}
+
 template <typename T>
 void gen_rmat_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
 {
@@ -33,61 +89,82 @@ void gen_rmat_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
         {
                 // 4 32-bit generated values
                 typedef r123::Philox4x32 CBRNG;
-                CBRNG::key_type key = {{seed}};
-                // Same return type as counter
-                CBRNG::ctr_type ctr = {{0,0,0,0}};
-                // Definde the generator
-                CBRNG gen;
-
-                int64_t dim = n_rows * n_cols;
-
-                // Need every thread to have its own version of key for the outer loop to be parallelizable
-                // Need to figure out when fork/join overhead becomes less than time saved by parallelization
-                for (int64_t i = 0; i < dim; i += 4)
-                {
-                        // Adding critical section around the increment should make outer loop parallelizable?
-                        // Easier to increment the ctr
-                        ++ctr[0];
-                        CBRNG::ctr_type r = gen(ctr, key);
-
-                        // Parallelizable, but too few iterations
-                        mat[i] = r123::uneg11<T>(r.v[0]);
-                        mat[i + 1] = r123::uneg11<T>(r.v[1]);
-                        mat[i + 2] = r123::uneg11<T>(r.v[2]);
-                        mat[i + 3] = r123::uneg11<T>(r.v[3]);
-                }
+                // Casting is done only so that the compiler does not throw an error
+                gen_unif<float, CBRNG>(n_rows, n_cols, (float*) mat, seed);
         }
         else if (typeid(T) == typeid(double))
         {
                 // 4 64-bit generated values
                 typedef r123::Philox4x64 CBRNG;
-                CBRNG::key_type key = {{seed}};
-                // Same return type as counter
-                CBRNG::ctr_type ctr = {{0,0,0,0}};
-                // Definde the generator
-                CBRNG gen;
-
-                int64_t dim = n_rows * n_cols;
-
-                // Need every thread to have its own version of key for the outer loop to be parallelizable
-                // Need to figure out when fork/join overhead becomes less than time saved by parallelization
-                for (int64_t i = 0; i < dim; i += 4)
-                {
-                        // Adding critical section around the increment should make outer loop parallelizable?
-                        // Easier to increment the ctr
-                        ++ctr[0];
-                        CBRNG::ctr_type r = gen(ctr, key);
-
-                        // Parallelizable, but too few iterations
-                        mat[i] = r123::uneg11<T>(r.v[0]);
-                        mat[i + 1] = r123::uneg11<T>(r.v[1]);
-                        mat[i + 2] = r123::uneg11<T>(r.v[2]);
-                        mat[i + 3] = r123::uneg11<T>(r.v[3]);
-                }
+                // Casting is done only so that the compiler does not throw an error
+                gen_unif<double, CBRNG>(n_rows, n_cols, (double*) mat, seed);
         }
         else
         {
                 printf("\nType error. Only float and double are supported for now.\n");
+        }
+}
+
+// Actual work - normal distribution
+template <typename T, typename T_gen, typename T_fun>
+static void gen_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
+{
+        typename T_gen::key_type key = {{seed}};
+        // Same return type as counter
+        typename T_gen::ctr_type ctr = {{0,0,0,0}};
+        // Definde the generator
+        T_gen gen;
+
+        uint64_t dim = n_rows * n_cols;
+
+        // Effectively, below structure is similar to unrolling by a factor of 4
+        int i = 0;
+        // Compensation code - we would effectively not use 1 random number every time here - what could be done about that?
+        int comp = dim % 4;
+        if (comp){
+
+                ++ctr[0];
+                typename T_gen::ctr_type r = gen(ctr, key);
+                // Paralleleize
+
+                // Take 2 32-bit unsigned random vals, return 2 random floats
+                // Since generated vals are indistinguishable form uniform, feed them into box-muller right away
+                // Uses uneg11 & u01 under the hood
+                T_fun pair_1 = r123::boxmuller(r.v[0], r.v[1]);
+                T_fun pair_2 = r123::boxmuller(r.v[2], r.v[3]);
+
+                // Only 3 cases here, so will allow myself uglieness
+                mat[i] = pair_1.x;
+                ++i;
+                if ((i) < comp)
+                {
+                        mat[i] = pair_1.y;
+                        ++i;
+                        if ((i) < comp)
+                        {
+                                mat[i] = pair_2.x;
+                                ++i;
+                        }
+                }
+        }
+        // Unrolling
+        for (; i < dim; i += 4)
+        {
+                // Easier to increment the ctr
+                ++ctr[0];
+                typename T_gen::ctr_type r = gen(ctr, key);
+                // Paralleleize
+
+                // Take 2 32-bit unsigned random vals, return 2 random floats
+                // Since generated vals are indistinguishable form uniform, feed them into box-muller right away
+                // Uses uneg11 & u01 under the hood
+                T_fun pair_1 = r123::boxmuller(r.v[0], r.v[1]);
+                T_fun pair_2 = r123::boxmuller(r.v[2], r.v[3]);
+
+                mat[i] = pair_1.x;
+                mat[i + 1] = pair_1.y;
+                mat[i + 2] = pair_2.x;
+                mat[i + 3] = pair_2.y;
         }
 }
 
@@ -98,63 +175,16 @@ void gen_rmat_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
         {
                 // 4 32-bit generated values
                 typedef r123::Philox4x32 CBRNG;
-                CBRNG::key_type key = {{seed}};
-                // Same return type as counter
-                CBRNG::ctr_type ctr = {{0,0,0,0}};
-                // Definde the generator
-                CBRNG gen;
+                // Casting is done only so that the compiler does not throw an error
+                gen_norm<float, CBRNG, r123::float2>(n_rows, n_cols, (float *) mat, seed);
 
-                uint64_t dim = n_rows * n_cols;
-
-                for (uint64_t i = 0; i < dim; i += 4)
-                {
-                        // Easier to increment the ctr
-                        ++ctr[0];
-                        CBRNG::ctr_type r = gen(ctr, key);
-                        // Paralleleize
-
-                        // Take 2 32-bit unsigned random vals, return 2 random floats
-                        // Since generated vals are indistinguishable form uniform, feed them into box-muller right away
-                        // Uses uneg11 & u01 under the hood
-                        r123::float2 pair_1 = r123::boxmuller(r.v[0], r.v[1]);
-                        r123::float2 pair_2 = r123::boxmuller(r.v[2], r.v[3]);
-
-                        mat[i] = pair_1.x;
-                        mat[i + 1] = pair_1.y;
-                        mat[i + 2] = pair_2.x;
-                        mat[i + 3] = pair_2.y;
-                }
         }
         else if (typeid(T) == typeid(double))
         {
-                // 4 64-bit generated values
+                // 4 32-bit generated values
                 typedef r123::Philox4x64 CBRNG;
-                CBRNG::key_type key = {{seed}};
-                // Same return type as counter
-                CBRNG::ctr_type ctr = {{0,0,0,0}};
-                // Definde the generator
-                CBRNG gen;
-
-                uint64_t dim = n_rows * n_cols;
-
-                for (uint64_t i = 0; i < dim; i += 4)
-                {
-                        // Easier to increment the ctr
-                        ++ctr[0];
-                        CBRNG::ctr_type r = gen(ctr, key);
-                        // Paralleleize
-
-                        // Take 2 32-bit unsigned random vals, return 2 random floats
-                        // Since generated vals are indistinguishable form uniform, feed them into box-muller right away
-                        // Uses uneg11 & u01 under the hood
-                        r123::double2 pair_1 = r123::boxmuller(r.v[0], r.v[1]);
-                        r123::double2 pair_2 = r123::boxmuller(r.v[2], r.v[3]);
-
-                        mat[i] = pair_1.x;
-                        mat[i + 1] = pair_1.y;
-                        mat[i + 2] = pair_2.x;
-                        mat[i + 3] = pair_2.y;
-                }
+                // Casting is done only so that the compiler does not throw an error
+                gen_norm<double, CBRNG, r123::double2>(n_rows, n_cols, (double *) mat, seed);
         }        
         else
         {
