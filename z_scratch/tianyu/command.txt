@@ -14,6 +14,7 @@
 
 /*********************/ // TACC INT32
 //icc -O3 test.cpp -lmkl_intel_lp64 -fopenmp -lmkl_core -lmkl_intel_thread
+//icc -O3 save_storage.cpp -lmkl_intel_lp64 -fopenmp -lmkl_core -lmkl_intel_thread -DLIKWID_PERFMON
 
 // INT64, make sure to use UINT64 or redefine MKL_INT to uint64 in program
 // /opt/intel/oneapi/compiler/2022.0.2/linux/bin/icpx official_test.cpp -O3 -I/opt/intel/oneapi/mkl/2022.0.2/include -I/opt/intel/oneapi/mkl/2022.0.2/lib/intel64/ -lmkl_intel_ilp64 -fopenmp -lmkl_core -lmkl_intel_thread -L/home/ty/Documents/randlapack/proto_rblas-install/lib/librblas.a -I/home/ty/Documents/randlapack/proto_rblas-install/include -I/home/ty/Documents/randlapack/blaspp-install/include
