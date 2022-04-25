@@ -26,3 +26,6 @@
 // likwid-perfctr -C 0 -g FLOPS_DP -m ./a.out
 // LD_LIBRARY_PATH=/usr/local/lib
 // echo $LD_LIBRARY_PATH
+
+//**************************** hpctoolkit
+// hpcrun, hpcprof, hpcviewer
