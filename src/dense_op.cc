@@ -19,11 +19,13 @@ Note from Random123: Simply incrementing the counter (or key) is effectively ind
 from a sequence of samples of a uniformly distributed random variable.
 Question: does it matter in which order (row vs col) we fill in data here?
 
-Note: currently, the implementation is pretty ugly.
-Instead of just using a template type T, i'm having atypeid conditional
-For a better version, will probably need two templates - one for the data type and one 
-for the distribution type (Philox4x32, Philox4x64, etc), but that might get ugly in terms of what a user sees
-and hard to use.
+Notes:
+1. Is using several templates here a bad decision? Currently, Not sure how to make generalized implementations
+   to support both 2 and 4 random number generations.
+2. With every function run, at least 1 and up to 3 generated random numbers will not be used. Is it worth storing those
+   numbers for subsequent runs?
+3. Need comments on how to figure out an effective way of adding parallelization here.
+4. Note on eventually needing to add 8 and 16-bit generations.
 */
 
 
@@ -45,15 +47,14 @@ static void gen_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
 
         // Effectively, below structure is similar to unrolling by a factor of 4
         int i = 0;
-        // Compensation code - we would effectively not use 1 random number every time here - what could be done about that?
+        // Compensation code - we would effectively not use at least 1 and up to 3 generated random numbers 
         int comp = dim % 4;
         if (comp){
-                // Adding critical section around the increment should make outer loop parallelizable?
                 // Easier to increment the ctr
                 ++ctr[0];
                 typename T_gen::ctr_type r = gen(ctr, key);
 
-                // Only 3 cases here, so will allow myself uglieness
+                // Only 3 cases here, so using nested ifs
                 mat[i] = r123::uneg11<T>(r.v[0]);
                 ++i;
                 if ((i) < comp)
@@ -74,7 +75,6 @@ static void gen_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
                 ++ctr[0];
                 typename T_gen::ctr_type r = gen(ctr, key);
 
-                // Parallelizable, but too few iterations
                 mat[i] = r123::uneg11<T>(r.v[0]);
                 mat[i + 1] = r123::uneg11<T>(r.v[1]);
                 mat[i + 2] = r123::uneg11<T>(r.v[2]);
@@ -101,7 +101,7 @@ void gen_rmat_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
         }
         else
         {
-                printf("\nType error. Only float and double are supported for now.\n");
+                printf("\nType error. Only float and double are currently supported.\n");
         }
 }
 
@@ -119,21 +119,20 @@ static void gen_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
 
         // Effectively, below structure is similar to unrolling by a factor of 4
         int i = 0;
-        // Compensation code - we would effectively not use 1 random number every time here - what could be done about that?
+        // Compensation code - we would effectively not use at least 1 and up to 3 generated random numbers 
         int comp = dim % 4;
         if (comp){
 
                 ++ctr[0];
                 typename T_gen::ctr_type r = gen(ctr, key);
-                // Paralleleize
 
-                // Take 2 32-bit unsigned random vals, return 2 random floats
+                // Take 2 32 or 64-bit unsigned random vals, return 2 random floats/doubles
                 // Since generated vals are indistinguishable form uniform, feed them into box-muller right away
                 // Uses uneg11 & u01 under the hood
                 T_fun pair_1 = r123::boxmuller(r.v[0], r.v[1]);
                 T_fun pair_2 = r123::boxmuller(r.v[2], r.v[3]);
 
-                // Only 3 cases here, so will allow myself uglieness
+                // Only 3 cases here, so using nested ifs
                 mat[i] = pair_1.x;
                 ++i;
                 if ((i) < comp)
@@ -155,7 +154,7 @@ static void gen_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
                 typename T_gen::ctr_type r = gen(ctr, key);
                 // Paralleleize
 
-                // Take 2 32-bit unsigned random vals, return 2 random floats
+                // Take 2 32 or 64-bit unsigned random vals, return 2 random floats/doubles
                 // Since generated vals are indistinguishable form uniform, feed them into box-muller right away
                 // Uses uneg11 & u01 under the hood
                 T_fun pair_1 = r123::boxmuller(r.v[0], r.v[1]);
@@ -188,7 +187,7 @@ void gen_rmat_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
         }        
         else
         {
-                printf("\nType error. Only float and double are supported for now.\n");
+                printf("\nType error. Only float and double are currently supported.\n");
         }
 }
 
