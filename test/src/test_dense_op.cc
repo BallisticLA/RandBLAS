@@ -8,10 +8,6 @@
 #define RELDTOL 1e-10;
 #define ABSDTOL 1e-12;
 
-
-/*
-Note: need more ideas for meaningful tests (something about matrix norms?).
-*/
 class TestDenseGaussianOp : public ::testing::Test
 {
     protected:

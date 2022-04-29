@@ -35,8 +35,6 @@ template <typename T, typename T_gen>
 static void gen_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
 {
         typename T_gen::key_type key = {{12}};
-        // Same return type as counter
-        typename T_gen::ctr_type ctr = {{0,0,0,0}};
         // Definde the generator
         T_gen gen;
 
@@ -46,22 +44,22 @@ static void gen_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
         // Need to figure out when fork/join overhead becomes less than time saved by parallelization
 
         // Effectively, below structure is similar to unrolling by a factor of 4
-        int i = 0;
+        uint32_t i = 0;
         // Compensation code - we would effectively not use at least 1 and up to 3 generated random numbers 
         int comp = dim % 4;
+
         if (comp){
-                // Easier to increment the ctr
-                ++ctr[0];
-                typename T_gen::ctr_type r = gen(ctr, key);
+                // Below array represents counter unpating
+                typename T_gen::ctr_type r = gen({{1,0,0,0}}, key);
 
                 // Only 3 cases here, so using nested ifs
                 mat[i] = r123::uneg11<T>(r.v[0]);
                 ++i;
-                if ((i) < comp)
+                if (i < comp)
                 {
                         mat[i] = r123::uneg11<T>(r.v[1]);
                         ++i;
-                        if ((i) < comp)
+                        if (i < comp)
                         {
                                 mat[i] = r123::uneg11<T>(r.v[2]);
                                 ++i;
@@ -71,9 +69,8 @@ static void gen_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
         for (; i < dim; i += 4)
         {
                 // Adding critical section around the increment should make outer loop parallelizable?
-                // Easier to increment the ctr
-                ++ctr[0];
-                typename T_gen::ctr_type r = gen(ctr, key);
+                // Below array represents counter updating
+                typename T_gen::ctr_type r = gen({{i,0,0,0}}, key);
 
                 mat[i] = r123::uneg11<T>(r.v[0]);
                 mat[i + 1] = r123::uneg11<T>(r.v[1]);
@@ -110,21 +107,19 @@ template <typename T, typename T_gen, typename T_fun>
 static void gen_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
 {
         typename T_gen::key_type key = {{seed}};
-        // Same return type as counter
-        typename T_gen::ctr_type ctr = {{0,0,0,0}};
         // Definde the generator
         T_gen gen;
 
         uint64_t dim = n_rows * n_cols;
 
         // Effectively, below structure is similar to unrolling by a factor of 4
-        int i = 0;
+        uint32_t i = 0;
         // Compensation code - we would effectively not use at least 1 and up to 3 generated random numbers 
         int comp = dim % 4;
         if (comp){
 
-                ++ctr[0];
-                typename T_gen::ctr_type r = gen(ctr, key);
+                // Below array represents counter updating
+                typename T_gen::ctr_type r = gen({{1, 0, 0, 0}}, key);
 
                 // Take 2 32 or 64-bit unsigned random vals, return 2 random floats/doubles
                 // Since generated vals are indistinguishable form uniform, feed them into box-muller right away
@@ -135,11 +130,11 @@ static void gen_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
                 // Only 3 cases here, so using nested ifs
                 mat[i] = pair_1.x;
                 ++i;
-                if ((i) < comp)
+                if (i < comp)
                 {
                         mat[i] = pair_1.y;
                         ++i;
-                        if ((i) < comp)
+                        if (i < comp)
                         {
                                 mat[i] = pair_2.x;
                                 ++i;
@@ -149,9 +144,8 @@ static void gen_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
         // Unrolling
         for (; i < dim; i += 4)
         {
-                // Easier to increment the ctr
-                ++ctr[0];
-                typename T_gen::ctr_type r = gen(ctr, key);
+                // Below array represents counter updating
+                typename T_gen::ctr_type r = gen({{i, 0, 0, 0}}, key);
                 // Paralleleize
 
                 // Take 2 32 or 64-bit unsigned random vals, return 2 random floats/doubles

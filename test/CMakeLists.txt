@@ -1,7 +1,5 @@
 message(STATUS "Checking for regression tests ...")
 
-# include dependencies on blaspp & random123?
-
 project(randblas_test)
 
 find_package(GTest)
