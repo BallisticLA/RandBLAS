@@ -17,15 +17,10 @@ namespace RandBLAS::dense_op {
 /*
 Note from Random123: Simply incrementing the counter (or key) is effectively indistinguishable
 from a sequence of samples of a uniformly distributed random variable.
-Question: does it matter in which order (row vs col) we fill in data here?
 
 Notes:
-1. Is using several templates here a bad decision? Currently, Not sure how to make generalized implementations
-   to support both 2 and 4 random number generations.
-2. With every function run, at least 1 and up to 3 generated random numbers will not be used. Is it worth storing those
-   numbers for subsequent runs?
-3. Need comments on how to figure out an effective way of adding parallelization here.
-4. Note on eventually needing to add 8 and 16-bit generations.
+1. Currently, Not sure how to make generalized implementations to support both 2 and 4 random number generations.
+2. Note on eventually needing to add 8 and 16-bit generations.
 */
 
 
