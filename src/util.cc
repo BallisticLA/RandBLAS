@@ -6,13 +6,13 @@
 #include <Random123/philox.h>
 #include <Random123/uniform.hpp>
 
-
 namespace RandBLAS::util {
 
+template <typename T>
 void genmat(
 	int64_t n_rows,
 	int64_t n_cols,
-	double* mat,
+	T* mat,
 	uint64_t seed)
 {
 	typedef r123::Philox2x64 CBRNG;
@@ -24,15 +24,15 @@ void genmat(
 	{
 		ctr[0] = i;
 		CBRNG::ctr_type rand = g(ctr, key);
-		mat[i] = r123::uneg11<double>(rand.v[0]);
+		mat[i] = r123::uneg11<T>(rand.v[0]);
 	}
 }
 
-
-void print_colmaj(uint64_t n_rows, uint64_t n_cols, double *a, char label[])
+template <typename T>
+void print_colmaj(uint64_t n_rows, uint64_t n_cols, T *a, char label[])
 {
 	uint64_t i, j;
-    double val;
+    T val;
 	std::cout << "\n" << label << std::endl;
     for (i = 0; i < n_rows; ++i) {
         std::cout << "\t";
@@ -62,4 +62,9 @@ void print_colmaj(uint64_t n_rows, uint64_t n_cols, double *a, char label[])
 }
 
 
+template void print_colmaj<float>(uint64_t n_rows, uint64_t n_cols, float *a, char label[]);
+template void print_colmaj<double>(uint64_t n_rows, uint64_t n_cols, double *a, char label[]);
+
+template void genmat<float>(int64_t n_rows, int64_t n_cols, float* mat, uint64_t seed);
+template void genmat<double>(int64_t n_rows, int64_t n_cols, double* mat, uint64_t seed);
 } // end namespace RandBLAS::util
