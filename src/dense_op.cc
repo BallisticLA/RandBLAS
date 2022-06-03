@@ -29,7 +29,7 @@ Notes:
 template <typename T, typename T_gen>
 static void gen_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
 {
-        typename T_gen::key_type key = {{12}};
+        typename T_gen::key_type key = {{seed}};
         // Definde the generator
         T_gen gen;
 
