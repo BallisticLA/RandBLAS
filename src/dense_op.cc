@@ -7,6 +7,20 @@
 #include <math.h>
 #include <typeinfo>
 
+// The following two functions are part of NVIDIA device side math library.
+// Random123 relies on them in both host and device sources.  We can work
+// around this by defining them when not compiling device code.
+#if !defined(__CUDACC__)
+static inline void sincospif(float x, float *s, float *c) {
+    const float PIf = 3.1415926535897932f;
+    sincosf(PIf*x, s, c);
+}
+
+static inline void sincospi(double x, double *s, double *c) {
+    const double PI = 3.1415926535897932;
+    sincos(PI*x, s, c);
+}
+#endif
 #include <Random123/philox.h>
 #include <Random123/boxmuller.hpp>
 #include <Random123/uniform.hpp>
