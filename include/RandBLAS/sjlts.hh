@@ -24,6 +24,8 @@ void fill_colwise(SJLT sjl, uint64_t seed_key, uint64_t seed_ctr);
 
 void sketch_cscrow(SJLT sjl, uint64_t n, double *a, double *a_hat, int threads);
 
+void sketch_csccol(SJLT sjl, int64_t m, int64_t n, double *a, double *a_hat);
+
 void print_sjlt(SJLT sjl);
 
 } // end namespace RandBLAS::sjlts
