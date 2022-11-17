@@ -12,17 +12,17 @@ enum sjlt_orientation {ColumnWise, RowWise};
 
 struct SJLT {
     sjlt_orientation ori;
-    uint64_t n_rows;
-    uint64_t n_cols;
-    uint64_t vec_nnz;
-    uint64_t *rows;
-    uint64_t *cols;
+    int64_t n_rows;
+    int64_t n_cols;
+    int64_t vec_nnz;
+    int64_t *rows;
+    int64_t *cols;
     double *vals;
 };
 
 void fill_colwise(SJLT sjl, uint64_t seed_key, uint64_t seed_ctr);
 
-void sketch_cscrow(SJLT sjl, uint64_t n, double *a, double *a_hat, int threads);
+void sketch_cscrow(SJLT sjl, int64_t n, double *a, double *a_hat, int threads);
 
 void sketch_csccol(SJLT sjl, int64_t m, int64_t n, double *a, double *a_hat);
 
