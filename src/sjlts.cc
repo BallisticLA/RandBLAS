@@ -148,22 +148,19 @@ void sketch_cscrow(SJLT sjl, int64_t n, double *a, double *a_hat, int threads){
 	}
 }
 
-void sketch_csccol(SJLT sjl, int64_t m, int64_t n, double *a, double *a_hat){
+void sketch_csccol(SJLT sjl, int64_t n, double *a, double *a_hat, int threads){
+    int64_t m = sjl.n_cols;
+    omp_set_num_threads(threads);
 	#pragma omp parallel default(shared)
 	{
-
 		#pragma omp for schedule(static)
 		for(int64_t k = 0; k < n; k++){
 			double *a_col = &a[m * k];
 			for(int c = 0; c < m; c++){
-				
 				double scale = a_col[c];
 				for (int64_t r = c * sjl.vec_nnz; r < (c + 1) * sjl.vec_nnz; r++){
-					int64_t ori_row = (sjl.rows)[r];
-					int64_t sign = (double(0) < ori_row) - (ori_row < double(0));
-					int64_t row = ori_row * sign - 1;
-
-					a_hat[k * sjl.n_rows + row] += (sign * scale);
+                    int64_t row = sjl.rows[r];
+					a_hat[k * sjl.n_rows + row] += (sjl.vals[r] * scale);
 				}		
 			}
 		}
