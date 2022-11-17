@@ -79,7 +79,15 @@ make -j install  # might need "sudo make -j install"
 ctest  # run unit tests (only if GTest was found by CMake)
 ```
 
-Here are the conceptual meanings in the recipe's build flags:
+If you're running macOS, then it may be necessary to specify
+an additional flag to CMake
+```shell
+     -DCMAKE_CXX_FLAGS="-D __APPLE__"
+```
+This flag is needed to avoid compiler errors with the "sincosf" and "sincos"
+functions in "dense_op.cc".
+
+Here are the conceptual meanings of the recipe's other build flags:
 
 * `-Dblaspp_DIR=X` means `X` is the directory containing the file `blasppConfig.cmake`.
    
