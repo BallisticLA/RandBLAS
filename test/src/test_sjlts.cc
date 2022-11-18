@@ -91,9 +91,21 @@ void sjlt_to_dense_rowmajor(RandBLAS::sjlts::SJLT sjl, double *mat)
     }
 }
 
+void sjlt_to_dense_colmajor(RandBLAS::sjlts::SJLT sjl, double *mat)
+{
+    int64_t nnz = sjl.n_cols * sjl.vec_nnz;
+    for (int64_t i = 0; i < nnz; ++i)
+    {
+        int64_t row = sjl.rows[i];
+        int64_t col = sjl.cols[i];
+        double val = sjl.vals[i];
+        mat[row + sjl.n_rows * col] = val;
+    }
+}
 
 
-class TestApplyCscRowMaj : public ::testing::Test
+
+class TestApplyCsc : public ::testing::Test
 {
     // only tests column-sparse SJLTs for now.
     protected:
@@ -107,7 +119,7 @@ class TestApplyCscRowMaj : public ::testing::Test
 
     virtual void TearDown() {};
 
-    virtual void apply(int64_t key_index, int64_t nnz_index, int threads)
+    virtual void apply_rowmajor(int64_t key_index, int64_t nnz_index, int threads)
     {
         uint64_t a_seed = 99;
 
@@ -162,27 +174,105 @@ class TestApplyCscRowMaj : public ::testing::Test
             }    
         }
     }
+
+    virtual void apply_colmajor(int64_t key_index, int64_t nnz_index, int threads)
+    {
+        uint64_t a_seed = 99;
+
+        // construct test data: A
+        double *a = new double[m * n];
+        RandBLAS::util::genmat(m, n, a, a_seed);
+
+        // construct test data: S
+        struct RandBLAS::sjlts::SJLT sjl;
+        sjl.ori = RandBLAS::sjlts::ColumnWise;
+        sjl.n_rows = d; // > n
+        sjl.n_cols = m;
+        sjl.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
+        sjl.rows = new int64_t[sjl.vec_nnz * m];
+        sjl.cols = new int64_t[sjl.vec_nnz * m];
+        sjl.vals = new double[sjl.vec_nnz * m];
+        RandBLAS::sjlts::fill_colwise(sjl, keys[key_index], 0);
+        
+        // compute S*A. 
+        double *a_hat = new double[d * n];
+        for (int64_t i = 0; i < d * n; ++i)
+        {
+            a_hat[i] = 0.0;
+        }
+        RandBLAS::sjlts::sketch_csccol(sjl, n, a, a_hat, threads);
+
+        // compute expected result
+        double *a_hat_expect = new double[d * n];
+        double *S = new double[d * m];
+        sjlt_to_dense_colmajor(sjl, S);
+        int lds = (int) d;
+        int lda = (int) m; 
+        int ldahat = (int) d;
+        blas::gemm(
+            blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans,
+            d, n, m,
+            1.0, S, lds, a, lda,
+            0.0, a_hat_expect, ldahat);
+
+        // check the result
+        double reldtol = RELDTOL;
+        for (int64_t i = 0; i < d; ++i)
+        {
+            for (int64_t j = 0; j < n; ++j)
+            {
+                int64_t ell = i + j*d;
+                double expect = a_hat_expect[ell];
+                double actual = a_hat[ell];
+                double atol = reldtol * std::min(abs(actual), abs(expect));
+                if (atol == 0.0) atol = ABSDTOL;
+                ASSERT_NEAR(actual, expect, atol);
+            }    
+        }
+    }
 };
 
 
-TEST_F(TestApplyCscRowMaj, OneThread)
+TEST_F(TestApplyCsc, OneThread_RowMajor)
 {
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply(k_idx, nz_idx, 1);
+            apply_rowmajor(k_idx, nz_idx, 1);
         }
     }
 }
 
-TEST_F(TestApplyCscRowMaj, TwoThreads)
+TEST_F(TestApplyCsc, TwoThreads_RowMajor)
 {
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply(k_idx, nz_idx, 2);
+            apply_rowmajor(k_idx, nz_idx, 2);
+        }
+    }
+}
+
+TEST_F(TestApplyCsc, OneThread_ColMajor)
+{
+    for (int64_t k_idx : {0, 1, 2})
+    {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0})
+        {
+            apply_colmajor(k_idx, nz_idx, 1);
+        }
+    }
+}
+
+TEST_F(TestApplyCsc, TwoThreads_ColMajor)
+{
+    for (int64_t k_idx : {0, 1, 2})
+    {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0})
+        {
+            apply_colmajor(k_idx, nz_idx, 2);
         }
     }
 }
