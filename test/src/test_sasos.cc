@@ -22,7 +22,6 @@ class TestSASOConstruction : public ::testing::Test
     virtual void proper_construction(int64_t key_index, int64_t nnz_index)
     {
         struct RandBLAS::sasos::SASO sas;
-        sas.ori = RandBLAS::sasos::ColumnWise;
         sas.n_rows = d; // > n
         sas.n_cols = m;
         sas.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
@@ -129,7 +128,6 @@ class TestApplyCsc : public ::testing::Test
 
         // construct test data: S
         struct RandBLAS::sasos::SASO sas;
-        sas.ori = RandBLAS::sasos::ColumnWise;
         sas.n_rows = d; // > n
         sas.n_cols = m;
         sas.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
@@ -185,7 +183,6 @@ class TestApplyCsc : public ::testing::Test
 
         // construct test data: S
         struct RandBLAS::sasos::SASO sas;
-        sas.ori = RandBLAS::sasos::ColumnWise;
         sas.n_rows = d; // > n
         sas.n_cols = m;
         sas.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
