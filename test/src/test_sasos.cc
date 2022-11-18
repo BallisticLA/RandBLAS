@@ -6,9 +6,9 @@
 #define ABSDTOL 1e-12;
 
 
-class TestSJLTConstruction : public ::testing::Test
+class TestSASOConstruction : public ::testing::Test
 {
-    // only tests column-sparse SJLTs for now.
+    // only tests column-sparse SASOs for now.
     protected:
         int64_t d = 7;
         int64_t m = 20;
@@ -21,27 +21,27 @@ class TestSJLTConstruction : public ::testing::Test
 
     virtual void proper_construction(int64_t key_index, int64_t nnz_index)
     {
-        struct RandBLAS::sjlts::SJLT sjl;
-        sjl.ori = RandBLAS::sjlts::ColumnWise;
-        sjl.n_rows = d; // > n
-        sjl.n_cols = m;
-        sjl.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
-        sjl.rows = new int64_t[sjl.vec_nnz * m];
-        sjl.cols = new int64_t[sjl.vec_nnz * m];
-        sjl.vals = new double[sjl.vec_nnz * m];
-        RandBLAS::sjlts::fill_colwise(sjl, keys[key_index], 0);
+        struct RandBLAS::sasos::SASO sas;
+        sas.ori = RandBLAS::sasos::ColumnWise;
+        sas.n_rows = d; // > n
+        sas.n_cols = m;
+        sas.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
+        sas.rows = new int64_t[sas.vec_nnz * m];
+        sas.cols = new int64_t[sas.vec_nnz * m];
+        sas.vals = new double[sas.vec_nnz * m];
+        RandBLAS::sasos::fill_colwise(sas, keys[key_index], 0);
 
-        // check that each block of sjl.vec_nnz entries of sjl.rows is
+        // check that each block of sas.vec_nnz entries of sas.rows is
         // sampled without replacement from 0,...,n_rows - 1.
         std::set<int64_t> s;
         int64_t offset = 0;
-        for (int64_t i = 0; i < sjl.n_cols; ++i)
+        for (int64_t i = 0; i < sas.n_cols; ++i)
         {
-            offset = sjl.vec_nnz * i;
+            offset = sas.vec_nnz * i;
             s.clear();
-            for (int64_t j = 0; j < sjl.vec_nnz; ++j)
+            for (int64_t j = 0; j < sas.vec_nnz; ++j)
             {
-                int64_t row = sjl.rows[offset + j];
+                int64_t row = sas.rows[offset + j];
                 ASSERT_EQ(s.count(row), 0);
                 s.insert(row);
             }
@@ -49,28 +49,28 @@ class TestSJLTConstruction : public ::testing::Test
     } 
 };
 
-TEST_F(TestSJLTConstruction, Dim7by20nnz1)
+TEST_F(TestSASOConstruction, Dim7by20nnz1)
 {
     proper_construction(0, 0);
     proper_construction(1, 0);
     proper_construction(2, 0);
 }
 
-TEST_F(TestSJLTConstruction, Dim7by20nnz2)
+TEST_F(TestSASOConstruction, Dim7by20nnz2)
 {
     proper_construction(0, 1);
     proper_construction(1, 1);
     proper_construction(2, 1);
 }
 
-TEST_F(TestSJLTConstruction, Dim7by20nnz3)
+TEST_F(TestSASOConstruction, Dim7by20nnz3)
 {
     proper_construction(0, 2);
     proper_construction(1, 2);
     proper_construction(2, 2);
 }
 
-TEST_F(TestSJLTConstruction, Dim7by20nnz7)
+TEST_F(TestSASOConstruction, Dim7by20nnz7)
 {
     proper_construction(0, 3);
     proper_construction(1, 3);
@@ -79,27 +79,27 @@ TEST_F(TestSJLTConstruction, Dim7by20nnz7)
 
 
 
-void sjlt_to_dense_rowmajor(RandBLAS::sjlts::SJLT sjl, double *mat)
+void sast_to_dense_rowmajor(RandBLAS::sasos::SASO sas, double *mat)
 {
-    int64_t nnz = sjl.n_cols * sjl.vec_nnz;
+    int64_t nnz = sas.n_cols * sas.vec_nnz;
     for (int64_t i = 0; i < nnz; ++i)
     {
-        int64_t row = sjl.rows[i];
-        int64_t col = sjl.cols[i];
-        double val = sjl.vals[i];
-        mat[row * sjl.n_cols + col] = val;
+        int64_t row = sas.rows[i];
+        int64_t col = sas.cols[i];
+        double val = sas.vals[i];
+        mat[row * sas.n_cols + col] = val;
     }
 }
 
-void sjlt_to_dense_colmajor(RandBLAS::sjlts::SJLT sjl, double *mat)
+void sast_to_dense_colmajor(RandBLAS::sasos::SASO sas, double *mat)
 {
-    int64_t nnz = sjl.n_cols * sjl.vec_nnz;
+    int64_t nnz = sas.n_cols * sas.vec_nnz;
     for (int64_t i = 0; i < nnz; ++i)
     {
-        int64_t row = sjl.rows[i];
-        int64_t col = sjl.cols[i];
-        double val = sjl.vals[i];
-        mat[row + sjl.n_rows * col] = val;
+        int64_t row = sas.rows[i];
+        int64_t col = sas.cols[i];
+        double val = sas.vals[i];
+        mat[row + sas.n_rows * col] = val;
     }
 }
 
@@ -107,7 +107,7 @@ void sjlt_to_dense_colmajor(RandBLAS::sjlts::SJLT sjl, double *mat)
 
 class TestApplyCsc : public ::testing::Test
 {
-    // only tests column-sparse SJLTs for now.
+    // only tests column-sparse SASOs for now.
     protected:
         int64_t d = 19;
         int64_t m = 201;
@@ -128,15 +128,15 @@ class TestApplyCsc : public ::testing::Test
         RandBLAS::util::genmat(m, n, a, a_seed);
 
         // construct test data: S
-        struct RandBLAS::sjlts::SJLT sjl;
-        sjl.ori = RandBLAS::sjlts::ColumnWise;
-        sjl.n_rows = d; // > n
-        sjl.n_cols = m;
-        sjl.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
-        sjl.rows = new int64_t[sjl.vec_nnz * m];
-        sjl.cols = new int64_t[sjl.vec_nnz * m];
-        sjl.vals = new double[sjl.vec_nnz * m];
-        RandBLAS::sjlts::fill_colwise(sjl, keys[key_index], 0);
+        struct RandBLAS::sasos::SASO sas;
+        sas.ori = RandBLAS::sasos::ColumnWise;
+        sas.n_rows = d; // > n
+        sas.n_cols = m;
+        sas.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
+        sas.rows = new int64_t[sas.vec_nnz * m];
+        sas.cols = new int64_t[sas.vec_nnz * m];
+        sas.vals = new double[sas.vec_nnz * m];
+        RandBLAS::sasos::fill_colwise(sas, keys[key_index], 0);
         
         // compute S*A. 
         double *a_hat = new double[d * n];
@@ -144,12 +144,12 @@ class TestApplyCsc : public ::testing::Test
         {
             a_hat[i] = 0.0;
         }
-        RandBLAS::sjlts::sketch_cscrow(sjl, n, a, a_hat, threads);
+        RandBLAS::sasos::sketch_cscrow(sas, n, a, a_hat, threads);
 
         // compute expected result
         double *a_hat_expect = new double[d * n];
         double *S = new double[d * m];
-        sjlt_to_dense_rowmajor(sjl, S);
+        sast_to_dense_rowmajor(sas, S);
         int lds = (int) m;
         int lda = (int) n; 
         int ldahat = (int) n;
@@ -184,15 +184,15 @@ class TestApplyCsc : public ::testing::Test
         RandBLAS::util::genmat(m, n, a, a_seed);
 
         // construct test data: S
-        struct RandBLAS::sjlts::SJLT sjl;
-        sjl.ori = RandBLAS::sjlts::ColumnWise;
-        sjl.n_rows = d; // > n
-        sjl.n_cols = m;
-        sjl.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
-        sjl.rows = new int64_t[sjl.vec_nnz * m];
-        sjl.cols = new int64_t[sjl.vec_nnz * m];
-        sjl.vals = new double[sjl.vec_nnz * m];
-        RandBLAS::sjlts::fill_colwise(sjl, keys[key_index], 0);
+        struct RandBLAS::sasos::SASO sas;
+        sas.ori = RandBLAS::sasos::ColumnWise;
+        sas.n_rows = d; // > n
+        sas.n_cols = m;
+        sas.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
+        sas.rows = new int64_t[sas.vec_nnz * m];
+        sas.cols = new int64_t[sas.vec_nnz * m];
+        sas.vals = new double[sas.vec_nnz * m];
+        RandBLAS::sasos::fill_colwise(sas, keys[key_index], 0);
         
         // compute S*A. 
         double *a_hat = new double[d * n];
@@ -200,12 +200,12 @@ class TestApplyCsc : public ::testing::Test
         {
             a_hat[i] = 0.0;
         }
-        RandBLAS::sjlts::sketch_csccol(sjl, n, a, a_hat, threads);
+        RandBLAS::sasos::sketch_csccol(sas, n, a, a_hat, threads);
 
         // compute expected result
         double *a_hat_expect = new double[d * n];
         double *S = new double[d * m];
-        sjlt_to_dense_colmajor(sjl, S);
+        sast_to_dense_colmajor(sas, S);
         int lds = (int) d;
         int lda = (int) m; 
         int ldahat = (int) d;

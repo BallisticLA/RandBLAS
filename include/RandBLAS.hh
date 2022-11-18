@@ -2,7 +2,7 @@
 #define RandBLAS_HH
 
 #include <RandBLAS/util.hh>
-#include <RandBLAS/sjlts.hh>
+#include <RandBLAS/sasos.hh>
 #include <RandBLAS/dense_op.hh>
 
 #endif
