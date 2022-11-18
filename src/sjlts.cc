@@ -15,20 +15,20 @@ void fill_colwise(SJLT sjl, uint64_t seed_key, uint64_t seed_ctr) {
     // Use Fisher-Yates
 
     // Load shorter names into the workspace
-    uint64_t k = sjl.vec_nnz;
-    uint64_t n_rows = sjl.n_rows;
-    uint64_t n_cols = sjl.n_cols; 
+    int64_t k = sjl.vec_nnz;
+    int64_t n_rows = sjl.n_rows;
+    int64_t n_cols = sjl.n_cols; 
     double *vals = sjl.vals; // point to array of length nnz 
-    uint64_t *cols = sjl.cols; // point to array of length nnz.
-    uint64_t *rows = sjl.rows; // point to array of length nnz.
+    int64_t *cols = sjl.cols; // point to array of length nnz.
+    int64_t *rows = sjl.rows; // point to array of length nnz.
 
     // Define variables needed in the main loop
-    uint64_t i, j, ell, swap, offset;
-    uint64_t row_work[n_rows];
+    int64_t i, j, ell, swap, offset;
+    int64_t row_work[n_rows];
     for (j = 0; j < n_rows; ++j) {
         row_work[j] = j;
     }
-    uint64_t pivots[k];
+    int64_t pivots[k];
     typedef r123::Threefry2x64 CBRNG;
 	CBRNG::key_type key = {{seed_key}};
 	CBRNG::ctr_type ctr = {{seed_ctr, 0}};
@@ -82,7 +82,7 @@ void print_sjlt(SJLT sjl)
     std::cout << "SJLT information" << std::endl;
     std::cout << "\tn_rows = " << sjl.n_rows << std::endl;
     std::cout << "\tn_cols = " << sjl.n_cols << std::endl;
-    uint64_t nnz;
+    int64_t nnz;
     if (sjl.ori == ColumnWise)
     {
         std::cout << "\torientation: ColumnWise" << std::endl;
@@ -94,24 +94,24 @@ void print_sjlt(SJLT sjl)
         nnz = sjl.vec_nnz *  sjl.n_rows;
     }
     std::cout << "\tvector of row indices\n\t\t";
-    for (uint64_t i = 0; i < nnz; ++i) {
+    for (int64_t i = 0; i < nnz; ++i) {
         std::cout << sjl.rows[i] << ", ";
     }
     std::cout << std::endl;
     std::cout << "\tvector of column indices\n\t\t";
-    for (uint64_t i = 0; i < nnz; ++i) {
+    for (int64_t i = 0; i < nnz; ++i) {
         std::cout << sjl.cols[i] << ", ";
     }
     std::cout << std::endl;
     std::cout << "\tvector of values\n\t\t";
-    for (uint64_t i = 0; i < nnz; ++i) {
+    for (int64_t i = 0; i < nnz; ++i) {
         std::cout << sjl.vals[i] << ", ";
     }
     std::cout << std::endl;
 }
 
 
-void sketch_cscrow(SJLT sjl, uint64_t n, double *a, double *a_hat, int threads){
+void sketch_cscrow(SJLT sjl, int64_t n, double *a, double *a_hat, int threads){
 
 	// Identify the range of rows to be processed by each thread.
     int avg = sjl.n_rows / threads;

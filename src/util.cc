@@ -29,9 +29,9 @@ void genmat(
 }
 
 template <typename T>
-void print_colmaj(uint64_t n_rows, uint64_t n_cols, T *a, char label[])
+void print_colmaj(int64_t n_rows, int64_t n_cols, T *a, char label[])
 {
-	uint64_t i, j;
+	int64_t i, j;
     T val;
 	std::cout << "\n" << label << std::endl;
     for (i = 0; i < n_rows; ++i) {
@@ -62,8 +62,8 @@ void print_colmaj(uint64_t n_rows, uint64_t n_cols, T *a, char label[])
 }
 
 
-template void print_colmaj<float>(uint64_t n_rows, uint64_t n_cols, float *a, char label[]);
-template void print_colmaj<double>(uint64_t n_rows, uint64_t n_cols, double *a, char label[]);
+template void print_colmaj<float>(int64_t n_rows, int64_t n_cols, float *a, char label[]);
+template void print_colmaj<double>(int64_t n_rows, int64_t n_cols, double *a, char label[]);
 
 template void genmat<float>(int64_t n_rows, int64_t n_cols, float* mat, uint64_t seed);
 template void genmat<double>(int64_t n_rows, int64_t n_cols, double* mat, uint64_t seed);
