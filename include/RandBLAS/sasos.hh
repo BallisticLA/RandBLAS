@@ -8,10 +8,7 @@
 
 namespace RandBLAS::sasos {
 
-enum saso_orientation {ColumnWise, RowWise};
-
 struct SASO {
-    saso_orientation ori;
     int64_t n_rows;
     int64_t n_cols;
     int64_t vec_nnz;

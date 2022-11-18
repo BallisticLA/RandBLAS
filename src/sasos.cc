@@ -8,6 +8,8 @@
 #include <Random123/threefry.h>
 #include <Random123/uniform.hpp>
 
+#define MIN(a, b) (((a) > (b)) ? (b) : (a))
+
 
 namespace RandBLAS::sasos {
 
@@ -82,17 +84,7 @@ void print_saso(SASO sas)
     std::cout << "SASO information" << std::endl;
     std::cout << "\tn_rows = " << sas.n_rows << std::endl;
     std::cout << "\tn_cols = " << sas.n_cols << std::endl;
-    int64_t nnz;
-    if (sas.ori == ColumnWise)
-    {
-        std::cout << "\torientation: ColumnWise" << std::endl;
-        nnz = sas.vec_nnz * sas.n_cols;
-    }
-    else
-    {
-        std::cout << "\tOrientation: RowWise" << std::endl;
-        nnz = sas.vec_nnz *  sas.n_rows;
-    }
+    int64_t nnz = sas.vec_nnz * MIN(sas.n_rows, sas.n_cols);
     std::cout << "\tvector of row indices\n\t\t";
     for (int64_t i = 0; i < nnz; ++i) {
         std::cout << sas.rows[i] << ", ";
