@@ -110,7 +110,6 @@ void print_saso(SASO sas)
     std::cout << std::endl;
 }
 
-
 void sketch_cscrow(SASO sas, int64_t n, double *a, double *a_hat, int threads){
 
 	// Identify the range of rows to be processed by each thread.
