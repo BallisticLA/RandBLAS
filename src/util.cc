@@ -40,20 +40,20 @@ void print_colmaj(int64_t n_rows, int64_t n_cols, T *a, char label[])
             val = a[i + n_rows * j];
             if (val < 0) {
 				//std::cout << string_format("  %2.4f,", val);
-                printf("  %2.4f,", val);
+                printf("  %2.20f,", val);
             } else {
 				//std::cout << string_format("   %2.4f", val);
-				printf("   %2.4f,", val);
+				printf("   %2.20f,", val);
             }
         }
         // j = n_cols - 1
         val = a[i + n_rows * j];
         if (val < 0) {
    			//std::cout << string_format("  %2.4f,", val); 
-			printf("  %2.4f,", val);
+			printf("  %2.20f,", val);
 		} else {
             //std::cout << string_format("   %2.4f,", val);
-			printf("   %2.4f,", val);
+			printf("   %2.20f,", val);
 		}
         printf("\n");
     }
