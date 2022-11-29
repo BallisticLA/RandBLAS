@@ -13,7 +13,9 @@
 
 namespace RandBLAS::sasos {
 
-void fill_colwise(SASO sas, uint64_t seed_key, uint64_t seed_ctr) {
+void fill_colwise(SASO sas) {
+    uint64_t seed_ctr = sas.ctr;
+    uint64_t seed_key = sas.key;
     // Use Fisher-Yates
 
     // Load shorter names into the workspace

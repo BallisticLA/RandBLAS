@@ -28,7 +28,9 @@ class TestSASOConstruction : public ::testing::Test
         sas.rows = new int64_t[sas.vec_nnz * m];
         sas.cols = new int64_t[sas.vec_nnz * m];
         sas.vals = new double[sas.vec_nnz * m];
-        RandBLAS::sasos::fill_colwise(sas, keys[key_index], 0);
+        sas.key = keys[key_index];
+        sas.ctr = 0;
+        RandBLAS::sasos::fill_colwise(sas);
 
         // check that each block of sas.vec_nnz entries of sas.rows is
         // sampled without replacement from 0,...,n_rows - 1.
@@ -78,7 +80,7 @@ TEST_F(TestSASOConstruction, Dim7by20nnz7)
 
 
 
-void sast_to_dense_rowmajor(RandBLAS::sasos::SASO sas, double *mat)
+void sas_to_dense_rowmajor(RandBLAS::sasos::SASO sas, double *mat)
 {
     int64_t nnz = sas.n_cols * sas.vec_nnz;
     for (int64_t i = 0; i < nnz; ++i)
@@ -90,7 +92,7 @@ void sast_to_dense_rowmajor(RandBLAS::sasos::SASO sas, double *mat)
     }
 }
 
-void sast_to_dense_colmajor(RandBLAS::sasos::SASO sas, double *mat)
+void sas_to_dense_colmajor(RandBLAS::sasos::SASO sas, double *mat)
 {
     int64_t nnz = sas.n_cols * sas.vec_nnz;
     for (int64_t i = 0; i < nnz; ++i)
@@ -134,7 +136,9 @@ class TestApplyCsc : public ::testing::Test
         sas.rows = new int64_t[sas.vec_nnz * m];
         sas.cols = new int64_t[sas.vec_nnz * m];
         sas.vals = new double[sas.vec_nnz * m];
-        RandBLAS::sasos::fill_colwise(sas, keys[key_index], 0);
+        sas.ctr = 0;
+        sas.key = keys[key_index];
+        RandBLAS::sasos::fill_colwise(sas);
         
         // compute S*A. 
         double *a_hat = new double[d * n];
@@ -147,7 +151,7 @@ class TestApplyCsc : public ::testing::Test
         // compute expected result
         double *a_hat_expect = new double[d * n];
         double *S = new double[d * m];
-        sast_to_dense_rowmajor(sas, S);
+        sas_to_dense_rowmajor(sas, S);
         int lds = (int) m;
         int lda = (int) n; 
         int ldahat = (int) n;
@@ -189,7 +193,9 @@ class TestApplyCsc : public ::testing::Test
         sas.rows = new int64_t[sas.vec_nnz * m];
         sas.cols = new int64_t[sas.vec_nnz * m];
         sas.vals = new double[sas.vec_nnz * m];
-        RandBLAS::sasos::fill_colwise(sas, keys[key_index], 0);
+        sas.ctr = 0;
+        sas.key = keys[key_index];
+        RandBLAS::sasos::fill_colwise(sas);
         
         // compute S*A. 
         double *a_hat = new double[d * n];
@@ -202,7 +208,7 @@ class TestApplyCsc : public ::testing::Test
         // compute expected result
         double *a_hat_expect = new double[d * n];
         double *S = new double[d * m];
-        sast_to_dense_colmajor(sas, S);
+        sas_to_dense_colmajor(sas, S);
         int lds = (int) d;
         int lda = (int) m; 
         int ldahat = (int) d;
