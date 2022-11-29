@@ -8,6 +8,7 @@
 
 namespace RandBLAS::sasos {
 
+template <typename T>
 struct SASO {
     int64_t n_rows;
     int64_t n_cols;
@@ -16,16 +17,20 @@ struct SASO {
     uint64_t ctr = 0;
     int64_t *rows = NULL;
     int64_t *cols = NULL;
-    double *vals = NULL;
+    T *vals = NULL;
 };
 
-void fill_colwise(SASO sas);
+template <typename T>
+void fill_colwise(SASO<T> &sas);
 
-void sketch_cscrow(SASO sas, int64_t n, double *a, double *a_hat, int threads);
+template <typename T>
+void sketch_cscrow(SASO<T> &sas, int64_t n, T *a, T *a_hat, int threads);
 
-void sketch_csccol(SASO sas, int64_t m, double *a, double *a_hat, int threads);
+template <typename T>
+void sketch_csccol(SASO<T> &sas, int64_t m, T *a, T *a_hat, int threads);
 
-void print_saso(SASO sas);
+template <typename T>
+void print_saso(SASO<T> &sas);
 
 } // end namespace RandBLAS::sasos
 
