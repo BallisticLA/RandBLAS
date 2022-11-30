@@ -110,9 +110,9 @@ template <typename T>
 void sketch_cscrow(SASO<T>& sas, int64_t n, T *a, T *a_hat, int threads){
 
 	// Identify the range of rows to be processed by each thread.
-    int avg = sas.n_rows / threads;
+    int64_t avg = sas.n_rows / threads;
     if (avg == 0) avg = 1; // this is unusual, but can happen in small experiments.
-	int blocks[threads + 1];
+	int64_t blocks[threads + 1];
 	blocks[0] = 0;
     for(int i = 1; i < threads + 1; ++i)
 		blocks[i] = blocks[i - 1] + avg;
@@ -123,16 +123,16 @@ void sketch_cscrow(SASO<T>& sas, int64_t n, T *a, T *a_hat, int threads){
 	{
 		int my_id = omp_get_thread_num();
 		#pragma omp for schedule(static)
-		for(int outer = 0; outer < threads; ++outer)
+		for(int64_t outer = 0; outer < threads; ++outer)
         {
-			for(int c = 0; c < sas.n_cols; ++c)
+			for(int64_t c = 0; c < sas.n_cols; ++c)
             {
 				T *a_row = &a[c * n];
-				int offset = c * sas.vec_nnz;
-                for (int r = 0; r < sas.vec_nnz; ++r)
+				int64_t offset = c * sas.vec_nnz;
+                for (int64_t r = 0; r < sas.vec_nnz; ++r)
                 {
-					int inner = offset + r;
-					int row = sas.rows[inner];
+					int64_t inner = offset + r;
+					int64_t row = sas.rows[inner];
 					if(row >= blocks[my_id] && row < blocks[my_id + 1])
                     {
 						T scale = sas.vals[inner];
@@ -153,7 +153,7 @@ void sketch_csccol(SASO<T>& sas, int64_t n, T *a, T *a_hat, int threads){
 		#pragma omp for schedule(static)
 		for(int64_t k = 0; k < n; k++){
 			T *a_col = &a[m * k];
-			for(int c = 0; c < m; c++){
+			for(int64_t c = 0; c < m; c++){
 				T scale = a_col[c];
 				for (int64_t r = c * sas.vec_nnz; r < (c + 1) * sas.vec_nnz; r++){
                     int64_t row = sas.rows[r];
