@@ -207,7 +207,7 @@ class TestApplyCsc : public ::testing::Test
         RandBLAS::sasos::sketch_csccol<T>(sas, n, a, a_hat, threads);
 
         // compute expected result
-        T *a_hat_expect = new T[d * n];
+        T *a_hat_expect = new T[d * n]{}; // zero-initialize
         T *S = new T[d * m]{}; // zero-initialize.
         sas_to_dense_colmajor<T>(sas, S);
         //RandBLAS::sasos::print_saso(sas);
