@@ -82,6 +82,10 @@ TEST_F(TestSASOConstruction, Dim7by20nnz7)
 template <typename T>
 void sas_to_dense_rowmajor(RandBLAS::sasos::SASO<T> &sas, T *mat)
 {
+    for (int64_t i = 0; i < sas.n_rows * sas.n_cols; ++i)
+    {
+        mat[i] = 0.0;
+    }
     int64_t nnz = sas.n_cols * sas.vec_nnz;
     for (int64_t i = 0; i < nnz; ++i)
     {
@@ -95,6 +99,10 @@ void sas_to_dense_rowmajor(RandBLAS::sasos::SASO<T> &sas, T *mat)
 template <typename T>
 void sas_to_dense_colmajor(RandBLAS::sasos::SASO<T> &sas, T *mat)
 {
+    for (int64_t i = 0; i < sas.n_rows * sas.n_cols; ++i)
+    {
+        mat[i] = 0.0;
+    }
     int64_t nnz = sas.n_cols * sas.vec_nnz;
     for (int64_t i = 0; i < nnz; ++i)
     {
@@ -149,7 +157,7 @@ class TestApplyCsc : public ::testing::Test
 
         // compute expected result
         T *a_hat_expect = new T[d * n];
-        T *S = new T[d * m]{}; // zero-initialize.
+        T *S = new T[d * m];
         sas_to_dense_rowmajor<T>(sas, S);
         int64_t lds = m;
         int64_t lda = n; 
@@ -207,11 +215,18 @@ class TestApplyCsc : public ::testing::Test
         RandBLAS::sasos::sketch_csccol<T>(sas, n, a, a_hat, threads);
 
         // compute expected result
-        T *a_hat_expect = new T[d * n]{}; // zero-initialize
-        T *S = new T[d * m]{}; // zero-initialize.
+        T *a_hat_expect = new T[d * n]{};
+        // ^ zero-initialize.
+        //      This should not be necessary since it first appears
+        //      in a GEMM call with "beta = 0.0". However, tests run on GitHub Actions
+        //      show that NaNs can propagate if a_hat_expect is not initialized to all
+        //      zeros. See
+        //          https://github.com/BallisticLA/RandBLAS/actions/runs/3579737699/jobs/6021220392
+        //      for a successful run with the initialization, and
+        //          https://github.com/BallisticLA/RandBLAS/actions/runs/3579714658/jobs/6021178532
+        //      for an unsuccessful run without this initialization.
+        T *S = new T[d * m];
         sas_to_dense_colmajor<T>(sas, S);
-        //RandBLAS::sasos::print_saso(sas);
-        //RandBLAS::util::print_colmaj(d, m, S, "Sketching operator:");
         int64_t lds = d;
         int64_t lda = m; 
         int64_t ldahat = d;
