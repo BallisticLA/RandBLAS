@@ -60,4 +60,4 @@ jobs:
             -DCMAKE_BINARY_DIR=`pwd` \
             `pwd`/../RandBLAS
           make -j2 install
-          ctest --verbose
+          ctest --output-on-failure

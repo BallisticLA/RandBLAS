@@ -210,7 +210,7 @@ class TestApplyCsc : public ::testing::Test
         T *a_hat_expect = new T[d * n];
         T *S = new T[d * m]{}; // zero-initialize.
         sas_to_dense_colmajor<T>(sas, S);
-        RandBLAS::sasos::print_saso(sas);
+        //RandBLAS::sasos::print_saso(sas);
         //RandBLAS::util::print_colmaj(d, m, S, "Sketching operator:");
         int64_t lds = d;
         int64_t lda = m; 
@@ -233,7 +233,7 @@ class TestApplyCsc : public ::testing::Test
                 T actual = a_hat[ell];
                 T atol = reltol * std::min(abs(actual), abs(expect));
                 if (atol == 0.0) atol = abstol;
-                ASSERT_NEAR(actual, expect, atol);
+                EXPECT_NEAR(actual, expect, atol) << {i, j};
             }    
         }
     }
