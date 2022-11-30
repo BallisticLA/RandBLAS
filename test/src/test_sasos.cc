@@ -149,7 +149,7 @@ class TestApplyCsc : public ::testing::Test
 
         // compute expected result
         T *a_hat_expect = new T[d * n];
-        T *S = new T[d * m];
+        T *S = new T[d * m]{}; // zero-initialize.
         sas_to_dense_rowmajor<T>(sas, S);
         int64_t lds = m;
         int64_t lda = n; 
@@ -208,7 +208,7 @@ class TestApplyCsc : public ::testing::Test
 
         // compute expected result
         T *a_hat_expect = new T[d * n];
-        T *S = new T[d * m];
+        T *S = new T[d * m]{}; // zero-initialize.
         sas_to_dense_colmajor<T>(sas, S);
         int64_t lds = d;
         int64_t lda = m; 
