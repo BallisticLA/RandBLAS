@@ -228,12 +228,13 @@ class TestApplyCsc : public ::testing::Test
         {
             for (int64_t j = 0; j < n; ++j)
             {
+                // std::pair<int64_t, int64_t> p = {i, j};
                 int64_t ell = i + j*d;
                 T expect = a_hat_expect[ell];
                 T actual = a_hat[ell];
                 T atol = reltol * std::min(abs(actual), abs(expect));
                 if (atol == 0.0) atol = abstol;
-                EXPECT_NEAR(actual, expect, atol) << {i, j};
+                EXPECT_NEAR(actual, expect, atol) << "\t" << i << ", " << j;
             }    
         }
     }
