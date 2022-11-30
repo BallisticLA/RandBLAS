@@ -156,7 +156,7 @@ class TestApplyCsc : public ::testing::Test
         RandBLAS::sasos::sketch_cscrow<T>(sas, n, a, a_hat, threads);
 
         // compute expected result
-        T *a_hat_expect = new T[d * n];
+        T *a_hat_expect = new T[d * n]{}; // zero-initialize.
         T *S = new T[d * m];
         sas_to_dense_rowmajor<T>(sas, S);
         int64_t lds = m;
@@ -207,11 +207,7 @@ class TestApplyCsc : public ::testing::Test
         RandBLAS::sasos::fill_colwise<T>(sas);
         
         // compute S*A. 
-        T *a_hat = new T[d * n];
-        for (int64_t i = 0; i < d * n; ++i)
-        {
-            a_hat[i] = 0.0;
-        }
+        T *a_hat = new T[d * n]{}; // zero-initialize.
         RandBLAS::sasos::sketch_csccol<T>(sas, n, a, a_hat, threads);
 
         // compute expected result
