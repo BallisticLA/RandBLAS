@@ -151,9 +151,9 @@ class TestApplyCsc : public ::testing::Test
         T *a_hat_expect = new T[d * n];
         T *S = new T[d * m];
         sas_to_dense_rowmajor<T>(sas, S);
-        int lds = (int) m;
-        int lda = (int) n; 
-        int ldahat = (int) n;
+        int64_t lds = m;
+        int64_t lda = n; 
+        int64_t ldahat = n;
         blas::gemm<T>(
             blas::Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
@@ -210,9 +210,9 @@ class TestApplyCsc : public ::testing::Test
         T *a_hat_expect = new T[d * n];
         T *S = new T[d * m];
         sas_to_dense_colmajor<T>(sas, S);
-        int lds = (int) d;
-        int lda = (int) m; 
-        int ldahat = (int) d;
+        int64_t lds = d;
+        int64_t lda = m; 
+        int64_t ldahat = d;
         blas::gemm<T>(
             blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
