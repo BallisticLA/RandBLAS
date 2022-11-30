@@ -2,8 +2,8 @@
 #include <gtest/gtest.h>
 #include <math.h>
 
-#define RELDTOL 1e-10;
-#define ABSDTOL 1e-12;
+#define RELTOL_POWER 0.7
+#define ABSTOL_POWER 0.75
 
 
 class TestSASOConstruction : public ::testing::Test
@@ -161,16 +161,17 @@ class TestApplyCsc : public ::testing::Test
             0.0, a_hat_expect, ldahat);
 
         // check the result
-        double reldtol = RELDTOL;
+        T reltol = std::pow(std::numeric_limits<T>::epsilon(), RELTOL_POWER);
+        T abstol = std::pow(std::numeric_limits<T>::epsilon(), ABSTOL_POWER);
         for (int64_t i = 0; i < d; ++i)
         {
             for (int64_t j = 0; j < n; ++j)
             {
                 int64_t ell = i*n + j;
-                double expect = (double) a_hat_expect[ell];
-                double actual = (double) a_hat[ell];
-                double atol = reldtol * std::min(abs(actual), abs(expect));
-                if (atol == 0.0) atol = ABSDTOL;
+                T expect = a_hat_expect[ell];
+                T actual = a_hat[ell];
+                T atol = reltol * std::min(abs(actual), abs(expect));
+                if (atol == 0.0) atol = abstol;
                 ASSERT_NEAR(actual, expect, atol);
             }    
         }
@@ -219,16 +220,17 @@ class TestApplyCsc : public ::testing::Test
             0.0, a_hat_expect, ldahat);
 
         // check the result
-        double reldtol = RELDTOL;
+        T reltol = std::pow(std::numeric_limits<T>::epsilon(), RELTOL_POWER);
+        T abstol = std::pow(std::numeric_limits<T>::epsilon(), ABSTOL_POWER);
         for (int64_t i = 0; i < d; ++i)
         {
             for (int64_t j = 0; j < n; ++j)
             {
                 int64_t ell = i + j*d;
-                double expect = (double) a_hat_expect[ell];
-                double actual = (double) a_hat[ell];
-                double atol = reldtol * std::min(abs(actual), abs(expect));
-                if (atol == 0.0) atol = ABSDTOL;
+                T expect = a_hat_expect[ell];
+                T actual = a_hat[ell];
+                T atol = reltol * std::min(abs(actual), abs(expect));
+                if (atol == 0.0) atol = abstol;
                 ASSERT_NEAR(actual, expect, atol);
             }    
         }
