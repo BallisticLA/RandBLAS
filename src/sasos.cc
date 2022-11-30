@@ -13,14 +13,17 @@
 
 namespace RandBLAS::sasos {
 
-void fill_colwise(SASO sas, uint64_t seed_key, uint64_t seed_ctr) {
+template <typename T>
+void fill_colwise(SASO<T>& sas) {
+    uint64_t seed_ctr = sas.ctr;
+    uint64_t seed_key = sas.key;
     // Use Fisher-Yates
 
     // Load shorter names into the workspace
     int64_t k = sas.vec_nnz;
     int64_t n_rows = sas.n_rows;
     int64_t n_cols = sas.n_cols; 
-    double *vals = sas.vals; // point to array of length nnz 
+    T *vals = sas.vals; // point to array of length nnz 
     int64_t *cols = sas.cols; // point to array of length nnz.
     int64_t *rows = sas.rows; // point to array of length nnz.
 
@@ -79,7 +82,8 @@ void fill_colwise(SASO sas, uint64_t seed_key, uint64_t seed_ctr) {
     return;
 }
 
-void print_saso(SASO sas)
+template <typename T>
+void print_saso(SASO<T>& sas)
 {
     std::cout << "SASO information" << std::endl;
     std::cout << "\tn_rows = " << sas.n_rows << std::endl;
@@ -102,12 +106,13 @@ void print_saso(SASO sas)
     std::cout << std::endl;
 }
 
-void sketch_cscrow(SASO sas, int64_t n, double *a, double *a_hat, int threads){
+template <typename T>
+void sketch_cscrow(SASO<T>& sas, int64_t n, T *a, T *a_hat, int threads){
 
 	// Identify the range of rows to be processed by each thread.
-    int avg = sas.n_rows / threads;
+    int64_t avg = sas.n_rows / threads;
     if (avg == 0) avg = 1; // this is unusual, but can happen in small experiments.
-	int blocks[threads + 1];
+	int64_t blocks[threads + 1];
 	blocks[0] = 0;
     for(int i = 1; i < threads + 1; ++i)
 		blocks[i] = blocks[i - 1] + avg;
@@ -118,20 +123,20 @@ void sketch_cscrow(SASO sas, int64_t n, double *a, double *a_hat, int threads){
 	{
 		int my_id = omp_get_thread_num();
 		#pragma omp for schedule(static)
-		for(int outer = 0; outer < threads; ++outer)
+		for(int64_t outer = 0; outer < threads; ++outer)
         {
-			for(int c = 0; c < sas.n_cols; ++c)
+			for(int64_t c = 0; c < sas.n_cols; ++c)
             {
-				double *a_row = &a[c * n];
-				int offset = c * sas.vec_nnz;
-                for (int r = 0; r < sas.vec_nnz; ++r)
+				T *a_row = &a[c * n];
+				int64_t offset = c * sas.vec_nnz;
+                for (int64_t r = 0; r < sas.vec_nnz; ++r)
                 {
-					int inner = offset + r;
-					int row = sas.rows[inner];
+					int64_t inner = offset + r;
+					int64_t row = sas.rows[inner];
 					if(row >= blocks[my_id] && row < blocks[my_id + 1])
                     {
-						double scale = sas.vals[inner];
-                        blas::axpy(n, scale, a_row, 1, &a_hat[row * n], 1);
+						T scale = sas.vals[inner];
+                        blas::axpy<T>(n, scale, a_row, 1, &a_hat[row * n], 1);
 					}	
 				} // end processing of column c
 			}
@@ -139,16 +144,17 @@ void sketch_cscrow(SASO sas, int64_t n, double *a, double *a_hat, int threads){
 	}
 }
 
-void sketch_csccol(SASO sas, int64_t n, double *a, double *a_hat, int threads){
+template <typename T>
+void sketch_csccol(SASO<T>& sas, int64_t n, T *a, T *a_hat, int threads){
     int64_t m = sas.n_cols;
     omp_set_num_threads(threads);
 	#pragma omp parallel default(shared)
 	{
 		#pragma omp for schedule(static)
 		for(int64_t k = 0; k < n; k++){
-			double *a_col = &a[m * k];
-			for(int c = 0; c < m; c++){
-				double scale = a_col[c];
+			T *a_col = &a[m * k];
+			for(int64_t c = 0; c < m; c++){
+				T scale = a_col[c];
 				for (int64_t r = c * sas.vec_nnz; r < (c + 1) * sas.vec_nnz; r++){
                     int64_t row = sas.rows[r];
 					a_hat[k * sas.n_rows + row] += (sas.vals[r] * scale);
@@ -157,5 +163,16 @@ void sketch_csccol(SASO sas, int64_t n, double *a, double *a_hat, int threads){
 		}
 	}
 }
+
+template void fill_colwise<float>(SASO<float> &sas);
+template void print_saso<float>(SASO<float> &sas);
+template void sketch_cscrow<float>(SASO<float> &sas, int64_t n, float *a, float *a_hat, int threads);
+template void sketch_csccol<float>(SASO<float> &sas, int64_t n, float *a, float *a_hat, int threads);
+
+
+template void fill_colwise<double>(SASO<double> &sas);
+template void print_saso<double>(SASO<double> &sas);
+template void sketch_cscrow<double>(SASO<double> &sas, int64_t n, double *a, double *a_hat, int threads);
+template void sketch_csccol<double>(SASO<double> &sas, int64_t n, double *a, double *a_hat, int threads);
 
 } // end namespace RandBLAS::sasos
