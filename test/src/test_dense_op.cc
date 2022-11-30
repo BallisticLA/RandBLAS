@@ -23,7 +23,7 @@ class TestDenseGaussianOp : public ::testing::Test
             int64_t size = n_rows * n_cols;
             std::vector<T> A(size, 0.0);
 
-            RandBLAS::dense_op::gen_rmat_norm<T>(n_rows, n_cols, A.data(), seed);
+            RandBLAS::dense_op::gen_rmat_norm<T>(n_rows, n_cols, A.data(), seed, 0);
 
             T mean = std::accumulate(A.data(), A.data() + size, 0.0) /size;
 
@@ -69,10 +69,10 @@ class TestDenseUniformOp : public ::testing::Test
             std::vector<T> A(size, 0.0);
 
             // Uniform {-1, 1}, never 0.
-            RandBLAS::util::genmat(n_rows, n_cols, A.data(), seed);
-            //RandBLAS::dense_op::gen_rmat_unif<T>(n_rows, n_cols, A.data(), seed);
+            //RandBLAS::util::genmat(n_rows, n_cols, A.data(), seed);
+            RandBLAS::dense_op::gen_rmat_unif<T>(n_rows, n_cols, A.data(), seed, 0);
 
-            T mean = std::accumulate(A.data(), A.data() + size, 0.0) /size;
+            T mean = std::accumulate(A.data(), A.data() + size, 0.0) / size;
 
             T sum = 0;
             std::for_each(A.data(), A.data() + size, [&] (T elem) {

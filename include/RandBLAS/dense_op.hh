@@ -29,14 +29,15 @@ struct SketchingBuffer {
     T *op_data = NULL;
     bool populated = false;
     bool persistent = false;
-}
+};
 
 template <typename T>
 void gen_rmat_unif(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
-    uint32_t seed
+    uint32_t key,
+    uint32_t ctr_offset
 );
 
 template <typename T>
@@ -44,7 +45,8 @@ void gen_rmat_norm(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
-    uint32_t seed
+    uint32_t key,
+    uint32_t ctr_offset
 );
 
 } // end namespace RandBLAS::dense_op
