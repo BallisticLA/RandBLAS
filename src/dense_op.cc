@@ -176,20 +176,18 @@ void gen_rmat_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint32_
 }
 
 template <typename T>
-static void populated_dense_buff(SketchingBuffer<T> &S, T *buff) {
-    // We'll usually have buff == S.buff, but it's allowed for S.buff == NULL.
-    int64_t size = S.n_rows * S.n_cols;
-    switch (S.dist) {
-    case DenseDist::Gaussian:
-        gen_rmat_norm<T>(S.n_rows, S.n_cols, buff, S.key, S.ctr_offset);
+void populate_dense_buff(Dist D, uint32_t key, uint32_t ctr_offset, T *buff) {
+    switch (D.family) {
+    case DistName::Gaussian:
+        gen_rmat_norm<T>(D.n_rows, D.n_cols, buff, key, ctr_offset);
         break;
-    case DenseDist::Uniform:
-        gen_rmat_unif<T>(S.n_rows, S.n_cols, buff, S.key, S.ctr_offset);
+    case DistName::Uniform:
+        gen_rmat_unif<T>(D.n_rows, D.n_cols, buff, key, ctr_offset);
         break;
-    case DenseDist::Rademacher:
+    case DistName::Rademacher:
         throw std::runtime_error(std::string("Not implemented."));
         break;
-    case DenseDist::Haar:
+    case DistName::Haar:
         throw std::runtime_error(std::string("Not implemented."));
         break;
     default:
@@ -208,7 +206,7 @@ void lskge3(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(S) is d-by-m
     T alpha,
-    SketchingBuffer<T> &S0,
+    SketchingOperator<T> &S0,
     int64_t pos, // pointer offset for S in S0
     T *A_ptr,
     int64_t lda,
@@ -216,16 +214,23 @@ void lskge3(
     T *B_ptr,
     int64_t ldb
 ){
+    if (S0.layout != layout) {
+        throw std::runtime_error(std::string("Inconsistent layouts."));
+    }
+    // Would be nice to factor out the code for defining S0_ptr, but then
+    // it's not clear what we'd return from that function. Can't just return
+    // a pointer for dynamically allocated memory that isn't assigned to
+    // something. 
     T *S0_ptr = S0.op_data;
     if (S0_ptr == NULL) {
-        S0_ptr = new T[S0.n_rows * S0.n_cols];
-        populated_dense_buff<T>(S0, S0_ptr);
+        S0_ptr = new T[S0.dist.n_rows * S0.dist.n_cols];
+        populate_dense_buff<T>(S0.dist, S0.key, S0.ctr_offset, S0_ptr);
         if (S0.persistent) {
             S0.op_data = S0_ptr;
             S0.populated = true;
         }
     } else if (!S0.populated) {
-        populated_dense_buff<T>(S0, S0_ptr);
+        populate_dense_buff<T>(S0.dist, S0.key, S0.ctr_offset, S0_ptr);
         S0.populated = true;
     }
     // TODO: add a state check.
@@ -250,12 +255,12 @@ void lskge3(
     // Sanity checks on dimensions and strides
     int64_t lds;
     if (layout == blas::Layout::ColMajor) {
-        lds = S0.n_rows;
+        lds = S0.dist.n_rows;
         assert(lds >= rows_S);
         assert(lda >= rows_A);
         assert(ldb >= d);
     } else {
-        lds = S0.n_cols;
+        lds = S0.dist.n_cols;
         assert(lds >= cols_S);
         assert(lda >= cols_A);
         assert(ldb >= n);
@@ -275,9 +280,9 @@ void lskge3(
 
 // Explicit instantiation of template functions
 template void lskge3(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, double alpha,
-    SketchingBuffer<double> &S0, int64_t pos, double *A_ptr, int64_t lda, double beta, double *B_ptr, int64_t ldb);
+    SketchingOperator<double> &S0, int64_t pos, double *A_ptr, int64_t lda, double beta, double *B_ptr, int64_t ldb);
 template void lskge3(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
-    SketchingBuffer<float> &S0, int64_t pos, float *A_ptr, int64_t lda, float beta, float *B_ptr, int64_t ldb);
+    SketchingOperator<float> &S0, int64_t pos, float *A_ptr, int64_t lda, float beta, float *B_ptr, int64_t ldb);
 
 template void gen_rmat_unif<float>(int64_t n_rows, int64_t n_cols, float* mat, uint32_t key, uint32_t ctr_offset);
 template void gen_rmat_unif<double>(int64_t n_rows, int64_t n_cols, double* mat, uint32_t key, uint32_t ctr_offset);

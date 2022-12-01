@@ -114,16 +114,21 @@ class TestLSKGE3 : public ::testing::Test
     template <typename T>
     static void dummy_run_gaussian(uint32_t seed, int64_t m, int64_t n, int64_t d, bool preallocate)
     {
+        // Define the distribution for S0.
+        RandBLAS::dense_op::Dist D = {
+            .family=RandBLAS::dense_op::DistName::Gaussian,
+            .n_rows = d,
+            .n_cols = n
+        };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense_op::SketchingBuffer<T> S0 = {
-            .dist=RandBLAS::dense_op::DenseDist::Gaussian,
+        RandBLAS::dense_op::SketchingOperator<T> S0 = {
+            .dist=D,
             .ctr_offset=0,
             .key=seed,
-            .n_rows=d,
-            .n_cols=m,
             .op_data=NULL,
             .populated=false,
-            .persistent=false
+            .persistent=false,
+            .layout=blas::Layout::ColMajor
         };
         if (preallocate) {
             std::vector<T> buff(d * m, 0.0);
