@@ -2,6 +2,8 @@
 
 #include <iostream>
 #include <stdio.h>
+#include <stdexcept>
+#include <string>
 #include <omp.h>
 
 #include <math.h>
@@ -228,24 +230,110 @@ void gen_rmat_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint32_
     }
 }
 
-// template <typename T>
-// populated_dense_buff(SketchingBuffer &S, T *buff) {
-//     int64_t size = S.n_rows * S.n_cols;
-//     switch (S.dist) {
-//     case DenseDist::Gaussian:
-//         gen_rmat_norm<T>(S.n_rows, S.n_cols, )
-//         break;
-//     case DenseDist::Uniform:
-//         break;
-//     case DenseDist::Rademacher:
-//         throw std::exception("Not implemented.");
-//         break;
-//     default:
-//         break;
-//     }
-// }
+template <typename T>
+static void populated_dense_buff(SketchingBuffer<T> &S, T *buff) {
+    // We'll usually have buff == S.buff, but it's allowed for S.buff == NULL.
+    int64_t size = S.n_rows * S.n_cols;
+    switch (S.dist) {
+    case DenseDist::Gaussian:
+        gen_rmat_norm<T>(S.n_rows, S.n_cols, buff, S.key, S.ctr_offset);
+        break;
+    case DenseDist::Uniform:
+        gen_rmat_unif<T>(S.n_rows, S.n_cols, buff, S.key, S.ctr_offset);
+        break;
+    case DenseDist::Rademacher:
+        throw std::runtime_error(std::string("Not implemented."));
+        break;
+    case DenseDist::Haar:
+        throw std::runtime_error(std::string("Not implemented."));
+        break;
+    default:
+        throw std::runtime_error(std::string("Unrecognized distribution."));
+        break;
+    }
+    return;
+}
 
-// Explicit instantiation of template functions - workaround to avoid header implementations
+template <typename T>
+void lskge3(
+    blas::Layout layout,
+    blas::Op transS,
+    blas::Op transA,
+    int64_t d, // B is d-by-n
+    int64_t n, // op(A) is m-by-n
+    int64_t m, // op(S) is d-by-m
+    T alpha,
+    SketchingBuffer<T> &S0,
+    int64_t pos, // pointer offset for S in S0
+    T *A_ptr,
+    int64_t lda,
+    T beta,
+    T *B_ptr,
+    int64_t ldb
+){
+    T *S0_ptr = S0.op_data;
+    if (S0_ptr == NULL) {
+        S0_ptr = new T[S0.n_rows * S0.n_cols];
+        populated_dense_buff<T>(S0, S0_ptr);
+        if (S0.persistent) {
+            S0.op_data = S0_ptr;
+            S0.populated = true;
+        }
+    } else if (!S0.populated) {
+        populated_dense_buff<T>(S0, S0_ptr);
+        S0.populated = true;
+    }
+    // TODO: add a state check.
+
+    // Dimensions of A, rather than op(A)
+    int64_t rows_A, cols_A, rows_S, cols_S;
+    if (transA == blas::Op::NoTrans) {
+        rows_A = m;
+        cols_A = n;
+    } else {
+        rows_A = n;
+        cols_A = m;
+    }
+    // Dimensions of S, rather than op(S)
+    if (transS == blas::Op::NoTrans) {
+        rows_S = d;
+        cols_S = m;
+    } else {
+        rows_S = m;
+        cols_S = d;
+    }
+    // Sanity checks on dimensions and strides
+    int64_t lds;
+    if (layout == blas::Layout::ColMajor) {
+        lds = S0.n_rows;
+        assert(lds >= rows_S);
+        assert(lda >= rows_A);
+        assert(ldb >= d);
+    } else {
+        lds = S0.n_cols;
+        assert(lds >= cols_S);
+        assert(lda >= cols_A);
+        assert(ldb >= n);
+    }
+    // Perform the sketch.
+    blas::gemm<T>(
+        layout, transS, transA,
+        d, n, m,
+        alpha,
+        &S0_ptr[pos], lds,
+        A_ptr, lda,
+        beta,
+        B_ptr, ldb
+    );
+    return;
+}
+
+// Explicit instantiation of template functions
+template void lskge3(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, double alpha,
+    SketchingBuffer<double> &S0, int64_t pos, double *A_ptr, int64_t lda, double beta, double *B_ptr, int64_t ldb);
+template void lskge3(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
+    SketchingBuffer<float> &S0, int64_t pos, float *A_ptr, int64_t lda, float beta, float *B_ptr, int64_t ldb);
+
 template void gen_rmat_unif<float>(int64_t n_rows, int64_t n_cols, float* mat, uint32_t key, uint32_t ctr_offset);
 template void gen_rmat_unif<double>(int64_t n_rows, int64_t n_cols, double* mat, uint32_t key, uint32_t ctr_offset);
 
