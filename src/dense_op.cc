@@ -149,61 +149,6 @@ static void gen_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint3
         ++j;
     }
     delete[] v;
-    /*typename T_gen::key_type key = {{seed}};
-    // Definde the generator
-    T_gen gen;
-
-    uint64_t dim = n_rows * n_cols;
-
-    // Effectively, below structure is similar to unrolling by a factor of 4
-    uint32_t i = 0;
-    // Compensation code - we would effectively not use at least 1 and up to 3 generated random numbers 
-    int comp = dim % 4;
-    if (comp){
-
-        // Below array represents counter updating
-        typename T_gen::ctr_type r = gen({{1, 0, 0, 0}}, key);
-
-        // Take 2 32 or 64-bit unsigned random vals, return 2 random floats/doubles
-        // Since generated vals are indistinguishable form uniform, feed them into box-muller right away
-        // Uses uneg11 & u01 under the hood
-        T_fun pair_1 = r123::boxmuller(r.v[0], r.v[1]);
-        T_fun pair_2 = r123::boxmuller(r.v[2], r.v[3]);
-
-        T_fun pair_1 = r123::boxmuller(r.v[0], r.v[1]);
-        T_fun pair_2 = r123::boxmuller(r.v[2], r.v[3]);
-
-        // Only 3 cases here, so using nested ifs
-        mat[i] = pair_1.x;
-        ++i;
-        if (i < comp)
-        {
-            mat[i] = pair_1.y;
-            ++i;
-            if (i < comp)
-            {
-                mat[i] = pair_2.x;
-                ++i;
-            }
-        }
-    }
-    // Unrolling
-    for (; i < dim; i += 4)
-    {
-        // Below array represents counter updating
-        typename T_gen::ctr_type r = gen({{i, 0, 0, 0}}, key);
-        // Paralleleize
-
-        // Take 2 32 or 64-bit unsigned random vals, return 2 random floats/doubles
-        // Since generated vals are indistinguishable form uniform, feed them into box-muller right away
-        // Uses uneg11 & u01 under the hood
-        T_fun pair_1 = r123::boxmuller(r.v[0], r.v[1]);
-        T_fun pair_2 = r123::boxmuller(r.v[2], r.v[3]);
-
-        mat[i] = pair_1.x;
-        mat[i + 1] = pair_1.y;
-        mat[i + 2] = pair_2.x;
-        mat[i + 3] = pair_2.y;*/
 }
 
 template <typename T>
