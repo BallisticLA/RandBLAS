@@ -95,7 +95,7 @@ static void gen_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint3
 }
 
 template <typename T>
-void gen_rmat_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint32_t ctr_offset)
+static void gen_rmat_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint32_t ctr_offset)
 {
     if (typeid(T) == typeid(float))
     {
@@ -152,7 +152,7 @@ static void gen_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint3
 }
 
 template <typename T>
-void gen_rmat_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint32_t ctr_offset)
+static void gen_rmat_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint32_t ctr_offset)
 {
     if (typeid(T) == typeid(float))
     {
@@ -176,7 +176,7 @@ void gen_rmat_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint32_
 }
 
 template <typename T>
-void fill_sketching_buff(Dist D, uint32_t key, uint32_t ctr_offset, T *buff) {
+void fill_buff_iid(T *buff, Dist D, uint32_t key, uint32_t ctr_offset) {
     switch (D.family) {
     case DistName::Gaussian:
         gen_rmat_norm<T>(D.n_rows, D.n_cols, buff, key, ctr_offset);
@@ -224,13 +224,13 @@ void lskge3(
     T *S0_ptr = S0.op_data;
     if (S0_ptr == NULL) {
         S0_ptr = new T[S0.dist.n_rows * S0.dist.n_cols];
-        fill_sketching_buff<T>(S0.dist, S0.key, S0.ctr_offset, S0_ptr);
+        fill_buff_iid<T>(S0_ptr, S0.dist, S0.key, S0.ctr_offset);
         if (S0.persistent) {
             S0.op_data = S0_ptr;
             S0.filled = true;
         }
     } else if (!S0.filled) {
-        fill_sketching_buff<T>(S0.dist, S0.key, S0.ctr_offset, S0_ptr);
+        fill_buff_iid<T>(S0_ptr, S0.dist, S0.key, S0.ctr_offset);
         S0.filled = true;
     }
     // TODO: add a state check.

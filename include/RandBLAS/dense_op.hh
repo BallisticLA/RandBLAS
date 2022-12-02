@@ -60,29 +60,11 @@ struct SketchingOperator {
 };
 
 template <typename T>
-void gen_rmat_unif(
-    int64_t n_rows,
-    int64_t n_cols,
-    T* mat,
-    uint32_t key,
-    uint32_t ctr_offset
-);
-
-template <typename T>
-void gen_rmat_norm(
-    int64_t n_rows,
-    int64_t n_cols,
-    T* mat,
-    uint32_t key,
-    uint32_t ctr_offset
-);
-
-template <typename T>
-void fill_sketching_buff(
+void fill_buff_iid(
+    T *buff,
     Dist D,
     uint32_t key,
     uint32_t ctr_offset,
-    T *buff
 );
 
 template <typename T>

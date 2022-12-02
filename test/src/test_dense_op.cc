@@ -34,7 +34,7 @@ class TestDenseMoments : public ::testing::Test
             .n_cols = n_cols,
             .family = dn
         };
-        RandBLAS::dense_op::fill_sketching_buff<T>(D, seed, 0, A.data());
+        RandBLAS::dense_op::fill_buff_iid<T>(A.data(), D, seed, 0);
 
         // Compute the entrywise empirical mean and standard deviation.
         T mean = std::accumulate(A.data(), A.data() + size, 0.0) /size;
