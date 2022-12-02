@@ -78,7 +78,7 @@ void gen_rmat_norm(
 );
 
 template <typename T>
-void populate_dense_buff(
+void populate_sketching_buff(
     Dist D,
     uint32_t key,
     uint32_t ctr_offset,
