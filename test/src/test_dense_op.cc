@@ -30,9 +30,9 @@ class TestDenseMoments : public ::testing::Test
 
         // Construct the sketching operator
         RandBLAS::dense_op::Dist D {
+            .family = dn,
             .n_rows = n_rows,
-            .n_cols = n_cols,
-            .family = dn
+            .n_cols = n_cols
         };
         RandBLAS::dense_op::fill_buff<T>(A.data(), D, seed, 0);
 
