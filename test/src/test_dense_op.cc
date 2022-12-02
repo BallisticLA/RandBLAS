@@ -34,7 +34,7 @@ class TestDenseMoments : public ::testing::Test
             .n_cols = n_cols,
             .family = dn
         };
-        RandBLAS::dense_op::populate_sketching_buff<T>(D, seed, 0, A.data());
+        RandBLAS::dense_op::fill_sketching_buff<T>(D, seed, 0, A.data());
 
         // Compute the entrywise empirical mean and standard deviation.
         T mean = std::accumulate(A.data(), A.data() + size, 0.0) /size;
@@ -100,14 +100,14 @@ class TestLSKGE3 : public ::testing::Test
             .ctr_offset=0,
             .key=seed,
             .op_data=NULL,
-            .populated=false,
+            .filled=false,
             .persistent=false,
             .layout=blas::Layout::ColMajor
         };
         if (preallocate) {
             std::vector<T> buff(d * m, 0.0);
             S0.op_data = buff.data();
-            S0.populated = false;
+            S0.filled = false;
             S0.persistent = true;
         }
 

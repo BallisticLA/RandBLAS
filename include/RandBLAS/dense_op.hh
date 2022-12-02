@@ -28,7 +28,7 @@ struct Dist {
     //      (*) Swapping n_rows and n_cols can only affect
     //          random number generation up to scaling.
     //      (*) When a buffer is needed, it will be
-    //          populated in a way that is agnoistic
+    //          filled in a way that is agnoistic
     //          to row-major or column-major interpretation.  
 };
 
@@ -45,7 +45,7 @@ struct SketchingOperator {
     int64_t ctr_offset = 0;
     int64_t key = 0;
     T *op_data = NULL;
-    bool populated = false;
+    bool filled = false;
     bool persistent = false;
     blas::Layout layout = blas::Layout::ColMajor;
     //      ^ Technically, users are allowed to change layout
@@ -78,7 +78,7 @@ void gen_rmat_norm(
 );
 
 template <typename T>
-void populate_sketching_buff(
+void fill_sketching_buff(
     Dist D,
     uint32_t key,
     uint32_t ctr_offset,
