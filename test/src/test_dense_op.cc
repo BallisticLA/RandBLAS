@@ -5,8 +5,8 @@
 
 #include <Random123/philox.h>
 
-#define RELDTOL 1e-10;
-#define ABSDTOL 1e-12;
+#define RELTOL_POWER 0.7
+#define ABSTOL_POWER 0.75
 
 class TestDenseMoments : public ::testing::Test
 {
@@ -86,10 +86,9 @@ class TestLSKGE3 : public ::testing::Test
     virtual void TearDown(){};
 
     template <typename T>
-    static void dummy_run_gaussian(
+    static void sketch_eye(
         uint32_t seed,
         int64_t m,
-        int64_t n,
         int64_t d,
         bool preallocate
     ) {
@@ -97,7 +96,7 @@ class TestLSKGE3 : public ::testing::Test
         RandBLAS::dense_op::Dist D = {
             .family=RandBLAS::dense_op::DistName::Gaussian,
             .n_rows = d,
-            .n_cols = n
+            .n_cols = m
         };
         // Define the sketching operator struct, S0.
         RandBLAS::dense_op::SketchingOperator<T> S0 = {
@@ -106,7 +105,7 @@ class TestLSKGE3 : public ::testing::Test
             .key=seed,
             .op_data=NULL,
             .filled=false,
-            .persistent=false,
+            .persistent=true,
             .layout=blas::Layout::ColMajor
         };
         if (preallocate) {
@@ -117,40 +116,58 @@ class TestLSKGE3 : public ::testing::Test
         }
 
         // define a matrix to be sketched, and create workspace for sketch.
-        std::vector<T> A(m * n, 0.0);
-        RandBLAS::util::genmat<T>(m, n, A.data(), seed + 1);
-        std::vector<T> B(d * n, 0.0);
+        std::vector<T> A(m * m, 0.0);
+        T *A_ptr = A.data();
+        for (int i = 0; i < m; ++i)
+            A_ptr[i + m*i] = 1.0;
+
 
         // Perform the sketch
+        std::vector<T> B(d * m, 0.0);
         RandBLAS::dense_op::lskge3<T>(
             blas::Layout::ColMajor,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
-            d, n, m,
+            d, m, m,
             1.0,
             S0, 0,
-            A.data(), m,
+            A_ptr, m,
             0.0,
             B.data(), d   
         );
-        // ... Check that nothing insane happened.
+
+        // check the result
+        T reltol = std::pow(std::numeric_limits<T>::epsilon(), RELTOL_POWER);
+        T *S0_ptr = S0.op_data;
+        for (int64_t i = 0; i < m*d; ++i) {
+            T actual = B[i];
+            T expect = S0_ptr[i];
+            T atol = reltol * std::min(abs(actual), abs(expect));
+            EXPECT_NEAR(actual, expect, atol);
+        }
     }
 };
 
-TEST_F(TestLSKGE3, TrivialTest_Double)
+TEST_F(TestLSKGE3, eye_double_preallocate)
 {
     for (uint32_t seed : {0})
-    {
-        dummy_run_gaussian<double>(seed, 200, 10, 30, false);
-        dummy_run_gaussian<double>(seed, 200, 10, 30, true);
-    }
+        sketch_eye<double>(seed, 200, 30, true);
 }
 
-TEST_F(TestLSKGE3, TrivialTest_Single)
+TEST_F(TestLSKGE3, eye_double_null)
 {
     for (uint32_t seed : {0})
-    {
-        dummy_run_gaussian<float>(seed, 200, 10, 30, false);
-        dummy_run_gaussian<float>(seed, 200, 10, 30, true);
-    }
+        sketch_eye<double>(seed, 200, 30, false);
+}
+
+TEST_F(TestLSKGE3, eye_single_preallocate)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<float>(seed, 200, 30, true);
+}
+
+TEST_F(TestLSKGE3, eye_single_null)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<float>(seed, 200, 30, false);
 }
