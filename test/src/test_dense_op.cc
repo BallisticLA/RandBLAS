@@ -94,19 +94,19 @@ class TestLSKGE3 : public ::testing::Test
     ) {
         // Define the distribution for S0.
         RandBLAS::dense_op::Dist D = {
-            .family=RandBLAS::dense_op::DistName::Gaussian,
+            .family = RandBLAS::dense_op::DistName::Gaussian,
             .n_rows = d,
             .n_cols = m
         };
         // Define the sketching operator struct, S0.
         RandBLAS::dense_op::SketchingOperator<T> S0 = {
-            .dist=D,
-            .ctr_offset=0,
-            .key=seed,
-            .op_data=NULL,
-            .filled=false,
-            .persistent=true,
-            .layout=blas::Layout::ColMajor
+            .dist = D,
+            .ctr_offset = 0,
+            .key = seed,
+            .op_data = NULL,
+            .filled = false,
+            .persistent = true,
+            .layout = blas::Layout::ColMajor
         };
         if (preallocate) {
             std::vector<T> buff(d * m, 0.0);
