@@ -129,11 +129,8 @@ class TestLSKGE3 : public ::testing::Test
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, m, m,
-            1.0,
-            S0, 0,
-            A_ptr, m,
-            0.0,
-            B.data(), d   
+            1.0, S0, 0, A_ptr, m,
+            0.0, B.data(), d   
         );
 
         // check the result
@@ -144,6 +141,58 @@ class TestLSKGE3 : public ::testing::Test
             T expect = S0_ptr[i];
             T atol = reltol * std::min(abs(actual), abs(expect));
             EXPECT_NEAR(actual, expect, atol);
+        }
+    }
+
+    template <typename T>
+    static void transpose(
+        uint32_t seed,
+        int64_t m,
+        int64_t d
+    ) {
+        // Define the distribution for S0.
+        RandBLAS::dense_op::Dist Dt = {
+            .family=RandBLAS::dense_op::DistName::Gaussian,
+            .n_rows = m,
+            .n_cols = d
+        };
+        // Define the sketching operator struct, S0.
+        RandBLAS::dense_op::SketchingOperator<T> S0 = {
+            .dist=Dt,
+            .ctr_offset=0,
+            .key=seed,
+            .persistent = true,
+            .layout=blas::Layout::ColMajor
+        };
+
+        // define a matrix to be sketched, and create workspace for sketch.
+        std::vector<T> A(m * m, 0.0);
+        T *A_ptr = A.data();
+        for (int i = 0; i < m; ++i)
+            A_ptr[i + m*i] = 1.0;
+
+
+        // Perform the sketch
+        std::vector<T> B(d * m, 0.0);
+        RandBLAS::dense_op::lskge3<T>(
+            blas::Layout::ColMajor,
+            blas::Op::Trans,
+            blas::Op::NoTrans,
+            d, m, m,
+            1.0, S0, 0, A_ptr, m,
+            0.0, B.data(), d   
+        );
+
+        // check that B == S.T
+        T reltol = std::pow(std::numeric_limits<T>::epsilon(), RELTOL_POWER);
+        T *S0_ptr = S0.op_data;
+        for (int64_t i = 0; i < d; ++i) {
+            for (int64_t j = 0; j < m; ++j) {
+                T actual = B[i + d*j];
+                T expect = S0_ptr[j + m*i];
+                T atol = reltol * std::min(abs(actual), abs(expect));
+                EXPECT_NEAR(actual, expect, atol);
+            }
         }
     }
 };
@@ -170,4 +219,16 @@ TEST_F(TestLSKGE3, eye_single_null)
 {
     for (uint32_t seed : {0})
         sketch_eye<float>(seed, 200, 30, false);
+}
+
+TEST_F(TestLSKGE3, transpose_double)
+{
+    for (uint32_t seed : {0})
+        transpose<double>(seed, 200, 30);
+}
+
+TEST_F(TestLSKGE3, transpose_single)
+{
+    for (uint32_t seed : {0})
+        transpose<float>(seed, 200, 30);
 }
