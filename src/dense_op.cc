@@ -68,17 +68,11 @@ static void gen_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint3
     typedef typename T_gen::key_type key_type;
     typedef typename T_gen::ctr_type ctr_type;
     key_type typed_key = {{key}};
-    // Definde the generator
     T_gen gen;
     int64_t dim = n_rows * n_cols;
-    // Need every thread to have its own version of key for the outer loop to be parallelizable
-    // Need to figure out when fork/join overhead becomes less than time saved by parallelization
-    // Effectively, below structure is similar to unrolling by a factor of 4
     uint32_t i;
     ctr_type r;
     for (i = 0; i + 3 < dim; i += 4) {
-        // Adding critical section around the increment should make outer loop parallelizable?
-        // Below array represents counter updating
         r = gen({{ctr_offset + i,0,0,0}}, typed_key);
         mat[i] = r123::uneg11<T>(r.v[0]);
         mat[i + 1] = r123::uneg11<T>(r.v[1]);
@@ -176,7 +170,7 @@ static void gen_rmat_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, 
 }
 
 template <typename T>
-void fill_buff_iid(T *buff, Dist D, uint32_t key, uint32_t ctr_offset) {
+void fill_buff(T *buff, Dist D, uint32_t key, uint32_t ctr_offset) {
     switch (D.family) {
     case DistName::Gaussian:
         gen_rmat_norm<T>(D.n_rows, D.n_cols, buff, key, ctr_offset);
@@ -188,6 +182,10 @@ void fill_buff_iid(T *buff, Dist D, uint32_t key, uint32_t ctr_offset) {
         throw std::runtime_error(std::string("Not implemented."));
         break;
     case DistName::Haar:
+        // This won't be filled IID, but a Householder representation
+        // of a column-orthonormal matrix Q can be stored in the lower
+        // triangle of Q (with "tau" on the diagonal). So the size of
+        // buff will still be D.n_rows*D.n_cols.
         throw std::runtime_error(std::string("Not implemented."));
         break;
     default:
@@ -224,13 +222,13 @@ void lskge3(
     T *S0_ptr = S0.op_data;
     if (S0_ptr == NULL) {
         S0_ptr = new T[S0.dist.n_rows * S0.dist.n_cols];
-        fill_buff_iid<T>(S0_ptr, S0.dist, S0.key, S0.ctr_offset);
+        fill_buff<T>(S0_ptr, S0.dist, S0.key, S0.ctr_offset);
         if (S0.persistent) {
             S0.op_data = S0_ptr;
             S0.filled = true;
         }
     } else if (!S0.filled) {
-        fill_buff_iid<T>(S0_ptr, S0.dist, S0.key, S0.ctr_offset);
+        fill_buff<T>(S0_ptr, S0.dist, S0.key, S0.ctr_offset);
         S0.filled = true;
     }
     // TODO: add a state check.

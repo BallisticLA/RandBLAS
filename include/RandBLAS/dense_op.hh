@@ -60,11 +60,11 @@ struct SketchingOperator {
 };
 
 template <typename T>
-void fill_buff_iid(
+void fill_buff(
     T *buff,
     Dist D,
     uint32_t key,
-    uint32_t ctr_offset,
+    uint32_t ctr_offset
 );
 
 template <typename T>

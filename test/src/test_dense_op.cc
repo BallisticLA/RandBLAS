@@ -34,7 +34,7 @@ class TestDenseMoments : public ::testing::Test
             .n_cols = n_cols,
             .family = dn
         };
-        RandBLAS::dense_op::fill_buff_iid<T>(A.data(), D, seed, 0);
+        RandBLAS::dense_op::fill_buff<T>(A.data(), D, seed, 0);
 
         // Compute the entrywise empirical mean and standard deviation.
         T mean = std::accumulate(A.data(), A.data() + size, 0.0) /size;
@@ -86,8 +86,13 @@ class TestLSKGE3 : public ::testing::Test
     virtual void TearDown(){};
 
     template <typename T>
-    static void dummy_run_gaussian(uint32_t seed, int64_t m, int64_t n, int64_t d, bool preallocate)
-    {
+    static void dummy_run_gaussian(
+        uint32_t seed,
+        int64_t m,
+        int64_t n,
+        int64_t d,
+        bool preallocate
+    ) {
         // Define the distribution for S0.
         RandBLAS::dense_op::Dist D = {
             .family=RandBLAS::dense_op::DistName::Gaussian,
