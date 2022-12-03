@@ -45,8 +45,15 @@ struct SketchingOperator {
     int64_t ctr_offset = 0;
     int64_t key = 0;
     T *op_data = NULL;
+    //      ^ "buff" would be a better name in isolation. However,
+    //      Riley currently thinks its useful to have the same
+    //      name for all distributions, since then the policy
+    //      for checking if workspace is allocated can be the same
+    //      for all distributions (always checking if .op_data == NULL).
+    //      But that might be inefficient, unrealistic, or otherwise
+    //      not worth the loss the readability.
     bool filled = false;
-    bool persistent = false;
+    bool persistent = true;
     blas::Layout layout = blas::Layout::ColMajor;
     //      ^ Technically, users are allowed to change layout
     //      at will. For example, they might want to get
