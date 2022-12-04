@@ -98,9 +98,9 @@ void matrices_approx_equal(
     blas::Op transB,
     int64_t m,
     int64_t n,
-    T *A,
+    const T *A,
     int64_t lda,
-    T *B,
+    const T *B,
     int64_t ldb
 ) {
     // check that A == op(B), where A is m-by-n.
@@ -176,7 +176,7 @@ class TestLSKGE3 : public ::testing::Test
         };
         if (preallocate) {
             std::vector<T> buff(d * m, 0.0);
-            S0.op_data = buff.data();
+            S0.buff = buff.data();
             S0.filled = false;
             S0.persistent = true;
         }
@@ -198,7 +198,7 @@ class TestLSKGE3 : public ::testing::Test
         );
 
         // check the result
-        buffs_approx_equal(B.data(), S0.op_data, d*m);
+        buffs_approx_equal(B.data(), S0.buff, d*m);
     }
 
     template <typename T>
@@ -239,7 +239,7 @@ class TestLSKGE3 : public ::testing::Test
         // check that B == S.T
         matrices_approx_equal<T>(
             S0.layout, blas::Op::Trans, d, m,
-            B.data(), d, S0.op_data, m      
+            B.data(), d, S0.buff, m      
         );
     }
 
@@ -286,7 +286,7 @@ class TestLSKGE3 : public ::testing::Test
             0.0, B.data(), d   
         );
         // Check the result
-        T *S_ptr = &S0.op_data[vpo];
+        T *S_ptr = &S0.buff[vpo];
         matrices_approx_equal(
             S0.layout, blas::Op::NoTrans,
             d, m,
@@ -343,7 +343,7 @@ class TestLSKGE3 : public ::testing::Test
         std::vector<T> B_expect(d * n, 0.0);
         blas::gemm<T>(S0.layout, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
-            1.0, S0.op_data, d, A_ptr, m0,
+            1.0, S0.buff, d, A_ptr, m0,
             0.0, B_expect.data(), d
         );
         buffs_approx_equal(B.data(), B_expect.data(), d * n);

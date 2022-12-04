@@ -206,7 +206,7 @@ void lskge3(
     T alpha,
     SketchingOperator<T> &S0,
     int64_t pos, // pointer offset for S in S0
-    T *A_ptr,
+    const T *A_ptr,
     int64_t lda,
     T beta,
     T *B_ptr,
@@ -219,12 +219,12 @@ void lskge3(
     // it's not clear what we'd return from that function. Can't just return
     // a pointer for dynamically allocated memory that isn't assigned to
     // something. 
-    T *S0_ptr = S0.op_data;
+    T *S0_ptr = S0.buff;
     if (S0_ptr == NULL) {
         S0_ptr = new T[S0.dist.n_rows * S0.dist.n_cols];
         fill_buff<T>(S0_ptr, S0.dist, S0.key, S0.ctr_offset);
         if (S0.persistent) {
-            S0.op_data = S0_ptr;
+            S0.buff = S0_ptr;
             S0.filled = true;
         }
     } else if (!S0.filled) {
@@ -278,9 +278,9 @@ void lskge3(
 
 // Explicit instantiation of template functions
 template void lskge3(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, double alpha,
-    SketchingOperator<double> &S0, int64_t pos, double *A_ptr, int64_t lda, double beta, double *B_ptr, int64_t ldb);
+    SketchingOperator<double> &S0, int64_t pos, const double *A_ptr, int64_t lda, double beta, double *B_ptr, int64_t ldb);
 template void lskge3(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
-    SketchingOperator<float> &S0, int64_t pos, float *A_ptr, int64_t lda, float beta, float *B_ptr, int64_t ldb);
+    SketchingOperator<float> &S0, int64_t pos, const float *A_ptr, int64_t lda, float beta, float *B_ptr, int64_t ldb);
 
 template void gen_rmat_unif<float>(int64_t n_rows, int64_t n_cols, float* mat, uint32_t key, uint32_t ctr_offset);
 template void gen_rmat_unif<double>(int64_t n_rows, int64_t n_cols, double* mat, uint32_t key, uint32_t ctr_offset);

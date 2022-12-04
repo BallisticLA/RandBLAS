@@ -20,10 +20,10 @@ namespace RandBLAS::dense_op {
 enum class DistName : char {Gaussian = 'G', Normal = 'G', Uniform = 'U', Rademacher = 'R', Haar = 'H'};
 
 struct Dist {
-    DistName family = DistName::Gaussian;
-    int64_t n_rows;
-    int64_t n_cols;
-    bool scale = false;
+    const DistName family = DistName::Gaussian;
+    const int64_t n_rows;
+    const int64_t n_cols;
+    const bool scale = false;
     // Guarantee for iid-dense distributions:
     //      (*) Swapping n_rows and n_cols can only affect
     //          random number generation up to scaling.
@@ -41,29 +41,13 @@ struct SketchingOperator {
     // 
     // Dimensions are specified with the distribution, in "dist".
     //
-    Dist dist{};
-    int64_t ctr_offset = 0;
-    int64_t key = 0;
-    T *op_data = NULL;
-    //      ^ "buff" would be a better name in isolation. However,
-    //      Riley currently thinks its useful to have the same
-    //      name for all distributions, since then the policy
-    //      for checking if workspace is allocated can be the same
-    //      for all distributions (always checking if .op_data == NULL).
-    //      But that might be inefficient, unrealistic, or otherwise
-    //      not worth the loss the readability.
+    const Dist dist{};
+    const int64_t ctr_offset = 0;
+    const int64_t key = 0;
+    T *buff = NULL;
     bool filled = false;
     bool persistent = true;
-    blas::Layout layout = blas::Layout::ColMajor;
-    //      ^ Technically, users are allowed to change layout
-    //      at will. For example, they might want to get
-    //      rid of a transpose in a sketching operation by
-    //      asserting a different layout than was
-    //      originally used by the SketchingBuffer. However,
-    //      users do this at their own peril, since changing
-    //      layout usually requires swapping the numbers of
-    //      rows and columns, and *that* requires changing
-    //      the "dist" field of this struct.
+    const blas::Layout layout = blas::Layout::ColMajor;
 };
 
 template <typename T>
@@ -85,7 +69,7 @@ void lskge3(
     T alpha,
     SketchingOperator<T> &S0,
     int64_t pos, // pointer offset for S in S0
-    T *A_ptr,
+    const T *A_ptr,
     int64_t lda,
     T beta,
     T *B_ptr,
