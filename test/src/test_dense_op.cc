@@ -79,8 +79,8 @@ TEST_F(TestDenseMoments, Uniform)
 
 template <typename T>
 void buffs_approx_equal(
-    T *actual_ptr,
-    T *expect_ptr,
+    const T *actual_ptr,
+    const T *expect_ptr,
     int64_t size
 ) {
     T reltol = std::pow(std::numeric_limits<T>::epsilon(), RELTOL_POWER);
@@ -142,9 +142,7 @@ class TestLSKGE3 : public ::testing::Test
         3. Using a submatrix of the sketching operator.
         4. sketching a submatrix of a data matrix.
         5. row-major sketching
-            5.1 How to write code that checks all the functionality
-                above, but for row-major data?
-            5.2 An exception should be raised if S0.layout != 
+            5.1 An exception should be raised if S0.layout != 
                 declared layout.
 
     Things that don't need to be tested:
@@ -161,7 +159,8 @@ class TestLSKGE3 : public ::testing::Test
         uint32_t seed,
         int64_t m,
         int64_t d,
-        bool preallocate
+        bool preallocate,
+        blas::Layout layout
     ) {
         // Define the distribution for S0.
         RandBLAS::dense_op::Dist D = {
@@ -172,7 +171,8 @@ class TestLSKGE3 : public ::testing::Test
         // Define the sketching operator struct, S0.
         RandBLAS::dense_op::SketchingOperator<T> S0 = {
             .dist = D,
-            .key = seed
+            .key = seed,
+            .layout = layout
         };
         if (preallocate) {
             std::vector<T> buff(d * m, 0.0);
@@ -182,19 +182,22 @@ class TestLSKGE3 : public ::testing::Test
         }
 
         // define a matrix to be sketched, and create workspace for sketch.
+         bool is_colmajor = layout == blas::Layout::ColMajor;
         std::vector<T> A(m * m, 0.0);
         for (int i = 0; i < m; ++i)
             A[i + m*i] = 1.0;
         std::vector<T> B(d * m, 0.0);
+        int64_t lda = m;
+        int64_t ldb = (is_colmajor) ? d : m;
 
         // Perform the sketch
         RandBLAS::dense_op::lskge3<T>(
-            blas::Layout::ColMajor,
+            S0.layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, m, m,
-            1.0, S0, 0, A.data(), m,
-            0.0, B.data(), d   
+            1.0, S0, 0, A.data(), lda,
+            0.0, B.data(), ldb
         );
 
         // check the result
@@ -205,7 +208,8 @@ class TestLSKGE3 : public ::testing::Test
     static void transpose_S(
         uint32_t seed,
         int64_t m,
-        int64_t d
+        int64_t d,
+        blas::Layout layout
     ) {
         // Define the distribution for S0.
         RandBLAS::dense_op::Dist Dt = {
@@ -215,31 +219,35 @@ class TestLSKGE3 : public ::testing::Test
         };
         // Define the sketching operator struct, S0.
         RandBLAS::dense_op::SketchingOperator<T> S0 = {
-            .dist=Dt,
-            .key=seed
+            .dist = Dt,
+            .key = seed,
+            .layout = layout
         };
+         bool is_colmajor = layout == blas::Layout::ColMajor;
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A(m * m, 0.0);
-        T *A_ptr = A.data();
         for (int i = 0; i < m; ++i)
-            A_ptr[i + m*i] = 1.0;
-
-        // Perform the sketch
+            A[i + m*i] = 1.0;
         std::vector<T> B(d * m, 0.0);
+        int64_t lda = m;
+        int64_t ldb = (is_colmajor) ? d : m;
+
+        // perform the sketch
         RandBLAS::dense_op::lskge3<T>(
             S0.layout,
             blas::Op::Trans,
             blas::Op::NoTrans,
             d, m, m,
-            1.0, S0, 0, A_ptr, m,
-            0.0, B.data(), d   
+            1.0, S0, 0, A.data(), m,
+            0.0, B.data(), ldb   
         );
 
         // check that B == S.T
+        int64_t lds = (is_colmajor) ? m : d;
         matrices_approx_equal<T>(
             S0.layout, blas::Op::Trans, d, m,
-            B.data(), d, S0.buff, m      
+            B.data(), ldb, S0.buff, lds      
         );
     }
 
@@ -251,11 +259,13 @@ class TestLSKGE3 : public ::testing::Test
         int64_t d0, // rows in S0
         int64_t m0, // cols in S0
         int64_t S_ro, // row offset for S in S0
-        int64_t S_co  // column offset for S in S0
+        int64_t S_co, // column offset for S in S0
+        blas::Layout layout
     ) {
         assert(d0 > d);
         assert(m0 > m);
-        int64_t vpo = S_ro + d0 * S_co;
+        bool is_colmajor = layout == blas::Layout::ColMajor;
+        int64_t vpo = (is_colmajor) ? (S_ro + d0 * S_co) : (S_ro * m0 + S_co);
         assert(d0 * m0 >= vpo + d * m);
 
         // Define the distribution for S0.
@@ -267,13 +277,18 @@ class TestLSKGE3 : public ::testing::Test
         // Define the sketching operator struct, S0.
         RandBLAS::dense_op::SketchingOperator<T> S0 = {
             .dist = D,
-            .key = seed
+            .key = seed,
+            .layout = layout
         };
+        int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
+
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A(m * m, 0.0);
         for (int i = 0; i < m; ++i)
             A[i + m*i] = 1.0;
         std::vector<T> B(d * m, 0.0);
+        int64_t lda = m;
+        int64_t ldb = (is_colmajor) ? d : m;
         
         // Perform the sketch
         RandBLAS::dense_op::lskge3<T>(
@@ -282,16 +297,16 @@ class TestLSKGE3 : public ::testing::Test
             blas::Op::NoTrans,
             d, m, m,
             1.0, S0, vpo,
-            A.data(), m,
-            0.0, B.data(), d   
+            A.data(), lda,
+            0.0, B.data(), ldb   
         );
         // Check the result
         T *S_ptr = &S0.buff[vpo];
         matrices_approx_equal(
             S0.layout, blas::Op::NoTrans,
             d, m,
-            B.data(), d,
-            S_ptr, d0
+            B.data(), ldb,
+            S_ptr, lds
         );
     }
 
@@ -304,7 +319,8 @@ class TestLSKGE3 : public ::testing::Test
         int64_t m0, // rows in A0
         int64_t n0, // cols in A0
         int64_t A_ro, // row offset for A in A0
-        int64_t A_co  // column offset for A in A0
+        int64_t A_co, // column offset for A in A0
+        blas::Layout layout
     ) {
         assert(m0 > m);
         assert(n0 > n);
@@ -318,8 +334,11 @@ class TestLSKGE3 : public ::testing::Test
         // Define the sketching operator struct, S0.
         RandBLAS::dense_op::SketchingOperator<T> S0 = {
             .dist = D,
-            .key = seed_S0
+            .key = seed_S0,
+            .layout = layout
         };
+        bool is_colmajor = layout == blas::Layout::ColMajor;
+
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A0(m0 * n0, 0.0);
         uint32_t ctr_A0 = 42;
@@ -327,74 +346,110 @@ class TestLSKGE3 : public ::testing::Test
         RandBLAS::dense_op::Dist DA0 = {.n_rows = m0, .n_cols = n0};
         RandBLAS::dense_op::fill_buff(A0.data(), DA0, ctr_A0, seed_A0);
         std::vector<T> B(d * n, 0.0);
+        int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
+        int64_t ldb = (is_colmajor) ? d : n;
         
         // Perform the sketch
-        T *A_ptr = &A0.data()[A_ro + m0 * A_co]; 
+        int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
+        T *A_ptr = &A0.data()[a_offset]; 
         RandBLAS::dense_op::lskge3<T>(
             S0.layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, n, m,
             1.0, S0, 0,
-            A_ptr, m0,
-            0.0, B.data(), d   
+            A_ptr, lda,
+            0.0, B.data(), ldb   
         );
+
         // Check the result
+        int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
         std::vector<T> B_expect(d * n, 0.0);
         blas::gemm<T>(S0.layout, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
-            1.0, S0.buff, d, A_ptr, m0,
-            0.0, B_expect.data(), d
+            1.0, S0.buff, lds, A_ptr, lda,
+            0.0, B_expect.data(), ldb
         );
         buffs_approx_equal(B.data(), B_expect.data(), d * n);
     }
 
 };
 
-TEST_F(TestLSKGE3, eye_double_preallocate)
+TEST_F(TestLSKGE3, eye_double_preallocate_colmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 200, 30, true);
+        sketch_eye<double>(seed, 200, 30, true, blas::Layout::ColMajor);
 }
 
-TEST_F(TestLSKGE3, eye_double_null)
+TEST_F(TestLSKGE3, eye_double_preallocate_rowmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 200, 30, false);
+        sketch_eye<double>(seed, 200, 30, true, blas::Layout::RowMajor);
+}
+
+TEST_F(TestLSKGE3, eye_double_null_colmajor)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<double>(seed, 200, 30, false, blas::Layout::ColMajor);
+}
+
+TEST_F(TestLSKGE3, eye_double_null_rowmajor)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<double>(seed, 200, 30, false, blas::Layout::RowMajor);
 }
 
 TEST_F(TestLSKGE3, eye_single_preallocate)
 {
     for (uint32_t seed : {0})
-        sketch_eye<float>(seed, 200, 30, true);
+        sketch_eye<float>(seed, 200, 30, true, blas::Layout::ColMajor);
 }
 
 TEST_F(TestLSKGE3, eye_single_null)
 {
     for (uint32_t seed : {0})
-        sketch_eye<float>(seed, 200, 30, false);
+        sketch_eye<float>(seed, 200, 30, false, blas::Layout::ColMajor);
 }
 
-TEST_F(TestLSKGE3, transpose_double)
+TEST_F(TestLSKGE3, transpose_double_colmajor)
 {
     for (uint32_t seed : {0})
-        transpose_S<double>(seed, 200, 30);
+        transpose_S<double>(seed, 200, 30, blas::Layout::ColMajor);
+}
+
+TEST_F(TestLSKGE3, transpose_double_rowmajor)
+{
+    for (uint32_t seed : {0})
+        transpose_S<double>(seed, 200, 30, blas::Layout::RowMajor);
 }
 
 TEST_F(TestLSKGE3, transpose_single)
 {
     for (uint32_t seed : {0})
-        transpose_S<float>(seed, 200, 30);
+        transpose_S<float>(seed, 200, 30, blas::Layout::ColMajor);
 }
 
-TEST_F(TestLSKGE3, submatrix_s_double) 
+TEST_F(TestLSKGE3, submatrix_s_double_colmajor) 
 {
     for (uint32_t seed : {0})
         submatrix_S<double>(seed,
             3, 10, // (rows, cols) in S.
             8, 12, // (rows, cols) in S0.
             3, // The first row of S is in the forth row of S0
-            1  // The first col of S is in the second col of S0
+            1, // The first col of S is in the second col of S0
+            blas::Layout::ColMajor
+        );
+}
+
+TEST_F(TestLSKGE3, submatrix_s_double_rowmajor) 
+{
+    for (uint32_t seed : {0})
+        submatrix_S<double>(seed,
+            3, 10, // (rows, cols) in S.
+            8, 12, // (rows, cols) in S0.
+            3, // The first row of S is in the forth row of S0
+            1, // The first col of S is in the second col of S0
+            blas::Layout::RowMajor
         );
 }
 
@@ -405,11 +460,12 @@ TEST_F(TestLSKGE3, submatrix_s_single)
             3, 10, // (rows, cols) in S.
             8, 12, // (rows, cols) in S0.
             3, // The first row of S is in the forth row of S0
-            1  // The first col of S is in the second col of S0
+            1, // The first col of S is in the second col of S0
+            blas::Layout::ColMajor
         );
 }
 
-TEST_F(TestLSKGE3, submatrix_a_double) 
+TEST_F(TestLSKGE3, submatrix_a_double_colmajor) 
 {
     for (uint32_t seed : {0})
         submatrix_A<double>(seed,
@@ -417,7 +473,21 @@ TEST_F(TestLSKGE3, submatrix_a_double)
             10, 5, // (rows, cols) in A.
             12, 8, // (rows, cols) in A0.
             2, // The first row of A is in the third row of A0.
-            1  // The first col of A is in the second col of A0.
+            1, // The first col of A is in the second col of A0.
+            blas::Layout::ColMajor
+        );
+}
+
+TEST_F(TestLSKGE3, submatrix_a_double_rowmajor) 
+{
+    for (uint32_t seed : {0})
+        submatrix_A<double>(seed,
+            3, // number of rows in sketch
+            10, 5, // (rows, cols) in A.
+            12, 8, // (rows, cols) in A0.
+            2, // The first row of A is in the third row of A0.
+            1, // The first col of A is in the second col of A0.
+            blas::Layout::RowMajor
         );
 }
 
@@ -429,6 +499,7 @@ TEST_F(TestLSKGE3, submatrix_a_single)
             10, 5, // (rows, cols) in A.
             12, 8, // (rows, cols) in A0.
             2, // The first row of A is in the third row of A0.
-            1  // The first col of A is in the second col of A0.
+            1, // The first col of A is in the second col of A0.
+            blas::Layout::ColMajor
         );
 }
