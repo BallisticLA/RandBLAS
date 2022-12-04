@@ -212,6 +212,7 @@ void lskge3(
     T *B_ptr,
     int64_t ldb
 ){
+    assert(d <= m); // Left-sketching can't increase the size of the output.
     if (S0.layout != layout) {
         throw std::runtime_error(std::string("Inconsistent layouts."));
     }

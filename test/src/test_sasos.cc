@@ -6,6 +6,34 @@
 #define ABSTOL_POWER 0.75
 
 
+template <typename T>
+RandBLAS::sasos::SASO<T> make_wide_saso(
+    int64_t n_rows,
+    int64_t n_cols,
+    int64_t vec_nnz,
+    uint64_t ctr_offset,
+    uint64_t key
+) {
+    assert(d <= m);
+    RandBLAS::sasos::Dist D = {
+        .n_rows = n_rows,
+        .n_cols = n_cols,
+        .vec_nnz = vec_nnz
+    };
+    int64_t total_nnz = n_cols * vec_nnz;
+    RandBLAS::sasos::SASO<T> sas = {
+        .dist = D,
+        .key = key,
+        .ctr_offset = ctr_offset,
+        .rows = new int64_t[total_nnz],
+        .cols = new int64_t[total_nnz],
+        .vals = new T[total_nnz]
+    };
+    RandBLAS::sasos::fill_saso(sas);
+    return sas;
+}
+
+
 class TestSASOConstruction : public ::testing::Test
 {
     // only tests column-sparse SASOs for now.
@@ -21,27 +49,18 @@ class TestSASOConstruction : public ::testing::Test
 
     virtual void proper_construction(int64_t key_index, int64_t nnz_index)
     {
-        struct RandBLAS::sasos::SASO<double> sas;
-        sas.n_rows = d; // > n
-        sas.n_cols = m;
-        sas.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
-        sas.rows = new int64_t[sas.vec_nnz * m];
-        sas.cols = new int64_t[sas.vec_nnz * m];
-        sas.vals = new double[sas.vec_nnz * m];
-        sas.key = keys[key_index];
-        sas.ctr = 0;
-        RandBLAS::sasos::fill_colwise(sas);
+        RandBLAS::sasos::SASO<double> sas = make_wide_saso<double>(
+            d, m, vec_nnzs[nnz_index], 0, keys[key_index]
+        );
 
-        // check that each block of sas.vec_nnz entries of sas.rows is
+        // check that each block of sas.dist.vec_nnz entries of sas.rows is
         // sampled without replacement from 0,...,n_rows - 1.
         std::set<int64_t> s;
         int64_t offset = 0;
-        for (int64_t i = 0; i < sas.n_cols; ++i)
-        {
-            offset = sas.vec_nnz * i;
+        for (int64_t i = 0; i < sas.dist.n_cols; ++i) {
+            offset = sas.dist.vec_nnz * i;
             s.clear();
-            for (int64_t j = 0; j < sas.vec_nnz; ++j)
-            {
+            for (int64_t j = 0; j < sas.dist.vec_nnz; ++j) {
                 int64_t row = sas.rows[offset + j];
                 ASSERT_EQ(s.count(row), 0);
                 s.insert(row);
@@ -80,36 +99,32 @@ TEST_F(TestSASOConstruction, Dim7by20nnz7)
 
 
 template <typename T>
-void sas_to_dense_rowmajor(RandBLAS::sasos::SASO<T> &sas, T *mat)
-{
-    for (int64_t i = 0; i < sas.n_rows * sas.n_cols; ++i)
-    {
+void sas_to_dense_rowmajor(RandBLAS::sasos::SASO<T> &sas, T *mat) {
+    RandBLAS::sasos::Dist D = sas.dist;
+    for (int64_t i = 0; i < D.n_rows * D.n_cols; ++i)
         mat[i] = 0.0;
-    }
-    int64_t nnz = sas.n_cols * sas.vec_nnz;
-    for (int64_t i = 0; i < nnz; ++i)
-    {
+
+    int64_t nnz = D.n_cols * D.vec_nnz;
+    for (int64_t i = 0; i < nnz; ++i) {
         int64_t row = sas.rows[i];
         int64_t col = sas.cols[i];
         T val = sas.vals[i];
-        mat[row * sas.n_cols + col] = val;
+        mat[row * D.n_cols + col] = val;
     }
 }
 
 template <typename T>
-void sas_to_dense_colmajor(RandBLAS::sasos::SASO<T> &sas, T *mat)
-{
-    for (int64_t i = 0; i < sas.n_rows * sas.n_cols; ++i)
-    {
+void sas_to_dense_colmajor(RandBLAS::sasos::SASO<T> &sas, T *mat) {
+    RandBLAS::sasos::Dist D = sas.dist;
+    for (int64_t i = 0; i < D.n_rows * D.n_cols; ++i)
         mat[i] = 0.0;
-    }
-    int64_t nnz = sas.n_cols * sas.vec_nnz;
-    for (int64_t i = 0; i < nnz; ++i)
-    {
+
+    int64_t nnz = D.n_cols * D.vec_nnz;
+    for (int64_t i = 0; i < nnz; ++i) {
         int64_t row = sas.rows[i];
         int64_t col = sas.cols[i];
         T val = sas.vals[i];
-        mat[row + sas.n_rows * col] = val;
+        mat[row + sas.dist.n_rows * col] = val;
     }
 }
 
@@ -136,29 +151,18 @@ class TestApplyCsc : public ::testing::Test
         RandBLAS::util::genmat(m, n, a, a_seed);
 
         // construct test data: S
-        struct RandBLAS::sasos::SASO<T> sas;
-        sas.n_rows = d; // > n
-        sas.n_cols = m;
-        sas.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
-        sas.rows = new int64_t[sas.vec_nnz * m];
-        sas.cols = new int64_t[sas.vec_nnz * m];
-        sas.vals = new T[sas.vec_nnz * m];
-        sas.ctr = 0;
-        sas.key = keys[key_index];
-        RandBLAS::sasos::fill_colwise(sas);
+        RandBLAS::sasos::SASO<T> sas = make_wide_saso<T>(
+            d, m, vec_nnzs[nnz_index], 0, keys[key_index]
+        );
         
         // compute S*A. 
-        T *a_hat = new T[d * n];
-        for (int64_t i = 0; i < d * n; ++i)
-        {
-            a_hat[i] = 0.0;
-        }
+        T *a_hat = new T[d * n]{};
         RandBLAS::sasos::sketch_cscrow<T>(sas, n, a, a_hat, threads);
 
         // compute expected result
-        T *a_hat_expect = new T[d * n]{}; // zero-initialize.
         T *S = new T[d * m];
         sas_to_dense_rowmajor<T>(sas, S);
+        T *a_hat_expect = new T[d * n]{}; // zero-initialize.
         int64_t lds = m;
         int64_t lda = n; 
         int64_t ldahat = n;
@@ -166,15 +170,14 @@ class TestApplyCsc : public ::testing::Test
             blas::Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
             1.0, S, lds, a, lda,
-            0.0, a_hat_expect, ldahat);
+            0.0, a_hat_expect, ldahat
+        );
 
         // check the result
         T reltol = std::pow(std::numeric_limits<T>::epsilon(), RELTOL_POWER);
         T abstol = std::pow(std::numeric_limits<T>::epsilon(), ABSTOL_POWER);
-        for (int64_t i = 0; i < d; ++i)
-        {
-            for (int64_t j = 0; j < n; ++j)
-            {
+        for (int64_t i = 0; i < d; ++i) {
+            for (int64_t j = 0; j < n; ++j) {
                 int64_t ell = i*n + j;
                 T expect = a_hat_expect[ell];
                 T actual = a_hat[ell];
@@ -195,16 +198,9 @@ class TestApplyCsc : public ::testing::Test
         RandBLAS::util::genmat(m, n, a, a_seed);
 
         // construct test data: S
-        struct RandBLAS::sasos::SASO<T> sas;
-        sas.n_rows = d; // > n
-        sas.n_cols = m;
-        sas.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
-        sas.rows = new int64_t[sas.vec_nnz * m];
-        sas.cols = new int64_t[sas.vec_nnz * m];
-        sas.vals = new T[sas.vec_nnz * m];
-        sas.ctr = 0;
-        sas.key = keys[key_index];
-        RandBLAS::sasos::fill_colwise<T>(sas);
+        RandBLAS::sasos::SASO<T> sas = make_wide_saso<T>(
+            d, m, vec_nnzs[nnz_index], 0, keys[key_index]
+        );
         
         // compute S*A. 
         T *a_hat = new T[d * n]{}; // zero-initialize.
@@ -230,16 +226,14 @@ class TestApplyCsc : public ::testing::Test
             blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
             1.0, S, lds, a, lda,
-            0.0, a_hat_expect, ldahat);
+            0.0, a_hat_expect, ldahat
+        );
 
         // check the result
         T reltol = std::pow(std::numeric_limits<T>::epsilon(), RELTOL_POWER);
         T abstol = std::pow(std::numeric_limits<T>::epsilon(), ABSTOL_POWER);
-        for (int64_t i = 0; i < d; ++i)
-        {
-            for (int64_t j = 0; j < n; ++j)
-            {
-                // std::pair<int64_t, int64_t> p = {i, j};
+        for (int64_t i = 0; i < d; ++i) {
+            for (int64_t j = 0; j < n; ++j) {
                 int64_t ell = i + j*d;
                 T expect = a_hat_expect[ell];
                 T actual = a_hat[ell];

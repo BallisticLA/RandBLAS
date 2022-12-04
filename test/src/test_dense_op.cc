@@ -313,8 +313,8 @@ class TestLSKGE3 : public ::testing::Test
     template <typename T>
     static void submatrix_A(
         uint32_t seed_S0, // seed for S0
-        int64_t d, // rows in sketching operator S0
-        int64_t m, // rows in A, cols in S0.
+        int64_t d, // rows in S0
+        int64_t m, // cols in S0, and rows in A.
         int64_t n, // cols in A
         int64_t m0, // rows in A0
         int64_t n0, // cols in A0
