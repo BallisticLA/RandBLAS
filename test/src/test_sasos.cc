@@ -157,15 +157,15 @@ class TestApplyCsc : public ::testing::Test
         
         // compute S*A. 
         T *a_hat = new T[d * n]{};
-        RandBLAS::sasos::sketch_cscrow<T>(sas, n, a, a_hat, threads);
+        int64_t lda = n; 
+        int64_t ldahat = n;
+        RandBLAS::sasos::sketch_cscrow<T>(sas, n, a, lda, a_hat, ldahat, threads);
 
         // compute expected result
         T *S = new T[d * m];
         sas_to_dense_rowmajor<T>(sas, S);
         T *a_hat_expect = new T[d * n]{}; // zero-initialize.
         int64_t lds = m;
-        int64_t lda = n; 
-        int64_t ldahat = n;
         blas::gemm<T>(
             blas::Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
@@ -204,7 +204,7 @@ class TestApplyCsc : public ::testing::Test
         
         // compute S*A. 
         T *a_hat = new T[d * n]{}; // zero-initialize.
-        RandBLAS::sasos::sketch_csccol<T>(sas, n, a, a_hat, threads);
+        RandBLAS::sasos::sketch_csccol<T>(sas, n, a, m, a_hat, d, threads);
 
         // compute expected result
         T *a_hat_expect = new T[d * n]{};

@@ -105,11 +105,14 @@ void sketch_cscrow(
     SASO<T>& sas,
     int64_t n,
     T *a, // todo: make this const.
+    int64_t lda,
     T *a_hat,
+    int64_t lda_hat,
     int threads
 ){
+    assert(lda >= n);
+    assert(lda_hat >= n);
     RandBLAS::sasos::Dist D = sas.dist;
-
 	// Identify the range of rows to be processed by each thread.
     int64_t avg = sas.dist.n_rows / threads;
     if (avg == 0) avg = 1; // this is unusual, but can happen in small experiments.
@@ -132,7 +135,7 @@ void sketch_cscrow(
 		for (outer = 0; outer < threads; ++outer) {
 			for(c = 0; c < D.n_cols; ++c) {
                 // process column c of the sketching operator (row c of a)
-				a_row = &a[c * n];
+				a_row = &a[c * lda];
 				offset = c * D.vec_nnz;
                 for (r = 0; r < D.vec_nnz; ++r) {
 					inner = offset + r;
@@ -141,7 +144,7 @@ void sketch_cscrow(
                         // only perform a write operation if the current row
                         // index falls in the block assigned to the current thread.
 						scale = sas.vals[inner];
-                        blas::axpy<T>(n, scale, a_row, 1, &a_hat[row * n], 1);
+                        blas::axpy<T>(n, scale, a_row, 1, &a_hat[row * lda_hat], 1);
 					}	
 				} // end processing of column c
 			}
@@ -154,11 +157,15 @@ void sketch_csccol(
     SASO<T>& sas,
     int64_t n,
     T *a, // todo: make this const
+    int64_t lda,
     T *a_hat,
+    int64_t lda_hat,
     int threads
 ){
     int64_t m = sas.dist.n_cols;
     int64_t d = sas.dist.n_rows;
+    assert(lda >= m);
+    assert(lda_hat >= d);
     int64_t vec_nnz = sas.dist.vec_nnz;
 
     omp_set_num_threads(threads);
@@ -172,13 +179,13 @@ void sketch_csccol(
 		#pragma omp for schedule(static)
 		for (k = 0; k < n; k++) {
             // process the k-th columns of a and a_hat.
-			a_col = &a[m * k];
+			a_col = &a[lda * k];
 			for (c = 0; c < m; c++) {
                 // process column c of the sketching operator
 				scale = a_col[c];
 				for (r = c * vec_nnz; r < (c + 1) * vec_nnz; r++) {
                     row = sas.rows[r];
-					a_hat[k * d + row] += (sas.vals[r] * scale);
+					a_hat[k * lda_hat + row] += (sas.vals[r] * scale);
 				}		
 			}
 		}
@@ -187,13 +194,12 @@ void sketch_csccol(
 
 template void fill_saso<float>(SASO<float> &sas);
 template void print_saso<float>(SASO<float> &sas);
-template void sketch_cscrow<float>(SASO<float> &sas, int64_t n, float *a, float *a_hat, int threads);
-template void sketch_csccol<float>(SASO<float> &sas, int64_t n, float *a, float *a_hat, int threads);
+template void sketch_cscrow<float>(SASO<float> &sas, int64_t n, float *a, int64_t lda, float *a_hat, int64_t lda_hat, int threads);
+template void sketch_csccol<float>(SASO<float> &sas, int64_t n, float *a, int64_t lda, float *a_hat, int64_t lda_hat, int threads);
 
 
 template void fill_saso<double>(SASO<double> &sas);
 template void print_saso<double>(SASO<double> &sas);
-template void sketch_cscrow<double>(SASO<double> &sas, int64_t n, double *a, double *a_hat, int threads);
-template void sketch_csccol<double>(SASO<double> &sas, int64_t n, double *a, double *a_hat, int threads);
-
+template void sketch_cscrow<double>(SASO<double> &sas, int64_t n, double *a, int64_t lda, double *a_hat, int64_t lda_hat, int threads);
+template void sketch_csccol<double>(SASO<double> &sas, int64_t n, double *a, int64_t lda, double *a_hat, int64_t lda_hat, int threads);
 } // end namespace RandBLAS::sasos
