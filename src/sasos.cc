@@ -9,9 +9,28 @@
 #include <Random123/uniform.hpp>
 
 #define MIN(a, b) (((a) > (b)) ? (b) : (a))
-
+#define MAX(a, b) (((a) <= (b)) ? (b) : (a))
 
 namespace RandBLAS::sasos {
+
+static std::pair<int64_t, int64_t> indexing_bounds(
+    int64_t A0_rows,
+    int64_t A0_cols,
+    int64_t poA,
+    blas::Layout layout
+) {
+    std::pair<int64_t, int64_t> out;
+    // (out.first, out.second) = (row index, column index)
+    if (layout == blas::Layout::ColMajor) {
+        out.second = poA / A0_rows;
+        out.first = poA % A0_rows;
+    } else {
+        out.first = poA / A0_cols;
+        out.second = poA % A0_cols;
+    }
+    return out;
+}
+
 
 template <typename T>
 void fill_saso(SASO<T>& sas) {
@@ -102,49 +121,62 @@ void print_saso(SASO<T>& sas)
 
 template <typename T>
 void sketch_cscrow(
-    SASO<T>& sas,
+    int64_t d,
     int64_t n,
-    T *a, // todo: make this const.
+    int64_t m,
+    SASO<T>& S0,
+    int64_t pos,
+    T *A, // todo: make this const.
     int64_t lda,
-    T *a_hat,
-    int64_t lda_hat,
+    T *B,
+    int64_t ldb,
     int threads
 ){
+    RandBLAS::sasos::Dist D = S0.dist;
+    // Dimension checks
     assert(lda >= n);
-    assert(lda_hat >= n);
-    RandBLAS::sasos::Dist D = sas.dist;
-	// Identify the range of rows to be processed by each thread.
-    int64_t avg = sas.dist.n_rows / threads;
-    if (avg == 0) avg = 1; // this is unusual, but can happen in small experiments.
-	int64_t blocks[threads + 1];
-	blocks[0] = 0;
+    assert(ldb >= n);
+    assert(D.n_cols >= d);
+    assert(D.n_rows >= m);
+    auto starts = indexing_bounds(D.n_rows, D.n_cols, pos, blas::Layout::RowMajor);
+	int64_t S_row_start = starts.first;
+    int64_t S_col_start = starts.second;
+    int64_t S_col_end = S_col_start + m;
+
+    // Identify the range of rows to be processed by each thread.
+    int64_t rows_per_thread = MAX(d / threads, 1);
+	int64_t S_row_blocks[threads + 1];
+	S_row_blocks[0] = S_row_start;
     for(int i = 1; i < threads + 1; ++i)
-		blocks[i] = blocks[i - 1] + avg;
-	blocks[threads] += (D.n_rows % threads); // add the remainder to the last element
+		S_row_blocks[i] = S_row_blocks[i - 1] + rows_per_thread;
+	S_row_blocks[threads] += (d % threads); // add the remainder to the last element
 
     omp_set_num_threads(threads);
 	#pragma omp parallel default(shared)
     {
         // Setup variables for the current thread
         int my_id = omp_get_thread_num();
-        int64_t outer, c, offset, r, inner, row;
-        T *a_row;
+        int64_t outer, c, offset, r, inner, S_row;
+        T *A_row, *B_row;
         T scale;
         // Do the work for the current thread
         #pragma omp for schedule(static)
 		for (outer = 0; outer < threads; ++outer) {
-			for(c = 0; c < D.n_cols; ++c) {
+			for(c = S_col_start; c < S_col_end; ++c) {
                 // process column c of the sketching operator (row c of a)
-				a_row = &a[c * lda];
+				A_row = &A[c * lda];
 				offset = c * D.vec_nnz;
                 for (r = 0; r < D.vec_nnz; ++r) {
 					inner = offset + r;
-					row = sas.rows[inner];
-					if(row >= blocks[my_id] && row < blocks[my_id + 1]) {
+					S_row = S0.rows[inner];
+					if (
+                        S_row_blocks[my_id] <= S_row && S_row < S_row_blocks[my_id + 1]
+                    ) {
                         // only perform a write operation if the current row
                         // index falls in the block assigned to the current thread.
-						scale = sas.vals[inner];
-                        blas::axpy<T>(n, scale, a_row, 1, &a_hat[row * lda_hat], 1);
+						scale = S0.vals[inner];
+                        B_row = &B[(S_row - S_row_start) * ldb];
+                        blas::axpy<T>(n, scale, A_row, 1, B_row, 1);
 					}	
 				} // end processing of column c
 			}
@@ -153,53 +185,99 @@ void sketch_cscrow(
 }
 
 template <typename T>
+static void allrows_saso_csc_matvec(
+    T *v,
+    T *Sv, // Sv = S0[:, col_start:col_end] * v.
+    SASO<T> &S0,
+    int64_t col_start,
+    int64_t col_end
+) {
+    int64_t vec_nnz = S0.dist.vec_nnz;
+    for (int64_t c = col_start; c < col_end; c++) {
+        T scale = v[c];
+        for (int64_t r = c * vec_nnz; r < (c + 1) * vec_nnz; r++) {
+            int64_t S0_row = S0.rows[r];
+            Sv[S0_row] += (S0.vals[r] * scale);
+        }
+    }
+}
+
+template <typename T>
+static void somerows_saso_csc_matvec(
+    T *v,
+    T *Sv, // Sv = S0[row_start:row_end, col_start:col_end] * v.
+    SASO<T> &S0,
+    int64_t col_start,
+    int64_t col_end,
+    int64_t row_start,
+    int64_t row_end
+) {
+    int64_t vec_nnz = S0.dist.vec_nnz;
+    for (int64_t c = col_start; c < col_end; c++) {
+        T scale = v[c];
+        for (int64_t r = c * vec_nnz; r < (c + 1) * vec_nnz; r++) {
+            int64_t S0_row = S0.rows[r];
+            if (row_start <= S0_row && S0_row < row_end)
+                Sv[S0_row - row_start] += (S0.vals[r] * scale);
+        }
+    }
+}
+
+template <typename T>
 void sketch_csccol(
-    SASO<T>& sas,
+    int64_t d,
     int64_t n,
-    T *a, // todo: make this const
+    int64_t m,
+    SASO<T>& S0,
+    int64_t pos,
+    T *A, // todo: make this const
     int64_t lda,
-    T *a_hat,
-    int64_t lda_hat,
+    T *B,
+    int64_t ldb,
     int threads
 ){
-    int64_t m = sas.dist.n_cols;
-    int64_t d = sas.dist.n_rows;
+    RandBLAS::sasos::Dist D = S0.dist;
+    int64_t vec_nnz = D.vec_nnz;
+    // dimension checks
+    assert(D.n_cols >= m);
+    assert(D.n_rows >= d);
     assert(lda >= m);
-    assert(lda_hat >= d);
-    int64_t vec_nnz = sas.dist.vec_nnz;
+    assert(ldb >= d);
+    auto starts = indexing_bounds(D.n_rows, D.n_cols, pos, blas::Layout::ColMajor);
+	int64_t r0 = starts.first;
+    int64_t c0 = starts.second;
+    int64_t rf = r0 + d;
+    int64_t cf = c0 + m;
+    // std::cout << "(" << r0 << ", " << c0 << "), (" << rf << ", " << cf << ")";
+    bool all_rows_S0 = (r0 == 0 && rf == D.n_rows);
 
     omp_set_num_threads(threads);
 	#pragma omp parallel default(shared)
 	{
         // Setup variables for the current thread
-        int64_t k, c, r, row;
-        T *a_col;
-        T scale;
-        // Do the work for the current thread
+        T *A_col, *B_col;
+        // Do the work for the current thread.
 		#pragma omp for schedule(static)
-		for (k = 0; k < n; k++) {
-            // process the k-th columns of a and a_hat.
-			a_col = &a[lda * k];
-			for (c = 0; c < m; c++) {
-                // process column c of the sketching operator
-				scale = a_col[c];
-				for (r = c * vec_nnz; r < (c + 1) * vec_nnz; r++) {
-                    row = sas.rows[r];
-					a_hat[k * lda_hat + row] += (sas.vals[r] * scale);
-				}		
-			}
+		for (int64_t k = 0; k < n; k++) {
+			A_col = &A[lda * k];
+            B_col = &B[ldb * k];
+            if (all_rows_S0) {
+                allrows_saso_csc_matvec<T>(A_col, B_col, S0, c0, cf);
+            } else {
+                somerows_saso_csc_matvec<T>(A_col, B_col, S0, c0, cf, r0, rf);
+            }
 		}
 	}
 }
 
 template void fill_saso<float>(SASO<float> &sas);
 template void print_saso<float>(SASO<float> &sas);
-template void sketch_cscrow<float>(SASO<float> &sas, int64_t n, float *a, int64_t lda, float *a_hat, int64_t lda_hat, int threads);
-template void sketch_csccol<float>(SASO<float> &sas, int64_t n, float *a, int64_t lda, float *a_hat, int64_t lda_hat, int threads);
+template void sketch_cscrow<float>(int64_t d, int64_t n, int64_t m, SASO<float> &S0, int64_t pos, float *A, int64_t lda, float *B, int64_t ldb, int threads);
+template void sketch_csccol<float>(int64_t d, int64_t n, int64_t m, SASO<float> &S0, int64_t pos, float *A, int64_t lda, float *B, int64_t ldb, int threads);
 
 
 template void fill_saso<double>(SASO<double> &sas);
 template void print_saso<double>(SASO<double> &sas);
-template void sketch_cscrow<double>(SASO<double> &sas, int64_t n, double *a, int64_t lda, double *a_hat, int64_t lda_hat, int threads);
-template void sketch_csccol<double>(SASO<double> &sas, int64_t n, double *a, int64_t lda, double *a_hat, int64_t lda_hat, int threads);
+template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SASO<double> &S0, int64_t pos, double *A, int64_t lda, double *B, int64_t ldb, int threads);
+template void sketch_csccol<double>(int64_t d, int64_t n, int64_t m, SASO<double> &S0, int64_t pos, double *A, int64_t lda, double *B, int64_t ldb, int threads);
 } // end namespace RandBLAS::sasos

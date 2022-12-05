@@ -39,8 +39,11 @@ void fill_saso(SASO<T> &sas);
 
 template <typename T>
 void sketch_cscrow(
-    SASO<T>& sas,
+    int64_t d,
     int64_t n,
+    int64_t m,
+    SASO<T>& sas,
+    int64_t pos,
     T *a, // todo: make this const
     int64_t lda,
     T *a_hat,
@@ -50,8 +53,11 @@ void sketch_cscrow(
 
 template <typename T>
 void sketch_csccol(
-    SASO<T>& sas,
+    int64_t d,
     int64_t n,
+    int64_t m,
+    SASO<T>& sas,
+    int64_t pos,
     T *a, // todo: make this const
     int64_t lda,
     T *a_hat,
