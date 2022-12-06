@@ -14,7 +14,7 @@ RandBLAS::sasos::SASO<T> make_wide_saso(
     uint64_t ctr_offset,
     uint64_t key
 ) {
-    assert(d <= m);
+    assert(n_rows <= n_cols);
     RandBLAS::sasos::Dist D = {
         .n_rows = n_rows,
         .n_cols = n_cols,
@@ -121,10 +121,12 @@ void matrices_approx_equal(
     if (transB == blas::Op::NoTrans) {
         for (int64_t i = 0; i < m; ++i) {
             for (int64_t j = 0; j < n; ++j) {
-                T actual = A[idxa(i, j)];
-                T expect = B[idxb(i, j)];
+                int64_t curr_idxa = idxa(i, j);
+                T actual = A[curr_idxa];
+                int64_t curr_idxb = idxb(i, j);
+                T expect = B[curr_idxb];
                 T atol = reltol * std::min(abs(actual), abs(expect));
-                EXPECT_NEAR(actual, expect, atol);
+                EXPECT_NEAR(actual, expect, atol) << "(" << i << ", " << j << ")";
             }
         }
     } else {
@@ -245,6 +247,127 @@ class TestLSKGES : public ::testing::Test
             a_hat_expect, ldahat
         );
     }
+
+    template <typename T>
+    static void submatrix_S(
+        uint32_t seed,
+        int64_t d1, // rows in sketch
+        int64_t m1, // size of identity matrix
+        int64_t d0, // rows in S0
+        int64_t m0, // cols in S0
+        int64_t S_ro, // row offset for S in S0
+        int64_t S_co, // column offset for S in S0
+        blas::Layout layout
+    ) {
+        assert(d0 >= d1);
+        assert(m0 >= m1);
+        bool is_colmajor = layout == blas::Layout::ColMajor;
+        int64_t pos = (is_colmajor) ? (S_ro + d0 * S_co) : (S_ro * m0 + S_co);
+        assert(d0 * m0 >= pos + d1 * m1);
+
+        int64_t vec_nnz = d0 / 4; // this is actually quite dense. 
+        auto S0 = make_wide_saso<T>(d0, m0, vec_nnz, 0, seed);
+        T *S0_dense = new T[d0 * m0];
+        sas_to_dense<T>(S0, S0_dense, layout);
+        int64_t lda, ldb, lds0;
+        if (is_colmajor) {
+            lda = m1;
+            ldb = d1;
+            lds0 = d0;
+        } else {
+            lda = m1; 
+            ldb = m1;
+            lds0 = m0;
+        }
+
+        // define a matrix to be sketched, and create workspace for sketch.
+        std::vector<T> A(m1 * m1, 0.0);
+        for (int i = 0; i < m1; ++i)
+            A[i + m1*i] = 1.0;
+        std::vector<T> B(d1 * m1, 0.0);
+        
+        // Perform the sketch
+        RandBLAS::sasos::lskges<T>(
+            layout,
+            blas::Op::NoTrans,
+            blas::Op::NoTrans,
+            d1, m1, m1,
+            1.0, S0, pos,
+            A.data(), lda,
+            0.0, B.data(), ldb   
+        );
+        // Check the result
+        T *S_ptr = &S0_dense[pos];
+        matrices_approx_equal(
+            layout, blas::Op::NoTrans,
+            d1, m1,
+            B.data(), ldb,
+            S_ptr, lds0
+        );
+    }
+
+    // template <typename T>
+    // static void submatrix_A(
+    //     uint32_t seed_S0, // seed for S0
+    //     int64_t d, // rows in S0
+    //     int64_t m, // cols in S0, and rows in A.
+    //     int64_t n, // cols in A
+    //     int64_t m0, // rows in A0
+    //     int64_t n0, // cols in A0
+    //     int64_t A_ro, // row offset for A in A0
+    //     int64_t A_co, // column offset for A in A0
+    //     blas::Layout layout
+    // ) {
+    //     assert(m0 > m);
+    //     assert(n0 > n);
+
+    //     // Define the distribution for S0.
+    //     RandBLAS::dense_op::Dist D = {
+    //         .family = RandBLAS::dense_op::DistName::Gaussian,
+    //         .n_rows = d,
+    //         .n_cols = m
+    //     };
+    //     // Define the sketching operator struct, S0.
+    //     RandBLAS::dense_op::SketchingOperator<T> S0 = {
+    //         .dist = D,
+    //         .key = seed_S0,
+    //         .layout = layout
+    //     };
+    //     bool is_colmajor = layout == blas::Layout::ColMajor;
+
+    //     // define a matrix to be sketched, and create workspace for sketch.
+    //     std::vector<T> A0(m0 * n0, 0.0);
+    //     uint32_t ctr_A0 = 42;
+    //     uint32_t seed_A0 = 42000;
+    //     RandBLAS::dense_op::Dist DA0 = {.n_rows = m0, .n_cols = n0};
+    //     RandBLAS::dense_op::fill_buff(A0.data(), DA0, ctr_A0, seed_A0);
+    //     std::vector<T> B(d * n, 0.0);
+    //     int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
+    //     int64_t ldb = (is_colmajor) ? d : n;
+        
+    //     // Perform the sketch
+    //     int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
+    //     T *A_ptr = &A0.data()[a_offset]; 
+    //     RandBLAS::dense_op::lskge3<T>(
+    //         S0.layout,
+    //         blas::Op::NoTrans,
+    //         blas::Op::NoTrans,
+    //         d, n, m,
+    //         1.0, S0, 0,
+    //         A_ptr, lda,
+    //         0.0, B.data(), ldb   
+    //     );
+
+    //     // Check the result
+    //     int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
+    //     std::vector<T> B_expect(d * n, 0.0);
+    //     blas::gemm<T>(S0.layout, blas::Op::NoTrans, blas::Op::NoTrans,
+    //         d, n, m,
+    //         1.0, S0.buff, lds, A_ptr, lda,
+    //         0.0, B_expect.data(), ldb
+    //     );
+    //     buffs_approx_equal(B.data(), B_expect.data(), d * n);
+    // }
 };
 
 
@@ -307,3 +430,132 @@ TEST_F(TestLSKGES, DefaultThreads)
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      Submatrices of S, column major
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+TEST_F(TestLSKGES, subset_rows_s_colmajor1) 
+{
+    for (uint32_t seed : {0})
+        submatrix_S<double>(seed,
+            3, 10, // (rows, cols) in S.
+            8, 10, // (rows, cols) in S0.
+            0,
+            0,
+            blas::Layout::ColMajor
+        );
+}
+
+
+TEST_F(TestLSKGES, subset_rows_s_colmajor2) 
+{
+    for (uint32_t seed : {0})
+        submatrix_S<double>(seed,
+            3, 10, // (rows, cols) in S.
+            8, 10, // (rows, cols) in S0.
+            3, // The first row of S is in the forth row of S0
+            0,
+            blas::Layout::ColMajor
+        );
+}
+
+TEST_F(TestLSKGES, subset_cols_s_colmajor1) 
+{
+    for (uint32_t seed : {0})
+        submatrix_S<double>(seed,
+            3, 10, // (rows, cols) in S.
+            3, 12, // (rows, cols) in S0.
+            0,
+            0,
+            blas::Layout::ColMajor
+        );
+}
+
+TEST_F(TestLSKGES, subset_cols_s_colmajor2) 
+{
+    for (uint32_t seed : {0})
+        submatrix_S<double>(seed,
+            3, 10, // (rows, cols) in S.
+            3, 12, // (rows, cols) in S0.
+            0,
+            1, // The first col of S is in the second col of S0
+            blas::Layout::ColMajor
+        );
+}
+
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      Submatrices of S,row major
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+
+TEST_F(TestLSKGES, subset_rows_s_rowmajor1) 
+{
+    for (uint32_t seed : {0})
+        submatrix_S<double>(seed,
+            3, 10, // (rows, cols) in S.
+            8, 10, // (rows, cols) in S0.
+            0,
+            0,
+            blas::Layout::RowMajor
+        );
+}
+
+
+TEST_F(TestLSKGES, subset_rows_s_rowmajor2) 
+{
+    for (uint32_t seed : {0})
+        submatrix_S<double>(seed,
+            3, 10, // (rows, cols) in S.
+            8, 10, // (rows, cols) in S0.
+            3, // The first row of S is in the forth row of S0
+            0,
+            blas::Layout::RowMajor
+        );
+}
+
+TEST_F(TestLSKGES, subset_cols_s_rowmajor1) 
+{
+    for (uint32_t seed : {0})
+        submatrix_S<double>(seed,
+            3, 10, // (rows, cols) in S.
+            3, 12, // (rows, cols) in S0.
+            0,
+            0,
+            blas::Layout::RowMajor
+        );
+}
+
+TEST_F(TestLSKGES, subset_cols_s_rowmajor2) 
+{
+    for (uint32_t seed : {0})
+        submatrix_S<double>(seed,
+            3, 10, // (rows, cols) in S.
+            3, 12, // (rows, cols) in S0.
+            0,
+            1, // The first col of S is in the second col of S0
+            blas::Layout::RowMajor
+        );
+}
+
+
+// TEST_F(TestLSKGES, submatrix_s_single) 
+// {
+//     for (uint32_t seed : {0})
+//         submatrix_S<float>(seed,
+//             3, 10, // (rows, cols) in S.
+//             8, 12, // (rows, cols) in S0.
+//             3, // The first row of S is in the forth row of S0
+//             1, // The first col of S is in the second col of S0
+//             blas::Layout::ColMajor
+//         );
+//}

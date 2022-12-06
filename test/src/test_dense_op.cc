@@ -265,8 +265,8 @@ class TestLSKGE3 : public ::testing::Test
         assert(d0 > d);
         assert(m0 > m);
         bool is_colmajor = layout == blas::Layout::ColMajor;
-        int64_t vpo = (is_colmajor) ? (S_ro + d0 * S_co) : (S_ro * m0 + S_co);
-        assert(d0 * m0 >= vpo + d * m);
+        int64_t pos = (is_colmajor) ? (S_ro + d0 * S_co) : (S_ro * m0 + S_co);
+        assert(d0 * m0 >= pos + d * m);
 
         // Define the distribution for S0.
         RandBLAS::dense_op::Dist D = {
@@ -296,12 +296,12 @@ class TestLSKGE3 : public ::testing::Test
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, m, m,
-            1.0, S0, vpo,
+            1.0, S0, pos,
             A.data(), lda,
             0.0, B.data(), ldb   
         );
         // Check the result
-        T *S_ptr = &S0.buff[vpo];
+        T *S_ptr = &S0.buff[pos];
         matrices_approx_equal(
             S0.layout, blas::Op::NoTrans,
             d, m,

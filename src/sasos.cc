@@ -119,6 +119,7 @@ void print_saso(SASO<T>& sas)
     std::cout << std::endl;
 }
 
+// BROKEN> NEED TO INVESTIGATE.
 template <typename T>
 static void sketch_cscrow(
     int64_t d,
@@ -136,20 +137,21 @@ static void sketch_cscrow(
     // Dimension checks
     assert(lda >= n);
     assert(ldb >= n);
-    assert(D.n_cols >= d);
-    assert(D.n_rows >= m);
+    assert(D.n_cols >= m);
+    assert(D.n_rows >= d);
     auto starts = indexing_bounds(D.n_rows, D.n_cols, pos, blas::Layout::RowMajor);
 	int64_t S_row_start = starts.first;
     int64_t S_col_start = starts.second;
     int64_t S_col_end = S_col_start + m;
 
     // Identify the range of rows to be processed by each thread.
+    // TODO: replace threads = MIN(threads, d) ?
     int64_t rows_per_thread = MAX(d / threads, 1);
-	int64_t S_row_blocks[threads + 1];
+	int64_t *S_row_blocks = new int64_t[threads + 1];
 	S_row_blocks[0] = S_row_start;
     for(int i = 1; i < threads + 1; ++i)
 		S_row_blocks[i] = S_row_blocks[i - 1] + rows_per_thread;
-	S_row_blocks[threads] += (d % threads); // add the remainder to the last element
+	S_row_blocks[threads] = d + S_row_start;
 
     omp_set_num_threads(threads);
 	#pragma omp parallel default(shared)
@@ -194,7 +196,7 @@ static void allrows_saso_csc_matvec(
 ) {
     int64_t vec_nnz = S0.dist.vec_nnz;
     for (int64_t c = col_start; c < col_end; c++) {
-        T scale = v[c];
+        T scale = v[c - col_start];
         for (int64_t r = c * vec_nnz; r < (c + 1) * vec_nnz; r++) {
             int64_t S0_row = S0.rows[r];
             Sv[S0_row] += (S0.vals[r] * scale);
@@ -214,7 +216,7 @@ static void somerows_saso_csc_matvec(
 ) {
     int64_t vec_nnz = S0.dist.vec_nnz;
     for (int64_t c = col_start; c < col_end; c++) {
-        T scale = v[c];
+        T scale = v[c - col_start];
         for (int64_t r = c * vec_nnz; r < (c + 1) * vec_nnz; r++) {
             int64_t S0_row = S0.rows[r];
             if (row_start <= S0_row && S0_row < row_end)
@@ -288,7 +290,6 @@ void lskges(
     int64_t ldb,
     int threads // default is 4.
 ) {
-    assert(pos == 0);
     assert(d <= m);
 
     // Dimensions of A, rather than op(A)
@@ -315,13 +316,13 @@ void lskges(
         assert(lds >= rows_S);
         assert(lda >= rows_A);
         assert(ldb >= d);
-        sketch_csccol<T>(d, n, m, S0, 0, A, lda, B, ldb, threads);
+        sketch_csccol<T>(d, n, m, S0, pos, A, lda, B, ldb, threads);
     } else {
         lds = S0.dist.n_cols;
         assert(lds >= cols_S);
         assert(lda >= cols_A);
         assert(ldb >= n);
-        sketch_cscrow<T>(d, n, m, S0, 0, A, lda, B, ldb, threads);
+        sketch_cscrow<T>(d, n, m, S0, pos, A, lda, B, ldb, threads);
     }
     return;
 }
