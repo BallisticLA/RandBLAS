@@ -38,32 +38,51 @@ template <typename T>
 void fill_saso(SASO<T> &sas);
 
 template <typename T>
-void sketch_cscrow(
-    int64_t d,
-    int64_t n,
-    int64_t m,
-    SASO<T>& sas,
-    int64_t pos,
-    T *a, // todo: make this const
+void lskges(
+    blas::Layout layout,
+    blas::Op transS,
+    blas::Op transA,
+    int64_t d, // B is d-by-n
+    int64_t n, // op(A) is m-by-n
+    int64_t m, // op(S) is d-by-m
+    T alpha,
+    SASO<T> &S0,
+    int64_t pos, // pointer offset for S in S0
+    T *A, // TODO: make const
     int64_t lda,
-    T *a_hat,
-    int64_t lda_hat,
+    T beta,
+    T *B,
+    int64_t ldb,
     int threads
 );
 
-template <typename T>
-void sketch_csccol(
-    int64_t d,
-    int64_t n,
-    int64_t m,
-    SASO<T>& sas,
-    int64_t pos,
-    T *a, // todo: make this const
-    int64_t lda,
-    T *a_hat,
-    int64_t lda_hat,
-    int threads
-);
+// template <typename T>
+// void sketch_cscrow(
+//     int64_t d,
+//     int64_t n,
+//     int64_t m,
+//     SASO<T>& sas,
+//     int64_t pos,
+//     T *a, // todo: make this const
+//     int64_t lda,
+//     T *a_hat,
+//     int64_t lda_hat,
+//     int threads
+// );
+
+// template <typename T>
+// void sketch_csccol(
+//     int64_t d,
+//     int64_t n,
+//     int64_t m,
+//     SASO<T>& sas,
+//     int64_t pos,
+//     T *a, // todo: make this const
+//     int64_t lda,
+//     T *a_hat,
+//     int64_t lda_hat,
+//     int threads
+// );
 
 template <typename T>
 void print_saso(SASO<T> &sas);

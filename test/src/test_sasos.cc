@@ -97,34 +97,68 @@ TEST_F(TestSASOConstruction, Dim7by20nnz7)
     proper_construction(2, 3);
 }
 
-
+// TODO: move this to a common place where test_dense_op.cc and
+//       test_sasos.cc can use it.
 template <typename T>
-void sas_to_dense_rowmajor(RandBLAS::sasos::SASO<T> &sas, T *mat) {
-    RandBLAS::sasos::Dist D = sas.dist;
-    for (int64_t i = 0; i < D.n_rows * D.n_cols; ++i)
-        mat[i] = 0.0;
-
-    int64_t nnz = D.n_cols * D.vec_nnz;
-    for (int64_t i = 0; i < nnz; ++i) {
-        int64_t row = sas.rows[i];
-        int64_t col = sas.cols[i];
-        T val = sas.vals[i];
-        mat[row * D.n_cols + col] = val;
+void matrices_approx_equal(
+    blas::Layout layout,
+    blas::Op transB,
+    int64_t m,
+    int64_t n,
+    const T *A,
+    int64_t lda,
+    const T *B,
+    int64_t ldb
+) {
+    // check that A == op(B), where A is m-by-n.
+    T reltol = std::pow(std::numeric_limits<T>::epsilon(), RELTOL_POWER);
+    auto idxa = [lda, layout](int64_t i, int64_t j) {
+        return  (layout == blas::Layout::ColMajor) ? (i + j*lda) : (j + i*lda);
+    };
+    auto idxb = [ldb, layout](int64_t i, int64_t j) {
+        return  (layout == blas::Layout::ColMajor) ? (i + j*ldb) : (j + i*ldb);
+    };
+    if (transB == blas::Op::NoTrans) {
+        for (int64_t i = 0; i < m; ++i) {
+            for (int64_t j = 0; j < n; ++j) {
+                T actual = A[idxa(i, j)];
+                T expect = B[idxb(i, j)];
+                T atol = reltol * std::min(abs(actual), abs(expect));
+                EXPECT_NEAR(actual, expect, atol);
+            }
+        }
+    } else {
+        for (int64_t i = 0; i < m; ++i) {
+            for (int64_t j = 0; j < n; ++j) {
+                T actual = A[idxa(i, j)];
+                T expect = B[idxb(j, i)];
+                T atol = reltol * std::min(abs(actual), abs(expect));
+                EXPECT_NEAR(actual, expect, atol);
+            }
+        }
     }
 }
 
 template <typename T>
-void sas_to_dense_colmajor(RandBLAS::sasos::SASO<T> &sas, T *mat) {
+void sas_to_dense(
+    RandBLAS::sasos::SASO<T> &sas,
+    T *mat,
+    blas::Layout layout
+) {
     RandBLAS::sasos::Dist D = sas.dist;
     for (int64_t i = 0; i < D.n_rows * D.n_cols; ++i)
         mat[i] = 0.0;
+
+    auto idx = [D, layout](int64_t i, int64_t j) {
+        return  (layout == blas::Layout::ColMajor) ? (i + j*D.n_rows) : (j + i*D.n_cols);
+    };
 
     int64_t nnz = D.n_cols * D.vec_nnz;
     for (int64_t i = 0; i < nnz; ++i) {
         int64_t row = sas.rows[i];
         int64_t col = sas.cols[i];
         T val = sas.vals[i];
-        mat[row + sas.dist.n_rows * col] = val;
+        mat[idx(row, col)] = val;
     }
 }
 
@@ -159,11 +193,20 @@ class TestApplyCsc : public ::testing::Test
         T *a_hat = new T[d * n]{};
         int64_t lda = n; 
         int64_t ldahat = n;
-        RandBLAS::sasos::sketch_cscrow<T>(d, n, m, sas, 0, a, lda, a_hat, ldahat, threads);
+        RandBLAS::sasos::lskges<T>(
+            blas::Layout::RowMajor,
+            blas::Op::NoTrans,
+            blas::Op::NoTrans,
+            d, n, m,
+            1.0, sas, 0,
+            a, lda,
+            0.0, a_hat, ldahat, threads   
+        );
+        // RandBLAS::sasos::sketch_cscrow<T>(d, n, m, sas, 0, a, lda, a_hat, ldahat, threads);
 
         // compute expected result
         T *S = new T[d * m];
-        sas_to_dense_rowmajor<T>(sas, S);
+        sas_to_dense<T>(sas, S, blas::Layout::RowMajor);
         T *a_hat_expect = new T[d * n]{}; // zero-initialize.
         int64_t lds = m;
         blas::gemm<T>(
@@ -174,18 +217,12 @@ class TestApplyCsc : public ::testing::Test
         );
 
         // check the result
-        T reltol = std::pow(std::numeric_limits<T>::epsilon(), RELTOL_POWER);
-        T abstol = std::pow(std::numeric_limits<T>::epsilon(), ABSTOL_POWER);
-        for (int64_t i = 0; i < d; ++i) {
-            for (int64_t j = 0; j < n; ++j) {
-                int64_t ell = i*n + j;
-                T expect = a_hat_expect[ell];
-                T actual = a_hat[ell];
-                T atol = reltol * std::min(abs(actual), abs(expect));
-                if (atol == 0.0) atol = abstol;
-                ASSERT_NEAR(actual, expect, atol);
-            }    
-        }
+        matrices_approx_equal(
+            blas::Layout::RowMajor, blas::Op::NoTrans,
+            d, n,
+            a_hat, ldahat,
+            a_hat_expect, ldahat
+        );
     }
 
     template <typename T>
@@ -206,7 +243,16 @@ class TestApplyCsc : public ::testing::Test
         T *a_hat = new T[d * n]{}; // zero-initialize.
         int64_t lda = m; 
         int64_t ldahat = d;
-        RandBLAS::sasos::sketch_csccol<T>(d, n, m, sas, 0, a, lda, a_hat, ldahat, threads);
+        RandBLAS::sasos::lskges<T>(
+            blas::Layout::ColMajor,
+            blas::Op::NoTrans,
+            blas::Op::NoTrans,
+            d, n, m,
+            1.0, sas, 0,
+            a, lda,
+            0.0, a_hat, ldahat, threads   
+        );
+        //RandBLAS::sasos::sketch_csccol<T>(d, n, m, sas, 0, a, lda, a_hat, ldahat, threads);
 
         // compute expected result
         T *a_hat_expect = new T[d * n]{};
@@ -220,7 +266,7 @@ class TestApplyCsc : public ::testing::Test
         //          https://github.com/BallisticLA/RandBLAS/actions/runs/3579714658/jobs/6021178532
         //      for an unsuccessful run without this initialization.
         T *S = new T[d * m];
-        sas_to_dense_colmajor<T>(sas, S);
+        sas_to_dense<T>(sas, S, blas::Layout::ColMajor);
         int64_t lds = d;
         blas::gemm<T>(
             blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans,
@@ -230,18 +276,12 @@ class TestApplyCsc : public ::testing::Test
         );
 
         // check the result
-        T reltol = std::pow(std::numeric_limits<T>::epsilon(), RELTOL_POWER);
-        T abstol = std::pow(std::numeric_limits<T>::epsilon(), ABSTOL_POWER);
-        for (int64_t i = 0; i < d; ++i) {
-            for (int64_t j = 0; j < n; ++j) {
-                int64_t ell = i + j*d;
-                T expect = a_hat_expect[ell];
-                T actual = a_hat[ell];
-                T atol = reltol * std::min(abs(actual), abs(expect));
-                if (atol == 0.0) atol = abstol;
-                EXPECT_NEAR(actual, expect, atol) << "\t" << i << ", " << j;
-            }    
-        }
+        matrices_approx_equal(
+            blas::Layout::ColMajor, blas::Op::NoTrans,
+            d, n,
+            a_hat, ldahat,
+            a_hat_expect, ldahat
+        );
     }
 };
 

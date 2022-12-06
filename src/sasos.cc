@@ -120,7 +120,7 @@ void print_saso(SASO<T>& sas)
 }
 
 template <typename T>
-void sketch_cscrow(
+static void sketch_cscrow(
     int64_t d,
     int64_t n,
     int64_t m,
@@ -187,7 +187,7 @@ void sketch_cscrow(
 template <typename T>
 static void allrows_saso_csc_matvec(
     T *v,
-    T *Sv, // Sv = S0[:, col_start:col_end] * v.
+    T *Sv, // Sv += S0[:, col_start:col_end] * v.
     SASO<T> &S0,
     int64_t col_start,
     int64_t col_end
@@ -205,7 +205,7 @@ static void allrows_saso_csc_matvec(
 template <typename T>
 static void somerows_saso_csc_matvec(
     T *v,
-    T *Sv, // Sv = S0[row_start:row_end, col_start:col_end] * v.
+    T *Sv, // Sv += S0[row_start:row_end, col_start:col_end] * v.
     SASO<T> &S0,
     int64_t col_start,
     int64_t col_end,
@@ -224,7 +224,7 @@ static void somerows_saso_csc_matvec(
 }
 
 template <typename T>
-void sketch_csccol(
+static void sketch_csccol(
     int64_t d,
     int64_t n,
     int64_t m,
@@ -270,14 +270,76 @@ void sketch_csccol(
 	}
 }
 
+template <typename T>
+void lskges(
+    blas::Layout layout,
+    blas::Op transS,
+    blas::Op transA,
+    int64_t d, // B is d-by-n
+    int64_t n, // op(A) is m-by-n
+    int64_t m, // op(S) is d-by-m
+    T alpha,
+    SASO<T> &S0,
+    int64_t pos, // pointer offset for S in S0
+    T *A, // TODO: make const
+    int64_t lda,
+    T beta,
+    T *B,
+    int64_t ldb,
+    int threads
+) {
+    assert(pos == 0);
+    assert(d <= m);
+
+    // Dimensions of A, rather than op(A)
+    int64_t rows_A, cols_A, rows_S, cols_S;
+    if (transA == blas::Op::NoTrans) {
+        rows_A = m;
+        cols_A = n;
+    } else {
+        rows_A = n;
+        cols_A = m;
+    }
+    // Dimensions of S, rather than op(S)
+    if (transS == blas::Op::NoTrans) {
+        rows_S = d;
+        cols_S = m;
+    } else {
+        assert(false);
+    }
+    
+    // Dimensionality sanity checks, and perform the sketch.
+    int64_t lds;
+    if (layout == blas::Layout::ColMajor) {
+        lds = S0.dist.n_rows;
+        assert(lds >= rows_S);
+        assert(lda >= rows_A);
+        assert(ldb >= d);
+        sketch_csccol<T>(d, n, m, S0, 0, A, lda, B, ldb, threads);
+    } else {
+        lds = S0.dist.n_cols;
+        assert(lds >= cols_S);
+        assert(lda >= cols_A);
+        assert(ldb >= n);
+        sketch_cscrow<T>(d, n, m, S0, 0, A, lda, B, ldb, threads);
+    }
+    return;
+}
+
+
 template void fill_saso<float>(SASO<float> &sas);
 template void print_saso<float>(SASO<float> &sas);
 template void sketch_cscrow<float>(int64_t d, int64_t n, int64_t m, SASO<float> &S0, int64_t pos, float *A, int64_t lda, float *B, int64_t ldb, int threads);
 template void sketch_csccol<float>(int64_t d, int64_t n, int64_t m, SASO<float> &S0, int64_t pos, float *A, int64_t lda, float *B, int64_t ldb, int threads);
+template void lskges<float>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
+    SASO<float> &S0, int64_t pos, float *A, int64_t lda, float beta, float *B, int64_t ldb, int threads);
 
 
 template void fill_saso<double>(SASO<double> &sas);
 template void print_saso<double>(SASO<double> &sas);
 template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SASO<double> &S0, int64_t pos, double *A, int64_t lda, double *B, int64_t ldb, int threads);
 template void sketch_csccol<double>(int64_t d, int64_t n, int64_t m, SASO<double> &S0, int64_t pos, double *A, int64_t lda, double *B, int64_t ldb, int threads);
+template void lskges<double>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, double alpha,
+    SASO<double> &S0, int64_t pos, double *A, int64_t lda, double beta, double *B, int64_t ldb, int threads);
+
 } // end namespace RandBLAS::sasos
