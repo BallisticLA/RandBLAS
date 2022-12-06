@@ -119,7 +119,6 @@ void print_saso(SASO<T>& sas)
     std::cout << std::endl;
 }
 
-// BROKEN> NEED TO INVESTIGATE.
 template <typename T>
 static void sketch_cscrow(
     int64_t d,
@@ -134,11 +133,6 @@ static void sketch_cscrow(
     int threads
 ){
     RandBLAS::sasos::Dist D = S0.dist;
-    // Dimension checks
-    assert(lda >= n);
-    assert(ldb >= n);
-    assert(D.n_cols >= m);
-    assert(D.n_rows >= d);
     auto starts = indexing_bounds(D.n_rows, D.n_cols, pos, blas::Layout::RowMajor);
 	int64_t S_row_start = starts.first;
     int64_t S_col_start = starts.second;
@@ -240,17 +234,11 @@ static void sketch_csccol(
 ){
     RandBLAS::sasos::Dist D = S0.dist;
     int64_t vec_nnz = D.vec_nnz;
-    // dimension checks
-    assert(D.n_cols >= m);
-    assert(D.n_rows >= d);
-    assert(lda >= m);
-    assert(ldb >= d);
     auto starts = indexing_bounds(D.n_rows, D.n_cols, pos, blas::Layout::ColMajor);
 	int64_t r0 = starts.first;
     int64_t c0 = starts.second;
     int64_t rf = r0 + d;
     int64_t cf = c0 + m;
-    // std::cout << "(" << r0 << ", " << c0 << "), (" << rf << ", " << cf << ")";
     bool all_rows_S0 = (r0 == 0 && rf == D.n_rows);
 
     omp_set_num_threads(threads);
@@ -298,15 +286,18 @@ void lskges(
         rows_A = m;
         cols_A = n;
     } else {
-        rows_A = n;
-        cols_A = m;
+        assert(false); // Not implemented.
+        //rows_A = n;
+        //cols_A = m;
     }
     // Dimensions of S, rather than op(S)
     if (transS == blas::Op::NoTrans) {
         rows_S = d;
         cols_S = m;
     } else {
-        assert(false);
+        assert(false);  // Not implemented.
+        // rows_S = m;
+        // cols_S = d;
     }
     
     // Dimensionality sanity checks, and perform the sketch.
