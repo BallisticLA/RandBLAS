@@ -162,7 +162,7 @@ void sas_to_dense(
     }
 }
 
-class TestApplyCsc : public ::testing::Test
+class TestLSKGES : public ::testing::Test
 {
     // only tests column-sparse SASOs for now.
     protected:
@@ -177,7 +177,7 @@ class TestApplyCsc : public ::testing::Test
     virtual void TearDown() {};
 
     template <typename T>
-    static void apply(int64_t key_index, int64_t nnz_index, int threads, blas::Layout layout)
+    static void apply(blas::Layout layout, int64_t key_index, int64_t nnz_index, int threads)
     {
         uint64_t key = keys[key_index];
         uint64_t vec_nnz = vec_nnzs[nnz_index];
@@ -202,13 +202,22 @@ class TestApplyCsc : public ::testing::Test
         }
 
         // compute S*A. 
-        RandBLAS::sasos::lskges<T>(
-            layout, blas::Op::NoTrans, blas::Op::NoTrans,
-            d, n, m,
-            1.0, sas, 0, a, lda,
-            0.0, a_hat, ldahat,
-            threads   
-        );
+        if (threads > 0) {
+            RandBLAS::sasos::lskges<T>(
+                layout, blas::Op::NoTrans, blas::Op::NoTrans,
+                d, n, m,
+                1.0, sas, 0, a, lda,
+                0.0, a_hat, ldahat,
+                threads   
+            );
+        } else {
+            RandBLAS::sasos::lskges<T>(
+                layout, blas::Op::NoTrans, blas::Op::NoTrans,
+                d, n, m,
+                1.0, sas, 0, a, lda,
+                0.0, a_hat, ldahat
+            );
+        }
 
         // compute expected result
         T *a_hat_expect = new T[d * n]{};
@@ -239,50 +248,62 @@ class TestApplyCsc : public ::testing::Test
 };
 
 
-TEST_F(TestApplyCsc, OneThread_RowMajor)
+TEST_F(TestLSKGES, OneThread_RowMajor)
 {
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(k_idx, nz_idx, 1, blas::Layout::RowMajor);
-            apply<float>(k_idx, nz_idx, 1, blas::Layout::RowMajor);
+            apply<double>(blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<float>(blas::Layout::RowMajor, k_idx, nz_idx, 1);
         }
     }
 }
 
-TEST_F(TestApplyCsc, TwoThreads_RowMajor)
+TEST_F(TestLSKGES, TwoThreads_RowMajor)
 {
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(k_idx, nz_idx, 2, blas::Layout::RowMajor);
-            apply<float>(k_idx, nz_idx, 2, blas::Layout::RowMajor);
+            apply<double>(blas::Layout::RowMajor, k_idx, nz_idx, 2);
+            apply<float>(blas::Layout::RowMajor, k_idx, nz_idx, 2);
         }
     }
 }
 
-TEST_F(TestApplyCsc, OneThread_ColMajor)
+TEST_F(TestLSKGES, OneThread_ColMajor)
 {
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(k_idx, nz_idx, 1, blas::Layout::ColMajor);
-            apply<float>(k_idx, nz_idx, 1, blas::Layout::ColMajor);
+            apply<double>(blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
     }
 }
 
-TEST_F(TestApplyCsc, TwoThreads_ColMajor)
+TEST_F(TestLSKGES, TwoThreads_ColMajor)
 {
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(k_idx, nz_idx, 2, blas::Layout::ColMajor);
-            apply<float>(k_idx, nz_idx, 2, blas::Layout::ColMajor);
+            apply<double>(blas::Layout::ColMajor, k_idx, nz_idx, 2);
+            apply<float>(blas::Layout::ColMajor, k_idx, nz_idx, 2);
+        }
+    }
+}
+
+TEST_F(TestLSKGES, DefaultThreads)
+{
+    for (int64_t k_idx : {0, 1, 2})
+    {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0})
+        {
+            apply<double>(blas::Layout::ColMajor, k_idx, nz_idx, 0);
+            apply<double>(blas::Layout::RowMajor, k_idx, nz_idx, 0);
         }
     }
 }

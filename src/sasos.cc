@@ -286,7 +286,7 @@ void lskges(
     T beta,
     T *B,
     int64_t ldb,
-    int threads
+    int threads // default is 4.
 ) {
     assert(pos == 0);
     assert(d <= m);

@@ -52,7 +52,7 @@ void lskges(
     T beta,
     T *B,
     int64_t ldb,
-    int threads
+    int threads = 4
 );
 
 template <typename T>
