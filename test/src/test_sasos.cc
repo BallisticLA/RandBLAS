@@ -177,82 +177,38 @@ class TestApplyCsc : public ::testing::Test
     virtual void TearDown() {};
 
     template <typename T>
-    static void apply_rowmajor(int64_t key_index, int64_t nnz_index, int threads)
+    static void apply(int64_t key_index, int64_t nnz_index, int threads, blas::Layout layout)
     {
+        uint64_t key = keys[key_index];
+        uint64_t vec_nnz = vec_nnzs[nnz_index];
         uint64_t a_seed = 99;
-        // construct test data: A
-        T *a = new T[m * n];
-        RandBLAS::util::genmat(m, n, a, a_seed);
 
-        // construct test data: S
-        RandBLAS::sasos::SASO<T> sas = make_wide_saso<T>(
-            d, m, vec_nnzs[nnz_index], 0, keys[key_index]
-        );
-        
-        // compute S*A. 
+        // construct test data: matrix A, SASO "sas", and dense representation S
+        T *a = new T[m * n];
         T *a_hat = new T[d * n]{};
-        int64_t lda = n; 
-        int64_t ldahat = n;
-        RandBLAS::sasos::lskges<T>(
-            blas::Layout::RowMajor,
-            blas::Op::NoTrans,
-            blas::Op::NoTrans,
-            d, n, m,
-            1.0, sas, 0,
-            a, lda,
-            0.0, a_hat, ldahat, threads   
-        );
-        // RandBLAS::sasos::sketch_cscrow<T>(d, n, m, sas, 0, a, lda, a_hat, ldahat, threads);
-
-        // compute expected result
         T *S = new T[d * m];
-        sas_to_dense<T>(sas, S, blas::Layout::RowMajor);
-        T *a_hat_expect = new T[d * n]{}; // zero-initialize.
-        int64_t lds = m;
-        blas::gemm<T>(
-            blas::Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans,
-            d, n, m,
-            1.0, S, lds, a, lda,
-            0.0, a_hat_expect, ldahat
-        );
-
-        // check the result
-        matrices_approx_equal(
-            blas::Layout::RowMajor, blas::Op::NoTrans,
-            d, n,
-            a_hat, ldahat,
-            a_hat_expect, ldahat
-        );
-    }
-
-    template <typename T>
-    static void apply_colmajor(int64_t key_index, int64_t nnz_index, int threads)
-    {
-        uint64_t a_seed = 99;
-
-        // construct test data: A
-        T *a = new T[m * n];
         RandBLAS::util::genmat(m, n, a, a_seed);
+        auto sas = make_wide_saso<T>(d, m, vec_nnz, 0, key);
+        sas_to_dense<T>(sas, S, layout);
+        int64_t lda, ldahat, lds;
+        if (layout == blas::Layout::RowMajor) {
+            lda = n; 
+            ldahat = n;
+            lds = m;
+        } else {
+            lda = m;
+            ldahat = d;
+            lds = d;
+        }
 
-        // construct test data: S
-        RandBLAS::sasos::SASO<T> sas = make_wide_saso<T>(
-            d, m, vec_nnzs[nnz_index], 0, keys[key_index]
-        );
-        
         // compute S*A. 
-        T *a_hat = new T[d * n]{}; // zero-initialize.
-        int64_t lda = m; 
-        int64_t ldahat = d;
         RandBLAS::sasos::lskges<T>(
-            blas::Layout::ColMajor,
-            blas::Op::NoTrans,
-            blas::Op::NoTrans,
+            layout, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
-            1.0, sas, 0,
-            a, lda,
-            0.0, a_hat, ldahat, threads   
+            1.0, sas, 0, a, lda,
+            0.0, a_hat, ldahat,
+            threads   
         );
-        //RandBLAS::sasos::sketch_csccol<T>(d, n, m, sas, 0, a, lda, a_hat, ldahat, threads);
 
         // compute expected result
         T *a_hat_expect = new T[d * n]{};
@@ -265,11 +221,8 @@ class TestApplyCsc : public ::testing::Test
         //      for a successful run with the initialization, and
         //          https://github.com/BallisticLA/RandBLAS/actions/runs/3579714658/jobs/6021178532
         //      for an unsuccessful run without this initialization.
-        T *S = new T[d * m];
-        sas_to_dense<T>(sas, S, blas::Layout::ColMajor);
-        int64_t lds = d;
         blas::gemm<T>(
-            blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans,
+            layout, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
             1.0, S, lds, a, lda,
             0.0, a_hat_expect, ldahat
@@ -277,7 +230,7 @@ class TestApplyCsc : public ::testing::Test
 
         // check the result
         matrices_approx_equal(
-            blas::Layout::ColMajor, blas::Op::NoTrans,
+            layout, blas::Op::NoTrans,
             d, n,
             a_hat, ldahat,
             a_hat_expect, ldahat
@@ -292,8 +245,8 @@ TEST_F(TestApplyCsc, OneThread_RowMajor)
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply_rowmajor<double>(k_idx, nz_idx, 1);
-            apply_rowmajor<float>(k_idx, nz_idx, 1);
+            apply<double>(k_idx, nz_idx, 1, blas::Layout::RowMajor);
+            apply<float>(k_idx, nz_idx, 1, blas::Layout::RowMajor);
         }
     }
 }
@@ -304,8 +257,8 @@ TEST_F(TestApplyCsc, TwoThreads_RowMajor)
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply_rowmajor<double>(k_idx, nz_idx, 2);
-            apply_rowmajor<float>(k_idx, nz_idx, 2);
+            apply<double>(k_idx, nz_idx, 2, blas::Layout::RowMajor);
+            apply<float>(k_idx, nz_idx, 2, blas::Layout::RowMajor);
         }
     }
 }
@@ -316,8 +269,8 @@ TEST_F(TestApplyCsc, OneThread_ColMajor)
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply_colmajor<double>(k_idx, nz_idx, 1);
-            apply_colmajor<float>(k_idx, nz_idx, 1);
+            apply<double>(k_idx, nz_idx, 1, blas::Layout::ColMajor);
+            apply<float>(k_idx, nz_idx, 1, blas::Layout::ColMajor);
         }
     }
 }
@@ -328,8 +281,8 @@ TEST_F(TestApplyCsc, TwoThreads_ColMajor)
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply_colmajor<double>(k_idx, nz_idx, 2);
-            apply_colmajor<float>(k_idx, nz_idx, 2);
+            apply<double>(k_idx, nz_idx, 2, blas::Layout::ColMajor);
+            apply<float>(k_idx, nz_idx, 2, blas::Layout::ColMajor);
         }
     }
 }

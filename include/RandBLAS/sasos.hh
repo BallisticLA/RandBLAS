@@ -23,7 +23,6 @@ struct Dist {
     const bool scale = false;
 };
 
-
 template <typename T>
 struct SASO {
     const Dist dist{};
@@ -55,34 +54,6 @@ void lskges(
     int64_t ldb,
     int threads
 );
-
-// template <typename T>
-// void sketch_cscrow(
-//     int64_t d,
-//     int64_t n,
-//     int64_t m,
-//     SASO<T>& sas,
-//     int64_t pos,
-//     T *a, // todo: make this const
-//     int64_t lda,
-//     T *a_hat,
-//     int64_t lda_hat,
-//     int threads
-// );
-
-// template <typename T>
-// void sketch_csccol(
-//     int64_t d,
-//     int64_t n,
-//     int64_t m,
-//     SASO<T>& sas,
-//     int64_t pos,
-//     T *a, // todo: make this const
-//     int64_t lda,
-//     T *a_hat,
-//     int64_t lda_hat,
-//     int threads
-// );
 
 template <typename T>
 void print_saso(SASO<T> &sas);
