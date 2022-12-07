@@ -1,5 +1,4 @@
 set(RandBLAS_cxx_srcs
-    sjlts.cc
     util.cc
     dense_op.cc)
 

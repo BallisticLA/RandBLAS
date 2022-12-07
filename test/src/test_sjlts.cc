@@ -21,14 +21,8 @@ class TestSJLTConstruction : public ::testing::Test
 
     virtual void proper_construction(uint64_t key_index, uint64_t nnz_index)
     {
-        struct RandBLAS::sjlts::SJLT sjl;
-        sjl.ori = RandBLAS::sjlts::ColumnWise;
-        sjl.n_rows = d; // > n
-        sjl.n_cols = m;
-        sjl.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
-        sjl.rows = new uint64_t[sjl.vec_nnz * m];
-        sjl.cols = new uint64_t[sjl.vec_nnz * m];
-        sjl.vals = new double[sjl.vec_nnz * m];
+        RandBLAS::sjlts::SJLT<double> sjl(RandBLAS::sjlts::ColumnWise, d, m, vec_nnzs[nnz_index]);
+
         RandBLAS::sjlts::fill_colwise(sjl, keys[key_index], 0);
 
         // check that each block of sjl.vec_nnz entries of sjl.rows is
@@ -79,7 +73,8 @@ TEST_F(TestSJLTConstruction, Dim7by20nnz7)
 
 
 
-void sjlt_to_dense_rowmajor(RandBLAS::sjlts::SJLT sjl, double *mat)
+template <typename T>
+void sjlt_to_dense_rowmajor(const RandBLAS::sjlts::SJLT<T> &sjl, double *mat)
 {
     uint64_t nnz = sjl.n_cols * sjl.vec_nnz;
     for (uint64_t i = 0; i < nnz; ++i)
@@ -116,16 +111,10 @@ class TestApplyCscRowMaj : public ::testing::Test
         RandBLAS::util::genmat(m, n, a, a_seed);
 
         // construct test data: S
-        struct RandBLAS::sjlts::SJLT sjl;
-        sjl.ori = RandBLAS::sjlts::ColumnWise;
-        sjl.n_rows = d; // > n
-        sjl.n_cols = m;
-        sjl.vec_nnz = vec_nnzs[nnz_index]; // <= n_rows
-        sjl.rows = new uint64_t[sjl.vec_nnz * m];
-        sjl.cols = new uint64_t[sjl.vec_nnz * m];
-        sjl.vals = new double[sjl.vec_nnz * m];
+        RandBLAS::sjlts::SJLT<double> sjl(RandBLAS::sjlts::ColumnWise, d, m, vec_nnzs[nnz_index]);
+
         RandBLAS::sjlts::fill_colwise(sjl, keys[key_index], 0);
-        
+
         // compute S*A. 
         double *a_hat = new double[d * n];
         for (uint64_t i = 0; i < d * n; ++i)
