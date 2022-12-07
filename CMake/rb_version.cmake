@@ -2,7 +2,7 @@ set(tmp)
 find_package(Git QUIET)
 if(GIT_FOUND)
     execute_process(COMMAND ${GIT_EXECUTABLE}
-        --git-dir=${CMAKE_SOURCE_DIR}/.git describe
+        --git-dir=${CMAKE_CURRENT_SOURCE_DIR}/.git describe
         --tags --match "[0-9]*.[0-9]*.[0-9]*"
         OUTPUT_VARIABLE tmp OUTPUT_STRIP_TRAILING_WHITESPACE
         ERROR_QUIET)
