@@ -13,7 +13,7 @@ if (GTest_FOUND)
         src/test_dense.cc
     )
     target_include_directories(RandBLAS_tests PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/test/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     )
     target_link_libraries(RandBLAS_tests
         RandBLAS

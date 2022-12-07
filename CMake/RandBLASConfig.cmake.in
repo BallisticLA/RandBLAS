@@ -12,19 +12,13 @@ if (NOT blaspp_DIR)
     set(blaspp_DIR @blaspp_DIR@)
 endif ()
 find_dependency(blaspp)
-include(RandBLAS_blaspp)
 
 # Random123
 if (NOT Random123_DIR)
     set(Random123_DIR @Random123_DIR@)
 endif ()
 find_dependency(Random123)
-include(RandBLAS_Random123)
 
 # OpenMP
 set(RandBLAS_HAS_OpenMP @RandBLAS_HAS_OpenMP@)
-if (RandBLAS_HAS_OpenMP)
-    include(RandBLAS_OpenMP)
-endif()
-
 include(RandBLAS)
