@@ -4,7 +4,7 @@
 #include <math.h>
 #include <numeric>
 
-#define RELTOL_POWER 0.7
+#define RELTOL_POWER 0.6
 #define ABSTOL_POWER 0.75
 
 namespace RandBLAS_Testing::Util {
