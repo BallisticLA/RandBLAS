@@ -9,7 +9,7 @@ if (GTest_FOUND)
 
     add_executable(RandBLAS_tests
         src/rbtutil.cc
-        src/test_sasos.cc
+        src/test_sparse_op.cc
         src/test_dense_op.cc
     )
     target_include_directories(RandBLAS_tests PUBLIC

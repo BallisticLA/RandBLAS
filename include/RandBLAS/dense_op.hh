@@ -49,6 +49,7 @@ void fill_buff(
     uint32_t ctr_offset
 );
 
+// Compute B = alpha * op(S) * op(A) + beta * B
 template <typename T>
 void lskge3(
     blas::Layout layout,
@@ -60,10 +61,10 @@ void lskge3(
     T alpha,
     SketchingOperator<T> &S0,
     int64_t pos, // pointer offset for S in S0
-    const T *A_ptr,
+    const T *A,
     int64_t lda,
     T beta,
-    T *B_ptr,
+    T *B,
     int64_t ldb
 );
 

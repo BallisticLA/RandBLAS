@@ -1,5 +1,5 @@
 set(RandBLAS_cxx_srcs
-    sasos.cc
+    sparse_op.cc
     util.cc
     dense_op.cc)
 

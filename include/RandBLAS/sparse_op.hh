@@ -6,9 +6,12 @@
 #ifndef RandBLAS_SASOS_HH
 #define RandBLAS_SASOS_HH
 
-namespace RandBLAS::sasos {
+namespace RandBLAS::sparse_op {
+
+enum class DistName : char {SASO = 'S'};
 
 struct Dist {
+    const DistName family = DistName::SASO;
     const int64_t n_rows;
     const int64_t n_cols;
     const int64_t vec_nnz;
@@ -16,7 +19,7 @@ struct Dist {
 };
 
 template <typename T>
-struct SASO {
+struct SketchingOperator {
     const Dist dist{};
     uint64_t key = 0;
     uint64_t ctr_offset = 0;
@@ -26,8 +29,11 @@ struct SASO {
 };
 
 template <typename T>
-void fill_saso(SASO<T> &sas);
+void fill_saso(
+    SketchingOperator<T> &sas
+);
 
+// Compute B = alpha * op(S) * op(A) + beta * B
 template <typename T>
 void lskges(
     blas::Layout layout,
@@ -37,7 +43,7 @@ void lskges(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(S) is d-by-m
     T alpha,
-    SASO<T> &S0,
+    SketchingOperator<T> &S0,
     int64_t pos, // pointer offset for S in S0
     T *A, // TODO: make const
     int64_t lda,
@@ -48,8 +54,8 @@ void lskges(
 );
 
 template <typename T>
-void print_saso(SASO<T> &sas);
+void print_saso(SketchingOperator<T> &sas);
 
-} // end namespace RandBLAS::sasos
+} // end namespace RandBLAS::sparse_ops
 
 #endif // define RandBLAS_SASOS_HH
