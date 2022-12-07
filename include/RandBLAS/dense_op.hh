@@ -6,15 +6,6 @@
 #ifndef RandBLAS_DO_HH
 #define RandBLAS_DO_HH
 
-// Below comes from .cc
-
-#include <iostream>
-#include <stdio.h>
-#include <omp.h>
-
-#include <math.h>
-#include <typeinfo>
-
 namespace RandBLAS::dense_op {
 
 enum class DistName : char {Gaussian = 'G', Normal = 'G', Uniform = 'U', Rademacher = 'R', Haar = 'H'};

@@ -8,14 +8,6 @@
 
 namespace RandBLAS::sasos {
 
-// Next step: modify sketch_cscrow and sketch_csccol so 
-// they can be applied to submatrices. (This will require
-// changing their function signatures a fair amount.)
-//
-// step after that: write LSKGES. Raise an error if 
-// transA or transS == Trans.
-//
-// Step after that: prepare a big PR for Burlen to review.
 struct Dist {
     const int64_t n_rows;
     const int64_t n_cols;
