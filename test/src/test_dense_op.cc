@@ -138,7 +138,7 @@ class TestLSKGE3 : public ::testing::Test
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, m, m,
-            1.0, S0, 0, A.data(), lda,
+            1.0, S0, 0, 0, A.data(), lda,
             0.0, B.data(), ldb
         );
 
@@ -181,7 +181,7 @@ class TestLSKGE3 : public ::testing::Test
             blas::Op::Trans,
             blas::Op::NoTrans,
             d, m, m,
-            1.0, S0, 0, A.data(), m,
+            1.0, S0, 0, 0, A.data(), m,
             0.0, B.data(), ldb   
         );
 
@@ -238,7 +238,7 @@ class TestLSKGE3 : public ::testing::Test
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, m, m,
-            1.0, S0, pos,
+            1.0, S0, S_ro, S_co,
             A.data(), lda,
             0.0, B.data(), ldb   
         );
@@ -299,7 +299,7 @@ class TestLSKGE3 : public ::testing::Test
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, n, m,
-            1.0, S0, 0,
+            1.0, S0, 0, 0,
             A_ptr, lda,
             0.0, B.data(), ldb   
         );

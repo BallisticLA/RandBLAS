@@ -162,7 +162,7 @@ class TestLSKGES : public ::testing::Test
             RandBLAS::sparse_op::lskges<T>(
                 layout, blas::Op::NoTrans, blas::Op::NoTrans,
                 d, n, m,
-                1.0, sas, 0, a, lda,
+                1.0, sas, 0, 0, a, lda,
                 0.0, a_hat, ldahat,
                 threads   
             );
@@ -170,7 +170,7 @@ class TestLSKGES : public ::testing::Test
             RandBLAS::sparse_op::lskges<T>(
                 layout, blas::Op::NoTrans, blas::Op::NoTrans,
                 d, n, m,
-                1.0, sas, 0, a, lda,
+                1.0, sas, 0, 0, a, lda,
                 0.0, a_hat, ldahat
             );
         }
@@ -246,7 +246,7 @@ class TestLSKGES : public ::testing::Test
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d1, m1, m1,
-            1.0, S0, pos,
+            1.0, S0, S_ro, S_co,
             A.data(), lda,
             0.0, B.data(), ldb   
         );

@@ -34,6 +34,8 @@ static std::pair<int64_t, int64_t> indexing_bounds(
 
 template <typename T>
 void fill_saso(SketchingOperator<T>& sas) {
+    assert(sas.dist.family == DistName::SASO);
+    //assert(sas.dist.dist4nz.family == RandBLAS::dense_op::DistName::Rademacher);
     assert(sas.dist.n_rows <= sas.dist.n_cols);
     uint64_t seed_ctr = sas.ctr_offset;
     uint64_t seed_key = sas.key;
@@ -270,7 +272,8 @@ void lskges(
     int64_t m, // op(S) is d-by-m
     T alpha,
     SketchingOperator<T> &S0,
-    int64_t pos, // pointer offset for S in S0
+    int64_t i_os,
+    int64_t j_os,
     T *A, // TODO: make const
     int64_t lda,
     T beta,
@@ -278,6 +281,8 @@ void lskges(
     int64_t ldb,
     int threads // default is 4.
 ) {
+    assert(S0.dist.family == DistName::SASO);
+    assert(S0.rows != NULL); // must be filled.
     assert(d <= m);
     assert(alpha == 1.0); // implementation limitation
     assert(beta == 0.0); // implementation limitation
@@ -305,12 +310,14 @@ void lskges(
     // Dimensionality sanity checks, and perform the sketch.
     if (layout == blas::Layout::ColMajor) {
         int64_t lds = S0.dist.n_rows;
+        int64_t pos = i_os + lds * j_os;
         assert(lds >= rows_S);
         assert(lda >= rows_A);
         assert(ldb >= d);
         sketch_csccol<T>(d, n, m, S0, pos, A, lda, B, ldb, threads);
     } else {
         int64_t lds = S0.dist.n_cols;
+        int64_t pos = i_os * lds + j_os;
         assert(lds >= cols_S);
         assert(lda >= cols_A);
         assert(ldb >= n);
@@ -325,7 +332,7 @@ template void print_saso<float>(SketchingOperator<float> &sas);
 template void sketch_cscrow<float>(int64_t d, int64_t n, int64_t m, SketchingOperator<float> &S0, int64_t pos, float *A, int64_t lda, float *B, int64_t ldb, int threads);
 template void sketch_csccol<float>(int64_t d, int64_t n, int64_t m, SketchingOperator<float> &S0, int64_t pos, float *A, int64_t lda, float *B, int64_t ldb, int threads);
 template void lskges<float>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
-    SketchingOperator<float> &S0, int64_t pos, float *A, int64_t lda, float beta, float *B, int64_t ldb, int threads);
+    SketchingOperator<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float beta, float *B, int64_t ldb, int threads);
 
 
 template void fill_saso<double>(SketchingOperator<double> &sas);
@@ -333,6 +340,6 @@ template void print_saso<double>(SketchingOperator<double> &sas);
 template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SketchingOperator<double> &S0, int64_t pos, double *A, int64_t lda, double *B, int64_t ldb, int threads);
 template void sketch_csccol<double>(int64_t d, int64_t n, int64_t m, SketchingOperator<double> &S0, int64_t pos, double *A, int64_t lda, double *B, int64_t ldb, int threads);
 template void lskges<double>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, double alpha,
-    SketchingOperator<double> &S0, int64_t pos, double *A, int64_t lda, double beta, double *B, int64_t ldb, int threads);
+    SketchingOperator<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double beta, double *B, int64_t ldb, int threads);
 
 } // end namespace RandBLAS::sparse_ops

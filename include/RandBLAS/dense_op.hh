@@ -8,7 +8,14 @@
 
 namespace RandBLAS::dense_op {
 
-enum class DistName : char {Gaussian = 'G', Normal = 'G', Uniform = 'U', Rademacher = 'R', Haar = 'H'};
+enum class DistName : char {
+    Gaussian = 'G',
+    Normal = 'G', // alias, for user convenience
+    Uniform = 'U', // uniform over the interval [-1, 1].
+    Rademacher = 'R', // uniform over {+1, -1}.
+    Haar = 'H', // uniform over row-orthonormal or column-orthonormal matrices.
+    DisjointIntervals = 'I' // might require additional metadata.
+};
 
 struct Dist {
     const DistName family = DistName::Gaussian;
@@ -60,7 +67,8 @@ void lskge3(
     int64_t m, // op(S) is d-by-m
     T alpha,
     SketchingOperator<T> &S0,
-    int64_t pos, // pointer offset for S in S0
+    int64_t i_os,
+    int64_t j_os,
     const T *A,
     int64_t lda,
     T beta,

@@ -12,6 +12,7 @@ enum class DistName : char {SASO = 'S'};
 
 struct Dist {
     const DistName family = DistName::SASO;
+    //const RandBLAS::dense_op::Dist dist4nz = RandBLAS::dense_op::DistName::Rademacher;
     const int64_t n_rows;
     const int64_t n_cols;
     const int64_t vec_nnz;
@@ -21,11 +22,12 @@ struct Dist {
 template <typename T>
 struct SketchingOperator {
     const Dist dist{};
-    uint64_t key = 0;
-    uint64_t ctr_offset = 0;
+    const uint64_t key = 0;
+    const uint64_t ctr_offset = 0;
     int64_t *rows = NULL;
     int64_t *cols = NULL;
     T *vals = NULL;
+    // ANY_STRUCT metadata = NULL;
 };
 
 template <typename T>
@@ -44,7 +46,8 @@ void lskges(
     int64_t m, // op(S) is d-by-m
     T alpha,
     SketchingOperator<T> &S0,
-    int64_t pos, // pointer offset for S in S0
+    int64_t i_os,
+    int64_t j_os,
     T *A, // TODO: make const
     int64_t lda,
     T beta,

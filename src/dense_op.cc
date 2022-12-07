@@ -205,7 +205,8 @@ void lskge3(
     int64_t m, // op(S) is d-by-m
     T alpha,
     SketchingOperator<T> &S0,
-    int64_t pos, // pointer offset for S in S0
+    int64_t i_os,
+    int64_t j_os,
     const T *A,
     int64_t lda,
     T beta,
@@ -252,14 +253,16 @@ void lskge3(
         cols_S = d;
     }
     // Sanity checks on dimensions and strides
-    int64_t lds;
+    int64_t lds, pos;
     if (layout == blas::Layout::ColMajor) {
         lds = S0.dist.n_rows;
+        pos = i_os + lds * j_os;
         assert(lds >= rows_S);
         assert(lda >= rows_A);
         assert(ldb >= d);
     } else {
         lds = S0.dist.n_cols;
+        pos = i_os * lds + j_os;
         assert(lds >= cols_S);
         assert(lda >= cols_A);
         assert(ldb >= n);
@@ -279,9 +282,9 @@ void lskge3(
 
 // Explicit instantiation of template functions
 template void lskge3(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, double alpha,
-    SketchingOperator<double> &S0, int64_t pos, const double *A, int64_t lda, double beta, double *B, int64_t ldb);
+    SketchingOperator<double> &S0, int64_t i_os, int64_t j_os, const double *A, int64_t lda, double beta, double *B, int64_t ldb);
 template void lskge3(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
-    SketchingOperator<float> &S0, int64_t pos, const float *A, int64_t lda, float beta, float *B, int64_t ldb);
+    SketchingOperator<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float beta, float *B, int64_t ldb);
 
 template void gen_rmat_unif<float>(int64_t n_rows, int64_t n_cols, float* mat, uint32_t key, uint32_t ctr_offset);
 template void gen_rmat_unif<double>(int64_t n_rows, int64_t n_cols, double* mat, uint32_t key, uint32_t ctr_offset);
