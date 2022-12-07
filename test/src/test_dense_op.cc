@@ -1,12 +1,10 @@
 #include <RandBLAS.hh>
+#include <rbtutil.hh>
 #include <gtest/gtest.h>
 #include <math.h>
 #include <numeric>
-
 #include <Random123/philox.h>
 
-#define RELTOL_POWER 0.7
-#define ABSTOL_POWER 0.75
 
 class TestDenseMoments : public ::testing::Test
 {
@@ -73,62 +71,6 @@ TEST_F(TestDenseMoments, Uniform)
         test_mean_stddev<float>(seed, 500, 500, dn, (float) expect_stddev);
         test_mean_stddev<double>(seed, 203, 203, dn, expect_stddev);
         test_mean_stddev<double>(seed, 203, 503, dn, expect_stddev);
-    }
-}
-
-
-template <typename T>
-void buffs_approx_equal(
-    const T *actual_ptr,
-    const T *expect_ptr,
-    int64_t size
-) {
-    T reltol = std::pow(std::numeric_limits<T>::epsilon(), RELTOL_POWER);
-    for (int64_t i = 0; i < size; ++i) {
-        T actual = actual_ptr[i];
-        T expect = expect_ptr[i];
-        T atol = reltol * std::min(abs(actual), abs(expect));
-        EXPECT_NEAR(actual, expect, atol);
-    }
-}
-
-template <typename T>
-void matrices_approx_equal(
-    blas::Layout layout,
-    blas::Op transB,
-    int64_t m,
-    int64_t n,
-    const T *A,
-    int64_t lda,
-    const T *B,
-    int64_t ldb
-) {
-    // check that A == op(B), where A is m-by-n.
-    T reltol = std::pow(std::numeric_limits<T>::epsilon(), RELTOL_POWER);
-    auto idxa = [lda, layout](int64_t i, int64_t j) {
-        return  (layout == blas::Layout::ColMajor) ? (i + j*lda) : (j + i*lda);
-    };
-    auto idxb = [ldb, layout](int64_t i, int64_t j) {
-        return  (layout == blas::Layout::ColMajor) ? (i + j*ldb) : (j + i*ldb);
-    };
-    if (transB == blas::Op::NoTrans) {
-        for (int64_t i = 0; i < m; ++i) {
-            for (int64_t j = 0; j < n; ++j) {
-                T actual = A[idxa(i, j)];
-                T expect = B[idxb(i, j)];
-                T atol = reltol * std::min(abs(actual), abs(expect));
-                EXPECT_NEAR(actual, expect, atol);
-            }
-        }
-    } else {
-        for (int64_t i = 0; i < m; ++i) {
-            for (int64_t j = 0; j < n; ++j) {
-                T actual = A[idxa(i, j)];
-                T expect = B[idxb(j, i)];
-                T atol = reltol * std::min(abs(actual), abs(expect));
-                EXPECT_NEAR(actual, expect, atol);
-            }
-        }
     }
 }
 
@@ -201,7 +143,7 @@ class TestLSKGE3 : public ::testing::Test
         );
 
         // check the result
-        buffs_approx_equal(B.data(), S0.buff, d*m);
+        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), S0.buff, d*m);
     }
 
     template <typename T>
@@ -245,7 +187,7 @@ class TestLSKGE3 : public ::testing::Test
 
         // check that B == S.T
         int64_t lds = (is_colmajor) ? m : d;
-        matrices_approx_equal<T>(
+        RandBLAS_Testing::Util::matrices_approx_equal<T>(
             S0.layout, blas::Op::Trans, d, m,
             B.data(), ldb, S0.buff, lds      
         );
@@ -302,7 +244,7 @@ class TestLSKGE3 : public ::testing::Test
         );
         // Check the result
         T *S_ptr = &S0.buff[pos];
-        matrices_approx_equal(
+        RandBLAS_Testing::Util::matrices_approx_equal(
             S0.layout, blas::Op::NoTrans,
             d, m,
             B.data(), ldb,
@@ -370,7 +312,7 @@ class TestLSKGE3 : public ::testing::Test
             1.0, S0.buff, lds, A_ptr, lda,
             0.0, B_expect.data(), ldb
         );
-        buffs_approx_equal(B.data(), B_expect.data(), d * n);
+        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), B_expect.data(), d * n);
     }
 
 };

@@ -1,9 +1,7 @@
 #include <RandBLAS.hh>
+#include <rbtutil.hh>
 #include <gtest/gtest.h>
 #include <math.h>
-
-#define RELTOL_POWER 0.7
-#define ABSTOL_POWER 0.75
 
 
 template <typename T>
@@ -95,50 +93,6 @@ TEST_F(TestSASOConstruction, Dim7by20nnz7)
     proper_construction(0, 3);
     proper_construction(1, 3);
     proper_construction(2, 3);
-}
-
-// TODO: move this to a common place where test_dense_op.cc and
-//       test_sasos.cc can use it.
-template <typename T>
-void matrices_approx_equal(
-    blas::Layout layout,
-    blas::Op transB,
-    int64_t m,
-    int64_t n,
-    const T *A,
-    int64_t lda,
-    const T *B,
-    int64_t ldb
-) {
-    // check that A == op(B), where A is m-by-n.
-    T reltol = std::pow(std::numeric_limits<T>::epsilon(), RELTOL_POWER);
-    auto idxa = [lda, layout](int64_t i, int64_t j) {
-        return  (layout == blas::Layout::ColMajor) ? (i + j*lda) : (j + i*lda);
-    };
-    auto idxb = [ldb, layout](int64_t i, int64_t j) {
-        return  (layout == blas::Layout::ColMajor) ? (i + j*ldb) : (j + i*ldb);
-    };
-    if (transB == blas::Op::NoTrans) {
-        for (int64_t i = 0; i < m; ++i) {
-            for (int64_t j = 0; j < n; ++j) {
-                int64_t curr_idxa = idxa(i, j);
-                T actual = A[curr_idxa];
-                int64_t curr_idxb = idxb(i, j);
-                T expect = B[curr_idxb];
-                T atol = reltol * std::min(abs(actual), abs(expect));
-                EXPECT_NEAR(actual, expect, atol) << "(" << i << ", " << j << ")";
-            }
-        }
-    } else {
-        for (int64_t i = 0; i < m; ++i) {
-            for (int64_t j = 0; j < n; ++j) {
-                T actual = A[idxa(i, j)];
-                T expect = B[idxb(j, i)];
-                T atol = reltol * std::min(abs(actual), abs(expect));
-                EXPECT_NEAR(actual, expect, atol);
-            }
-        }
-    }
 }
 
 template <typename T>
@@ -240,7 +194,7 @@ class TestLSKGES : public ::testing::Test
         );
 
         // check the result
-        matrices_approx_equal(
+        RandBLAS_Testing::Util::matrices_approx_equal(
             layout, blas::Op::NoTrans,
             d, n,
             a_hat, ldahat,
@@ -298,7 +252,7 @@ class TestLSKGES : public ::testing::Test
         );
         // Check the result
         T *S_ptr = &S0_dense[pos];
-        matrices_approx_equal(
+        RandBLAS_Testing::Util::matrices_approx_equal(
             layout, blas::Op::NoTrans,
             d1, m1,
             B.data(), ldb,
