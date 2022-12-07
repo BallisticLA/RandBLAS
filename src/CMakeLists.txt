@@ -2,27 +2,29 @@ set(RandBLAS_cxx_srcs
     util.cc
     dense_op.cc)
 
-set(RandBLAS_libs RandBLAS_blaspp RandBLAS_Random123)
+set(RandBLAS_libs blaspp Random123)
 
 if (RandBLAS_HAS_OpenMP)
-    list(APPEND RandBLAS_libs RandBLAS_OpenMP)
+    list(APPEND RandBLAS_libs OpenMP::OpenMP_CXX)
 endif()
 
 add_library(RandBLAS ${RandBLAS_cxx_srcs})
 
 target_include_directories(RandBLAS PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/RandBLAS>
-  $<INSTALL_INTERFACE:include>
-  $<INSTALL_INTERFACE:include/RandBLAS>)
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/RandBLAS>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/RandBLAS>)
 
 target_link_libraries(RandBLAS PUBLIC ${RandBLAS_libs})
+target_compile_options(RandBLAS PUBLIC -Wall -Wextra)
 
-install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../include/"
   DESTINATION include FILES_MATCHING PATTERN "*.hh")
 
 install(TARGETS RandBLAS EXPORT RandBLAS
-  INCLUDES DESTINATION include/RandBLAS ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/RandBLAS
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 install(EXPORT RandBLAS DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake
