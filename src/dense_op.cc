@@ -64,18 +64,18 @@ static void gen_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
                 // Only 3 cases here, so using nested ifs
                 mat[i] = r123::uneg11<T>(r.v[0]);
                 ++i;
-                if (i < comp)
+                if (i < (uint32_t)comp)
                 {
                         mat[i] = r123::uneg11<T>(r.v[1]);
                         ++i;
-                        if (i < comp)
+                        if (i < (uint32_t)comp)
                         {
                                 mat[i] = r123::uneg11<T>(r.v[2]);
                                 ++i;
                         }
                 }
         }
-        for (; i < dim; i += 4)
+        for (; i < (uint64_t)dim; i += 4)
         {
                 // Adding critical section around the increment should make outer loop parallelizable?
                 // Below array represents counter updating
@@ -139,11 +139,11 @@ static void gen_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t seed)
                 // Only 3 cases here, so using nested ifs
                 mat[i] = pair_1.x;
                 ++i;
-                if (i < comp)
+                if (i < (uint32_t)comp)
                 {
                         mat[i] = pair_1.y;
                         ++i;
-                        if (i < comp)
+                        if (i < (uint32_t)comp)
                         {
                                 mat[i] = pair_2.x;
                                 ++i;

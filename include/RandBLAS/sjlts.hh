@@ -160,7 +160,7 @@ void sketch_cscrow(const SJLT<T> &sjl, uint64_t n, const T *a, T *a_hat, int thr
 	// Identify the range of rows to be processed by each thread.
     int avg = sjl.n_rows / threads;
     if (avg == 0) avg = 1; // this is unusual, but can happen in small experiments.
-	int blocks[threads + 1];
+	uint64_t blocks[threads + 1];
 	blocks[0] = 0;
     for(int i = 1; i < threads + 1; ++i)
 		blocks[i] = blocks[i - 1] + avg;
@@ -173,14 +173,14 @@ void sketch_cscrow(const SJLT<T> &sjl, uint64_t n, const T *a, T *a_hat, int thr
 		#pragma omp for schedule(static)
 		for(int outer = 0; outer < threads; ++outer)
         {
-			for(int c = 0; c < sjl.n_cols; ++c)
+			for(uint64_t c = 0; c < sjl.n_cols; ++c)
             {
 				const T *a_row = &a[c * n];
 				int offset = c * sjl.vec_nnz;
-                for (int r = 0; r < sjl.vec_nnz; ++r)
+                for (uint64_t r = 0; r < sjl.vec_nnz; ++r)
                 {
-					int inner = offset + r;
-					int row = sjl.rows[inner];
+					uint64_t inner = offset + r;
+					uint64_t row = sjl.rows[inner];
 					if(row >= blocks[my_id] && row < blocks[my_id + 1])
                     {
 						T scale = sjl.vals[inner];
