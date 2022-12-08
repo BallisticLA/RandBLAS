@@ -21,14 +21,80 @@ struct SparseDist {
 
 template <typename T>
 struct SparseSkOp {
-    // universal properties (analogous to inheritance)
     const SparseDist dist{};
     const uint64_t key = 0;
     const uint64_t ctr_offset = 0;
-    // properties specific to sparse sketching operators
+    
+    /////////////////////////////////////////////////////////////////////
+    //
+    // Properties specific to sparse sketching operators
+    //
+    /////////////////////////////////////////////////////////////////////
+
     int64_t *rows = NULL;
     int64_t *cols = NULL;
     T *vals = NULL;
+
+    /////////////////////////////////////////////////////////////////////
+    //
+    // Member functions must directly relate to memory management.
+    //
+    /////////////////////////////////////////////////////////////////////
+
+    //  Elementary constructor: requires a struct as input
+    SparseSkOp(
+        SparseDist dist_,
+        uint64_t key_,
+        uint64_t ctr_offset_
+    ) : dist(dist_), key(key_), ctr_offset(ctr_offset_),
+        rows(NULL), cols(NULL), vals(NULL) {};
+    
+    //  Unpacked constructor: uses elementary types as inputs
+    SparseSkOp(
+        SparseDistName family,
+        int64_t n_rows,
+        int64_t n_cols,
+        int64_t vec_nnz,
+        bool scale,
+        uint64_t key,
+        uint64_t ctr_offset
+    );
+    
+    //  Unpacked constructor with default values
+    SparseSkOp(
+        int64_t n_rows,
+        int64_t n_cols,
+        int64_t vec_nnz,
+        uint64_t key,
+        uint64_t ctr_offset
+    ) : SparseSkOp(SparseDistName::SASO, n_rows, n_cols,
+        vec_nnz, false, key, ctr_offset) {};
+    
+    //  Destructor
+    ~SparseSkOp();
+};
+
+template <typename T>
+SparseSkOp<T>::SparseSkOp(
+    SparseDistName family,
+    int64_t n_rows,
+    int64_t n_cols,
+    int64_t vec_nnz,
+    bool scale,
+    uint64_t key_,
+    uint64_t ctr_offset_
+) : dist{family, n_rows, n_cols, vec_nnz, scale}, key(key_), ctr_offset(ctr_offset_) {
+    assert(n_rows <= n_cols);
+    this->rows = new int64_t[vec_nnz * n_cols];
+    this->cols = new int64_t[vec_nnz * n_cols];
+    this->vals = new T[vec_nnz * n_cols];
+}
+
+template <typename T>
+SparseSkOp<T>::~SparseSkOp() {
+    delete [] this->rows;
+    delete [] this->cols;
+    delete [] this->vals;
 };
 
 template <typename T>

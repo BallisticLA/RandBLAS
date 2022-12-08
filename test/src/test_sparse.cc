@@ -19,14 +19,10 @@ RandBLAS::sparse::SparseSkOp<T> make_wide_saso(
         .vec_nnz = vec_nnz
     };
     int64_t total_nnz = n_cols * vec_nnz;
-    RandBLAS::sparse::SparseSkOp<T> sas = {
-        .dist = D,
-        .key = key,
-        .ctr_offset = ctr_offset,
-        .rows = new int64_t[total_nnz], // unsafe / memory leak
-        .cols = new int64_t[total_nnz],
-        .vals = new T[total_nnz]
-    };
+    RandBLAS::sparse::SparseSkOp<T> sas(D, key, ctr_offset);
+    sas.rows = new int64_t[total_nnz]; // unsafe / memory leak
+    sas.cols = new int64_t[total_nnz];
+    sas.vals = new T[total_nnz];
     RandBLAS::sparse::fill_saso(sas);
     return sas;
 }
