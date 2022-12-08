@@ -110,17 +110,19 @@ class TestLSKGE3 : public ::testing::Test
             .n_rows = d,
             .n_cols = m
         };
+
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0 = {
-            .dist = D,
-            .key = seed,
-            .layout = layout
-        };
+        RandBLAS::dense::DenseSkOp<T> *S0_ptr;
+        std::vector<T> buff; // awkward.
         if (preallocate) {
-            std::vector<T> buff(d * m, 0.0);
-            S0.buff = buff.data();
-            S0.filled = false;
-            S0.persistent = true;
+            buff.resize(d * m, 0.0);
+            S0_ptr = new RandBLAS::dense::DenseSkOp<T>(
+                D, seed, 0, buff.data(), false, true, layout
+            );
+        } else {
+            S0_ptr = new RandBLAS::dense::DenseSkOp<T>(
+                D, seed, 0, buff.data(), false, true, layout
+            );
         }
 
         // define a matrix to be sketched, and create workspace for sketch.
@@ -134,16 +136,16 @@ class TestLSKGE3 : public ::testing::Test
 
         // Perform the sketch
         RandBLAS::dense::lskge3<T>(
-            S0.layout,
+            (*S0_ptr).layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, m, m,
-            1.0, S0, 0, 0, A.data(), lda,
+            1.0, *S0_ptr, 0, 0, A.data(), lda,
             0.0, B.data(), ldb
         );
 
         // check the result
-        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), S0.buff, d*m);
+        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), (*S0_ptr).buff, d*m);
     }
 
     template <typename T>
@@ -160,11 +162,9 @@ class TestLSKGE3 : public ::testing::Test
             .n_cols = d
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0 = {
-            .dist = Dt,
-            .key = seed,
-            .layout = layout
-        };
+        RandBLAS::dense::DenseSkOp<T> S0(Dt, seed, 0,
+            NULL, false, true, layout
+        );
          bool is_colmajor = layout == blas::Layout::ColMajor;
 
         // define a matrix to be sketched, and create workspace for sketch.
@@ -217,11 +217,9 @@ class TestLSKGE3 : public ::testing::Test
             .n_cols = m0
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0 = {
-            .dist = D,
-            .key = seed,
-            .layout = layout
-        };
+        RandBLAS::dense::DenseSkOp<T> S0(D, seed, 0,
+            NULL, false, true, layout
+        );
         int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
 
         // define a matrix to be sketched, and create workspace for sketch.
@@ -274,11 +272,9 @@ class TestLSKGE3 : public ::testing::Test
             .n_cols = m
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0 = {
-            .dist = D,
-            .key = seed_S0,
-            .layout = layout
-        };
+        RandBLAS::dense::DenseSkOp<T> S0(D, seed_S0, 0,
+            NULL, false, true, layout
+        );
         bool is_colmajor = layout == blas::Layout::ColMajor;
 
         // define a matrix to be sketched, and create workspace for sketch.

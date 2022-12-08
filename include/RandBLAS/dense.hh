@@ -35,7 +35,6 @@ struct DenseDist {
     const DenseDistName family = DenseDistName::Gaussian;
     const int64_t n_rows;
     const int64_t n_cols;
-    const bool scale = false;
     // Guarantee for iid-dense distributions:
     //      (*) Swapping n_rows and n_cols can only affect
     //          random number generation up to scaling.
@@ -46,21 +45,108 @@ struct DenseDist {
 
 template <typename T>
 struct DenseSkOp {
-    // Unlike a plain buffer that we might use in BLAS,
-    // SketchingOperators in the RandBLAS::dense namespace
-    // carry metadata to unambiguously define their dimensions
-    // and the values of their entries.
-    // 
-    // Dimensions are specified with the distribution, in "dist".
-    //
-    const DenseDist dist{};
+    DenseDist dist;
     const int64_t ctr_offset = 0;
     const int64_t key = 0;
+    const bool own_memory = true;
+
+    /////////////////////////////////////////////////////////////////////
+    //
+    //      Properties specific to dense sketching operators
+    //
+    /////////////////////////////////////////////////////////////////////
+
     T *buff = NULL;
     bool filled = false;
     bool persistent = true;
     const blas::Layout layout = blas::Layout::ColMajor;
+
+    /////////////////////////////////////////////////////////////////////
+    //
+    //      Member functions must directly relate to memory management.
+    //
+    /////////////////////////////////////////////////////////////////////
+
+    // TODO: figure out what instantiation patterns I'm okay with.
+    //      Right now the options are: allocate buff in a separate line 
+    //      after defining the DenseSkOp, or have lskge3 internally allocate.
+    //      Either way, memory is being managed outside of this struct,
+    //      which we don't want. Makes sense to accept a buff pointer, particularly
+    //      as an optional argument that defaults to NULL.
+
+    //  Elementary constructor: needs an implementation
+    DenseSkOp(
+        DenseDist dist_,
+        uint32_t key_,
+        uint32_t ctr_offset_,
+        T *buff_,
+        bool filled_,
+        bool persistent_,
+        blas::Layout layout_
+    );
+
+    //  Convenience constructor (a wrapper)
+    DenseSkOp(
+        DenseDistName family,
+        int64_t n_rows,
+        int64_t n_cols,
+        uint32_t key,
+        uint32_t ctr_offset,
+        T *buff,
+        bool filled,
+        bool persistent,
+        blas::Layout layout
+    ) : DenseSkOp(DenseDist{family, n_rows, n_cols}, key, ctr_offset,
+        buff, filled, persistent, layout) {};
+
+    // Destructor
+    ~DenseSkOp();
 };
+
+template <typename T>
+DenseSkOp<T>::DenseSkOp(
+    DenseDist dist_,
+    uint32_t key_,
+    uint32_t ctr_offset_,
+    T *buff_,           
+    bool filled_,       
+    bool persistent_,   
+    blas::Layout layout_ 
+) : // variable definitions
+    dist(dist_),
+    key(key_),
+    ctr_offset(ctr_offset_),
+    buff(buff_),
+    filled(filled_),
+    persistent(persistent_),
+    layout(layout_),
+    own_memory(!buff_)
+{   // Initialization logic
+    //
+    //      If ptr is a pointer, then ((bool) ptr) is true
+    //      if and only if ptr is not NULL. Therefore !ptr
+    //      evaluates to true if and only if ptr is NULL.
+    //
+    //      own_memory is a bool that's true iff buff_ is NULL.
+    //
+    if (this->own_memory) {
+        assert(!this->filled);
+        // We own the rights to the memory, and the memory
+        // hasn't been allocated, so there's no way that the memory exists yet.
+    } else {
+        assert(this->persistent);
+        // If the user gives us any memory to work with, then we cannot take
+        // responsibility for deallocating on exit from LSKGE3 / RSKGE3.
+    }
+
+}
+
+template <typename T>
+DenseSkOp<T>::~DenseSkOp() {
+    if (this->own_memory) {
+        delete [] this->buff;
+    }
+}
 
 template <typename T>
 void fill_buff(

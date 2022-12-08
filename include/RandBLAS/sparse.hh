@@ -16,7 +16,6 @@ struct SparseDist {
     const int64_t n_rows;
     const int64_t n_cols;
     const int64_t vec_nnz;
-    const bool scale = false;
 };
 
 template <typename T>
@@ -24,10 +23,11 @@ struct SparseSkOp {
     const SparseDist dist{};
     const uint64_t key = 0;
     const uint64_t ctr_offset = 0;
+    const bool own_memory = true;
     
     /////////////////////////////////////////////////////////////////////
     //
-    // Properties specific to sparse sketching operators
+    //      Properties specific to sparse sketching operators
     //
     /////////////////////////////////////////////////////////////////////
 
@@ -37,64 +37,82 @@ struct SparseSkOp {
 
     /////////////////////////////////////////////////////////////////////
     //
-    // Member functions must directly relate to memory management.
+    //      Member functions must directly relate to memory management.
     //
     /////////////////////////////////////////////////////////////////////
 
-    //  Elementary constructor: requires a struct as input
+    //  Elementary constructor: needs an implementation
     SparseSkOp(
         SparseDist dist_,
         uint64_t key_,
-        uint64_t ctr_offset_
-    ) : dist(dist_), key(key_), ctr_offset(ctr_offset_),
-        rows(NULL), cols(NULL), vals(NULL) {};
+        uint64_t ctr_offset_,
+        int64_t *rows_ = NULL,
+        int64_t *cols_ = NULL,
+        T *vals_ = NULL 
+    );
     
-    //  Unpacked constructor: uses elementary types as inputs
+    //  Convenience constructor (a wrapper)
     SparseSkOp(
         SparseDistName family,
         int64_t n_rows,
         int64_t n_cols,
         int64_t vec_nnz,
-        bool scale,
         uint64_t key,
-        uint64_t ctr_offset
-    );
-    
-    //  Unpacked constructor with default values
-    SparseSkOp(
-        int64_t n_rows,
-        int64_t n_cols,
-        int64_t vec_nnz,
-        uint64_t key,
-        uint64_t ctr_offset
-    ) : SparseSkOp(SparseDistName::SASO, n_rows, n_cols,
-        vec_nnz, false, key, ctr_offset) {};
-    
+        uint64_t ctr_offset,
+        int64_t *rows = NULL,
+        int64_t *cols = NULL,
+        T *vals = NULL 
+    ) : SparseSkOp(SparseDist{family, n_rows, n_cols, vec_nnz},
+        key, ctr_offset, rows, cols, vals) {};
+
     //  Destructor
     ~SparseSkOp();
 };
 
+// Implementation of elementary constructor
 template <typename T>
 SparseSkOp<T>::SparseSkOp(
-    SparseDistName family,
-    int64_t n_rows,
-    int64_t n_cols,
-    int64_t vec_nnz,
-    bool scale,
+    SparseDist dist_,
     uint64_t key_,
-    uint64_t ctr_offset_
-) : dist{family, n_rows, n_cols, vec_nnz, scale}, key(key_), ctr_offset(ctr_offset_) {
-    assert(n_rows <= n_cols);
-    this->rows = new int64_t[vec_nnz * n_cols];
-    this->cols = new int64_t[vec_nnz * n_cols];
-    this->vals = new T[vec_nnz * n_cols];
+    uint64_t ctr_offset_,
+    int64_t *rows_,     // defaults to NULL
+    int64_t *cols_,     // defaults to NULL
+    T *vals_            // defaults to NULL
+) : dist(dist_), key(key_), ctr_offset(ctr_offset_),
+    own_memory(!rows_ && !cols_ && !vals_) {
+    // memory management
+    //
+    //      If ptr is a pointer, then ((bool) ptr) is true
+    //      if and only if ptr is not NULL. Therefore !ptr
+    //      evaluates to true if and only if ptr is NULL.
+    //
+    //      own_memory is a bool that's true iff the
+    //      rows_, cols_, and vals_ pointers were all NULL.
+    //
+    //      If any of rows_, cols_, and vals_ are not NULL,
+    //      then none of them can be NULL.
+    if (this->own_memory) {
+        int64_t nnz = this->dist.vec_nnz * this->dist.n_cols;
+        this->rows = new int64_t[nnz];
+        this->cols = new int64_t[nnz];
+        this->vals = new T[nnz];
+    } else {
+        assert(rows_ && cols_ && vals_);
+        this->rows = rows_;
+        this->cols = cols_;
+        this->vals = vals_;
+    }
+    // Implementation limitations
+    assert(this->dist.n_rows <= this->dist.n_cols);
 }
 
 template <typename T>
 SparseSkOp<T>::~SparseSkOp() {
-    delete [] this->rows;
-    delete [] this->cols;
-    delete [] this->vals;
+    if (this->own_memory) {
+        delete [] this->rows;
+        delete [] this->cols;
+        delete [] this->vals;
+    }
 };
 
 template <typename T>
