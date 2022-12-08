@@ -1,4 +1,4 @@
-#include "sparse_op.hh"
+#include "sparse.hh"
 
 #include <iostream>
 #include <stdio.h>
@@ -11,7 +11,7 @@
 #define MIN(a, b) (((a) > (b)) ? (b) : (a))
 #define MAX(a, b) (((a) <= (b)) ? (b) : (a))
 
-namespace RandBLAS::sparse_op {
+namespace RandBLAS::sparse {
 
 static std::pair<int64_t, int64_t> indexing_bounds(
     int64_t A0_rows,
@@ -33,8 +33,8 @@ static std::pair<int64_t, int64_t> indexing_bounds(
 
 
 template <typename T>
-void fill_saso(SketchingOperator<T>& sas) {
-    assert(sas.dist.family == DistName::SASO);
+void fill_saso(SparseSkOp<T>& sas) {
+    assert(sas.dist.family == SparseDistName::SASO);
     //assert(sas.dist.dist4nz.family == RandBLAS::dense_op::DistName::Rademacher);
     assert(sas.dist.n_rows <= sas.dist.n_cols);
     uint64_t seed_ctr = sas.ctr_offset;
@@ -84,7 +84,7 @@ void fill_saso(SketchingOperator<T>& sas) {
         // Restore sa_vec_work for next iteration of Fisher-Yates.
         //      This isn't necessary from a statistical perspective,
         //      but it makes it easier to generate submatrices of 
-        //      a given SketchingOperator.
+        //      a given SparseSkOp.
         for (j = 1; j <= k; ++j)
         {
             int jj = k - j;
@@ -98,7 +98,7 @@ void fill_saso(SketchingOperator<T>& sas) {
 }
 
 template <typename T>
-void print_saso(SketchingOperator<T>& sas)
+void print_saso(SparseSkOp<T>& sas)
 {
     std::cout << "SASO information" << std::endl;
     std::cout << "\tn_rows = " << sas.dist.n_rows << std::endl;
@@ -126,7 +126,7 @@ static void sketch_cscrow(
     int64_t d,
     int64_t n,
     int64_t m,
-    SketchingOperator<T>& S0,
+    SparseSkOp<T>& S0,
     int64_t pos,
     T *A, // todo: make this const.
     int64_t lda,
@@ -134,7 +134,7 @@ static void sketch_cscrow(
     int64_t ldb,
     int threads
 ){
-    RandBLAS::sparse_op::Dist D = S0.dist;
+    RandBLAS::sparse::SparseDist D = S0.dist;
     auto starts = indexing_bounds(D.n_rows, D.n_cols, pos, blas::Layout::RowMajor);
 	int64_t S_row_start = starts.first;
     int64_t S_col_start = starts.second;
@@ -186,7 +186,7 @@ template <typename T>
 static void allrows_saso_csc_matvec(
     T *v,
     T *Sv, // Sv += S0[:, col_start:col_end] * v.
-    SketchingOperator<T> &S0,
+    SparseSkOp<T> &S0,
     int64_t col_start,
     int64_t col_end
 ) {
@@ -204,7 +204,7 @@ template <typename T>
 static void somerows_saso_csc_matvec(
     T *v,
     T *Sv, // Sv += S0[row_start:row_end, col_start:col_end] * v.
-    SketchingOperator<T> &S0,
+    SparseSkOp<T> &S0,
     int64_t col_start,
     int64_t col_end,
     int64_t row_start,
@@ -226,7 +226,7 @@ static void sketch_csccol(
     int64_t d,
     int64_t n,
     int64_t m,
-    SketchingOperator<T>& S0,
+    SparseSkOp<T>& S0,
     int64_t pos,
     T *A, // todo: make this const
     int64_t lda,
@@ -234,7 +234,7 @@ static void sketch_csccol(
     int64_t ldb,
     int threads
 ){
-    RandBLAS::sparse_op::Dist D = S0.dist;
+    RandBLAS::sparse::SparseDist D = S0.dist;
     int64_t vec_nnz = D.vec_nnz;
     auto starts = indexing_bounds(D.n_rows, D.n_cols, pos, blas::Layout::ColMajor);
 	int64_t r0 = starts.first;
@@ -271,7 +271,7 @@ void lskges(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(S) is d-by-m
     T alpha,
-    SketchingOperator<T> &S0,
+    SparseSkOp<T> &S0,
     int64_t i_os,
     int64_t j_os,
     T *A, // TODO: make const
@@ -281,7 +281,7 @@ void lskges(
     int64_t ldb,
     int threads // default is 4.
 ) {
-    assert(S0.dist.family == DistName::SASO);
+    assert(S0.dist.family == SparseDistName::SASO);
     assert(S0.rows != NULL); // must be filled.
     assert(d <= m);
     assert(alpha == 1.0); // implementation limitation
@@ -327,19 +327,19 @@ void lskges(
 }
 
 
-template void fill_saso<float>(SketchingOperator<float> &sas);
-template void print_saso<float>(SketchingOperator<float> &sas);
-template void sketch_cscrow<float>(int64_t d, int64_t n, int64_t m, SketchingOperator<float> &S0, int64_t pos, float *A, int64_t lda, float *B, int64_t ldb, int threads);
-template void sketch_csccol<float>(int64_t d, int64_t n, int64_t m, SketchingOperator<float> &S0, int64_t pos, float *A, int64_t lda, float *B, int64_t ldb, int threads);
+template void fill_saso<float>(SparseSkOp<float> &sas);
+template void print_saso<float>(SparseSkOp<float> &sas);
+template void sketch_cscrow<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t pos, float *A, int64_t lda, float *B, int64_t ldb, int threads);
+template void sketch_csccol<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t pos, float *A, int64_t lda, float *B, int64_t ldb, int threads);
 template void lskges<float>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
-    SketchingOperator<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float beta, float *B, int64_t ldb, int threads);
+    SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float beta, float *B, int64_t ldb, int threads);
 
 
-template void fill_saso<double>(SketchingOperator<double> &sas);
-template void print_saso<double>(SketchingOperator<double> &sas);
-template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SketchingOperator<double> &S0, int64_t pos, double *A, int64_t lda, double *B, int64_t ldb, int threads);
-template void sketch_csccol<double>(int64_t d, int64_t n, int64_t m, SketchingOperator<double> &S0, int64_t pos, double *A, int64_t lda, double *B, int64_t ldb, int threads);
+template void fill_saso<double>(SparseSkOp<double> &sas);
+template void print_saso<double>(SparseSkOp<double> &sas);
+template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t pos, double *A, int64_t lda, double *B, int64_t ldb, int threads);
+template void sketch_csccol<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t pos, double *A, int64_t lda, double *B, int64_t ldb, int threads);
 template void lskges<double>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, double alpha,
-    SketchingOperator<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double beta, double *B, int64_t ldb, int threads);
+    SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double beta, double *B, int64_t ldb, int threads);
 
 } // end namespace RandBLAS::sparse_ops

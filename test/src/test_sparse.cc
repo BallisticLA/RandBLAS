@@ -5,7 +5,7 @@
 
 
 template <typename T>
-RandBLAS::sparse_op::SketchingOperator<T> make_wide_saso(
+RandBLAS::sparse::SparseSkOp<T> make_wide_saso(
     int64_t n_rows,
     int64_t n_cols,
     int64_t vec_nnz,
@@ -13,21 +13,21 @@ RandBLAS::sparse_op::SketchingOperator<T> make_wide_saso(
     uint64_t key
 ) {
     assert(n_rows <= n_cols);
-    RandBLAS::sparse_op::Dist D = {
+    RandBLAS::sparse::SparseDist D = {
         .n_rows = n_rows,
         .n_cols = n_cols,
         .vec_nnz = vec_nnz
     };
     int64_t total_nnz = n_cols * vec_nnz;
-    RandBLAS::sparse_op::SketchingOperator<T> sas = {
+    RandBLAS::sparse::SparseSkOp<T> sas = {
         .dist = D,
         .key = key,
         .ctr_offset = ctr_offset,
-        .rows = new int64_t[total_nnz],
+        .rows = new int64_t[total_nnz], // unsafe / memory leak
         .cols = new int64_t[total_nnz],
         .vals = new T[total_nnz]
     };
-    RandBLAS::sparse_op::fill_saso(sas);
+    RandBLAS::sparse::fill_saso(sas);
     return sas;
 }
 
@@ -47,7 +47,7 @@ class TestSASOConstruction : public ::testing::Test
 
     virtual void proper_construction(int64_t key_index, int64_t nnz_index)
     {
-        RandBLAS::sparse_op::SketchingOperator<double> sas = make_wide_saso<double>(
+        RandBLAS::sparse::SparseSkOp<double> sas = make_wide_saso<double>(
             d, m, vec_nnzs[nnz_index], 0, keys[key_index]
         );
 
@@ -97,11 +97,11 @@ TEST_F(TestSASOConstruction, Dim7by20nnz7)
 
 template <typename T>
 void sas_to_dense(
-    RandBLAS::sparse_op::SketchingOperator<T> &sas,
+    RandBLAS::sparse::SparseSkOp<T> &sas,
     T *mat,
     blas::Layout layout
 ) {
-    RandBLAS::sparse_op::Dist D = sas.dist;
+    RandBLAS::sparse::SparseDist D = sas.dist;
     for (int64_t i = 0; i < D.n_rows * D.n_cols; ++i)
         mat[i] = 0.0;
 
@@ -139,7 +139,7 @@ class TestLSKGES : public ::testing::Test
         uint64_t vec_nnz = vec_nnzs[nnz_index];
         uint64_t a_seed = 99;
 
-        // construct test data: matrix A, SketchingOperator "sas", and dense representation S
+        // construct test data: matrix A, SparseSkOp "sas", and dense representation S
         T *a = new T[m * n];
         T *a_hat = new T[d * n]{};
         T *S = new T[d * m];
@@ -159,7 +159,7 @@ class TestLSKGES : public ::testing::Test
 
         // compute S*A. 
         if (threads > 0) {
-            RandBLAS::sparse_op::lskges<T>(
+            RandBLAS::sparse::lskges<T>(
                 layout, blas::Op::NoTrans, blas::Op::NoTrans,
                 d, n, m,
                 1.0, sas, 0, 0, a, lda,
@@ -167,7 +167,7 @@ class TestLSKGES : public ::testing::Test
                 threads   
             );
         } else {
-            RandBLAS::sparse_op::lskges<T>(
+            RandBLAS::sparse::lskges<T>(
                 layout, blas::Op::NoTrans, blas::Op::NoTrans,
                 d, n, m,
                 1.0, sas, 0, 0, a, lda,
@@ -241,7 +241,7 @@ class TestLSKGES : public ::testing::Test
         std::vector<T> B(d1 * m1, 0.0);
         
         // Perform the sketch
-        RandBLAS::sparse_op::lskges<T>(
+        RandBLAS::sparse::lskges<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -277,7 +277,7 @@ class TestLSKGES : public ::testing::Test
 
     //     // Define the distribution for S0.
     //     RandBLAS::dense_op::Dist D = {
-    //         .family = RandBLAS::dense_op::DistName::Gaussian,
+    //         .family = RandBLAS::dense_op::SparseDistName::Gaussian,
     //         .n_rows = d,
     //         .n_cols = m
     //     };

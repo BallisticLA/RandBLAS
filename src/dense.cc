@@ -1,4 +1,4 @@
-#include "dense_op.hh"
+#include "dense.hh"
 
 #include <iostream>
 #include <stdio.h>
@@ -48,7 +48,7 @@ static inline void sincospi(double x, double *s, double *c) {
 #include <Random123/uniform.hpp>
 
 
-namespace RandBLAS::dense_op {
+namespace RandBLAS::dense {
 
 /*
 Note from Random123: Simply incrementing the counter (or key) is effectively indistinguishable
@@ -170,18 +170,18 @@ static void gen_rmat_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, 
 }
 
 template <typename T>
-void fill_buff(T *buff, Dist D, uint32_t key, uint32_t ctr_offset) {
+void fill_buff(T *buff, DenseDist D, uint32_t key, uint32_t ctr_offset) {
     switch (D.family) {
-    case DistName::Gaussian:
+    case DenseDistName::Gaussian:
         gen_rmat_norm<T>(D.n_rows, D.n_cols, buff, key, ctr_offset);
         break;
-    case DistName::Uniform:
+    case DenseDistName::Uniform:
         gen_rmat_unif<T>(D.n_rows, D.n_cols, buff, key, ctr_offset);
         break;
-    case DistName::Rademacher:
+    case DenseDistName::Rademacher:
         throw std::runtime_error(std::string("Not implemented."));
         break;
-    case DistName::Haar:
+    case DenseDistName::Haar:
         // This won't be filled IID, but a Householder representation
         // of a column-orthonormal matrix Q can be stored in the lower
         // triangle of Q (with "tau" on the diagonal). So the size of
@@ -204,7 +204,7 @@ void lskge3(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(S) is d-by-m
     T alpha,
-    SketchingOperator<T> &S0,
+    DenseSkOp<T> &S0,
     int64_t i_os,
     int64_t j_os,
     const T *A,
@@ -282,9 +282,9 @@ void lskge3(
 
 // Explicit instantiation of template functions
 template void lskge3(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, double alpha,
-    SketchingOperator<double> &S0, int64_t i_os, int64_t j_os, const double *A, int64_t lda, double beta, double *B, int64_t ldb);
+    DenseSkOp<double> &S0, int64_t i_os, int64_t j_os, const double *A, int64_t lda, double beta, double *B, int64_t ldb);
 template void lskge3(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
-    SketchingOperator<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float beta, float *B, int64_t ldb);
+    DenseSkOp<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float beta, float *B, int64_t ldb);
 
 template void gen_rmat_unif<float>(int64_t n_rows, int64_t n_cols, float* mat, uint32_t key, uint32_t ctr_offset);
 template void gen_rmat_unif<double>(int64_t n_rows, int64_t n_cols, double* mat, uint32_t key, uint32_t ctr_offset);

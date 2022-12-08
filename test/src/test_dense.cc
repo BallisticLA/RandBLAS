@@ -19,7 +19,7 @@ class TestDenseMoments : public ::testing::Test
         uint32_t seed,
         int64_t n_rows,
         int64_t n_cols,
-        RandBLAS::dense_op::DistName dn,
+        RandBLAS::dense::DenseDistName dn,
         T expect_stddev
     ) {
         // Allocate workspace
@@ -27,12 +27,12 @@ class TestDenseMoments : public ::testing::Test
         std::vector<T> A(size, 0.0);
 
         // Construct the sketching operator
-        RandBLAS::dense_op::Dist D {
+        RandBLAS::dense::DenseDist D {
             .family = dn,
             .n_rows = n_rows,
             .n_cols = n_cols
         };
-        RandBLAS::dense_op::fill_buff<T>(A.data(), D, seed, 0);
+        RandBLAS::dense::fill_buff<T>(A.data(), D, seed, 0);
 
         // Compute the entrywise empirical mean and standard deviation.
         T mean = std::accumulate(A.data(), A.data() + size, 0.0) /size;
@@ -52,7 +52,7 @@ class TestDenseMoments : public ::testing::Test
 // For small matrix sizes, mean and stddev are not very close to desired vals.
 TEST_F(TestDenseMoments, Gaussian)
 {
-    auto dn = RandBLAS::dense_op::DistName::Gaussian;
+    auto dn = RandBLAS::dense::DenseDistName::Gaussian;
     for (uint32_t seed : {0, 1, 2})
     {
         test_mean_stddev<float>(seed, 500, 500, dn, 1.0);
@@ -64,7 +64,7 @@ TEST_F(TestDenseMoments, Gaussian)
 // For small matrix sizes, mean and stddev are not very close to desired vals.
 TEST_F(TestDenseMoments, Uniform)
 {
-    auto dn = RandBLAS::dense_op::DistName::Uniform;
+    auto dn = RandBLAS::dense::DenseDistName::Uniform;
     double expect_stddev = 1.0 / sqrt(3.0);
     for (uint32_t seed : {0, 1, 2})
     {
@@ -105,13 +105,13 @@ class TestLSKGE3 : public ::testing::Test
         blas::Layout layout
     ) {
         // Define the distribution for S0.
-        RandBLAS::dense_op::Dist D = {
-            .family = RandBLAS::dense_op::DistName::Gaussian,
+        RandBLAS::dense::DenseDist D = {
+            .family = RandBLAS::dense::DenseDistName::Gaussian,
             .n_rows = d,
             .n_cols = m
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense_op::SketchingOperator<T> S0 = {
+        RandBLAS::dense::DenseSkOp<T> S0 = {
             .dist = D,
             .key = seed,
             .layout = layout
@@ -133,7 +133,7 @@ class TestLSKGE3 : public ::testing::Test
         int64_t ldb = (is_colmajor) ? d : m;
 
         // Perform the sketch
-        RandBLAS::dense_op::lskge3<T>(
+        RandBLAS::dense::lskge3<T>(
             S0.layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -154,13 +154,13 @@ class TestLSKGE3 : public ::testing::Test
         blas::Layout layout
     ) {
         // Define the distribution for S0.
-        RandBLAS::dense_op::Dist Dt = {
-            .family=RandBLAS::dense_op::DistName::Gaussian,
+        RandBLAS::dense::DenseDist Dt = {
+            .family=RandBLAS::dense::DenseDistName::Gaussian,
             .n_rows = m,
             .n_cols = d
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense_op::SketchingOperator<T> S0 = {
+        RandBLAS::dense::DenseSkOp<T> S0 = {
             .dist = Dt,
             .key = seed,
             .layout = layout
@@ -176,7 +176,7 @@ class TestLSKGE3 : public ::testing::Test
         int64_t ldb = (is_colmajor) ? d : m;
 
         // perform the sketch
-        RandBLAS::dense_op::lskge3<T>(
+        RandBLAS::dense::lskge3<T>(
             S0.layout,
             blas::Op::Trans,
             blas::Op::NoTrans,
@@ -211,13 +211,13 @@ class TestLSKGE3 : public ::testing::Test
         assert(d0 * m0 >= pos + d * m);
 
         // Define the distribution for S0.
-        RandBLAS::dense_op::Dist D = {
-            .family = RandBLAS::dense_op::DistName::Gaussian,
+        RandBLAS::dense::DenseDist D = {
+            .family = RandBLAS::dense::DenseDistName::Gaussian,
             .n_rows = d0,
             .n_cols = m0
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense_op::SketchingOperator<T> S0 = {
+        RandBLAS::dense::DenseSkOp<T> S0 = {
             .dist = D,
             .key = seed,
             .layout = layout
@@ -233,7 +233,7 @@ class TestLSKGE3 : public ::testing::Test
         int64_t ldb = (is_colmajor) ? d : m;
         
         // Perform the sketch
-        RandBLAS::dense_op::lskge3<T>(
+        RandBLAS::dense::lskge3<T>(
             S0.layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -268,13 +268,13 @@ class TestLSKGE3 : public ::testing::Test
         assert(n0 > n);
 
         // Define the distribution for S0.
-        RandBLAS::dense_op::Dist D = {
-            .family = RandBLAS::dense_op::DistName::Gaussian,
+        RandBLAS::dense::DenseDist D = {
+            .family = RandBLAS::dense::DenseDistName::Gaussian,
             .n_rows = d,
             .n_cols = m
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense_op::SketchingOperator<T> S0 = {
+        RandBLAS::dense::DenseSkOp<T> S0 = {
             .dist = D,
             .key = seed_S0,
             .layout = layout
@@ -285,8 +285,8 @@ class TestLSKGE3 : public ::testing::Test
         std::vector<T> A0(m0 * n0, 0.0);
         uint32_t ctr_A0 = 42;
         uint32_t seed_A0 = 42000;
-        RandBLAS::dense_op::Dist DA0 = {.n_rows = m0, .n_cols = n0};
-        RandBLAS::dense_op::fill_buff(A0.data(), DA0, ctr_A0, seed_A0);
+        RandBLAS::dense::DenseDist DA0 = {.n_rows = m0, .n_cols = n0};
+        RandBLAS::dense::fill_buff(A0.data(), DA0, ctr_A0, seed_A0);
         std::vector<T> B(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
         int64_t ldb = (is_colmajor) ? d : n;
@@ -294,7 +294,7 @@ class TestLSKGE3 : public ::testing::Test
         // Perform the sketch
         int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
         T *A_ptr = &A0.data()[a_offset]; 
-        RandBLAS::dense_op::lskge3<T>(
+        RandBLAS::dense::lskge3<T>(
             S0.layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,

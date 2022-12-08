@@ -9,8 +9,8 @@ if (GTest_FOUND)
 
     add_executable(RandBLAS_tests
         src/rbtutil.cc
-        src/test_sparse_op.cc
-        src/test_dense_op.cc
+        src/test_sparse.cc
+        src/test_dense.cc
     )
     target_include_directories(RandBLAS_tests PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/test/include>
