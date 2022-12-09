@@ -12,7 +12,6 @@ include(rb_version)
 # find dependencies
 find_package(blaspp REQUIRED)
 find_package(Random123 REQUIRED)
-#include(Random123)
 include(OpenMP)
 
 # compile sources
