@@ -23,7 +23,7 @@ struct SparseDist {
 
 template <typename T>
 struct SparseSkOp {
-    const SparseDist dist{};
+    const SparseDist dist;
     const uint64_t key = 0;
     const uint64_t ctr_offset = 0;
     const bool own_memory = true;

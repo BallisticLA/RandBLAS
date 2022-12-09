@@ -13,16 +13,10 @@ RandBLAS::sparse::SparseSkOp<T> make_wide_saso(
     uint64_t key
 ) {
     assert(n_rows <= n_cols);
-    RandBLAS::sparse::SparseDist D = {
-        .n_rows = n_rows,
-        .n_cols = n_cols,
-        .vec_nnz = vec_nnz
-    };
-    int64_t total_nnz = n_cols * vec_nnz;
-    RandBLAS::sparse::SparseSkOp<T> sas(D, key, ctr_offset);
-    sas.rows = new int64_t[total_nnz]; // unsafe / memory leak
-    sas.cols = new int64_t[total_nnz];
-    sas.vals = new T[total_nnz];
+    RandBLAS::sparse::SparseSkOp<T> sas(
+        RandBLAS::sparse::SparseDistName::SASO,
+        n_rows, n_cols, vec_nnz, key, ctr_offset
+    );
     RandBLAS::sparse::fill_saso(sas);
     return sas;
 }

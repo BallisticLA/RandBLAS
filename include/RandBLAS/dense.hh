@@ -38,7 +38,7 @@ struct DenseDist {
 
 template <typename T>
 struct DenseSkOp {
-    DenseDist dist;
+    const DenseDist dist;
     const int64_t ctr_offset = 0;
     const int64_t key = 0;
     const bool own_memory = true;
