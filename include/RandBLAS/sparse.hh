@@ -8,7 +8,10 @@
 
 namespace RandBLAS::sparse {
 
-enum class SparseDistName : char {SASO = 'S'};
+enum class SparseDistName : char {
+    SASO = 'S',      // short-axis-sparse operator
+    LASO = 'L'       // long-axis-sparse operator
+};
 
 struct SparseDist {
     const SparseDistName family = SparseDistName::SASO;
@@ -46,9 +49,9 @@ struct SparseSkOp {
         SparseDist dist_,
         uint64_t key_,
         uint64_t ctr_offset_,
-        int64_t *rows_ = NULL,
-        int64_t *cols_ = NULL,
-        T *vals_ = NULL 
+        int64_t *rows_,
+        int64_t *cols_,
+        T *vals_ 
     );
     
     //  Convenience constructor (a wrapper)
@@ -75,22 +78,19 @@ SparseSkOp<T>::SparseSkOp(
     SparseDist dist_,
     uint64_t key_,
     uint64_t ctr_offset_,
-    int64_t *rows_,     // defaults to NULL
-    int64_t *cols_,     // defaults to NULL
-    T *vals_            // defaults to NULL
-) : dist(dist_), key(key_), ctr_offset(ctr_offset_),
-    own_memory(!rows_ && !cols_ && !vals_) {
-    // memory management
-    //
-    //      If ptr is a pointer, then ((bool) ptr) is true
-    //      if and only if ptr is not NULL. Therefore !ptr
-    //      evaluates to true if and only if ptr is NULL.
+    int64_t *rows_,
+    int64_t *cols_,
+    T *vals_
+) :  // variable definitions
+    dist(dist_),
+    key(key_),
+    ctr_offset(ctr_offset_),
+    own_memory(!rows_ && !cols_ && !vals_)
+{   // Initialization logic
     //
     //      own_memory is a bool that's true iff the
     //      rows_, cols_, and vals_ pointers were all NULL.
     //
-    //      If any of rows_, cols_, and vals_ are not NULL,
-    //      then none of them can be NULL.
     if (this->own_memory) {
         int64_t nnz = this->dist.vec_nnz * this->dist.n_cols;
         this->rows = new int64_t[nnz];
@@ -98,6 +98,8 @@ SparseSkOp<T>::SparseSkOp(
         this->vals = new T[nnz];
     } else {
         assert(rows_ && cols_ && vals_);
+        //  If any of rows_, cols_, and vals_ are not NULL,
+        //  then none of them are NULL.
         this->rows = rows_;
         this->cols = cols_;
         this->vals = vals_;

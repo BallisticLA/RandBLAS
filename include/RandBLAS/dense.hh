@@ -23,11 +23,10 @@ TODO: have a discussion around using smart pointers for memory safety.
 namespace RandBLAS::dense {
 
 enum class DenseDistName : char {
-    Gaussian = 'G',
-    Normal = 'G', // alias, for user convenience
-    Uniform = 'U', // uniform over the interval [-1, 1].
-    Rademacher = 'R', // uniform over {+1, -1}.
-    Haar = 'H', // uniform over row-orthonormal or column-orthonormal matrices.
+    Gaussian = 'G',         
+    Uniform = 'U',          // uniform over the interval [-1, 1].
+    Rademacher = 'R',       // uniform over {+1, -1}.
+    Haar = 'H',             // uniform over row-orthonormal or column-orthonormal matrices.
     DisjointIntervals = 'I' // might require additional metadata.
 };
 
@@ -35,12 +34,6 @@ struct DenseDist {
     const DenseDistName family = DenseDistName::Gaussian;
     const int64_t n_rows;
     const int64_t n_cols;
-    // Guarantee for iid-dense distributions:
-    //      (*) Swapping n_rows and n_cols can only affect
-    //          random number generation up to scaling.
-    //      (*) When a buffer is needed, it will be
-    //          filled in a way that is agnoistic
-    //          to row-major or column-major interpretation.  
 };
 
 template <typename T>
@@ -66,13 +59,6 @@ struct DenseSkOp {
     //      Member functions must directly relate to memory management.
     //
     /////////////////////////////////////////////////////////////////////
-
-    // TODO: figure out what instantiation patterns I'm okay with.
-    //      Right now the options are: allocate buff in a separate line 
-    //      after defining the DenseSkOp, or have lskge3 internally allocate.
-    //      Either way, memory is being managed outside of this struct,
-    //      which we don't want. Makes sense to accept a buff pointer, particularly
-    //      as an optional argument that defaults to NULL.
 
     //  Elementary constructor: needs an implementation
     DenseSkOp(
@@ -123,10 +109,6 @@ DenseSkOp<T>::DenseSkOp(
     own_memory(!buff_)
 {   // Initialization logic
     //
-    //      If ptr is a pointer, then ((bool) ptr) is true
-    //      if and only if ptr is not NULL. Therefore !ptr
-    //      evaluates to true if and only if ptr is NULL.
-    //
     //      own_memory is a bool that's true iff buff_ is NULL.
     //
     if (this->own_memory) {
@@ -155,7 +137,6 @@ void fill_buff(
     uint32_t key,
     uint32_t ctr_offset
 );
-// ^ A "free function."
 
 // Compute B = alpha * op(S) * op(A) + beta * B
 template <typename T>
