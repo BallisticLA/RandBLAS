@@ -63,8 +63,13 @@ Notes:
 
 // Actual work - uniform dirtibution
 template <typename T, typename T_gen>
-static void gen_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint32_t ctr_offset)
-{
+static void gen_unif(
+    int64_t n_rows,
+    int64_t n_cols,
+    T* mat,
+    uint32_t key,
+    uint32_t ctr_offset
+) {
     typedef typename T_gen::key_type key_type;
     typedef typename T_gen::ctr_type ctr_type;
     key_type typed_key = {{key}};
@@ -89,31 +94,36 @@ static void gen_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint3
 }
 
 template <typename T>
-static void gen_rmat_unif(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint32_t ctr_offset)
-{
-    if (typeid(T) == typeid(float))
-    {
+static void gen_rmat_unif(
+    int64_t n_rows,
+    int64_t n_cols,
+    T* mat,
+    uint32_t key,
+    uint32_t ctr_offset
+) {
+    if (typeid(T) == typeid(float)) {
         // 4 32-bit generated values
         typedef r123::Philox4x32 CBRNG;
         // Casting is done only so that the compiler does not throw an error
         gen_unif<float, CBRNG>(n_rows, n_cols, (float*) mat, key, ctr_offset);
-    }
-    else if (typeid(T) == typeid(double))
-    {
+    } else if (typeid(T) == typeid(double)) {
         // 4 64-bit generated values
         typedef r123::Philox4x64 CBRNG;
         // Casting is done only so that the compiler does not throw an error
         gen_unif<double, CBRNG>(n_rows, n_cols, (double*) mat, key, ctr_offset);
-    }
-    else
-    {
+    } else {
         printf("\nType error. Only float and double are currently supported.\n");
     }
 }
 
 // Actual work - normal distribution
 template <typename T, typename T_gen, typename T_fun>
-static void gen_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint32_t ctr_offset)
+static void gen_norm(
+    int64_t n_rows,
+    int64_t n_cols,
+    T* mat,
+    uint32_t key,
+    uint32_t ctr_offset)
 {
     typedef typename T_gen::key_type key_type;
     typedef typename T_gen::ctr_type ctr_type;
@@ -146,31 +156,36 @@ static void gen_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint3
 }
 
 template <typename T>
-static void gen_rmat_norm(int64_t n_rows, int64_t n_cols, T* mat, uint32_t key, uint32_t ctr_offset)
-{
-    if (typeid(T) == typeid(float))
-    {
+static void gen_rmat_norm(
+    int64_t n_rows,
+    int64_t n_cols,
+    T* mat,
+    uint32_t key,
+    uint32_t ctr_offset
+) {
+    if (typeid(T) == typeid(float)) {
         // 4 32-bit generated values
         typedef r123::Philox4x32 CBRNG;
         // Casting is done only so that the compiler does not throw an error
         gen_norm<float, CBRNG, r123::float2>(n_rows, n_cols, (float *) mat, key, ctr_offset);
 
-    }
-    else if (typeid(T) == typeid(double))
-    {
+    } else if (typeid(T) == typeid(double)) {
         // 4 32-bit generated values
         typedef r123::Philox4x64 CBRNG;
         // Casting is done only so that the compiler does not throw an error
         gen_norm<double, CBRNG, r123::double2>(n_rows, n_cols, (double *) mat, key, ctr_offset);
-    }    
-    else
-    {
+    } else {
         printf("\nType error. Only float and double are currently supported.\n");
     }
 }
 
 template <typename T>
-void fill_buff(T *buff, DenseDist D, uint32_t key, uint32_t ctr_offset) {
+void fill_buff(
+    T *buff,
+    DenseDist D,
+    uint32_t key,
+    uint32_t ctr_offset
+) {
     switch (D.family) {
     case DenseDistName::Gaussian:
         gen_rmat_norm<T>(D.n_rows, D.n_cols, buff, key, ctr_offset);

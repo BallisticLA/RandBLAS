@@ -56,17 +56,15 @@ void fill_saso(SparseSkOp<T>& sas) {
         sa_vec_work[j] = j;
     }
     typedef r123::Threefry2x64 CBRNG;
-	CBRNG::key_type key = {{seed_key}};
-	CBRNG::ctr_type ctr = {{seed_ctr, 0}};
+    CBRNG::key_type key = {{seed_key}};
+    CBRNG::ctr_type ctr = {{seed_ctr, 0}};
     CBRNG::ctr_type randpair;
-	CBRNG g;
+    CBRNG g;
 
     // Use Fisher-Yates
-    for (i = 0; i < la_len; ++i)
-    {
+    for (i = 0; i < la_len; ++i) {
         offset = i * k;
-        for (j = 0; j < k; ++j)
-        {
+        for (j = 0; j < k; ++j) {
             // one step of Fisher-Yates shuffling
             ctr[0] = seed_ctr + offset + j;
             randpair = g(ctr, key);
@@ -85,8 +83,7 @@ void fill_saso(SparseSkOp<T>& sas) {
         //      This isn't necessary from a statistical perspective,
         //      but it makes it easier to generate submatrices of 
         //      a given SparseSkOp.
-        for (j = 1; j <= k; ++j)
-        {
+        for (j = 1; j <= k; ++j) {
             int jj = k - j;
             swap = sa_idxs[jj + offset];
             ell = pivots[jj];
@@ -98,8 +95,7 @@ void fill_saso(SparseSkOp<T>& sas) {
 }
 
 template <typename T>
-void print_saso(SparseSkOp<T>& sas)
-{
+void print_saso(SparseSkOp<T>& sas) {
     std::cout << "SASO information" << std::endl;
     std::cout << "\tn_rows = " << sas.dist.n_rows << std::endl;
     std::cout << "\tn_cols = " << sas.dist.n_cols << std::endl;
@@ -136,21 +132,21 @@ static void sketch_cscrow(
 ){
     RandBLAS::sparse::SparseDist D = S0.dist;
     auto starts = indexing_bounds(D.n_rows, D.n_cols, pos, blas::Layout::RowMajor);
-	int64_t S_row_start = starts.first;
+    int64_t S_row_start = starts.first;
     int64_t S_col_start = starts.second;
     int64_t S_col_end = S_col_start + m;
 
     // Identify the range of rows to be processed by each thread.
     // TODO: replace threads = MIN(threads, d) ?
     int64_t rows_per_thread = MAX(d / threads, 1);
-	int64_t *S_row_blocks = new int64_t[threads + 1];
-	S_row_blocks[0] = S_row_start;
+    int64_t *S_row_blocks = new int64_t[threads + 1];
+    S_row_blocks[0] = S_row_start;
     for(int i = 1; i < threads + 1; ++i)
-		S_row_blocks[i] = S_row_blocks[i - 1] + rows_per_thread;
-	S_row_blocks[threads] = d + S_row_start;
+        S_row_blocks[i] = S_row_blocks[i - 1] + rows_per_thread;
+    S_row_blocks[threads] = d + S_row_start;
 
     omp_set_num_threads(threads);
-	#pragma omp parallel default(shared)
+    #pragma omp parallel default(shared)
     {
         // Setup variables for the current thread
         int my_id = omp_get_thread_num();
@@ -159,27 +155,27 @@ static void sketch_cscrow(
         T scale;
         // Do the work for the current thread
         #pragma omp for schedule(static)
-		for (outer = 0; outer < threads; ++outer) {
-			for(c = S_col_start; c < S_col_end; ++c) {
+        for (outer = 0; outer < threads; ++outer) {
+            for(c = S_col_start; c < S_col_end; ++c) {
                 // process column c of the sketching operator (row c of a)
-				A_row = &A[c * lda];
-				offset = c * D.vec_nnz;
+                A_row = &A[c * lda];
+                offset = c * D.vec_nnz;
                 for (r = 0; r < D.vec_nnz; ++r) {
-					inner = offset + r;
-					S_row = S0.rows[inner];
-					if (
+                    inner = offset + r;
+                    S_row = S0.rows[inner];
+                    if (
                         S_row_blocks[my_id] <= S_row && S_row < S_row_blocks[my_id + 1]
                     ) {
                         // only perform a write operation if the current row
                         // index falls in the block assigned to the current thread.
-						scale = S0.vals[inner];
+                        scale = S0.vals[inner];
                         B_row = &B[(S_row - S_row_start) * ldb];
                         blas::axpy<T>(n, scale, A_row, 1, B_row, 1);
-					}	
-				} // end processing of column c
-			}
-		} 
-	}
+                    }	
+                } // end processing of column c
+            }
+        } 
+    }
 }
 
 template <typename T>
@@ -237,29 +233,29 @@ static void sketch_csccol(
     RandBLAS::sparse::SparseDist D = S0.dist;
     int64_t vec_nnz = D.vec_nnz;
     auto starts = indexing_bounds(D.n_rows, D.n_cols, pos, blas::Layout::ColMajor);
-	int64_t r0 = starts.first;
+    int64_t r0 = starts.first;
     int64_t c0 = starts.second;
     int64_t rf = r0 + d;
     int64_t cf = c0 + m;
     bool all_rows_S0 = (r0 == 0 && rf == D.n_rows);
 
     omp_set_num_threads(threads);
-	#pragma omp parallel default(shared)
-	{
+    #pragma omp parallel default(shared)
+    {
         // Setup variables for the current thread
         T *A_col, *B_col;
         // Do the work for the current thread.
-		#pragma omp for schedule(static)
-		for (int64_t k = 0; k < n; k++) {
-			A_col = &A[lda * k];
+        #pragma omp for schedule(static)
+        for (int64_t k = 0; k < n; k++) {
+            A_col = &A[lda * k];
             B_col = &B[ldb * k];
             if (all_rows_S0) {
                 allrows_saso_csc_matvec<T>(A_col, B_col, S0, c0, cf);
             } else {
                 somerows_saso_csc_matvec<T>(A_col, B_col, S0, c0, cf, r0, rf);
             }
-		}
-	}
+        }
+    }
 }
 
 template <typename T>

@@ -126,7 +126,7 @@ class TestLSKGE3 : public ::testing::Test
         }
 
         // define a matrix to be sketched, and create workspace for sketch.
-         bool is_colmajor = layout == blas::Layout::ColMajor;
+        bool is_colmajor = layout == blas::Layout::ColMajor;
         std::vector<T> A(m * m, 0.0);
         for (int i = 0; i < m; ++i)
             A[i + m*i] = 1.0;
