@@ -57,16 +57,17 @@ void fill_saso(SparseSkOp<T>& sas) {
     }
     typedef r123::Threefry2x64 CBRNG;
     CBRNG::key_type key = {{seed_key}};
-    CBRNG::ctr_type ctr = {{seed_ctr, 0}};
     CBRNG::ctr_type randpair;
     CBRNG g;
 
     // Use Fisher-Yates
     for (i = 0; i < la_len; ++i) {
         offset = i * k;
+        CBRNG::ctr_type ctr = {{seed_ctr + (uint64_t) offset, 0}};
+        // Mathematically speaking, in the loop below, we have
+        //  ctr = (int128) (seed_ctr + (int64) offset) + (int128) j
         for (j = 0; j < k; ++j) {
             // one step of Fisher-Yates shuffling
-            ctr[0] = seed_ctr + offset + j;
             randpair = g(ctr, key);
             ell = j + randpair.v[0] % (sa_len - j);            
             pivots[j] = ell;
@@ -78,6 +79,9 @@ void fill_saso(SparseSkOp<T>& sas) {
             sa_idxs[j + offset] = swap;
             vals[j + offset] = (randpair.v[1] % 2 == 0) ? 1.0 : -1.0;      
             la_idxs[j + offset] = i;
+
+            // increment counter
+            ctr.incr(1);
         }
         // Restore sa_vec_work for next iteration of Fisher-Yates.
         //      This isn't necessary from a statistical perspective,

@@ -75,19 +75,22 @@ static void gen_unif(
     key_type typed_key = {{key}};
     T_gen gen;
     int64_t dim = n_rows * n_cols;
-    uint32_t i;
-    ctr_type r;
+    int64_t i;
+    ctr_type rin {ctr_offset,0,0,0};
+    ctr_type rout;
     for (i = 0; i + 3 < dim; i += 4) {
-        r = gen({{ctr_offset + i,0,0,0}}, typed_key);
-        mat[i] = r123::uneg11<T>(r.v[0]);
-        mat[i + 1] = r123::uneg11<T>(r.v[1]);
-        mat[i + 2] = r123::uneg11<T>(r.v[2]);
-        mat[i + 3] = r123::uneg11<T>(r.v[3]);
+        // mathematically, rin = (int128) ctr_offset + (int128) i.
+        rout = gen(rin, typed_key);
+        mat[i] = r123::uneg11<T>(rout.v[0]);
+        mat[i + 1] = r123::uneg11<T>(rout.v[1]);
+        mat[i + 2] = r123::uneg11<T>(rout.v[2]);
+        mat[i + 3] = r123::uneg11<T>(rout.v[3]);
+        rin = rin.incr(4);
     }
-    r = gen({{ctr_offset + i,0,0,0}}, typed_key);
+    rout = gen(rin, typed_key);
     int32_t j = 0;
     while (i < dim) {
-        mat[i] =  r123::uneg11<T>(r.v[j]);
+        mat[i] =  r123::uneg11<T>(rout.v[j]);
         ++i;
         ++j;
     }
@@ -130,21 +133,24 @@ static void gen_norm(
     key_type typed_key = {{key}};
     T_gen gen;
     int64_t dim = n_rows * n_cols;
-    uint32_t i;
-    ctr_type r;
+    int64_t i;
+    ctr_type rin {ctr_offset,0,0,0};
+    ctr_type rout;
     T_fun pair_1, pair_2;
     for (i = 0; i + 3 < dim; i += 4) {
-        r = gen({{ctr_offset + i,0,0,0}}, typed_key);
-        pair_1 = r123::boxmuller(r.v[0], r.v[1]);
-        pair_2 = r123::boxmuller(r.v[2], r.v[3]);
+        // mathematically: rin = (int128) ctr_offset + (int128) i
+        rout = gen(rin, typed_key);
+        pair_1 = r123::boxmuller(rout.v[0], rout.v[1]);
+        pair_2 = r123::boxmuller(rout.v[2], rout.v[3]);
         mat[i] = pair_1.x;
         mat[i + 1] = pair_1.y;
         mat[i + 2] = pair_2.x;
         mat[i + 3] = pair_2.y;
+        rin.incr(4);
     }
-    r = gen({{ctr_offset + i,0,0,0}}, typed_key);
-    pair_1 = r123::boxmuller(r.v[0], r.v[1]);
-    pair_2 = r123::boxmuller(r.v[2], r.v[3]);
+    rout = gen(rin, typed_key);
+    pair_1 = r123::boxmuller(rout.v[0], rout.v[1]);
+    pair_2 = r123::boxmuller(rout.v[2], rout.v[3]);
     T *v = new T[4] {pair_1.x, pair_1.y, pair_2.x, pair_2.y};
     int32_t j = 0;
     while (i < dim) {
