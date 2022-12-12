@@ -27,6 +27,7 @@ struct SparseSkOp {
     const uint64_t key = 0;
     const uint64_t ctr_offset = 0;
     const bool own_memory = true;
+    int64_t next_ctr_offset;
     
     /////////////////////////////////////////////////////////////////////
     //
@@ -118,7 +119,7 @@ SparseSkOp<T>::~SparseSkOp() {
 };
 
 template <typename T>
-void fill_saso(
+uint64_t fill_saso(
     SparseSkOp<T> &sas
 );
 

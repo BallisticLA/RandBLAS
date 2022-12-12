@@ -33,7 +33,7 @@ static std::pair<int64_t, int64_t> indexing_bounds(
 
 
 template <typename T>
-void fill_saso(SparseSkOp<T>& sas) {
+uint64_t fill_saso(SparseSkOp<T>& sas) {
     assert(sas.dist.family == SparseDistName::SASO);
     //assert(sas.dist.dist4nz.family == RandBLAS::dense_op::DistName::Rademacher);
     assert(sas.dist.n_rows <= sas.dist.n_cols);
@@ -57,13 +57,13 @@ void fill_saso(SparseSkOp<T>& sas) {
     }
     typedef r123::Threefry2x64 CBRNG;
     CBRNG::key_type key = {{seed_key}};
-    CBRNG::ctr_type randpair;
+    CBRNG::ctr_type randpair, ctr;
     CBRNG g;
 
     // Use Fisher-Yates
     for (i = 0; i < la_len; ++i) {
         offset = i * k;
-        CBRNG::ctr_type ctr = {{seed_ctr + (uint64_t) offset, 0}};
+        ctr = {{seed_ctr + (uint64_t) offset, 0}};
         // Mathematically speaking, in the loop below, we have
         //  ctr = (int128) (seed_ctr + (int64) offset) + (int128) j
         for (j = 0; j < k; ++j) {
@@ -95,7 +95,8 @@ void fill_saso(SparseSkOp<T>& sas) {
             sa_vec_work[ell] = swap;
         }
     }
-    return;
+    sas.next_ctr_offset = ctr.v[0];
+    return ctr.v[0];
 }
 
 template <typename T>
@@ -327,7 +328,7 @@ void lskges(
 }
 
 
-template void fill_saso<float>(SparseSkOp<float> &sas);
+template uint64_t fill_saso<float>(SparseSkOp<float> &sas);
 template void print_saso<float>(SparseSkOp<float> &sas);
 template void sketch_cscrow<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t pos, float *A, int64_t lda, float *B, int64_t ldb, int threads);
 template void sketch_csccol<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t pos, float *A, int64_t lda, float *B, int64_t ldb, int threads);
@@ -335,7 +336,7 @@ template void lskges<float>(blas::Layout layout, blas::Op transS, blas::Op trans
     SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float beta, float *B, int64_t ldb, int threads);
 
 
-template void fill_saso<double>(SparseSkOp<double> &sas);
+template uint64_t fill_saso<double>(SparseSkOp<double> &sas);
 template void print_saso<double>(SparseSkOp<double> &sas);
 template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t pos, double *A, int64_t lda, double *B, int64_t ldb, int threads);
 template void sketch_csccol<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t pos, double *A, int64_t lda, double *B, int64_t ldb, int threads);

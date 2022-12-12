@@ -42,6 +42,7 @@ struct DenseSkOp {
     const int64_t ctr_offset = 0;
     const int64_t key = 0;
     const bool own_memory = true;
+    int64_t next_ctr_offset;
 
     /////////////////////////////////////////////////////////////////////
     //
@@ -131,7 +132,7 @@ DenseSkOp<T>::~DenseSkOp() {
 }
 
 template <typename T>
-void fill_buff(
+uint32_t fill_buff(
     T *buff,
     DenseDist D,
     uint32_t key,
