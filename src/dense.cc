@@ -1,4 +1,5 @@
 #include "dense.hh"
+#include "counters.hh"
 
 #include <iostream>
 #include <stdio.h>
@@ -62,21 +63,21 @@ static uint32_t gen_unif(
     typedef typename T_gen::key_type key_type;
     typedef typename T_gen::ctr_type ctr_type;
     key_type typed_key = {{key}};
-    T_gen gen;
     int64_t dim = n_rows * n_cols;
     int64_t i;
-    ctr_type rin {ctr_offset,0,0,0};
+    RNGCounter rin(ctr_offset);
+    r123::ReinterpretCtr<RNGCounter::ctr_type, T_gen> gen;
     ctr_type rout;
     for (i = 0; i + 3 < dim; i += 4) {
         // mathematically, rin = (int128) ctr_offset + (int128) i.
-        rout = gen(rin, typed_key);
+        rout = gen(rin._v, typed_key);
         mat[i] = r123::uneg11<T>(rout.v[0]);
         mat[i + 1] = r123::uneg11<T>(rout.v[1]);
         mat[i + 2] = r123::uneg11<T>(rout.v[2]);
         mat[i + 3] = r123::uneg11<T>(rout.v[3]);
-        rin = rin.incr(4);
+        rin._v.incr(4);
     }
-    rout = gen(rin, typed_key);
+    rout = gen(rin._v, typed_key);
     int32_t j = 0;
     while (i < dim) {
         mat[i] =  r123::uneg11<T>(rout.v[j]);
@@ -115,7 +116,7 @@ static uint32_t gen_rmat_unif(
 }
 
 // Actual work - normal distribution
-template <typename T, typename T_gen, typename T_fun>
+template <typename T, typename T_gen>
 static uint32_t gen_norm(
     int64_t n_rows,
     int64_t n_cols,
@@ -124,26 +125,28 @@ static uint32_t gen_norm(
     uint32_t ctr_offset
 ) {
     typedef typename T_gen::key_type key_type;
-    typedef typename T_gen::ctr_type ctr_type;
+    typedef typename T_gen::ctr_type ctr_type;  
+    typedef typename r123::float2 T_fun;
     key_type typed_key = {{key}};
-    T_gen gen;
+    RNGCounter rin(ctr_offset);
+    r123::ReinterpretCtr<RNGCounter::ctr_type, T_gen> gen;
     int64_t dim = n_rows * n_cols;
     int64_t i;
-    ctr_type rin {ctr_offset,0,0,0};
+    //ctr_type rin {ctr_offset,0,0,0};
     ctr_type rout;
     T_fun pair_1, pair_2;
     for (i = 0; i + 3 < dim; i += 4) {
         // mathematically: rin = (int128) ctr_offset + (int128) i
-        rout = gen(rin, typed_key);
+        rout = gen(rin._v, typed_key);
         pair_1 = r123::boxmuller(rout.v[0], rout.v[1]);
         pair_2 = r123::boxmuller(rout.v[2], rout.v[3]);
         mat[i] = pair_1.x;
         mat[i + 1] = pair_1.y;
         mat[i + 2] = pair_2.x;
         mat[i + 3] = pair_2.y;
-        rin.incr(4);
+        rin._v.incr(4);
     }
-    rout = gen(rin, typed_key);
+    rout = gen(rin._v, typed_key);
     pair_1 = r123::boxmuller(rout.v[0], rout.v[1]);
     pair_2 = r123::boxmuller(rout.v[2], rout.v[3]);
     T *v = new T[4] {pair_1.x, pair_1.y, pair_2.x, pair_2.y};
@@ -166,19 +169,18 @@ static uint32_t gen_rmat_norm(
     uint32_t ctr_offset
 ) {
     typedef r123::Philox4x32 CBRNG;
+    uint32_t next_offset;
     // ^ the CBRNG generates 4 random numbers at a time, represents state with 4 32-bit words.
     if (typeid(T) == typeid(float)) {
-        uint32_t next_ctr_offset = gen_norm<float, CBRNG, r123::float2>(
-            n_rows, n_cols, (float *) mat, key, ctr_offset
-        );
-        // ^ cast on "mat" is needed to avoid compiler error
-        return next_ctr_offset;
+        next_offset = gen_norm<float, CBRNG>(
+            n_rows, n_cols, (float*) mat, key, ctr_offset
+        ); // ^ cast on "mat" is needed to avoid compiler error
+        return next_offset;
     } else if (typeid(T) == typeid(double)) {
-        uint32_t next_ctr_offset = gen_norm<double, CBRNG, r123::float2>(
+        next_offset = gen_norm<double, CBRNG>(
             n_rows, n_cols, (double *) mat, key, ctr_offset
-        );
-        // ^ cast on "mat" is needed to avoid compiler error
-        return next_ctr_offset;
+        ); // ^ cast on "mat" is needed to avoid compiler error
+        return ctr_offset;
     } else {
         printf("\nType error. Only float and double are currently supported.\n");
         return 0;
