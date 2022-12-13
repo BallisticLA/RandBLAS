@@ -60,31 +60,28 @@ static uint32_t gen_unif(
     uint32_t key,
     uint32_t ctr_offset
 ) {
-    typedef typename T_gen::key_type key_type;
-    typedef typename T_gen::ctr_type ctr_type;
-    key_type typed_key = {{key}};
     int64_t dim = n_rows * n_cols;
     int64_t i;
-    RNGCounter rin(ctr_offset);
-    r123::ReinterpretCtr<RNGCounter::ctr_type, T_gen> gen;
-    ctr_type rout;
+    RNGState state(ctr_offset, key);
+    r123::ReinterpretCtr<RNGState::r123_ctr, T_gen> gen;
+    RNGState::r123_ctr rout;
     for (i = 0; i + 3 < dim; i += 4) {
         // mathematically, rin = (int128) ctr_offset + (int128) i.
-        rout = gen(rin._v, typed_key);
+        rout = gen(state._c, state._k);
         mat[i] = r123::uneg11<T>(rout.v[0]);
         mat[i + 1] = r123::uneg11<T>(rout.v[1]);
         mat[i + 2] = r123::uneg11<T>(rout.v[2]);
         mat[i + 3] = r123::uneg11<T>(rout.v[3]);
-        rin._v.incr(4);
+        state._c.incr(4);
     }
-    rout = gen(rin._v, typed_key);
+    rout = gen(state._c, state._k);
     int32_t j = 0;
     while (i < dim) {
         mat[i] =  r123::uneg11<T>(rout.v[j]);
         ++i;
         ++j;
     }
-    return rin.v[0];
+    return state.c[0];
 }
 
 template <typename T>
@@ -124,29 +121,24 @@ static uint32_t gen_norm(
     uint32_t key,
     uint32_t ctr_offset
 ) {
-    typedef typename T_gen::key_type key_type;
-    typedef typename T_gen::ctr_type ctr_type;  
-    typedef typename r123::float2 T_fun;
-    key_type typed_key = {{key}};
-    RNGCounter rin(ctr_offset);
-    r123::ReinterpretCtr<RNGCounter::ctr_type, T_gen> gen;
+    RNGState state(ctr_offset, key);
+    r123::ReinterpretCtr<RNGState::r123_ctr, T_gen> gen;
     int64_t dim = n_rows * n_cols;
     int64_t i;
-    //ctr_type rin {ctr_offset,0,0,0};
-    ctr_type rout;
-    T_fun pair_1, pair_2;
+    RNGState::r123_ctr rout;
+    r123::float2 pair_1, pair_2;
     for (i = 0; i + 3 < dim; i += 4) {
         // mathematically: rin = (int128) ctr_offset + (int128) i
-        rout = gen(rin._v, typed_key);
+        rout = gen(state._c, state._k);
         pair_1 = r123::boxmuller(rout.v[0], rout.v[1]);
         pair_2 = r123::boxmuller(rout.v[2], rout.v[3]);
         mat[i] = pair_1.x;
         mat[i + 1] = pair_1.y;
         mat[i + 2] = pair_2.x;
         mat[i + 3] = pair_2.y;
-        rin._v.incr(4);
+        state._c.incr(4);
     }
-    rout = gen(rin._v, typed_key);
+    rout = gen(state._c, state._k);
     pair_1 = r123::boxmuller(rout.v[0], rout.v[1]);
     pair_2 = r123::boxmuller(rout.v[2], rout.v[3]);
     T *v = new T[4] {pair_1.x, pair_1.y, pair_2.x, pair_2.y};
@@ -157,7 +149,7 @@ static uint32_t gen_norm(
         ++j;
     }
     delete[] v;
-    return rin.v[0];
+    return state.c[0];
 }
 
 template <typename T>

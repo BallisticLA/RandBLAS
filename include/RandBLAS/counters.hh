@@ -8,23 +8,28 @@
 
 // enum class GeneratorName : char {Philox = 'P', ThreeFry = 'T'};
 
-struct RNGCounter {
-    //uint32_t *v = new uint32_t[4] {0, 0, 0, 0};
-    typedef typename r123::Array4x32 ctr_type;
-    r123::Array4x32 _v {};
-    uint32_t *v = nullptr;
+struct RNGState {
+    uint32_t *c = nullptr;
+    uint32_t *k = nullptr;
+    typedef typename r123::Array4x32 r123_ctr;
+    r123::Array4x32 _c {};
+    r123::Array2x32 _k {};
 
-    RNGCounter(uint32_t v0);
+    RNGState(uint32_t c0, uint32_t k0);
 
-    RNGCounter(uint64_t v0);
+    RNGState(uint64_t c0, uint32_t k0);
 };
 
-RNGCounter::RNGCounter(uint32_t v0) {
-    this->v = this->_v.v;
-    this->v[0] = v0;
+RNGState::RNGState(uint32_t c0, uint32_t k0) {
+    this->c = this->_c.v;
+    this->k = this->_k.v;
+    this->c[0] = c0;
+    this->k[0] = k0;
 }
 
-RNGCounter::RNGCounter(uint64_t v0) {
-    this->v = this->_v.v;
-    this->_v.incr(v0);
+RNGState::RNGState(uint64_t c0, uint32_t k0) {
+    this->c = this->_c.v;
+    this->k = this->_k.v;
+    this->_c.incr(c0);
+    this->k[0] = k0;
 }
