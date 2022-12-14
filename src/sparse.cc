@@ -374,7 +374,7 @@ template SparseSkOp<float>::SparseSkOp(
     uint32_t key, uint32_t ctr_offset,
     int64_t *rows, int64_t *cols, float *vals);
 template SparseSkOp<float>::SparseSkOp(SparseDist dist, uint32_t key, uint32_t ctr_offset, int64_t *rows, int64_t *cols, float *vals);
-template void SparseSkOp<float>::~SparseSkOp();
+template SparseSkOp<float>::~SparseSkOp();
 template RNGState fill_saso<float>(SparseSkOp<float> &sas);
 template void print_saso<float>(SparseSkOp<float> &sas);
 template void sketch_cscrow<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float *B, int64_t ldb, int threads);
@@ -389,7 +389,7 @@ template SparseSkOp<double>::SparseSkOp(
     uint32_t key, uint32_t ctr_offset,
     int64_t *rows, int64_t *cols, double *vals);
 template SparseSkOp<double>::SparseSkOp(SparseDist dist, uint32_t key, uint32_t ctr_offset, int64_t *rows, int64_t *cols, double *vals);
-template void SparseSkOp<double>::~SparseSkOp();
+template SparseSkOp<double>::~SparseSkOp();
 template RNGState fill_saso<double>(SparseSkOp<double> &sas);
 template void print_saso<double>(SparseSkOp<double> &sas);
 template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double *B, int64_t ldb, int threads);
