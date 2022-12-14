@@ -1,6 +1,12 @@
+#pragma once
+
 #ifndef BLAS_HH
 #include <blas.hh>
 #define BLAS_HH
+#endif
+
+#ifndef RandBLAS_STATE_HH
+#include <RandBLAS/state.hh>
 #endif
 
 #ifndef RandBLAS_DO_HH
@@ -39,11 +45,8 @@ struct DenseDist {
 template <typename T>
 struct DenseSkOp {
     const DenseDist dist;
-    const int64_t ctr_offset = 0;
-    const int64_t key = 0;
+    const RNGState state;
     const bool own_memory = true;
-    int64_t next_ctr_offset;
-
     /////////////////////////////////////////////////////////////////////
     //
     //      Properties specific to dense sketching operators
@@ -64,13 +67,22 @@ struct DenseSkOp {
     //  Elementary constructor: needs an implementation
     DenseSkOp(
         DenseDist dist_,
-        uint32_t key_,
-        uint32_t ctr_offset_,
+        RNGState state_,
         T *buff_,
         bool filled_,
         bool persistent_,
         blas::Layout layout_
     );
+
+    DenseSkOp(
+        DenseDist dist,
+        uint32_t ctr_offset,
+        uint32_t key,
+        T *buff,
+        bool filled,
+        bool persistent,
+        blas::Layout layout
+    ) : DenseSkOp(dist, RNGState{ctr_offset, key}, buff, filled, persistent, layout) {};
 
     //  Convenience constructor (a wrapper)
     DenseSkOp(
@@ -83,7 +95,7 @@ struct DenseSkOp {
         bool filled,
         bool persistent,
         blas::Layout layout
-    ) : DenseSkOp(DenseDist{family, n_rows, n_cols}, key, ctr_offset,
+    ) : DenseSkOp(DenseDist{family, n_rows, n_cols}, RNGState{key, ctr_offset},
         buff, filled, persistent, layout) {};
 
     // Destructor
@@ -93,16 +105,14 @@ struct DenseSkOp {
 template <typename T>
 DenseSkOp<T>::DenseSkOp(
     DenseDist dist_,
-    uint32_t key_,
-    uint32_t ctr_offset_,
+    RNGState state_,
     T *buff_,           
     bool filled_,       
     bool persistent_,   
     blas::Layout layout_ 
 ) : // variable definitions
     dist(dist_),
-    key(key_),
-    ctr_offset(ctr_offset_),
+    state(state_),
     buff(buff_),
     filled(filled_),
     persistent(persistent_),
@@ -132,7 +142,14 @@ DenseSkOp<T>::~DenseSkOp() {
 }
 
 template <typename T>
-uint32_t fill_buff(
+RNGState fill_buff(
+    T *buff,
+    DenseDist D,
+    RNGState state
+);
+
+template <typename T>
+RNGState fill_buff(
     T *buff,
     DenseDist D,
     uint32_t key,

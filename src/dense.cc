@@ -1,5 +1,4 @@
 #include "dense.hh"
-#include "counters.hh"
 
 #include <iostream>
 #include <stdio.h>
@@ -53,16 +52,14 @@ namespace RandBLAS::dense {
 
 // Actual work - uniform dirtibution
 template <typename T, typename T_gen>
-static uint32_t gen_unif(
+static RNGState gen_unif(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
-    uint32_t key,
-    uint32_t ctr_offset
+    RNGState state
 ) {
     int64_t dim = n_rows * n_cols;
     int64_t i;
-    RNGState state(ctr_offset, key);
     r123::ReinterpretCtr<RNGState::r123_ctr, T_gen> gen;
     RNGState::r123_ctr rout;
     for (i = 0; i + 3 < dim; i += 4) {
@@ -81,47 +78,36 @@ static uint32_t gen_unif(
         ++i;
         ++j;
     }
-    return state.c[0];
+    return state;
 }
 
 template <typename T>
-static uint32_t gen_rmat_unif(
+static RNGState gen_rmat_unif(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
-    uint32_t key,
-    uint32_t ctr_offset
+    RNGState state
 ) {
     typedef r123::Philox4x32 CBRNG;
-    // ^ the CBRNG generates 4 random numbers at a time, represents state with 4 32-bit words.
     if (typeid(T) == typeid(float)) {
-        uint32_t next_ctr_offset = gen_unif<float, CBRNG>(
-            n_rows, n_cols, (float *) mat, key, ctr_offset
-        );
-        // ^ cast on "mat" is needed to avoid compiler error
-        return next_ctr_offset;
+        RNGState s = gen_unif<float, CBRNG>(n_rows, n_cols, (float *) mat, state);
+        return s;
     } else if (typeid(T) == typeid(double)) {
-        uint32_t next_ctr_offset = gen_unif<double, CBRNG>(
-            n_rows, n_cols, (double *) mat, key, ctr_offset
-        );
-        // ^ cast on "mat" is needed to avoid compiler error
-        return next_ctr_offset;
+        RNGState s = gen_unif<double, CBRNG>(n_rows, n_cols, (double *) mat, state);
+        return s;
     } else {
-        printf("\nType error. Only float and double are currently supported.\n");
-        return 0;
+        throw std::runtime_error("\nType error. Only float and double are currently supported.\n");
     }
 }
 
 // Actual work - normal distribution
 template <typename T, typename T_gen>
-static uint32_t gen_norm(
+static RNGState gen_norm(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
-    uint32_t key,
-    uint32_t ctr_offset
+    RNGState state
 ) {
-    RNGState state(ctr_offset, key);
     r123::ReinterpretCtr<RNGState::r123_ctr, T_gen> gen;
     int64_t dim = n_rows * n_cols;
     int64_t i;
@@ -149,66 +135,51 @@ static uint32_t gen_norm(
         ++j;
     }
     delete[] v;
-    return state.c[0];
+    return state;
 }
 
 template <typename T>
-static uint32_t gen_rmat_norm(
+static RNGState gen_rmat_norm(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
-    uint32_t key,
-    uint32_t ctr_offset
+    RNGState state
 ) {
     typedef r123::Philox4x32 CBRNG;
-    uint32_t next_offset;
     // ^ the CBRNG generates 4 random numbers at a time, represents state with 4 32-bit words.
     if (typeid(T) == typeid(float)) {
-        next_offset = gen_norm<float, CBRNG>(
-            n_rows, n_cols, (float*) mat, key, ctr_offset
-        ); // ^ cast on "mat" is needed to avoid compiler error
-        return next_offset;
+        RNGState s = gen_norm<float, CBRNG>(n_rows, n_cols, (float*) mat, state);
+        return s;
     } else if (typeid(T) == typeid(double)) {
-        next_offset = gen_norm<double, CBRNG>(
-            n_rows, n_cols, (double *) mat, key, ctr_offset
-        ); // ^ cast on "mat" is needed to avoid compiler error
-        return ctr_offset;
+        RNGState s = gen_norm<double, CBRNG>(n_rows, n_cols, (double *) mat, state);
+        return s;
     } else {
-        printf("\nType error. Only float and double are currently supported.\n");
-        return 0;
+        throw std::runtime_error("\nType error. Only float and double are currently supported.\n");
     }
 }
 
 template <typename T>
-uint32_t fill_buff(
+RNGState fill_buff(
     T *buff,
     DenseDist D,
-    uint32_t key,
-    uint32_t ctr_offset
+    RNGState state
 ) {
-    uint32_t next_ctr_offset;
-    switch (D.family) {
-    case DenseDistName::Gaussian:
-        next_ctr_offset = gen_rmat_norm<T>(D.n_rows, D.n_cols, buff, key, ctr_offset);
-        break;
-    case DenseDistName::Uniform:
-        next_ctr_offset = gen_rmat_unif<T>(D.n_rows, D.n_cols, buff, key, ctr_offset);
-        break;
-    case DenseDistName::Rademacher:
-        throw std::runtime_error(std::string("Not implemented."));
-        break;
-    case DenseDistName::Haar:
-        // This won't be filled IID, but a Householder representation
-        // of a column-orthonormal matrix Q can be stored in the lower
-        // triangle of Q (with "tau" on the diagonal). So the size of
-        // buff will still be D.n_rows*D.n_cols.
-        throw std::runtime_error(std::string("Not implemented."));
-        break;
-    default:
-        throw std::runtime_error(std::string("Unrecognized distribution."));
-        break;
+    switch (D.family) { // no break statements needed as-written
+        case DenseDistName::Gaussian:
+            return gen_rmat_norm<T>(D.n_rows, D.n_cols, buff, state);
+        case DenseDistName::Uniform:
+            return gen_rmat_unif<T>(D.n_rows, D.n_cols, buff, state);
+        case DenseDistName::Rademacher:
+            throw std::runtime_error(std::string("Not implemented."));
+        case DenseDistName::Haar:
+            // This won't be filled IID, but a Householder representation
+            // of a column-orthonormal matrix Q can be stored in the lower
+            // triangle of Q (with "tau" on the diagonal). So the size of
+            // buff will still be D.n_rows*D.n_cols.
+            throw std::runtime_error(std::string("Not implemented."));
+        default:
+            throw std::runtime_error(std::string("Unrecognized distribution."));
     }
-    return next_ctr_offset;
 }
 
 template <typename T>
@@ -240,13 +211,13 @@ void lskge3(
     T *S0_ptr = S0.buff;
     if (S0_ptr == NULL) {
         S0_ptr = new T[S0.dist.n_rows * S0.dist.n_cols];
-        S0.next_ctr_offset = fill_buff<T>(S0_ptr, S0.dist, S0.key, S0.ctr_offset);
+        fill_buff<T>(S0_ptr, S0.dist, S0.state);
         if (S0.persistent) {
             S0.buff = S0_ptr;
             S0.filled = true;
         }
     } else if (!S0.filled) {
-        S0.next_ctr_offset = fill_buff<T>(S0_ptr, S0.dist, S0.key, S0.ctr_offset);
+        fill_buff<T>(S0_ptr, S0.dist, S0.state);
         S0.filled = true;
     }
     // TODO: add a state check.
@@ -302,10 +273,10 @@ template void lskge3(blas::Layout layout, blas::Op transS, blas::Op transA, int6
 template void lskge3(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
     DenseSkOp<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float beta, float *B, int64_t ldb);
 
-template uint32_t gen_rmat_unif<float>(int64_t n_rows, int64_t n_cols, float* mat, uint32_t key, uint32_t ctr_offset);
-template uint32_t gen_rmat_unif<double>(int64_t n_rows, int64_t n_cols, double* mat, uint32_t key, uint32_t ctr_offset);
+template RNGState gen_rmat_unif<float>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
+template RNGState gen_rmat_unif<double>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
 
-template uint32_t gen_rmat_norm<float>(int64_t n_rows, int64_t n_cols, float* mat, uint32_t key, uint32_t ctr_offset);
-template uint32_t gen_rmat_norm<double>(int64_t n_rows, int64_t n_cols, double* mat, uint32_t key, uint32_t ctr_offset);
+template RNGState gen_rmat_norm<float>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
+template RNGState gen_rmat_norm<double>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
 
 } // end namespace RandBLAS::dense_op

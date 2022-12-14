@@ -1,4 +1,5 @@
-#include <RandBLAS.hh>
+#include <RandBLAS/sparse.hh>
+#include <RandBLAS/util.hh>
 #include <rbtutil.hh>
 #include <gtest/gtest.h>
 #include <math.h>
@@ -9,8 +10,8 @@ RandBLAS::sparse::SparseSkOp<T> make_wide_saso(
     int64_t n_rows,
     int64_t n_cols,
     int64_t vec_nnz,
-    uint64_t ctr_offset,
-    uint64_t key
+    uint32_t ctr_offset,
+    uint32_t key
 ) {
     assert(n_rows <= n_cols);
     RandBLAS::sparse::SparseSkOp<T> sas(
@@ -28,8 +29,8 @@ class TestSASOConstruction : public ::testing::Test
     protected:
         int64_t d = 7;
         int64_t m = 20;
-        std::vector<uint64_t> keys = {42, 0, 1};
-        std::vector<uint64_t> vec_nnzs = {1, 2, 3, 7};     
+        std::vector<uint32_t> keys = {42, 0, 1};
+        std::vector<uint32_t> vec_nnzs = {1, 2, 3, 7};     
     
     virtual void SetUp() {};
 
@@ -115,7 +116,7 @@ class TestLSKGES : public ::testing::Test
         static inline int64_t d = 19;
         static inline int64_t m = 201;
         static inline int64_t n = 12;
-        static inline std::vector<uint64_t> keys = {42, 0, 1};
+        static inline std::vector<uint32_t> keys = {42, 0, 1};
         static inline std::vector<uint64_t> vec_nnzs = {1, 2, 3, 7, 19};     
     
     virtual void SetUp() {};
@@ -125,9 +126,9 @@ class TestLSKGES : public ::testing::Test
     template <typename T>
     static void apply(blas::Layout layout, int64_t key_index, int64_t nnz_index, int threads)
     {
-        uint64_t key = keys[key_index];
+        uint32_t key = keys[key_index];
         uint64_t vec_nnz = vec_nnzs[nnz_index];
-        uint64_t a_seed = 99;
+        uint32_t a_seed = 99;
 
         // construct test data: matrix A, SparseSkOp "sas", and dense representation S
         T *a = new T[m * n];

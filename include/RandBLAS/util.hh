@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef BLAS_HH
 #include <blas.hh>
 #define BLAS_HH

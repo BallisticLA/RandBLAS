@@ -13,32 +13,80 @@
 
 namespace RandBLAS::sparse {
 
-static std::pair<int64_t, int64_t> indexing_bounds(
-    int64_t A0_rows,
-    int64_t A0_cols,
-    int64_t poA,
-    blas::Layout layout
-) {
-    std::pair<int64_t, int64_t> out;
-    // (out.first, out.second) = (row index, column index)
-    if (layout == blas::Layout::ColMajor) {
-        out.second = poA / A0_rows;
-        out.first = poA % A0_rows;
+// Implementation of elementary constructor
+template <typename T>
+SparseSkOp<T>::SparseSkOp(
+    SparseDist dist_,
+    RNGState state_,
+    int64_t *rows_,
+    int64_t *cols_,
+    T *vals_
+) :  // variable definitions
+    dist(dist_),
+    state(state_),
+    own_memory(!rows_ && !cols_ && !vals_)
+{   // Initialization logic
+    //
+    //      own_memory is a bool that's true iff the
+    //      rows_, cols_, and vals_ pointers were all NULL.
+    //
+    if (this->own_memory) {
+        int64_t nnz = this->dist.vec_nnz * this->dist.n_cols;
+        this->rows = new int64_t[nnz];
+        this->cols = new int64_t[nnz];
+        this->vals = new T[nnz];
     } else {
-        out.first = poA / A0_cols;
-        out.second = poA % A0_cols;
+        assert(rows_ && cols_ && vals_);
+        //  If any of rows_, cols_, and vals_ are not NULL,
+        //  then none of them are NULL.
+        this->rows = rows_;
+        this->cols = cols_;
+        this->vals = vals_;
     }
-    return out;
+    // Implementation limitations
+    assert(this->dist.n_rows <= this->dist.n_cols);
 }
+
+template <typename T>
+SparseSkOp<T>::SparseSkOp(
+    SparseDist dist,
+    uint32_t key,
+    uint32_t ctr_offset,
+    int64_t *rows,
+    int64_t *cols,
+    T *vals 
+) : SparseSkOp<T>::SparseSkOp(dist, RNGState{ctr_offset, key}, rows, cols, vals) {};
+
+template <typename T>
+SparseSkOp<T>::SparseSkOp(
+    SparseDistName family,
+    int64_t n_rows,
+    int64_t n_cols,
+    int64_t vec_nnz,
+    uint32_t key,
+    uint32_t ctr_offset,
+    int64_t *rows,
+    int64_t *cols,
+    T *vals
+) : SparseSkOp<T>::SparseSkOp(SparseDist{family, n_rows, n_cols, vec_nnz},
+    key, ctr_offset, rows, cols, vals) {};
+
+template <typename T>
+SparseSkOp<T>::~SparseSkOp() {
+    if (this->own_memory) {
+        delete [] this->rows;
+        delete [] this->cols;
+        delete [] this->vals;
+    }
+};
 
 
 template <typename T>
-uint64_t fill_saso(SparseSkOp<T>& sas) {
+RNGState fill_saso(SparseSkOp<T>& sas) {
     assert(sas.dist.family == SparseDistName::SASO);
     //assert(sas.dist.dist4nz.family == RandBLAS::dense_op::DistName::Rademacher);
     assert(sas.dist.n_rows <= sas.dist.n_cols);
-    uint64_t seed_ctr = sas.ctr_offset;
-    uint64_t seed_key = sas.key;
+    RNGState init_state = sas.state;
 
     // Load shorter names into the workspace
     int64_t k = sas.dist.vec_nnz;
@@ -55,21 +103,20 @@ uint64_t fill_saso(SparseSkOp<T>& sas) {
     for (j = 0; j < sa_len; ++j) {
         sa_vec_work[j] = j;
     }
-    typedef r123::Threefry2x64 CBRNG;
-    CBRNG::key_type key = {{seed_key}};
-    CBRNG::ctr_type randpair, ctr;
-    CBRNG g;
+    typedef r123::Philox4x32 CBRNG;
+    r123::ReinterpretCtr<RNGState::r123_ctr, CBRNG> g;
+    RNGState::r123_ctr rout;
+    RNGState work_state;
 
     // Use Fisher-Yates
     for (i = 0; i < la_len; ++i) {
         offset = i * k;
-        ctr = {{seed_ctr + (uint64_t) offset, 0}};
-        // Mathematically speaking, in the loop below, we have
-        //  ctr = (int128) (seed_ctr + (int64) offset) + (int128) j
+        work_state = RNGState(init_state);
+        work_state._c.incr(offset);
         for (j = 0; j < k; ++j) {
             // one step of Fisher-Yates shuffling
-            randpair = g(ctr, key);
-            ell = j + randpair.v[0] % (sa_len - j);            
+            rout = g(work_state._c, work_state._k);
+            ell = j + rout.v[0] % (sa_len - j);            
             pivots[j] = ell;
             swap = sa_vec_work[ell];
             sa_vec_work[ell] = sa_vec_work[j];
@@ -77,11 +124,11 @@ uint64_t fill_saso(SparseSkOp<T>& sas) {
                    
             // update (rows, cols, vals)
             sa_idxs[j + offset] = swap;
-            vals[j + offset] = (randpair.v[1] % 2 == 0) ? 1.0 : -1.0;      
+            vals[j + offset] = (rout.v[1] % 2 == 0) ? 1.0 : -1.0;      
             la_idxs[j + offset] = i;
 
             // increment counter
-            ctr.incr(1);
+            work_state._c.incr(1);
         }
         // Restore sa_vec_work for next iteration of Fisher-Yates.
         //      This isn't necessary from a statistical perspective,
@@ -95,8 +142,7 @@ uint64_t fill_saso(SparseSkOp<T>& sas) {
             sa_vec_work[ell] = swap;
         }
     }
-    sas.next_ctr_offset = ctr.v[0];
-    return ctr.v[0];
+    return work_state;
 }
 
 template <typename T>
@@ -128,7 +174,8 @@ static void sketch_cscrow(
     int64_t n,
     int64_t m,
     SparseSkOp<T>& S0,
-    int64_t pos,
+    int64_t i_os,
+    int64_t j_os,
     T *A, // todo: make this const.
     int64_t lda,
     T *B,
@@ -136,9 +183,8 @@ static void sketch_cscrow(
     int threads
 ){
     RandBLAS::sparse::SparseDist D = S0.dist;
-    auto starts = indexing_bounds(D.n_rows, D.n_cols, pos, blas::Layout::RowMajor);
-    int64_t S_row_start = starts.first;
-    int64_t S_col_start = starts.second;
+    int64_t S_row_start = i_os;
+    int64_t S_col_start = j_os;
     int64_t S_col_end = S_col_start + m;
 
     // Identify the range of rows to be processed by each thread.
@@ -228,7 +274,8 @@ static void sketch_csccol(
     int64_t n,
     int64_t m,
     SparseSkOp<T>& S0,
-    int64_t pos,
+    int64_t i_os,
+    int64_t j_os,
     T *A, // todo: make this const
     int64_t lda,
     T *B,
@@ -237,9 +284,8 @@ static void sketch_csccol(
 ){
     RandBLAS::sparse::SparseDist D = S0.dist;
     int64_t vec_nnz = D.vec_nnz;
-    auto starts = indexing_bounds(D.n_rows, D.n_cols, pos, blas::Layout::ColMajor);
-    int64_t r0 = starts.first;
-    int64_t c0 = starts.second;
+    int64_t r0 = i_os;
+    int64_t c0 = j_os;
     int64_t rf = r0 + d;
     int64_t cf = c0 + m;
     bool all_rows_S0 = (r0 == 0 && rf == D.n_rows);
@@ -310,37 +356,46 @@ void lskges(
     
     // Dimensionality sanity checks, and perform the sketch.
     if (layout == blas::Layout::ColMajor) {
-        int64_t lds = S0.dist.n_rows;
-        int64_t pos = i_os + lds * j_os;
-        assert(lds >= rows_S);
         assert(lda >= rows_A);
         assert(ldb >= d);
-        sketch_csccol<T>(d, n, m, S0, pos, A, lda, B, ldb, threads);
+        sketch_csccol<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
     } else {
-        int64_t lds = S0.dist.n_cols;
-        int64_t pos = i_os * lds + j_os;
-        assert(lds >= cols_S);
         assert(lda >= cols_A);
         assert(ldb >= n);
-        sketch_cscrow<T>(d, n, m, S0, pos, A, lda, B, ldb, threads);
+        sketch_cscrow<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
     }
     return;
 }
 
 
-template uint64_t fill_saso<float>(SparseSkOp<float> &sas);
+template SparseSkOp<float>::SparseSkOp(SparseDist dist, RNGState state, int64_t *rows, int64_t *cols, float *vals);
+template SparseSkOp<float>::SparseSkOp(
+    SparseDistName family, int64_t n_rows, int64_t n_cols, int64_t vec_nnz,
+    uint32_t key, uint32_t ctr_offset,
+    int64_t *rows, int64_t *cols, float *vals);
+template SparseSkOp<float>::SparseSkOp(SparseDist dist, uint32_t key, uint32_t ctr_offset, int64_t *rows, int64_t *cols, float *vals);
+template void SparseSkOp<float>::~SparseSkOp();
+template RNGState fill_saso<float>(SparseSkOp<float> &sas);
 template void print_saso<float>(SparseSkOp<float> &sas);
-template void sketch_cscrow<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t pos, float *A, int64_t lda, float *B, int64_t ldb, int threads);
-template void sketch_csccol<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t pos, float *A, int64_t lda, float *B, int64_t ldb, int threads);
+template void sketch_cscrow<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float *B, int64_t ldb, int threads);
+template void sketch_csccol<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float *B, int64_t ldb, int threads);
 template void lskges<float>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
     SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float beta, float *B, int64_t ldb, int threads);
 
 
-template uint64_t fill_saso<double>(SparseSkOp<double> &sas);
+template SparseSkOp<double>::SparseSkOp(SparseDist dist, RNGState state, int64_t *rows, int64_t *cols, double *vals);
+template SparseSkOp<double>::SparseSkOp(
+    SparseDistName family, int64_t n_rows, int64_t n_cols, int64_t vec_nnz,
+    uint32_t key, uint32_t ctr_offset,
+    int64_t *rows, int64_t *cols, double *vals);
+template SparseSkOp<double>::SparseSkOp(SparseDist dist, uint32_t key, uint32_t ctr_offset, int64_t *rows, int64_t *cols, double *vals);
+template void SparseSkOp<double>::~SparseSkOp();
+template RNGState fill_saso<double>(SparseSkOp<double> &sas);
 template void print_saso<double>(SparseSkOp<double> &sas);
-template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t pos, double *A, int64_t lda, double *B, int64_t ldb, int threads);
-template void sketch_csccol<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t pos, double *A, int64_t lda, double *B, int64_t ldb, int threads);
+template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double *B, int64_t ldb, int threads);
+template void sketch_csccol<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double *B, int64_t ldb, int threads);
 template void lskges<double>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, double alpha,
     SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double beta, double *B, int64_t ldb, int threads);
+
 
 } // end namespace RandBLAS::sparse_ops
