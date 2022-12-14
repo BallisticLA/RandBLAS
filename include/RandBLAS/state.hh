@@ -9,7 +9,6 @@
 #define RandBLAS_STATE_HH
 
 #include <Random123/array.h>
-//#include <Random123/ReinterpretCtr.hpp>
 
 struct RNGState {
     int len_c = 0;

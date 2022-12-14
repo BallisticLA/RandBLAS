@@ -1,4 +1,5 @@
 #include "state.hh"
+#include <cstring>
 
 
 RNGState::RNGState(
