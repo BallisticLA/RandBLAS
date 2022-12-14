@@ -1,10 +1,10 @@
-#include "sparse.hh"
+#include <RandBLAS/sparse.hh>
 
 #include <iostream>
 #include <stdio.h>
 #include <omp.h>
 
-#include <Random123/philox.h>
+//#include <Random123/philox.h>
 #include <Random123/threefry.h>
 #include <Random123/uniform.hpp>
 
@@ -19,7 +19,7 @@ RNGState fill_saso(SparseSkOp<T>& S0) {
     assert(S0.dist.family == SparseDistName::SASO);
     //assert(S0.dist.dist4nz.family == RandBLAS::dense_op::DistName::Rademacher);
     assert(S0.dist.n_rows <= S0.dist.n_cols);
-    RNGState init_state = S0.state;
+    RNGState init_state = S0.seed_state;
 
     // Load shorter names into the workspace
     int64_t k = S0.dist.vec_nnz;
@@ -76,6 +76,7 @@ RNGState fill_saso(SparseSkOp<T>& S0) {
         }
     }
     RNGState out_state(*impl_state);
+    S0.next_state = out_state;
     return out_state;
 }
 

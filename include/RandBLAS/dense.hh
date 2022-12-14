@@ -6,7 +6,7 @@
 #endif
 
 #ifndef RandBLAS_STATE_HH
-#include <RandBLAS/state.hh>
+#include <RandBLAS/base.hh>
 #endif
 
 #ifndef RandBLAS_DO_HH
@@ -45,7 +45,8 @@ struct DenseDist {
 template <typename T>
 struct DenseSkOp {
     const DenseDist dist;
-    const RNGState state;
+    const RNGState seed_state;
+    RNGState next_state;
     const bool own_memory = true;
     /////////////////////////////////////////////////////////////////////
     //
@@ -113,7 +114,7 @@ DenseSkOp<T>::DenseSkOp(
     blas::Layout layout_ 
 ) : // variable definitions
     dist(dist_),
-    state(state_),
+    seed_state(state_),
     buff(buff_),
     filled(filled_),
     persistent(persistent_),
@@ -150,11 +151,8 @@ RNGState fill_buff(
 );
 
 template <typename T>
-RNGState fill_buff(
-    T *buff,
-    DenseDist D,
-    uint32_t key,
-    uint32_t ctr_offset
+T* fill_skop_buff(
+    DenseSkOp<T> &S0
 );
 
 // Compute B = alpha * op(S) * op(A) + beta * B

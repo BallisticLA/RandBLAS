@@ -1,5 +1,5 @@
 set(RandBLAS_cxx_srcs
-    state.cc
+    base.cc
     sparse.cc
     util.cc
     dense.cc)

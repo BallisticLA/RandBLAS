@@ -10,6 +10,8 @@
 
 #include <Random123/array.h>
 
+
+
 struct RNGState {
     int len_c = 0;
     int len_k = 0;
@@ -64,8 +66,6 @@ namespace RandBLAS::__philox__ {
     }
 #endif
 
-// Random123 relies on them in both host and device sources.  We can work
-// around this by defining them when not compiling device code.
 #if !defined(__CUDACC__)
     // The following two functions are part of NVIDIA device side math library.
     static inline void sincospif(float x, float *s, float *c) {
@@ -77,7 +77,7 @@ namespace RandBLAS::__philox__ {
         const double PI = 3.1415926535897932;
         sincos(PI*x, s, c);
     }
-#endif // Not compiling with CUDA
+#endif
 
 #include <Random123/philox.h>
 }; // end namespace RandBLAS::__philox__

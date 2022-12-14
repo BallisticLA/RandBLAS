@@ -1,4 +1,4 @@
-#include "state.hh"
+#include <RandBLAS/base.hh>
 #include <cstring>
 
 
@@ -52,9 +52,6 @@ _R123State_<T_gen>::_R123State_(
     int key_len = (this->len_k <= s.len_k) ? this->len_k : s.len_k; 
     std::memcpy(this->key.v, s.key, 4 * key_len);
 }
-
-//template RNGState::RNGState(uint32_t c0, uint32_t k0);
-//template RNGState::RNGState(const RNGState &s);
 
 template RNGState::RNGState(const _R123State_<Philox4x32> &in_state);
 template RNGState::RNGState(const _R123State_<Threefry4x32> &in_state);

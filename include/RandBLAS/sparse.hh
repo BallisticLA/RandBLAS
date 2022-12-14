@@ -6,7 +6,7 @@
 #endif
 
 #ifndef RandBLAS_STATE_HH
-#include <RandBLAS/state.hh>
+#include <RandBLAS/base.hh>
 #endif
 
 #ifndef RandBLAS_SASOS_HH
@@ -30,7 +30,8 @@ struct SparseDist {
 template <typename T>
 struct SparseSkOp {
     const SparseDist dist;
-    const RNGState state;
+    const RNGState seed_state; // maybe "self_seed"
+    RNGState next_state; // maybe "next_seed"
     const bool own_memory = true;
     
     /////////////////////////////////////////////////////////////////////
@@ -97,7 +98,7 @@ SparseSkOp<T>::SparseSkOp(
     T *vals_
 ) :  // variable definitions
     dist(dist_),
-    state(state_),
+    seed_state(state_),
     own_memory(!rows_ && !cols_ && !vals_)
 {   // Initialization logic
     //
