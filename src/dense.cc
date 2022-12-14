@@ -9,41 +9,6 @@
 #include <math.h>
 #include <typeinfo>
 
-#if !defined(R123_NO_SINCOS) && defined(__APPLE__)
-/* MacOS X 10.10.5 (2015) doesn't have sincosf */
-// use "-D __APPLE__" as a compiler flag to make sure this is hit.
-#define R123_NO_SINCOS 1
-#endif
-
-#if R123_NO_SINCOS /* enable this if sincos and sincosf are not in the math library */
-static inline void sincosf(float x, float *s, float *c) {
-    *s = sinf(x);
-    *c = cosf(x);
-}
-
-static inline void sincos(double x, double *s, double *c) {
-    *s = sin(x);
-    *c = cos(x);
-}
-#endif /* sincos is not in the math library */
-
-
-// The following two functions are part of NVIDIA device side math library.
-// Random123 relies on them in both host and device sources.  We can work
-// around this by defining them when not compiling device code.
-#if !defined(__CUDACC__)
-
-static inline void sincospif(float x, float *s, float *c) {
-    const float PIf = 3.1415926535897932f;
-    sincosf(PIf*x, s, c);
-}
-
-static inline void sincospi(double x, double *s, double *c) {
-    const double PI = 3.1415926535897932;
-    sincos(PI*x, s, c);
-}
-#endif
-#include <Random123/philox.h>
 #include <Random123/boxmuller.hpp>
 #include <Random123/uniform.hpp>
 
@@ -51,7 +16,7 @@ static inline void sincospi(double x, double *s, double *c) {
 namespace RandBLAS::dense {
 
 // Actual work - uniform dirtibution
-template <typename T, typename T_gen>
+template <typename T, typename T_gen = Philox4x32>
 static RNGState gen_unif(
     int64_t n_rows,
     int64_t n_cols,
@@ -60,25 +25,28 @@ static RNGState gen_unif(
 ) {
     int64_t dim = n_rows * n_cols;
     int64_t i;
-    r123::ReinterpretCtr<RNGState::r123_ctr, T_gen> gen;
-    RNGState::r123_ctr rout;
+    _R123State_<T_gen> impl_state(state);
+    T_gen gen;
+    typedef typename T_gen::ctr_type ctr_type;
+    ctr_type rout;
     for (i = 0; i + 3 < dim; i += 4) {
         // mathematically, rin = (int128) ctr_offset + (int128) i.
-        rout = gen(state._c, state._k);
+        rout = gen(impl_state.ctr, impl_state.key);
         mat[i] = r123::uneg11<T>(rout.v[0]);
         mat[i + 1] = r123::uneg11<T>(rout.v[1]);
         mat[i + 2] = r123::uneg11<T>(rout.v[2]);
         mat[i + 3] = r123::uneg11<T>(rout.v[3]);
-        state._c.incr(4);
+        impl_state.ctr.incr(4);
     }
-    rout = gen(state._c, state._k);
+    rout = gen(impl_state.ctr, impl_state.key);
     int32_t j = 0;
     while (i < dim) {
         mat[i] =  r123::uneg11<T>(rout.v[j]);
         ++i;
         ++j;
     }
-    return state;
+    RNGState out_state(impl_state);
+    return out_state;
 }
 
 template <typename T>
@@ -88,7 +56,7 @@ static RNGState gen_rmat_unif(
     T* mat,
     RNGState state
 ) {
-    typedef r123::Philox4x32 CBRNG;
+    typedef Philox4x32 CBRNG;
     if (typeid(T) == typeid(float)) {
         RNGState s = gen_unif<float, CBRNG>(n_rows, n_cols, (float *) mat, state);
         return s;
@@ -101,30 +69,33 @@ static RNGState gen_rmat_unif(
 }
 
 // Actual work - normal distribution
-template <typename T, typename T_gen>
+template <typename T, typename T_gen = Philox4x32>
 static RNGState gen_norm(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
     RNGState state
 ) {
-    r123::ReinterpretCtr<RNGState::r123_ctr, T_gen> gen;
+    //r123::ReinterpretCtr<RNGState::r123_ctr, T_gen> gen;
+    T_gen gen;
+    _R123State_<T_gen> impl_state(state);
     int64_t dim = n_rows * n_cols;
     int64_t i;
-    RNGState::r123_ctr rout;
+    typedef typename T_gen::ctr_type ctr_type;
+    ctr_type rout;
     r123::float2 pair_1, pair_2;
     for (i = 0; i + 3 < dim; i += 4) {
         // mathematically: rin = (int128) ctr_offset + (int128) i
-        rout = gen(state._c, state._k);
+        rout = gen(impl_state.ctr, impl_state.key);
         pair_1 = r123::boxmuller(rout.v[0], rout.v[1]);
         pair_2 = r123::boxmuller(rout.v[2], rout.v[3]);
         mat[i] = pair_1.x;
         mat[i + 1] = pair_1.y;
         mat[i + 2] = pair_2.x;
         mat[i + 3] = pair_2.y;
-        state._c.incr(4);
+        impl_state.ctr.incr(4);
     }
-    rout = gen(state._c, state._k);
+    rout = gen(impl_state.ctr, impl_state.key);
     pair_1 = r123::boxmuller(rout.v[0], rout.v[1]);
     pair_2 = r123::boxmuller(rout.v[2], rout.v[3]);
     T *v = new T[4] {pair_1.x, pair_1.y, pair_2.x, pair_2.y};
@@ -135,7 +106,8 @@ static RNGState gen_norm(
         ++j;
     }
     delete[] v;
-    return state;
+    RNGState out_state(state);
+    return out_state;
 }
 
 template <typename T>
@@ -145,7 +117,7 @@ static RNGState gen_rmat_norm(
     T* mat,
     RNGState state
 ) {
-    typedef r123::Philox4x32 CBRNG;
+    typedef Philox4x32 CBRNG;
     // ^ the CBRNG generates 4 random numbers at a time, represents state with 4 32-bit words.
     if (typeid(T) == typeid(float)) {
         RNGState s = gen_norm<float, CBRNG>(n_rows, n_cols, (float*) mat, state);

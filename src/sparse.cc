@@ -14,20 +14,20 @@
 namespace RandBLAS::sparse {
 
 
-template <typename T>
-RNGState fill_saso(SparseSkOp<T>& sas) {
-    assert(sas.dist.family == SparseDistName::SASO);
-    //assert(sas.dist.dist4nz.family == RandBLAS::dense_op::DistName::Rademacher);
-    assert(sas.dist.n_rows <= sas.dist.n_cols);
-    RNGState init_state = sas.state;
+template <typename T, typename T_gen>
+RNGState fill_saso(SparseSkOp<T>& S0) {
+    assert(S0.dist.family == SparseDistName::SASO);
+    //assert(S0.dist.dist4nz.family == RandBLAS::dense_op::DistName::Rademacher);
+    assert(S0.dist.n_rows <= S0.dist.n_cols);
+    RNGState init_state = S0.state;
 
     // Load shorter names into the workspace
-    int64_t k = sas.dist.vec_nnz;
-    int64_t sa_len = sas.dist.n_rows; // short-axis length
-    int64_t la_len = sas.dist.n_cols; // long-axis length
-    T *vals = sas.vals; // point to array of length nnz 
-    int64_t *la_idxs = sas.cols; // indices of nonzeros for the long-axis
-    int64_t *sa_idxs = sas.rows; // indices of nonzeros for the short-axis
+    int64_t k = S0.dist.vec_nnz;
+    int64_t sa_len = S0.dist.n_rows; // short-axis length
+    int64_t la_len = S0.dist.n_cols; // long-axis length
+    T *vals = S0.vals; // point to array of length nnz 
+    int64_t *la_idxs = S0.cols; // indices of nonzeros for the long-axis
+    int64_t *sa_idxs = S0.rows; // indices of nonzeros for the short-axis
 
     // Define variables needed in the main loop
     int64_t i, j, ell, swap, offset;
@@ -36,19 +36,19 @@ RNGState fill_saso(SparseSkOp<T>& sas) {
     for (j = 0; j < sa_len; ++j) {
         sa_vec_work[j] = j;
     }
-    typedef r123::Philox4x32 CBRNG;
-    r123::ReinterpretCtr<RNGState::r123_ctr, CBRNG> g;
-    RNGState::r123_ctr rout;
-    RNGState work_state;
+    T_gen g;
+    typedef typename T_gen::ctr_type ctr_type;
+    ctr_type rout;
+    _R123State_<T_gen> *impl_state;
 
     // Use Fisher-Yates
     for (i = 0; i < la_len; ++i) {
         offset = i * k;
-        work_state = RNGState(init_state);
-        work_state._c.incr(offset);
+        impl_state = new _R123State_<T_gen>(init_state);
+        (*impl_state).ctr.incr(offset);
         for (j = 0; j < k; ++j) {
             // one step of Fisher-Yates shuffling
-            rout = g(work_state._c, work_state._k);
+            rout = g((*impl_state).ctr, (*impl_state).key);
             ell = j + rout.v[0] % (sa_len - j);            
             pivots[j] = ell;
             swap = sa_vec_work[ell];
@@ -61,7 +61,7 @@ RNGState fill_saso(SparseSkOp<T>& sas) {
             la_idxs[j + offset] = i;
 
             // increment counter
-            work_state._c.incr(1);
+            (*impl_state).ctr.incr(1);
         }
         // Restore sa_vec_work for next iteration of Fisher-Yates.
         //      This isn't necessary from a statistical perspective,
@@ -75,28 +75,29 @@ RNGState fill_saso(SparseSkOp<T>& sas) {
             sa_vec_work[ell] = swap;
         }
     }
-    return work_state;
+    RNGState out_state(*impl_state);
+    return out_state;
 }
 
 template <typename T>
-void print_saso(SparseSkOp<T>& sas) {
+void print_saso(SparseSkOp<T>& S0) {
     std::cout << "SASO information" << std::endl;
-    std::cout << "\tn_rows = " << sas.dist.n_rows << std::endl;
-    std::cout << "\tn_cols = " << sas.dist.n_cols << std::endl;
-    int64_t nnz = sas.dist.vec_nnz * MIN(sas.dist.n_rows, sas.dist.n_cols);
+    std::cout << "\tn_rows = " << S0.dist.n_rows << std::endl;
+    std::cout << "\tn_cols = " << S0.dist.n_cols << std::endl;
+    int64_t nnz = S0.dist.vec_nnz * MIN(S0.dist.n_rows, S0.dist.n_cols);
     std::cout << "\tvector of row indices\n\t\t";
     for (int64_t i = 0; i < nnz; ++i) {
-        std::cout << sas.rows[i] << ", ";
+        std::cout << S0.rows[i] << ", ";
     }
     std::cout << std::endl;
     std::cout << "\tvector of column indices\n\t\t";
     for (int64_t i = 0; i < nnz; ++i) {
-        std::cout << sas.cols[i] << ", ";
+        std::cout << S0.cols[i] << ", ";
     }
     std::cout << std::endl;
     std::cout << "\tvector of values\n\t\t";
     for (int64_t i = 0; i < nnz; ++i) {
-        std::cout << sas.vals[i] << ", ";
+        std::cout << S0.vals[i] << ", ";
     }
     std::cout << std::endl;
 }
@@ -300,17 +301,20 @@ void lskges(
     return;
 }
 
-template RNGState fill_saso<float>(SparseSkOp<float> &sas);
-template void print_saso<float>(SparseSkOp<float> &sas);
+template RNGState fill_saso<float, Philox4x32>(SparseSkOp<float> &S0);
+template RNGState fill_saso<double, Philox4x32>(SparseSkOp<double> &S0);
+
+template void print_saso<float>(SparseSkOp<float> &S0);
+template void print_saso<double>(SparseSkOp<double> &S0);
+
 template void sketch_cscrow<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float *B, int64_t ldb, int threads);
+template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double *B, int64_t ldb, int threads);
+
 template void sketch_csccol<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float *B, int64_t ldb, int threads);
+template void sketch_csccol<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double *B, int64_t ldb, int threads);
+
 template void lskges<float>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
     SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float beta, float *B, int64_t ldb, int threads);
-
-template RNGState fill_saso<double>(SparseSkOp<double> &sas);
-template void print_saso<double>(SparseSkOp<double> &sas);
-template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double *B, int64_t ldb, int threads);
-template void sketch_csccol<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double *B, int64_t ldb, int threads);
 template void lskges<double>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, double alpha,
     SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double beta, double *B, int64_t ldb, int threads);
 

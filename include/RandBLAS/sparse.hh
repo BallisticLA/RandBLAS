@@ -131,7 +131,7 @@ SparseSkOp<T>::~SparseSkOp() {
 };
 
 
-template <typename T>
+template <typename T, typename T_gen>
 RNGState fill_saso(
     SparseSkOp<T> &sas
 );
