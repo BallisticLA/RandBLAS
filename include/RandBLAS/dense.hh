@@ -74,6 +74,7 @@ struct DenseSkOp {
         blas::Layout layout_
     );
 
+    //  Convenience constructor (a wrapper)
     DenseSkOp(
         DenseDist dist,
         uint32_t ctr_offset,
@@ -178,4 +179,4 @@ void lskge3(
 
 } // end namespace RandBLAS::dense
 
-#endif  // define RandBLAS_UTIL_HH
+#endif  // define RandBLAS_DO_HH

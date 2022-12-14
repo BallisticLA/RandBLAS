@@ -13,73 +13,6 @@
 
 namespace RandBLAS::sparse {
 
-// Implementation of elementary constructor
-template <typename T>
-SparseSkOp<T>::SparseSkOp(
-    SparseDist dist_,
-    RNGState state_,
-    int64_t *rows_,
-    int64_t *cols_,
-    T *vals_
-) :  // variable definitions
-    dist(dist_),
-    state(state_),
-    own_memory(!rows_ && !cols_ && !vals_)
-{   // Initialization logic
-    //
-    //      own_memory is a bool that's true iff the
-    //      rows_, cols_, and vals_ pointers were all NULL.
-    //
-    if (this->own_memory) {
-        int64_t nnz = this->dist.vec_nnz * this->dist.n_cols;
-        this->rows = new int64_t[nnz];
-        this->cols = new int64_t[nnz];
-        this->vals = new T[nnz];
-    } else {
-        assert(rows_ && cols_ && vals_);
-        //  If any of rows_, cols_, and vals_ are not NULL,
-        //  then none of them are NULL.
-        this->rows = rows_;
-        this->cols = cols_;
-        this->vals = vals_;
-    }
-    // Implementation limitations
-    assert(this->dist.n_rows <= this->dist.n_cols);
-}
-
-template <typename T>
-SparseSkOp<T>::SparseSkOp(
-    SparseDist dist,
-    uint32_t key,
-    uint32_t ctr_offset,
-    int64_t *rows,
-    int64_t *cols,
-    T *vals 
-) : SparseSkOp<T>::SparseSkOp(dist, RNGState{ctr_offset, key}, rows, cols, vals) {};
-
-template <typename T>
-SparseSkOp<T>::SparseSkOp(
-    SparseDistName family,
-    int64_t n_rows,
-    int64_t n_cols,
-    int64_t vec_nnz,
-    uint32_t key,
-    uint32_t ctr_offset,
-    int64_t *rows,
-    int64_t *cols,
-    T *vals
-) : SparseSkOp<T>::SparseSkOp(SparseDist{family, n_rows, n_cols, vec_nnz},
-    key, ctr_offset, rows, cols, vals) {};
-
-template <typename T>
-SparseSkOp<T>::~SparseSkOp() {
-    if (this->own_memory) {
-        delete [] this->rows;
-        delete [] this->cols;
-        delete [] this->vals;
-    }
-};
-
 
 template <typename T>
 RNGState fill_saso(SparseSkOp<T>& sas) {
@@ -367,14 +300,6 @@ void lskges(
     return;
 }
 
-
-template SparseSkOp<float>::SparseSkOp(SparseDist dist, RNGState state, int64_t *rows, int64_t *cols, float *vals);
-template SparseSkOp<float>::SparseSkOp(
-    SparseDistName family, int64_t n_rows, int64_t n_cols, int64_t vec_nnz,
-    uint32_t key, uint32_t ctr_offset,
-    int64_t *rows, int64_t *cols, float *vals);
-template SparseSkOp<float>::SparseSkOp(SparseDist dist, uint32_t key, uint32_t ctr_offset, int64_t *rows, int64_t *cols, float *vals);
-template SparseSkOp<float>::~SparseSkOp();
 template RNGState fill_saso<float>(SparseSkOp<float> &sas);
 template void print_saso<float>(SparseSkOp<float> &sas);
 template void sketch_cscrow<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float *B, int64_t ldb, int threads);
@@ -382,14 +307,6 @@ template void sketch_csccol<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<f
 template void lskges<float>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
     SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float beta, float *B, int64_t ldb, int threads);
 
-
-template SparseSkOp<double>::SparseSkOp(SparseDist dist, RNGState state, int64_t *rows, int64_t *cols, double *vals);
-template SparseSkOp<double>::SparseSkOp(
-    SparseDistName family, int64_t n_rows, int64_t n_cols, int64_t vec_nnz,
-    uint32_t key, uint32_t ctr_offset,
-    int64_t *rows, int64_t *cols, double *vals);
-template SparseSkOp<double>::SparseSkOp(SparseDist dist, uint32_t key, uint32_t ctr_offset, int64_t *rows, int64_t *cols, double *vals);
-template SparseSkOp<double>::~SparseSkOp();
 template RNGState fill_saso<double>(SparseSkOp<double> &sas);
 template void print_saso<double>(SparseSkOp<double> &sas);
 template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double *B, int64_t ldb, int threads);

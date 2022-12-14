@@ -63,10 +63,11 @@ struct SparseSkOp {
         SparseDist dist,
         uint32_t key,
         uint32_t ctr_offset,
-        int64_t *rows = NULL,
-        int64_t *cols = NULL,
-        T *vals = NULL 
-    );
+        int64_t *rows,
+        int64_t *cols,
+        T *vals 
+    ) : SparseSkOp(dist, RNGState{ctr_offset, key}, rows, cols, vals) {};
+
     
     //  Convenience constructor (a wrapper)
     SparseSkOp(
@@ -79,11 +80,56 @@ struct SparseSkOp {
         int64_t *rows = NULL,
         int64_t *cols = NULL,
         T *vals = NULL 
-    );
+    ) : SparseSkOp(SparseDist{family, n_rows, n_cols, vec_nnz},
+        key, ctr_offset, rows, cols, vals) {};
 
     //  Destructor
     ~SparseSkOp();
 };
+
+// Implementation of elementary constructor
+template <typename T>
+SparseSkOp<T>::SparseSkOp(
+    SparseDist dist_,
+    RNGState state_,
+    int64_t *rows_,
+    int64_t *cols_,
+    T *vals_
+) :  // variable definitions
+    dist(dist_),
+    state(state_),
+    own_memory(!rows_ && !cols_ && !vals_)
+{   // Initialization logic
+    //
+    //      own_memory is a bool that's true iff the
+    //      rows_, cols_, and vals_ pointers were all NULL.
+    //
+    if (this->own_memory) {
+        int64_t nnz = this->dist.vec_nnz * this->dist.n_cols;
+        this->rows = new int64_t[nnz];
+        this->cols = new int64_t[nnz];
+        this->vals = new T[nnz];
+    } else {
+        assert(rows_ && cols_ && vals_);
+        //  If any of rows_, cols_, and vals_ are not NULL,
+        //  then none of them are NULL.
+        this->rows = rows_;
+        this->cols = cols_;
+        this->vals = vals_;
+    }
+    // Implementation limitations
+    assert(this->dist.n_rows <= this->dist.n_cols);
+};
+
+template <typename T>
+SparseSkOp<T>::~SparseSkOp() {
+    if (this->own_memory) {
+        delete [] this->rows;
+        delete [] this->cols;
+        delete [] this->vals;
+    }
+};
+
 
 template <typename T>
 RNGState fill_saso(
