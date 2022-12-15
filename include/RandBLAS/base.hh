@@ -25,7 +25,7 @@ struct RNGState {
     int len_k = 0;
     uint32_t *ctr = nullptr;
     uint32_t *key = nullptr;
-    RNGName rng_name = RNGName::None;
+    RNGName rng_name = RNGName::Philox; // TODO -- use None here
 
     RNGState() : len_c(0), len_k(0), ctr(nullptr), key(nullptr), rng_name(RNGName::None)  {};
 
