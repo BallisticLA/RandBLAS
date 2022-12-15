@@ -17,7 +17,7 @@ namespace RandBLAS::base {
 #define MIN(a, b) (((a) > (b)) ? (b) : (a))
 #define MAX(a, b) (((a) <= (b)) ? (b) : (a))
 
-enum class RNGName : char {Philox = 'P', Threefry = 'T'};
+enum class RNGName : char {None = '\0', Philox = 'P', Threefry = 'T'};
 
 struct RNGState {
 
@@ -25,9 +25,9 @@ struct RNGState {
     int len_k = 0;
     uint32_t *ctr = nullptr;
     uint32_t *key = nullptr;
-    RNGName rng_name = RNGName::Philox;
+    RNGName rng_name = RNGName::None;
 
-    RNGState() : len_c(0), len_k(0), ctr(nullptr), key(nullptr), rng_name(RNGName::Philox)  {};
+    RNGState() : len_c(0), len_k(0), ctr(nullptr), key(nullptr), rng_name(RNGName::None)  {};
 
     ~RNGState();
 
