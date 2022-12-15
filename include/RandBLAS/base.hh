@@ -12,7 +12,7 @@
 #include <typeinfo>
 #include <typeindex>
 
-namespace RandBLAS::base { 
+namespace RandBLAS::base {
 
 #define MIN(a, b) (((a) > (b)) ? (b) : (a))
 #define MAX(a, b) (((a) <= (b)) ? (b) : (a))
@@ -20,20 +20,27 @@ namespace RandBLAS::base {
 enum class RNGName : char {Philox = 'P', Threefry = 'T'};
 
 struct RNGState {
+
     int len_c = 0;
     int len_k = 0;
     uint32_t *ctr = nullptr;
     uint32_t *key = nullptr;
     RNGName rng_name = RNGName::Philox;
 
-    RNGState() {};
+    RNGState() : len_c(0), len_k(0), ctr(nullptr), key(nullptr), rng_name(RNGName::Philox)  {};
+
+    ~RNGState();
 
     RNGState(const RNGState &s);
+    RNGState(RNGState &&s);
 
     RNGState(uint32_t c0, uint32_t k0);
 
     template <typename T_state>
     RNGState(const T_state &in_state);
+
+    RNGState &operator=(const RNGState &s);
+    RNGState &operator=(RNGState &&s);
 };
 
 template <typename T_gen>
@@ -47,7 +54,7 @@ struct Random123_RNGState {
     const int len_k = key_type::static_size;
 
     Random123_RNGState(const RNGState &s);
-}; 
+};
 
 template <typename T_gen>
 bool generator_type_is_same(

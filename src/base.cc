@@ -15,6 +15,12 @@ RNGState::RNGState(
     this->key[0] = k0;
 }
 
+RNGState::~RNGState()
+{
+    delete [] this->ctr;
+    delete [] this->key;
+}
+
 RNGState::RNGState(
     const RNGState &s
 ) : len_c(s.len_c),
@@ -22,8 +28,48 @@ RNGState::RNGState(
 {
     this->ctr = new uint32_t[this->len_c];
     this->key = new uint32_t[this->len_k];
-    std::memcpy(this->ctr, s.ctr, this->len_c * 4);
-    std::memcpy(this->key, s.key, this->len_k * 4);
+    std::memcpy(this->ctr, s.ctr, this->len_c * sizeof(uint32_t));
+    std::memcpy(this->key, s.key, this->len_k * sizeof(uint32_t));
+}
+
+RNGState::RNGState(
+    RNGState &&s
+)
+{
+    std::swap(this->len_c, s.len_c);
+    std::swap(this->len_k, s.len_k);
+    std::swap(this->ctr, s.ctr);
+    std::swap(this->key, s.key);
+}
+
+RNGState &RNGState::operator=(
+    const RNGState &s
+)
+{
+    delete [] this->ctr;
+    delete [] this->key;
+
+    this->len_c = s.len_c;
+    this->len_k = s.len_k;
+
+    this->ctr = new uint32_t[this->len_c];
+    this->key = new uint32_t[this->len_k];
+
+    std::memcpy(this->ctr, s.ctr, this->len_c * sizeof(uint32_t));
+    std::memcpy(this->key, s.key, this->len_k * sizeof(uint32_t));
+
+    return *this;
+}
+
+RNGState &RNGState::operator=(
+    RNGState &&s
+)
+{
+    std::swap(this->len_c, s.len_c);
+    std::swap(this->len_k, s.len_k);
+    std::swap(this->ctr, s.ctr);
+    std::swap(this->key, s.key);
+    return *this;
 }
 
 // Convert from Random123_RNGState to RNGState
