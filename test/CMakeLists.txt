@@ -7,8 +7,19 @@ set(tmp FALSE)
 if (GTest_FOUND)
     set(tmp TRUE)
 
-    add_executable(RandBLAS_tests src/test_sasos.cc src/test_dense_op.cc)
-    target_link_libraries(RandBLAS_tests RandBLAS GTest::GTest GTest::Main)
+    add_executable(RandBLAS_tests
+        src/rbtutil.cc
+        src/test_sparse.cc
+        src/test_dense.cc
+    )
+    target_include_directories(RandBLAS_tests PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/test/include>
+    )
+    target_link_libraries(RandBLAS_tests
+        RandBLAS
+        GTest::GTest
+        GTest::Main
+    )
     gtest_discover_tests(RandBLAS_tests)
 
 endif()

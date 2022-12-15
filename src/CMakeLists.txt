@@ -1,7 +1,8 @@
 set(RandBLAS_cxx_srcs
-    sasos.cc
+    base.cc
+    sparse.cc
     util.cc
-    dense_op.cc)
+    dense.cc)
 
 set(RandBLAS_libs RandBLAS_blaspp RandBLAS_Random123)
 
