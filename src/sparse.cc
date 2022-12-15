@@ -294,6 +294,8 @@ void lskges(
 #ifndef NDEBUG
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_S, cols_S;
+    (void)rows_S; // TODO -- implement check on rows_s and cols_s
+    (void)cols_S;
     if (transA == blas::Op::NoTrans) {
         rows_A = m;
         cols_A = n;
