@@ -4,8 +4,6 @@
 #include <stdio.h>
 #include <omp.h>
 
-//#include <Random123/philox.h>
-#include <Random123/threefry.h>
 #include <Random123/uniform.hpp>
 
 #define MIN(a, b) (((a) > (b)) ? (b) : (a))
@@ -13,6 +11,7 @@
 
 namespace RandBLAS::sparse {
 
+using namespace RandBLAS::base;
 
 template <typename T, typename T_gen>
 RNGState fill_saso(SparseSkOp<T>& S0) {

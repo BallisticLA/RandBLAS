@@ -33,7 +33,7 @@ class TestDenseMoments : public ::testing::Test
             .n_rows = n_rows,
             .n_cols = n_cols
         };
-        RandBLAS::dense::fill_buff<T>(A.data(), D, RNGState{seed, 0});
+        RandBLAS::dense::fill_buff<T>(A.data(), D, RandBLAS::base::RNGState{seed, 0});
 
         // Compute the entrywise empirical mean and standard deviation.
         T mean = std::accumulate(A.data(), A.data() + size, 0.0) /size;
@@ -283,7 +283,7 @@ class TestLSKGE3 : public ::testing::Test
         uint32_t ctr_A0 = 42;
         uint32_t seed_A0 = 42000;
         RandBLAS::dense::DenseDist DA0 = {.n_rows = m0, .n_cols = n0};
-        RandBLAS::dense::fill_buff(A0.data(), DA0, RNGState{ctr_A0, seed_A0});
+        RandBLAS::dense::fill_buff(A0.data(), DA0, RandBLAS::base::RNGState{ctr_A0, seed_A0});
         std::vector<T> B(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
         int64_t ldb = (is_colmajor) ? d : n;

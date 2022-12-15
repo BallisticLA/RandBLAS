@@ -9,14 +9,22 @@
 #define RandBLAS_STATE_HH
 
 #include <Random123/array.h>
+#include <typeinfo>
+#include <typeindex>
 
+namespace RandBLAS::base { 
 
+#define MIN(a, b) (((a) > (b)) ? (b) : (a))
+#define MAX(a, b) (((a) <= (b)) ? (b) : (a))
+
+enum class RNGName : char {Philox = 'P', Threefry = 'T'};
 
 struct RNGState {
     int len_c = 0;
     int len_k = 0;
     uint32_t *ctr = nullptr;
     uint32_t *key = nullptr;
+    RNGName rng_name = RNGName::Philox;
 
     RNGState() {};
 
@@ -30,6 +38,7 @@ struct RNGState {
 
 template <typename T_gen>
 struct _R123State_ {
+    typedef T_gen gen_type;
     typedef typename T_gen::key_type key_type;
     typedef typename T_gen::ctr_type ctr_type;
     ctr_type ctr{};
@@ -38,14 +47,14 @@ struct _R123State_ {
     const int len_k = key_type::static_size;
 
     _R123State_(const RNGState &s);
-};
+}; 
 
 // Get access to Philox4x32:
 //      Need to patch some missing function definitions.
 //      This would pollute RandBLAS namespace, so
 //      first we define a private namespace and then
 //      refer to the desired types later on.
-namespace RandBLAS::__philox__ {
+namespace __philox__ {
 
 #if !defined(R123_NO_SINCOS) && defined(__APPLE__)
     /* MacOS X 10.10.5 (2015) doesn't have sincosf */
@@ -85,12 +94,14 @@ namespace RandBLAS::__philox__ {
 
 // Get access to ThreeFry4x32
 //      This is much simpler than Philox4x32.
-namespace RandBLAS::__threefry__ {
+namespace __threefry__ {
 #include <Random123/threefry.h>
 };
 
 
-typedef RandBLAS::__philox__::r123::Philox4x32 Philox4x32;
-typedef RandBLAS::__threefry__::r123::Threefry4x32 Threefry4x32;
+typedef __philox__::r123::Philox4x32 Philox4x32;
+typedef __threefry__::r123::Threefry4x32 Threefry4x32;
 
 #endif
+
+}; // end namespace RandBLAS::

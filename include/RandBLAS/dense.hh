@@ -26,7 +26,30 @@ TODO: have a discussion around using smart pointers for memory safety.
     Burlen thinks we should seriously consider using smart pointers.
 */
 
+/*
+Currently have non-deterministic behavior (tests pass sometimes, fail sometimes).
+I suspect there's some memory management mistake leading to undefined behavior.
+
+      Start 18: TestDenseMoments.Gaussian
+    18/34 Test #18: TestDenseMoments.Gaussian ....................***Failed    0.11 sec
+    Running main() from /tmp/googletest-20220910-45435-1kz3pjx/googletest-release-1.12.1/googletest/src/gtest_main.cc
+    Note: Google Test filter = TestDenseMoments.Gaussian
+    [==========] Running 1 test from 1 test suite.
+    [----------] Global test environment set-up.
+    [----------] 1 test from TestDenseMoments
+    [ RUN      ] TestDenseMoments.Gaussian
+    /Users/riley/BALLISTIC_RNLA/randla/RandBLAS/test/src/test_dense.cc:48: Failure
+    The difference between mean and 0.0 is 0.01195285380042985, which exceeds 1e-2, where
+    mean evaluates to -0.01195285380042985,
+    0.0 evaluates to 0, and
+    1e-2 evaluates to 0.01.
+    [  FAILED  ] TestDenseMoments.Gaussian (112 ms)
+    [----------] 1 test from TestDenseMoments (112 ms total)
+*/
+
 namespace RandBLAS::dense {
+
+using namespace RandBLAS::base;
 
 enum class DenseDistName : char {
     Gaussian = 'G',         

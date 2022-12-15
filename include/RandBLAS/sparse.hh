@@ -30,8 +30,8 @@ struct SparseDist {
 template <typename T>
 struct SparseSkOp {
     const SparseDist dist;
-    const RNGState seed_state; // maybe "self_seed"
-    RNGState next_state; // maybe "next_seed"
+    const base::RNGState seed_state; // maybe "self_seed"
+    base::RNGState next_state; // maybe "next_seed"
     const bool own_memory = true;
     
     /////////////////////////////////////////////////////////////////////
@@ -53,7 +53,7 @@ struct SparseSkOp {
     //  Elementary constructor: needs an implementation
     SparseSkOp(
         SparseDist dist_,
-        RNGState state_,
+        base::RNGState state_,
         int64_t *rows_ = NULL,
         int64_t *cols_ = NULL,
         T *vals_ = NULL 
@@ -67,8 +67,7 @@ struct SparseSkOp {
         int64_t *rows,
         int64_t *cols,
         T *vals 
-    ) : SparseSkOp(dist, RNGState{ctr_offset, key}, rows, cols, vals) {};
-
+    ) : SparseSkOp(dist, base::RNGState{ctr_offset, key}, rows, cols, vals) {};
     
     //  Convenience constructor (a wrapper)
     SparseSkOp(
@@ -92,7 +91,7 @@ struct SparseSkOp {
 template <typename T>
 SparseSkOp<T>::SparseSkOp(
     SparseDist dist_,
-    RNGState state_,
+    base::RNGState state_,
     int64_t *rows_,
     int64_t *cols_,
     T *vals_
@@ -133,7 +132,7 @@ SparseSkOp<T>::~SparseSkOp() {
 
 
 template <typename T, typename T_gen>
-RNGState fill_saso(
+base::RNGState fill_saso(
     SparseSkOp<T> &sas
 );
 
