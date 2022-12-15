@@ -156,7 +156,6 @@ DenseSkOp<T>::DenseSkOp(
         // If the user gives us any memory to work with, then we cannot take
         // responsibility for deallocating on exit from LSKGE3 / RSKGE3.
     }
-
 }
 
 template <typename T>

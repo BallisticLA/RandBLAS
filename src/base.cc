@@ -26,7 +26,7 @@ RNGState::RNGState(
     std::memcpy(this->key, s.key, this->len_k * 4);
 }
 
-// Convert from _R123State_ to RNGState
+// Convert from Random123_RNGState to RNGState
 template <typename T_state>
 RNGState::RNGState(
     const T_state &in_state
@@ -51,44 +51,29 @@ RNGState::RNGState(
     std::memcpy(this->key, in_state.key.v, this->len_k * 4);
 }
 
-// convert from RNGState to _R123State_
+// convert from RNGState to Random123_RNGState
 template <typename T_gen>
-_R123State_<T_gen>::_R123State_(
+Random123_RNGState<T_gen>::Random123_RNGState(
     const RNGState &s
 ) : ctr{},
     key{},
     len_c(T_gen::ctr_type::static_size),
     len_k(T_gen::key_type::static_size) 
 {
-    T_gen gt;
-    auto gtid = ::std::type_index(typeid(gt));
-    switch (s.rng_name) {
-        case RNGName::Philox: {
-            Philox4x32 ph;
-            auto phid = ::std::type_index(typeid(ph));
-            assert(gtid == phid);
-            break;
-        }
-        case RNGName::Threefry: {
-            Philox4x32 tf;
-            auto tfid = ::std::type_index(typeid(tf));
-            assert(gtid == tfid);
-            break;
-        }
-        default: {
-            throw std::runtime_error(std::string("Unrecognized generator type."));
-        }
-    }
+    generator_type_is_same<T_gen>(s);
     int ctr_len = MIN(this->len_c, s.len_c);
     std::memcpy(this->ctr.v, s.ctr, 4 * ctr_len);
     int key_len = MIN(this->len_k, s.len_k);
     std::memcpy(this->key.v, s.key, 4 * key_len);
 }
 
-template RNGState::RNGState(const _R123State_<Philox4x32> &in_state);
-template RNGState::RNGState(const _R123State_<Threefry4x32> &in_state);
+template bool generator_type_is_same<Philox4x32>(const RNGState &s);
+template bool generator_type_is_same<Threefry4x32>(const RNGState &s);
 
-template _R123State_<Philox4x32>::_R123State_(const RNGState &s);
-template _R123State_<Threefry4x32>::_R123State_(const RNGState &s);
+template RNGState::RNGState(const Random123_RNGState<Philox4x32> &in_state);
+template RNGState::RNGState(const Random123_RNGState<Threefry4x32> &in_state);
+
+template Random123_RNGState<Philox4x32>::Random123_RNGState(const RNGState &s);
+template Random123_RNGState<Threefry4x32>::Random123_RNGState(const RNGState &s);
 
 }

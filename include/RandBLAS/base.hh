@@ -37,7 +37,7 @@ struct RNGState {
 };
 
 template <typename T_gen>
-struct _R123State_ {
+struct Random123_RNGState {
     typedef T_gen gen_type;
     typedef typename T_gen::key_type key_type;
     typedef typename T_gen::ctr_type ctr_type;
@@ -46,7 +46,7 @@ struct _R123State_ {
     const int len_c = ctr_type::static_size;
     const int len_k = key_type::static_size;
 
-    _R123State_(const RNGState &s);
+    Random123_RNGState(const RNGState &s);
 }; 
 
 // Get access to Philox4x32:
@@ -104,4 +104,4 @@ typedef __threefry__::r123::Threefry4x32 Threefry4x32;
 
 #endif
 
-}; // end namespace RandBLAS::
+}; // end namespace RandBLAS::base

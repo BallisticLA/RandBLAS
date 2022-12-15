@@ -15,8 +15,7 @@
 
 namespace RandBLAS::dense {
 
-// Actual work - uniform dirtibution
-template <typename T, typename T_gen = Philox4x32>
+template <typename T, typename T_gen>
 static RNGState gen_unif(
     int64_t n_rows,
     int64_t n_cols,
@@ -25,7 +24,7 @@ static RNGState gen_unif(
 ) {
     int64_t dim = n_rows * n_cols;
     int64_t i;
-    _R123State_<T_gen> impl_state(state);
+    Random123_RNGState<T_gen> impl_state(state);
     T_gen gen;
     typedef typename T_gen::ctr_type ctr_type;
     ctr_type rout;
@@ -48,27 +47,29 @@ static RNGState gen_unif(
     return out_state;
 }
 
+template RNGState gen_unif<float, Philox4x32>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
+template RNGState gen_unif<double, Philox4x32>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
+template RNGState gen_unif<float, Threefry4x32>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
+template RNGState gen_unif<double, Threefry4x32>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
+
 template <typename T>
-static RNGState gen_rmat_unif(
+RNGState gen_rmat_unif(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
     RNGState state
 ) {
-    typedef Philox4x32 CBRNG;
-    if (typeid(T) == typeid(float)) {
-        RNGState s = gen_unif<float, CBRNG>(n_rows, n_cols, (float *) mat, state);
-        return s;
-    } else if (typeid(T) == typeid(double)) {
-        RNGState s = gen_unif<double, CBRNG>(n_rows, n_cols, (double *) mat, state);
-        return s;
-    } else {
-        throw std::runtime_error("\nType error. Only float and double are currently supported.\n");
+    switch (state.rng_name) {
+        case RNGName::Philox:
+            return gen_unif<T, Philox4x32>(n_rows, n_cols, mat, state);
+        case RNGName::Threefry:
+            return gen_unif<T, Threefry4x32>(n_rows, n_cols, mat, state);
+        default:
+            throw std::runtime_error(std::string("Unrecognized generator."));
     }
 }
 
-// Actual work - normal distribution
-template <typename T, typename T_gen = Philox4x32>
+template <typename T, typename T_gen>
 static RNGState gen_norm(
     int64_t n_rows,
     int64_t n_cols,
@@ -76,7 +77,7 @@ static RNGState gen_norm(
     RNGState state
 ) {
     T_gen gen;
-    _R123State_<T_gen> impl_state(state);
+    Random123_RNGState<T_gen> impl_state(state);
     int64_t dim = n_rows * n_cols;
     int64_t i;
     typedef typename T_gen::ctr_type ctr_type;
@@ -107,6 +108,11 @@ static RNGState gen_norm(
     return out_state;
 }
 
+template  RNGState gen_norm<float, Philox4x32>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
+template  RNGState gen_norm<double, Philox4x32>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
+template  RNGState gen_norm<float, Threefry4x32>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
+template  RNGState gen_norm<double, Threefry4x32>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
+
 template <typename T>
 static RNGState gen_rmat_norm(
     int64_t n_rows,
@@ -114,16 +120,13 @@ static RNGState gen_rmat_norm(
     T* mat,
     RNGState state
 ) {
-    typedef Philox4x32 CBRNG;
-    // ^ the CBRNG generates 4 random numbers at a time, represents state with 4 32-bit words.
-    if (typeid(T) == typeid(float)) {
-        RNGState s = gen_norm<float, CBRNG>(n_rows, n_cols, (float*) mat, state);
-        return s;
-    } else if (typeid(T) == typeid(double)) {
-        RNGState s = gen_norm<double, CBRNG>(n_rows, n_cols, (double *) mat, state);
-        return s;
-    } else {
-        throw std::runtime_error("\nType error. Only float and double are currently supported.\n");
+    switch (state.rng_name) {
+        case RNGName::Philox:
+            return gen_norm<T, Philox4x32>(n_rows, n_cols, mat, state);
+        case RNGName::Threefry:
+            return gen_norm<T, Threefry4x32>(n_rows, n_cols, mat, state);
+        default:
+            throw std::runtime_error(std::string("Unrecognized generator."));
     }
 }
 
@@ -169,13 +172,10 @@ T* fill_skop_buff(
         S0.filled = true;
         return S0_ptr;
     } else {
-        throw std::runtime_error(std::string("Bad state of struct S0."));
+        return S0_ptr;
     }
 }
 
-// Question: how to handle lazy instantiation of sketching operators?
-// Seems like I'd need to template the generator. I'm not necessarily opposed
-// to that so long as the generator isn't a template parameter for DenseSkOp.
 template <typename T>
 void lskge3(
     blas::Layout layout,
@@ -251,19 +251,16 @@ template void lskge3(blas::Layout layout, blas::Op transS, blas::Op transA, int6
 template void lskge3(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
     DenseSkOp<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float beta, float *B, int64_t ldb);
 
-template float* fill_skop_buff<float>(DenseSkOp<float> &S0);
-template double* fill_skop_buff<double>(DenseSkOp<double> &S0);
+template float* fill_skop_buff(DenseSkOp<float> &S0);
+template double* fill_skop_buff(DenseSkOp<double> &S0);
 
-template RNGState fill_buff<float>(float *buff, DenseDist D, RNGState state);
-template RNGState fill_buff<double>(double *buff, DenseDist D, RNGState state);
+template RNGState fill_buff(float *buff, DenseDist D, RNGState state);
+template RNGState fill_buff(double *buff, DenseDist D, RNGState state);
 
-// template inline RNGState fill_buff<float>(DenseSkOp<float> &S0);
-// template inline RNGState fill_buff<double>(DenseSkOp<double> &S0);
+template RNGState gen_rmat_unif(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
+template RNGState gen_rmat_unif(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
 
-template RNGState gen_rmat_unif<float>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
-template RNGState gen_rmat_unif<double>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
-
-template RNGState gen_rmat_norm<float>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
-template RNGState gen_rmat_norm<double>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
+template RNGState gen_rmat_norm(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
+template RNGState gen_rmat_norm(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
 
 } // end namespace RandBLAS::dense_op

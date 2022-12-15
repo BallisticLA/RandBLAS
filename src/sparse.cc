@@ -38,12 +38,12 @@ RNGState fill_saso(SparseSkOp<T>& S0) {
     T_gen g;
     typedef typename T_gen::ctr_type ctr_type;
     ctr_type rout;
-    _R123State_<T_gen> *impl_state;
+    Random123_RNGState<T_gen> *impl_state;
 
     // Use Fisher-Yates
     for (i = 0; i < la_len; ++i) {
         offset = i * k;
-        impl_state = new _R123State_<T_gen>(init_state);
+        impl_state = new Random123_RNGState<T_gen>(init_state);
         (*impl_state).ctr.incr(offset);
         for (j = 0; j < k; ++j) {
             // one step of Fisher-Yates shuffling
