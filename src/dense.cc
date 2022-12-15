@@ -47,10 +47,10 @@ static RNGState gen_unif(
     return out_state;
 }
 
-template RNGState gen_unif<float, Philox4x32>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
-template RNGState gen_unif<double, Philox4x32>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
-template RNGState gen_unif<float, Threefry4x32>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
-template RNGState gen_unif<double, Threefry4x32>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
+template RNGState gen_unif<float, Philox>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
+template RNGState gen_unif<double, Philox>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
+template RNGState gen_unif<float, Threefry>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
+template RNGState gen_unif<double, Threefry>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
 
 template <typename T>
 RNGState gen_rmat_unif(
@@ -61,9 +61,9 @@ RNGState gen_rmat_unif(
 ) {
     switch (state.rng_name) {
         case RNGName::Philox:
-            return gen_unif<T, Philox4x32>(n_rows, n_cols, mat, state);
+            return gen_unif<T, Philox>(n_rows, n_cols, mat, state);
         case RNGName::Threefry:
-            return gen_unif<T, Threefry4x32>(n_rows, n_cols, mat, state);
+            return gen_unif<T, Threefry>(n_rows, n_cols, mat, state);
         default:
             throw std::runtime_error(std::string("Unrecognized generator."));
     }
@@ -108,10 +108,10 @@ static RNGState gen_norm(
     return out_state;
 }
 
-template  RNGState gen_norm<float, Philox4x32>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
-template  RNGState gen_norm<double, Philox4x32>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
-template  RNGState gen_norm<float, Threefry4x32>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
-template  RNGState gen_norm<double, Threefry4x32>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
+template  RNGState gen_norm<float, Philox>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
+template  RNGState gen_norm<double, Philox>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
+template  RNGState gen_norm<float, Threefry>(int64_t n_rows, int64_t n_cols, float* mat, RNGState state);
+template  RNGState gen_norm<double, Threefry>(int64_t n_rows, int64_t n_cols, double* mat, RNGState state);
 
 template <typename T>
 static RNGState gen_rmat_norm(
@@ -122,9 +122,9 @@ static RNGState gen_rmat_norm(
 ) {
     switch (state.rng_name) {
         case RNGName::Philox:
-            return gen_norm<T, Philox4x32>(n_rows, n_cols, mat, state);
+            return gen_norm<T, Philox>(n_rows, n_cols, mat, state);
         case RNGName::Threefry:
-            return gen_norm<T, Threefry4x32>(n_rows, n_cols, mat, state);
+            return gen_norm<T, Threefry>(n_rows, n_cols, mat, state);
         default:
             throw std::runtime_error(std::string("Unrecognized generator."));
     }

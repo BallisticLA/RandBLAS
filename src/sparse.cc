@@ -301,8 +301,8 @@ void lskges(
     return;
 }
 
-template RNGState fill_saso<float, Philox4x32>(SparseSkOp<float> &S0);
-template RNGState fill_saso<double, Philox4x32>(SparseSkOp<double> &S0);
+template RNGState fill_saso<float, Philox>(SparseSkOp<float> &S0);
+template RNGState fill_saso<double, Philox>(SparseSkOp<double> &S0);
 
 template void print_saso<float>(SparseSkOp<float> &S0);
 template void print_saso<double>(SparseSkOp<double> &S0);

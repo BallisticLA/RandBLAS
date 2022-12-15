@@ -104,8 +104,8 @@ namespace __threefry__ {
 };
 
 
-typedef __philox__::r123::Philox4x32 Philox4x32;
-typedef __threefry__::r123::Threefry4x32 Threefry4x32;
+typedef __philox__::r123::Philox4x32 Philox;
+typedef __threefry__::r123::Threefry4x32 Threefry;
 
 #endif
 

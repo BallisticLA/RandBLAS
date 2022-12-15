@@ -34,8 +34,8 @@ RNGState::RNGState(
     len_k(in_state.len_k)
 {
     typedef typename T_state::gen_type gen_type;
-    Philox4x32 ph;
-    Threefry4x32 tf;
+    Philox ph;
+    Threefry tf;
     gen_type gt;
     auto gtid = ::std::type_index(typeid(gt));
     if (gtid == ::std::type_index(typeid(ph))) {
@@ -59,12 +59,12 @@ bool generator_type_is_same(
     auto gtid = ::std::type_index(typeid(gt));
     switch (s.rng_name) {
         case RNGName::Philox: {
-              Philox4x32 ph;
+              Philox ph;
               auto phid = ::std::type_index(typeid(ph));
               return (phid == gtid);  
         }
         case RNGName::Threefry: {
-            Threefry4x32 tf;
+            Threefry tf;
             auto tfid = ::std::type_index(typeid(tf));
             return (tfid == gtid);
         }
@@ -92,13 +92,13 @@ Random123_RNGState<T_gen>::Random123_RNGState(
     std::memcpy(this->key.v, s.key, 4 * key_len);
 }
 
-template bool generator_type_is_same<Philox4x32>(const RNGState &s);
-template bool generator_type_is_same<Threefry4x32>(const RNGState &s);
+template bool generator_type_is_same<Philox>(const RNGState &s);
+template bool generator_type_is_same<Threefry>(const RNGState &s);
 
-template RNGState::RNGState(const Random123_RNGState<Philox4x32> &in_state);
-template RNGState::RNGState(const Random123_RNGState<Threefry4x32> &in_state);
+template RNGState::RNGState(const Random123_RNGState<Philox> &in_state);
+template RNGState::RNGState(const Random123_RNGState<Threefry> &in_state);
 
-template Random123_RNGState<Philox4x32>::Random123_RNGState(const RNGState &s);
-template Random123_RNGState<Threefry4x32>::Random123_RNGState(const RNGState &s);
+template Random123_RNGState<Philox>::Random123_RNGState(const RNGState &s);
+template Random123_RNGState<Threefry>::Random123_RNGState(const RNGState &s);
 
 }

@@ -18,7 +18,7 @@ RandBLAS::sparse::SparseSkOp<T> make_wide_saso(
         RandBLAS::sparse::SparseDistName::SASO,
         n_rows, n_cols, vec_nnz, key, ctr_offset
     );
-    RandBLAS::sparse::fill_saso<T, RandBLAS::base::Philox4x32>(sas);
+    RandBLAS::sparse::fill_saso<T, RandBLAS::base::Philox>(sas);
     return sas;
 }
 
