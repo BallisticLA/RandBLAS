@@ -49,6 +49,11 @@ struct Random123_RNGState {
     Random123_RNGState(const RNGState &s);
 }; 
 
+template <typename T_gen>
+bool generator_type_is_same(
+    const RNGState &s
+);
+
 // Get access to Philox4x32:
 //      Need to patch some missing function definitions.
 //      This would pollute RandBLAS namespace, so

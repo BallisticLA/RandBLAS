@@ -51,6 +51,28 @@ RNGState::RNGState(
     std::memcpy(this->key, in_state.key.v, this->len_k * 4);
 }
 
+template <typename T_gen>
+bool generator_type_is_same(
+    const RNGState &s
+) {
+    T_gen gt;
+    auto gtid = ::std::type_index(typeid(gt));
+    switch (s.rng_name) {
+        case RNGName::Philox: {
+              Philox4x32 ph;
+              auto phid = ::std::type_index(typeid(ph));
+              return (phid == gtid);  
+        }
+        case RNGName::Threefry: {
+            Threefry4x32 tf;
+            auto tfid = ::std::type_index(typeid(tf));
+            return (tfid == gtid);
+        }
+        default:
+            throw std::runtime_error(std::string("Unrecognized rng_name."));
+    }
+}
+
 // convert from RNGState to Random123_RNGState
 template <typename T_gen>
 Random123_RNGState<T_gen>::Random123_RNGState(
@@ -60,7 +82,10 @@ Random123_RNGState<T_gen>::Random123_RNGState(
     len_c(T_gen::ctr_type::static_size),
     len_k(T_gen::key_type::static_size) 
 {
-    generator_type_is_same<T_gen>(s);
+    bool res = generator_type_is_same<T_gen>(s);
+    if (!res) {
+        throw std::runtime_error(std::string("T_gen must match s.rng_name."));
+    }
     int ctr_len = MIN(this->len_c, s.len_c);
     std::memcpy(this->ctr.v, s.ctr, 4 * ctr_len);
     int key_len = MIN(this->len_k, s.len_k);
