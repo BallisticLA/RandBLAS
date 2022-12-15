@@ -134,12 +134,12 @@ static void sketch_cscrow(
     SparseSkOp<T>& S0,
     int64_t i_os,
     int64_t j_os,
-    T *A, // todo: make this const.
+    const T *A,
     int64_t lda,
     T *B,
     int64_t ldb,
     int threads
-){
+) {
     RandBLAS::sparse::SparseDist D = S0.dist;
     int64_t S_row_start = i_os;
     int64_t S_col_start = j_os;
@@ -160,7 +160,8 @@ static void sketch_cscrow(
         // Setup variables for the current thread
         int my_id = omp_get_thread_num();
         int64_t outer, c, offset, r, inner, S_row;
-        T *A_row, *B_row;
+        const T *A_row = nullptr;
+        T *B_row = nullptr;
         T scale;
         // Do the work for the current thread
         #pragma omp for schedule(static)
@@ -189,7 +190,7 @@ static void sketch_cscrow(
 
 template <typename T>
 static void allrows_saso_csc_matvec(
-    T *v,
+    const T *v,
     T *Sv, // Sv += S0[:, col_start:col_end] * v.
     SparseSkOp<T> &S0,
     int64_t col_start,
@@ -207,7 +208,7 @@ static void allrows_saso_csc_matvec(
 
 template <typename T>
 static void somerows_saso_csc_matvec(
-    T *v,
+    const T *v,
     T *Sv, // Sv += S0[row_start:row_end, col_start:col_end] * v.
     SparseSkOp<T> &S0,
     int64_t col_start,
@@ -234,7 +235,7 @@ static void sketch_csccol(
     SparseSkOp<T>& S0,
     int64_t i_os,
     int64_t j_os,
-    T *A, // todo: make this const
+    const T *A,
     int64_t lda,
     T *B,
     int64_t ldb,
@@ -251,7 +252,9 @@ static void sketch_csccol(
     #pragma omp parallel default(shared)
     {
         // Setup variables for the current thread
-        T *A_col, *B_col;
+        const T *A_col = nullptr;
+        T *B_col = nullptr;
+
         // Do the work for the current thread.
         #pragma omp for schedule(static)
         for (int64_t k = 0; k < n; k++) {
@@ -278,7 +281,7 @@ void lskges(
     SparseSkOp<T> &S0,
     int64_t i_os,
     int64_t j_os,
-    T *A, // TODO: make const
+    const T *A,
     int64_t lda,
     T beta,
     T *B,
@@ -333,16 +336,16 @@ template RNGState fill_saso<double>(SparseSkOp<double> &S0);
 template void print_saso<float>(SparseSkOp<float> &S0);
 template void print_saso<double>(SparseSkOp<double> &S0);
 
-template void sketch_cscrow<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float *B, int64_t ldb, int threads);
-template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double *B, int64_t ldb, int threads);
+template void sketch_cscrow<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float *B, int64_t ldb, int threads);
+template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, const double *A, int64_t lda, double *B, int64_t ldb, int threads);
 
-template void sketch_csccol<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float *B, int64_t ldb, int threads);
-template void sketch_csccol<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double *B, int64_t ldb, int threads);
+template void sketch_csccol<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float *B, int64_t ldb, int threads);
+template void sketch_csccol<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, const double *A, int64_t lda, double *B, int64_t ldb, int threads);
 
 template void lskges<float>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
-    SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, float *A, int64_t lda, float beta, float *B, int64_t ldb, int threads);
+    SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float beta, float *B, int64_t ldb, int threads);
 template void lskges<double>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, double alpha,
-    SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, double *A, int64_t lda, double beta, double *B, int64_t ldb, int threads);
+    SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, const double *A, int64_t lda, double beta, double *B, int64_t ldb, int threads);
 
 
 } // end namespace RandBLAS::sparse_ops
