@@ -138,11 +138,12 @@ DenseSkOp<T>::DenseSkOp(
 ) : // variable definitions
     dist(dist_),
     seed_state(state_),
+    next_state(),
+    own_memory(!buff_),
     buff(buff_),
     filled(filled_),
     persistent(persistent_),
-    layout(layout_),
-    own_memory(!buff_)
+    layout(layout_)
 {   // Initialization logic
     //
     //      own_memory is a bool that's true iff buff_ is NULL.

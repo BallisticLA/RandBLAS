@@ -26,7 +26,7 @@ static RNGState template_fill_saso(
     int64_t k = S0.dist.vec_nnz;
     int64_t sa_len = S0.dist.n_rows; // short-axis length
     int64_t la_len = S0.dist.n_cols; // long-axis length
-    T *vals = S0.vals; // point to array of length nnz 
+    T *vals = S0.vals; // point to array of length nnz
     int64_t *la_idxs = S0.cols; // indices of nonzeros for the long-axis
     int64_t *sa_idxs = S0.rows; // indices of nonzeros for the short-axis
 
@@ -40,33 +40,35 @@ static RNGState template_fill_saso(
     T_gen g;
     typedef typename T_gen::ctr_type ctr_type;
     ctr_type rout;
-    Random123_RNGState<T_gen> *impl_state;
+
+    RNGState out_state(init_state);
 
     // Use Fisher-Yates
     for (i = 0; i < la_len; ++i) {
         offset = i * k;
-        impl_state = new Random123_RNGState<T_gen>(init_state);
-        (*impl_state).ctr.incr(offset);
+
+        Random123_RNGState<T_gen> impl_state(init_state);
+        impl_state.ctr.incr(offset);
         for (j = 0; j < k; ++j) {
             // one step of Fisher-Yates shuffling
-            rout = g((*impl_state).ctr, (*impl_state).key);
-            ell = j + rout.v[0] % (sa_len - j);            
+            rout = g(impl_state.ctr, impl_state.key);
+            ell = j + rout.v[0] % (sa_len - j);
             pivots[j] = ell;
             swap = sa_vec_work[ell];
             sa_vec_work[ell] = sa_vec_work[j];
             sa_vec_work[j] = swap;
-                   
+
             // update (rows, cols, vals)
             sa_idxs[j + offset] = swap;
-            vals[j + offset] = (rout.v[1] % 2 == 0) ? 1.0 : -1.0;      
+            vals[j + offset] = (rout.v[1] % 2 == 0) ? 1.0 : -1.0;
             la_idxs[j + offset] = i;
 
             // increment counter
-            (*impl_state).ctr.incr(1);
+            impl_state.ctr.incr(1);
         }
         // Restore sa_vec_work for next iteration of Fisher-Yates.
         //      This isn't necessary from a statistical perspective,
-        //      but it makes it easier to generate submatrices of 
+        //      but it makes it easier to generate submatrices of
         //      a given SparseSkOp.
         for (j = 1; j <= k; ++j) {
             int jj = k - j;
@@ -75,8 +77,9 @@ static RNGState template_fill_saso(
             sa_vec_work[jj] = sa_vec_work[ell];
             sa_vec_work[ell] = swap;
         }
+
+        out_state = impl_state;
     }
-    RNGState out_state(*impl_state);
     S0.next_state = out_state;
     return out_state;
 }
@@ -177,10 +180,10 @@ static void sketch_cscrow(
                         scale = S0.vals[inner];
                         B_row = &B[(S_row - S_row_start) * ldb];
                         blas::axpy<T>(n, scale, A_row, 1, B_row, 1);
-                    }	
+                    }
                 } // end processing of column c
             }
-        } 
+        }
     }
 }
 
@@ -238,7 +241,6 @@ static void sketch_csccol(
     int threads
 ){
     RandBLAS::sparse::SparseDist D = S0.dist;
-    int64_t vec_nnz = D.vec_nnz;
     int64_t r0 = i_os;
     int64_t c0 = j_os;
     int64_t rf = r0 + d;
@@ -283,14 +285,22 @@ void lskges(
     int64_t ldb,
     int threads // default is 4.
 ) {
+    (void)transS;
+    (void)transA;
+    (void)alpha;
+    (void)beta;
+
     assert(S0.dist.family == SparseDistName::SASO);
     assert(S0.rows != NULL); // must be filled.
     assert(d <= m);
     assert(alpha == 1.0); // implementation limitation
     assert(beta == 0.0); // implementation limitation
 
+#ifndef NDEBUG
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_S, cols_S;
+    (void)rows_S; // TODO -- implement check on rows_s and cols_s
+    (void)cols_S;
     if (transA == blas::Op::NoTrans) {
         rows_A = m;
         cols_A = n;
@@ -308,7 +318,7 @@ void lskges(
         // rows_S = m;
         // cols_S = d;
     }
-    
+#endif
     // Dimensionality sanity checks, and perform the sketch.
     if (layout == blas::Layout::ColMajor) {
         assert(lda >= rows_A);

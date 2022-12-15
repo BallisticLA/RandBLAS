@@ -200,6 +200,7 @@ void lskge3(
     }
     T *S0_ptr = fill_skop_buff<T>(S0);
 
+#ifndef NDEBUG
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_S, cols_S;
     if (transA == blas::Op::NoTrans) {
@@ -217,6 +218,7 @@ void lskge3(
         rows_S = m;
         cols_S = d;
     }
+#endif
     // Sanity checks on dimensions and strides
     int64_t lds, pos;
     if (layout == blas::Layout::ColMajor) {

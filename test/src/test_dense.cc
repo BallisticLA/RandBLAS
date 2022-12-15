@@ -173,7 +173,6 @@ class TestLSKGE3 : public ::testing::Test
         for (int i = 0; i < m; ++i)
             A[i + m*i] = 1.0;
         std::vector<T> B(d * m, 0.0);
-        int64_t lda = m;
         int64_t ldb = (is_colmajor) ? d : m;
 
         // perform the sketch
