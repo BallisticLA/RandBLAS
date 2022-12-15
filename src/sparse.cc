@@ -14,7 +14,9 @@ namespace RandBLAS::sparse {
 using namespace RandBLAS::base;
 
 template <typename T, typename T_gen>
-RNGState fill_saso(SparseSkOp<T>& S0) {
+static RNGState template_fill_saso(
+    SparseSkOp<T>& S0
+) {
     assert(S0.dist.family == SparseDistName::SASO);
     //assert(S0.dist.dist4nz.family == RandBLAS::dense_op::DistName::Rademacher);
     assert(S0.dist.n_rows <= S0.dist.n_cols);
@@ -77,6 +79,25 @@ RNGState fill_saso(SparseSkOp<T>& S0) {
     RNGState out_state(*impl_state);
     S0.next_state = out_state;
     return out_state;
+}
+
+template RNGState template_fill_saso<float, Philox>(SparseSkOp<float> &S0);
+template RNGState template_fill_saso<double, Philox>(SparseSkOp<double> &S0);
+template RNGState template_fill_saso<float, Threefry>(SparseSkOp<float> &S0);
+template RNGState template_fill_saso<double, Threefry>(SparseSkOp<double> &S0);
+
+template <typename T>
+RNGState fill_saso(
+    SparseSkOp<T> &S0
+) {
+    switch (S0.seed_state.rng_name) {
+        case RNGName::Philox:
+            return template_fill_saso<T, Philox>(S0);
+        case RNGName::Threefry:
+            return template_fill_saso<T, Threefry>(S0);
+        default:
+            throw std::runtime_error(std::string("Unrecognized generator."));
+    }
 }
 
 template <typename T>
@@ -301,8 +322,8 @@ void lskges(
     return;
 }
 
-template RNGState fill_saso<float, Philox>(SparseSkOp<float> &S0);
-template RNGState fill_saso<double, Philox>(SparseSkOp<double> &S0);
+template RNGState fill_saso<float>(SparseSkOp<float> &S0);
+template RNGState fill_saso<double>(SparseSkOp<double> &S0);
 
 template void print_saso<float>(SparseSkOp<float> &S0);
 template void print_saso<double>(SparseSkOp<double> &S0);
