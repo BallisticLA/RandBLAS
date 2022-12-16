@@ -12,6 +12,8 @@
 #include <typeinfo>
 #include <typeindex>
 
+#include<iostream>
+
 namespace RandBLAS::base {
 
 #define MIN(a, b) (((a) > (b)) ? (b) : (a))
@@ -42,6 +44,8 @@ struct RNGState {
     RNGState &operator=(const RNGState &s);
     RNGState &operator=(RNGState &&s);
 };
+
+std::ostream &operator<<(std::ostream &out, const RNGState &s);
 
 template <typename T_gen>
 struct Random123_RNGState {

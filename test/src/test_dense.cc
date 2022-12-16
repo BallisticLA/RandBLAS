@@ -17,7 +17,7 @@ class TestDenseMoments : public ::testing::Test
 
     template <typename T>
     static void test_mean_stddev(
-        uint32_t seed,
+        uint32_t key,
         int64_t n_rows,
         int64_t n_cols,
         RandBLAS::dense::DenseDistName dn,
@@ -33,7 +33,8 @@ class TestDenseMoments : public ::testing::Test
             .n_rows = n_rows,
             .n_cols = n_cols
         };
-        RandBLAS::dense::fill_buff<T>(A.data(), D, RandBLAS::base::RNGState{seed, 0});
+        auto state = RandBLAS::base::RNGState{0, key};
+        auto next_state = RandBLAS::dense::fill_buff<T>(A.data(), D, state);
 
         // Compute the entrywise empirical mean and standard deviation.
         T mean = std::accumulate(A.data(), A.data() + size, 0.0) /size;
@@ -45,7 +46,7 @@ class TestDenseMoments : public ::testing::Test
 
         // We're only interested in mean-zero random variables.
         // Standard deviation depends on the distribution.
-        EXPECT_NEAR(mean, 0.0, 1e-2);
+        EXPECT_NEAR(mean, 0.0, 1e-2) << "Initial state:\n\t" << state << "\nFinal state:\n\t" << next_state;
         EXPECT_NEAR(stddev, expect_stddev, 1e-2);
     }
 };
@@ -54,11 +55,11 @@ class TestDenseMoments : public ::testing::Test
 TEST_F(TestDenseMoments, Gaussian)
 {
     auto dn = RandBLAS::dense::DenseDistName::Gaussian;
-    for (uint32_t seed : {0, 1, 2})
+    for (uint32_t key : {0, 1, 2})
     {
-        test_mean_stddev<float>(seed, 500, 500, dn, 1.0);
-        test_mean_stddev<double>(seed, 203, 203, dn, 1.0);
-        test_mean_stddev<double>(seed, 203, 503, dn, 1.0);
+        test_mean_stddev<float>(key, 500, 500, dn, 1.0);
+        test_mean_stddev<double>(key, 203, 203, dn, 1.0);
+        test_mean_stddev<double>(key, 203, 503, dn, 1.0);
     }
 }
 
@@ -67,11 +68,11 @@ TEST_F(TestDenseMoments, Uniform)
 {
     auto dn = RandBLAS::dense::DenseDistName::Uniform;
     double expect_stddev = 1.0 / sqrt(3.0);
-    for (uint32_t seed : {0, 1, 2})
+    for (uint32_t key : {0, 1, 2})
     {
-        test_mean_stddev<float>(seed, 500, 500, dn, (float) expect_stddev);
-        test_mean_stddev<double>(seed, 203, 203, dn, expect_stddev);
-        test_mean_stddev<double>(seed, 203, 503, dn, expect_stddev);
+        test_mean_stddev<float>(key, 500, 500, dn, (float) expect_stddev);
+        test_mean_stddev<double>(key, 203, 203, dn, expect_stddev);
+        test_mean_stddev<double>(key, 203, 503, dn, expect_stddev);
     }
 }
 

@@ -105,7 +105,7 @@ static RNGState gen_norm(
         ++j;
     }
     delete[] v;
-    RNGState out_state(state);
+    RNGState out_state(impl_state);
     return out_state;
 }
 
