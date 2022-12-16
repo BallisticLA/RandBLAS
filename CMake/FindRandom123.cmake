@@ -1,3 +1,5 @@
+if (NOT Random123_FOUND)
+
 # find the header
 # first look where the user told us
 if(Random123_DIR)
@@ -23,17 +25,23 @@ find_package_handle_standard_args(Random123
     "Failed to find Random123. Set -DRandom123_DIR=X with X pointing to the directory where the header files \"Random123/*.h\" are located."
     Random123_INCLUDE_DIR)
 
-# interface libarary for use elsewhere in the project
-add_library(Random123 INTERFACE)
+if (NOT TARGET Random123)
 
-target_include_directories(Random123
-    SYSTEM INTERFACE "${Random123_INCLUDE_DIR}")
+    # interface libarary for use elsewhere in the project
+    add_library(Random123 INTERFACE)
 
-install(TARGETS Random123 EXPORT Random123)
+    target_include_directories(Random123
+        SYSTEM INTERFACE "${Random123_INCLUDE_DIR}")
 
-install(EXPORT Random123
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake"
-    EXPORT_LINK_INTERFACE_LIBRARIES)
+    install(TARGETS Random123 EXPORT Random123)
 
-install(FILES CMake/FindRandom123.cmake
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake")
+    install(EXPORT Random123
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake"
+        EXPORT_LINK_INTERFACE_LIBRARIES)
+
+    install(FILES CMake/FindRandom123.cmake
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake")
+
+endif()
+
+endif()
