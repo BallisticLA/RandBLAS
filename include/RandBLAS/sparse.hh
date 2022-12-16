@@ -149,7 +149,7 @@ void lskges(
     SparseSkOp<T> &S0,
     int64_t i_os,
     int64_t j_os,
-    T *A, // TODO: make const
+    const T *A,
     int64_t lda,
     T beta,
     T *B,
