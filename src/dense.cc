@@ -1,3 +1,4 @@
+#include <RandBLAS/exceptions.hh>
 #include <RandBLAS/dense.hh>
 
 #include <iostream>
@@ -104,7 +105,7 @@ static RNGState gen_norm(
         ++j;
     }
     delete[] v;
-    RNGState out_state(state);
+    RNGState out_state(impl_state);
     return out_state;
 }
 
@@ -194,13 +195,10 @@ void lskge3(
     T *B,
     int64_t ldb
 ){
-    assert(d <= m); // Left-sketching can't increase the size of the output.
-    if (S0.layout != layout) {
-        throw std::runtime_error(std::string("Inconsistent layouts."));
-    }
+    randblas_require(d <= m);
+    randblas_require(S0.layout == layout);
     T *S0_ptr = fill_skop_buff<T>(S0);
 
-#ifndef NDEBUG
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_S, cols_S;
     if (transA == blas::Op::NoTrans) {
@@ -218,21 +216,21 @@ void lskge3(
         rows_S = m;
         cols_S = d;
     }
-#endif
+
     // Sanity checks on dimensions and strides
     int64_t lds, pos;
     if (layout == blas::Layout::ColMajor) {
         lds = S0.dist.n_rows;
         pos = i_os + lds * j_os;
-        assert(lds >= rows_S);
-        assert(lda >= rows_A);
-        assert(ldb >= d);
+        randblas_require(lds >= rows_S);
+        randblas_require(lda >= rows_A);
+        randblas_require(ldb >= d);
     } else {
         lds = S0.dist.n_cols;
         pos = i_os * lds + j_os;
-        assert(lds >= cols_S);
-        assert(lda >= cols_A);
-        assert(ldb >= n);
+        randblas_require(lds >= cols_S);
+        randblas_require(lda >= cols_A);
+        randblas_require(ldb >= n);
     }
     // Perform the sketch.
     blas::gemm<T>(

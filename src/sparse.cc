@@ -1,3 +1,4 @@
+#include <RandBLAS/exceptions.hh>
 #include <RandBLAS/sparse.hh>
 
 #include <iostream>
@@ -17,9 +18,8 @@ template <typename T, typename T_gen>
 static RNGState template_fill_saso(
     SparseSkOp<T>& S0
 ) {
-    assert(S0.dist.family == SparseDistName::SASO);
-    //assert(S0.dist.dist4nz.family == RandBLAS::dense_op::DistName::Rademacher);
-    assert(S0.dist.n_rows <= S0.dist.n_cols);
+    randblas_require(S0.dist.family == SparseDistName::SASO);
+    randblas_require(S0.dist.n_rows <= S0.dist.n_cols);
     RNGState init_state = S0.seed_state;
 
     // Load shorter names into the workspace
@@ -288,27 +288,21 @@ void lskges(
     int64_t ldb,
     int threads // default is 4.
 ) {
-    (void)transS;
-    (void)transA;
-    (void)alpha;
-    (void)beta;
+    randblas_require(S0.dist.family == SparseDistName::SASO);
+    randblas_require(S0.rows != NULL); // must be filled.
+    randblas_require(d <= m);
+    randblas_require(alpha == 1.0); // implementation limitation
+    randblas_require(beta == 0.0); // implementation limitation
 
-    assert(S0.dist.family == SparseDistName::SASO);
-    assert(S0.rows != NULL); // must be filled.
-    assert(d <= m);
-    assert(alpha == 1.0); // implementation limitation
-    assert(beta == 0.0); // implementation limitation
-
-#ifndef NDEBUG
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_S, cols_S;
-    (void)rows_S; // TODO -- implement check on rows_s and cols_s
-    (void)cols_S;
+    SET_BUT_UNUSED(rows_S); // TODO -- implement check on rows_s and cols_s
+    SET_BUT_UNUSED(cols_S);
     if (transA == blas::Op::NoTrans) {
         rows_A = m;
         cols_A = n;
     } else {
-        assert(false); // Not implemented.
+        randblas_require(false); // Not implemented.
         //rows_A = n;
         //cols_A = m;
     }
@@ -317,19 +311,18 @@ void lskges(
         rows_S = d;
         cols_S = m;
     } else {
-        assert(false);  // Not implemented.
+        randblas_require(false);  // Not implemented.
         // rows_S = m;
         // cols_S = d;
     }
-#endif
     // Dimensionality sanity checks, and perform the sketch.
     if (layout == blas::Layout::ColMajor) {
-        assert(lda >= rows_A);
-        assert(ldb >= d);
+        randblas_require(lda >= rows_A);
+        randblas_require(ldb >= d);
         sketch_csccol<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
     } else {
-        assert(lda >= cols_A);
-        assert(ldb >= n);
+        randblas_require(lda >= cols_A);
+        randblas_require(ldb >= n);
         sketch_cscrow<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
     }
     return;

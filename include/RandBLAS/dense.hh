@@ -5,6 +5,10 @@
 #define BLAS_HH
 #endif
 
+#ifndef RandBLAS_EXCEPTIONS_HH
+#include <RandBLAS/exceptions.hh>
+#endif
+
 #ifndef RandBLAS_STATE_HH
 #include <RandBLAS/base.hh>
 #endif
@@ -149,11 +153,11 @@ DenseSkOp<T>::DenseSkOp(
     //      own_memory is a bool that's true iff buff_ is NULL.
     //
     if (this->own_memory) {
-        assert(!this->filled);
+        randblas_require(!this->filled);
         // We own the rights to the memory, and the memory
         // hasn't been allocated, so there's no way that the memory exists yet.
     } else {
-        assert(this->persistent);
+        randblas_require(this->persistent);
         // If the user gives us any memory to work with, then we cannot take
         // responsibility for deallocating on exit from LSKGE3 / RSKGE3.
     }
