@@ -5,6 +5,10 @@
 #define BLAS_HH
 #endif
 
+#ifndef RandBLAS_EXCEPTIONS_HH
+#include <RandBLAS/exceptions.hh>
+#endif
+
 #ifndef RandBLAS_STATE_HH
 #include <RandBLAS/base.hh>
 #endif
@@ -21,7 +25,6 @@ enum class SparseDistName : char {
 
 struct SparseDist {
     const SparseDistName family = SparseDistName::SASO;
-    //const RandBLAS::dense::Dist dist4nz = RandBLAS::dense::DistName::Rademacher;
     const int64_t n_rows;
     const int64_t n_cols;
     const int64_t vec_nnz;
@@ -110,7 +113,7 @@ SparseSkOp<T>::SparseSkOp(
         this->cols = new int64_t[nnz];
         this->vals = new T[nnz];
     } else {
-        assert(rows_ && cols_ && vals_);
+        randblas_require(rows_ && cols_ && vals_);
         //  If any of rows_, cols_, and vals_ are not NULL,
         //  then none of them are NULL.
         this->rows = rows_;
@@ -118,7 +121,7 @@ SparseSkOp<T>::SparseSkOp(
         this->vals = vals_;
     }
     // Implementation limitations
-    assert(this->dist.n_rows <= this->dist.n_cols);
+    randblas_require(this->dist.n_rows <= this->dist.n_cols);
 };
 
 template <typename T>
