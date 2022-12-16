@@ -294,11 +294,10 @@ void lskges(
     randblas_require(alpha == 1.0); // implementation limitation
     randblas_require(beta == 0.0); // implementation limitation
 
-#ifndef NDEBUG
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_S, cols_S;
-    (void)rows_S; // TODO -- implement check on rows_s and cols_s
-    (void)cols_S;
+    SET_BUT_UNUSED(rows_S); // TODO -- implement check on rows_s and cols_s
+    SET_BUT_UNUSED(cols_S);
     if (transA == blas::Op::NoTrans) {
         rows_A = m;
         cols_A = n;
@@ -316,7 +315,6 @@ void lskges(
         // rows_S = m;
         // cols_S = d;
     }
-#endif
     // Dimensionality sanity checks, and perform the sketch.
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);

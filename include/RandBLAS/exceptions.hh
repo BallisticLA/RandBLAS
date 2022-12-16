@@ -10,6 +10,10 @@
 namespace RandBLAS::exceptions {
 // Code below copy-pasted from BLAS++ with minimal changes.
 
+#define UNUSED(x) (void)(x)
+#define SET_BUT_UNUSED(x) (void)(x)
+// ^ Use to suppress compiler warnings for unused variables in functions.
+
 // -----------------------------------------------------------------------------
 /// Exception class for BLAS errors.
 class Error: public std::exception {
@@ -66,6 +70,7 @@ inline void throw_if( bool cond, const char* condstr, const char* func, const ch
     RandBLAS_ATTR_FORMAT(4, 5);
 
 inline void throw_if( bool cond, const char* condstr, const char* func, const char* format, ... ) {
+    UNUSED(condstr);
     if (cond) {
         char buf[80];
         va_list va;
