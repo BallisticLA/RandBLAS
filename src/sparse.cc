@@ -27,8 +27,15 @@ static RNGState template_fill_saso(
     int64_t sa_len = S0.dist.n_rows; // short-axis length
     int64_t la_len = S0.dist.n_cols; // long-axis length
     T *vals = S0.vals; // point to array of length nnz
-    int64_t *la_idxs = S0.cols; // indices of nonzeros for the long-axis
-    int64_t *sa_idxs = S0.rows; // indices of nonzeros for the short-axis
+    int64_t *la_idxs, *sa_idxs;
+
+    if (S0.dist.n_rows <= S0.dist.n_cols) {
+        la_idxs = S0.cols; // indices of nonzeros for the long-axis
+        sa_idxs = S0.rows; // indices of nonzeros for the short-axis
+    } else {
+        sa_idxs = S0.cols; // indices of nonzeros for the short-axis
+        la_idxs = S0.rows; // indices of nonzeros for the long-axis
+    }
 
     // Define variables needed in the main loop
     int64_t i, j, ell, swap, offset;
@@ -77,7 +84,6 @@ static RNGState template_fill_saso(
             sa_vec_work[jj] = sa_vec_work[ell];
             sa_vec_work[ell] = swap;
         }
-
         out_state = impl_state;
     }
     S0.next_state = out_state;
@@ -127,7 +133,7 @@ void print_saso(SparseSkOp<T>& S0) {
 }
 
 template <typename T>
-static void sketch_cscrow(
+static void left_sketch_rowmajor_data(
     int64_t d,
     int64_t n,
     int64_t m,
@@ -189,46 +195,49 @@ static void sketch_cscrow(
 }
 
 template <typename T>
-static void allrows_saso_csc_matvec(
+static void wide_saso_matvec(
     const T *v,
+    int64_t incv, // stride between elements of v
     T *Sv, // Sv += S0[:, col_start:col_end] * v.
-    SparseSkOp<T> &S0,
-    int64_t col_start,
-    int64_t col_end
-) {
-    int64_t vec_nnz = S0.dist.vec_nnz;
-    for (int64_t c = col_start; c < col_end; c++) {
-        T scale = v[c - col_start];
-        for (int64_t r = c * vec_nnz; r < (c + 1) * vec_nnz; r++) {
-            int64_t S0_row = S0.rows[r];
-            Sv[S0_row] += (S0.vals[r] * scale);
-        }
-    }
-}
-
-template <typename T>
-static void somerows_saso_csc_matvec(
-    const T *v,
-    T *Sv, // Sv += S0[row_start:row_end, col_start:col_end] * v.
+    int64_t incSv, // stride between elements of Sv
     SparseSkOp<T> &S0,
     int64_t col_start,
     int64_t col_end,
     int64_t row_start,
     int64_t row_end
 ) {
+    randblas_require(S0.dist.n_rows <= S0.dist.n_cols);
+    int64_t sa_dim;
+    int64_t *sa_indices;
+    sa_dim = S0.dist.n_rows;
+    sa_indices = S0.rows;
     int64_t vec_nnz = S0.dist.vec_nnz;
-    for (int64_t c = col_start; c < col_end; c++) {
-        T scale = v[c - col_start];
-        for (int64_t r = c * vec_nnz; r < (c + 1) * vec_nnz; r++) {
-            int64_t S0_row = S0.rows[r];
-            if (row_start <= S0_row && S0_row < row_end)
-                Sv[S0_row - row_start] += (S0.vals[r] * scale);
+    // We have two nearly-identical code blocks below. The second block contains
+    // an inner if-statement that does not appear in the first block. The point
+    // of having the duplicated code is to avoid branch-misprediction when
+    // the if-statement will always trivially hold.
+    if (row_start == 0 && row_end == sa_dim) {
+        for (int64_t c = col_start; c < col_end; c++) {
+            T scale = v[(c - col_start) * incv];
+            for (int64_t r = c * vec_nnz; r < (c + 1) * vec_nnz; r++) {
+                int64_t row = sa_indices[r];
+                Sv[row * incSv] += (S0.vals[r] * scale);
+            }
+        }
+    } else {
+        for (int64_t c = col_start; c < col_end; c++) {
+            T scale = v[(c - col_start) * incv];
+            for (int64_t r = c * vec_nnz; r < (c + 1) * vec_nnz; r++) {
+                int64_t row = sa_indices[r];
+                if (row_start <= row && row < row_end)
+                    Sv[(row - row_start) * incSv] += (S0.vals[r] * scale);
+            }
         }
     }
 }
 
 template <typename T>
-static void sketch_csccol(
+static void left_sketch_colmajor_data(
     int64_t d,
     int64_t n,
     int64_t m,
@@ -246,7 +255,6 @@ static void sketch_csccol(
     int64_t c0 = j_os;
     int64_t rf = r0 + d;
     int64_t cf = c0 + m;
-    bool all_rows_S0 = (r0 == 0 && rf == D.n_rows);
 
     omp_set_num_threads(threads);
     #pragma omp parallel default(shared)
@@ -260,11 +268,7 @@ static void sketch_csccol(
         for (int64_t k = 0; k < n; k++) {
             A_col = &A[lda * k];
             B_col = &B[ldb * k];
-            if (all_rows_S0) {
-                allrows_saso_csc_matvec<T>(A_col, B_col, S0, c0, cf);
-            } else {
-                somerows_saso_csc_matvec<T>(A_col, B_col, S0, c0, cf, r0, rf);
-            }
+            wide_saso_matvec<T>(A_col, 1, B_col, 1, S0, c0, cf, r0, rf);
         }
     }
 }
@@ -306,24 +310,24 @@ void lskges(
         //rows_A = n;
         //cols_A = m;
     }
+
     // Dimensions of S, rather than op(S)
     if (transS == blas::Op::NoTrans) {
         rows_S = d;
         cols_S = m;
     } else {
-        randblas_require(false);  // Not implemented.
-        // rows_S = m;
-        // cols_S = d;
+        rows_S = m;
+        cols_S = d;
     }
     // Dimensionality sanity checks, and perform the sketch.
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= d);
-        sketch_csccol<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
+        left_sketch_colmajor_data<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
     } else {
         randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
-        sketch_cscrow<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
+        left_sketch_rowmajor_data<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
     }
     return;
 }
@@ -334,11 +338,11 @@ template RNGState fill_saso<double>(SparseSkOp<double> &S0);
 template void print_saso<float>(SparseSkOp<float> &S0);
 template void print_saso<double>(SparseSkOp<double> &S0);
 
-template void sketch_cscrow<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float *B, int64_t ldb, int threads);
-template void sketch_cscrow<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, const double *A, int64_t lda, double *B, int64_t ldb, int threads);
+template void left_sketch_rowmajor_data<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float *B, int64_t ldb, int threads);
+template void left_sketch_rowmajor_data<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, const double *A, int64_t lda, double *B, int64_t ldb, int threads);
 
-template void sketch_csccol<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float *B, int64_t ldb, int threads);
-template void sketch_csccol<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, const double *A, int64_t lda, double *B, int64_t ldb, int threads);
+template void left_sketch_colmajor_data<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float *B, int64_t ldb, int threads);
+template void left_sketch_colmajor_data<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, const double *A, int64_t lda, double *B, int64_t ldb, int threads);
 
 template void lskges<float>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
     SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float beta, float *B, int64_t ldb, int threads);

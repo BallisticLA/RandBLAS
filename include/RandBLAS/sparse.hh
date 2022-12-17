@@ -98,11 +98,14 @@ SparseSkOp<T>::SparseSkOp(
     int64_t *rows_,
     int64_t *cols_,
     T *vals_
-) :  // variable definitions
+) : // variable definitions
     dist(dist_),
     seed_state(state_),
     own_memory(!rows_ && !cols_ && !vals_)
-{   // Initialization logic
+{   // sanity checks
+    randblas_require(this->dist.n_rows > 0);
+    randblas_require(this->dist.n_cols > 0);
+    // Initialization logic
     //
     //      own_memory is a bool that's true iff the
     //      rows_, cols_, and vals_ pointers were all NULL.
@@ -120,8 +123,6 @@ SparseSkOp<T>::SparseSkOp(
         this->cols = cols_;
         this->vals = vals_;
     }
-    // Implementation limitations
-    randblas_require(this->dist.n_rows <= this->dist.n_cols);
 };
 
 template <typename T>
