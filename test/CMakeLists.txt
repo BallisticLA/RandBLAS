@@ -1,19 +1,13 @@
 message(STATUS "Checking for regression tests ...")
-
 project(randblas_test)
-
 find_package(GTest)
 set(tmp FALSE)
 if (GTest_FOUND)
     set(tmp TRUE)
 
     add_executable(RandBLAS_tests
-        src/rbtutil.cc
-        src/test_sparse.cc
-        src/test_dense.cc
-    )
-    target_include_directories(RandBLAS_tests PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        test_sparse.cc
+        test_dense.cc
     )
     target_link_libraries(RandBLAS_tests
         RandBLAS

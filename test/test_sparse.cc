@@ -1,8 +1,8 @@
-#include <RandBLAS/sparse.hh>
-#include <RandBLAS/util.hh>
-#include <rbtutil.hh>
+#include "RandBLAS/sparse.hh"
+#include "RandBLAS/util.hh"
+#include "RandBLAS/test_util.hh"
+#include <cmath>
 #include <gtest/gtest.h>
-#include <math.h>
 
 
 template <typename T>
@@ -162,7 +162,7 @@ class TestLSKGES : public ::testing::Test
                 layout, blas::Op::NoTrans, blas::Op::NoTrans,
                 d, n, m,
                 1.0, sas, 0, 0, a, lda,
-                0.0, a_hat, ldahat
+                0.0, a_hat, ldahat, 1
             );
         }
 
@@ -239,8 +239,9 @@ class TestLSKGES : public ::testing::Test
             d1, m1, m1,
             1.0, S0, S_ro, S_co,
             A.data(), lda,
-            0.0, B.data(), ldb   
+            0.0, B.data(), ldb, 1
         );
+
         // Check the result
         T *S_ptr = &S0_dense[pos];
         RandBLAS_Testing::Util::matrices_approx_equal(

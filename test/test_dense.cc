@@ -1,8 +1,10 @@
-#include <RandBLAS/dense.hh>
-#include <RandBLAS/util.hh>
-#include <rbtutil.hh>
+#include "RandBLAS/dense.hh"
+#include "RandBLAS/util.hh"
+#include "RandBLAS/test_util.hh"
+
 #include <gtest/gtest.h>
-#include <math.h>
+
+#include <cmath>
 #include <numeric>
 #include <Random123/philox.h>
 
@@ -10,7 +12,7 @@
 class TestDenseMoments : public ::testing::Test
 {
     protected:
-    
+
     virtual void SetUp(){};
 
     virtual void TearDown(){};

@@ -1,7 +1,8 @@
-#include <rbtutil.hh>
+#ifndef randblas_test_util_hh
+#define randblas_test_util_hh
 
 #include <gtest/gtest.h>
-#include <math.h>
+#include <cmath>
 #include <numeric>
 
 #define RELTOL_POWER 0.6
@@ -64,14 +65,6 @@ void matrices_approx_equal(
     }
 }
 
-template void buffs_approx_equal<float>(const float *actual_ptr, const float *expect_ptr, int64_t size);
-template void buffs_approx_equal<double>(const double *actual_ptr, const double *expect_ptr, int64_t size);
-
-template void matrices_approx_equal<float>(blas::Layout layout, blas::Op transB, int64_t m, int64_t n, const float *A,
-    int64_t lda, const float *B, int64_t ldb
-);
-template void matrices_approx_equal<double>(blas::Layout layout, blas::Op transB, int64_t m, int64_t n, const double *A,
-    int64_t lda, const double *B, int64_t ldb
-);
-
 } // end namespace RandBLAS_Testing::Util
+
+#endif

@@ -1,8 +1,5 @@
 set(RandBLAS_cxx_srcs
-    base.cc
-    sparse.cc
-    util.cc
-    dense.cc)
+    base.cc)
 
 set(RandBLAS_libs blaspp Random123)
 
@@ -13,15 +10,15 @@ endif()
 add_library(RandBLAS ${RandBLAS_cxx_srcs})
 
 target_include_directories(RandBLAS PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/RandBLAS>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/RandBLAS>)
 
 target_link_libraries(RandBLAS PUBLIC ${RandBLAS_libs})
 target_compile_options(RandBLAS PUBLIC -Wall -Wextra)
 
-install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../include/"
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   DESTINATION include FILES_MATCHING PATTERN "*.hh")
 
 install(TARGETS RandBLAS EXPORT RandBLAS
