@@ -80,7 +80,7 @@ struct DenseSkOp {
     //
     /////////////////////////////////////////////////////////////////////
 
-    T *buff = NULL;
+    T *buff = nullptr;
     bool filled = false;
     bool persistent = true;
     const blas::Layout layout = blas::Layout::ColMajor;
@@ -94,7 +94,7 @@ struct DenseSkOp {
     //  Elementary constructor: needs an implementation
     DenseSkOp(
         DenseDist dist_,
-        RNGState state_,
+        const RNGState &state_,
         T *buff_,
         bool filled_,
         bool persistent_,
@@ -133,7 +133,7 @@ struct DenseSkOp {
 template <typename T>
 DenseSkOp<T>::DenseSkOp(
     DenseDist dist_,
-    RNGState state_,
+    const RNGState &state_,
     T *buff_,           
     bool filled_,       
     bool persistent_,   
@@ -149,7 +149,7 @@ DenseSkOp<T>::DenseSkOp(
     layout(layout_)
 {   // Initialization logic
     //
-    //      own_memory is a bool that's true iff buff_ is NULL.
+    //      own_memory is a bool that's true iff buff_ is nullptr.
     //
     if (this->own_memory) {
         randblas_require(!this->filled);
@@ -183,7 +183,7 @@ static RNGState gen_unif(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
-    RNGState state
+    const RNGState &state
 ) {
     int64_t dim = n_rows * n_cols;
     int64_t i;
@@ -216,7 +216,7 @@ RNGState gen_rmat_unif(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
-    RNGState state
+    const RNGState &state
 ) {
     switch (state.rng_name) {
         case RNGName::Philox:
@@ -233,7 +233,7 @@ static RNGState gen_norm(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
-    RNGState state
+    const RNGState &state
 ) {
     T_gen gen;
     Random123_RNGState<T_gen> impl_state(state);
@@ -255,14 +255,13 @@ static RNGState gen_norm(
     rout = gen(impl_state.ctr, impl_state.key);
     pair_1 = r123::boxmuller(rout.v[0], rout.v[1]);
     pair_2 = r123::boxmuller(rout.v[2], rout.v[3]);
-    T *v = new T[4] {pair_1.x, pair_1.y, pair_2.x, pair_2.y};
+    T v[4] = {pair_1.x, pair_1.y, pair_2.x, pair_2.y};
     int32_t j = 0;
     while (i < dim) {
         mat[i] =  v[j];
         ++i;
         ++j;
     }
-    delete[] v;
     RNGState out_state(state);
     return out_state;
 }
@@ -272,7 +271,7 @@ static RNGState gen_rmat_norm(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
-    RNGState state
+    const RNGState &state
 ) {
     switch (state.rng_name) {
         case RNGName::Philox:
@@ -288,7 +287,7 @@ template <typename T>
 RNGState fill_buff(
     T *buff,
     DenseDist D,
-    RNGState state
+    const RNGState &state
 ) {
     switch (D.family) { // no break statements needed as-written
         case DenseDistName::Gaussian:
@@ -313,7 +312,7 @@ T* fill_skop_buff(
     DenseSkOp<T> &S0
 ) {
     T *S0_ptr = S0.buff;
-    if (S0_ptr == NULL) {
+    if (S0_ptr == nullptr) {
         S0_ptr = new T[S0.dist.n_rows * S0.dist.n_cols];
         S0.next_state = fill_buff<T>(S0_ptr, S0.dist, S0.seed_state);
         if (S0.persistent) {

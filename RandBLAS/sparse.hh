@@ -39,9 +39,9 @@ struct SparseSkOp {
     //
     /////////////////////////////////////////////////////////////////////
 
-    int64_t *rows = NULL;
-    int64_t *cols = NULL;
-    T *vals = NULL;
+    int64_t *rows = nullptr;
+    int64_t *cols = nullptr;
+    T *vals = nullptr;
 
     /////////////////////////////////////////////////////////////////////
     //
@@ -52,10 +52,10 @@ struct SparseSkOp {
     //  Elementary constructor: needs an implementation
     SparseSkOp(
         SparseDist dist_,
-        base::RNGState state_,
-        int64_t *rows_ = NULL,
-        int64_t *cols_ = NULL,
-        T *vals_ = NULL 
+        const base::RNGState &state_,
+        int64_t *rows_ = nullptr,
+        int64_t *cols_ = nullptr,
+        T *vals_ = nullptr 
     );
 
     //  Convenience constructor (a wrapper)
@@ -76,9 +76,9 @@ struct SparseSkOp {
         int64_t vec_nnz,
         uint32_t key,
         uint32_t ctr_offset,
-        int64_t *rows = NULL,
-        int64_t *cols = NULL,
-        T *vals = NULL 
+        int64_t *rows = nullptr,
+        int64_t *cols = nullptr,
+        T *vals = nullptr 
     ) : SparseSkOp(SparseDist{family, n_rows, n_cols, vec_nnz},
         key, ctr_offset, rows, cols, vals) {};
 
@@ -90,7 +90,7 @@ struct SparseSkOp {
 template <typename T>
 SparseSkOp<T>::SparseSkOp(
     SparseDist dist_,
-    base::RNGState state_,
+    const base::RNGState &state_,
     int64_t *rows_,
     int64_t *cols_,
     T *vals_
@@ -101,7 +101,7 @@ SparseSkOp<T>::SparseSkOp(
 {   // Initialization logic
     //
     //      own_memory is a bool that's true iff the
-    //      rows_, cols_, and vals_ pointers were all NULL.
+    //      rows_, cols_, and vals_ pointers were all nullptr.
     //
     if (this->own_memory) {
         int64_t nnz = this->dist.vec_nnz * this->dist.n_cols;
@@ -110,8 +110,8 @@ SparseSkOp<T>::SparseSkOp(
         this->vals = new T[nnz];
     } else {
         randblas_require(rows_ && cols_ && vals_);
-        //  If any of rows_, cols_, and vals_ are not NULL,
-        //  then none of them are NULL.
+        //  If any of rows_, cols_, and vals_ are not nullptr,
+        //  then none of them are nullptr.
         this->rows = rows_;
         this->cols = cols_;
         this->vals = vals_;
@@ -251,6 +251,8 @@ static void sketch_cscrow(
     int64_t ldb,
     int threads
 ) {
+    randblas_require(threads > 0);
+
     RandBLAS::sparse::SparseDist D = S0.dist;
     int64_t S_row_start = i_os;
     int64_t S_col_start = j_os;
@@ -400,7 +402,7 @@ void lskges(
     int threads // default is 4.
 ) {
     randblas_require(S0.dist.family == SparseDistName::SASO);
-    randblas_require(S0.rows != NULL); // must be filled.
+    randblas_require(S0.rows != nullptr); // must be filled.
     randblas_require(d <= m);
     randblas_require(alpha == 1.0); // implementation limitation
     randblas_require(beta == 0.0); // implementation limitation

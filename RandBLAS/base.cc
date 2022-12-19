@@ -26,8 +26,8 @@ RNGState::RNGState(
 ) : len_c(s.len_c),
     len_k(s.len_k)
 {
-    this->ctr = new uint32_t[this->len_c]{};
-    this->key = new uint32_t[this->len_k]{};
+    this->ctr = new uint32_t[this->len_c];
+    this->key = new uint32_t[this->len_k];
     std::memcpy(this->ctr, s.ctr, this->len_c * sizeof(uint32_t));
     std::memcpy(this->key, s.key, this->len_k * sizeof(uint32_t));
 }
@@ -52,8 +52,8 @@ RNGState &RNGState::operator=(
     this->len_c = s.len_c;
     this->len_k = s.len_k;
 
-    this->ctr = new uint32_t[this->len_c]{};
-    this->key = new uint32_t[this->len_k]{};
+    this->ctr = new uint32_t[this->len_c];
+    this->key = new uint32_t[this->len_k];
 
     std::memcpy(this->ctr, s.ctr, this->len_c * sizeof(uint32_t));
     std::memcpy(this->key, s.key, this->len_k * sizeof(uint32_t));
