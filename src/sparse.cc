@@ -14,21 +14,31 @@ namespace RandBLAS::sparse {
 
 using namespace RandBLAS::base;
 
+template <typename T>
+static bool fixed_nnz_per_col(
+    SparseSkOp<T> &S0
+) {
+    if (S0.dist.family == SparseDistName::SASO) {
+        return S0.dist.n_rows < S0.dist.n_cols;
+    } else {
+        return S0.dist.n_cols < S0.dist.n_rows;
+    }
+}
+
 template <typename T, typename T_gen>
-static RNGState template_fill_saso(
+static RNGState template_fill_sparse(
     SparseSkOp<T>& S0
 ) {
-    randblas_require(S0.dist.family == SparseDistName::SASO);
-    randblas_require(S0.dist.n_rows <= S0.dist.n_cols);
+    randblas_require(fixed_nnz_per_col(S0));
     RNGState init_state = S0.seed_state;
 
     // Load shorter names into the workspace
     int64_t k = S0.dist.vec_nnz;
-    int64_t sa_len = S0.dist.n_rows; // short-axis length
-    int64_t la_len = S0.dist.n_cols; // long-axis length
     T *vals = S0.vals; // point to array of length nnz
-    int64_t *la_idxs, *sa_idxs;
 
+    int64_t la_len = MAX(S0.dist.n_rows, S0.dist.n_cols);
+    int64_t sa_len = MIN(S0.dist.n_rows, S0.dist.n_cols);
+    int64_t *la_idxs, *sa_idxs;
     if (S0.dist.n_rows <= S0.dist.n_cols) {
         la_idxs = S0.cols; // indices of nonzeros for the long-axis
         sa_idxs = S0.rows; // indices of nonzeros for the short-axis
@@ -36,13 +46,26 @@ static RNGState template_fill_saso(
         sa_idxs = S0.cols; // indices of nonzeros for the short-axis
         la_idxs = S0.rows; // indices of nonzeros for the long-axis
     }
+    int64_t *vecax_idxs, *indax_idxs;
+    int64_t vec_len, num_vecs;
+    if (S0.dist.family == SparseDistName::SASO) {
+        vec_len = sa_len;
+        num_vecs = la_len;
+        vecax_idxs = sa_idxs;
+        indax_idxs = la_idxs;
+    } else {
+        vec_len = la_len;
+        num_vecs = sa_len;
+        vecax_idxs = la_idxs;
+        vecax_idxs = sa_idxs;
+    }
 
     // Define variables needed in the main loop
     int64_t i, j, ell, swap, offset;
     std::vector<int64_t> pivots(k);
-    std::vector<int64_t> sa_vec_work(sa_len); // short-axis vector workspace
-    for (j = 0; j < sa_len; ++j) {
-        sa_vec_work[j] = j;
+    std::vector<int64_t> curr_vec_work(vec_len); // short-axis vector workspace
+    for (j = 0; j < vec_len; ++j) {
+        curr_vec_work[j] = j;
     }
     T_gen g;
     typedef typename T_gen::ctr_type ctr_type;
@@ -51,7 +74,7 @@ static RNGState template_fill_saso(
     RNGState out_state(init_state);
 
     // Use Fisher-Yates
-    for (i = 0; i < la_len; ++i) {
+    for (i = 0; i < num_vecs; ++i) {
         offset = i * k;
 
         Random123_RNGState<T_gen> impl_state(init_state);
@@ -59,30 +82,30 @@ static RNGState template_fill_saso(
         for (j = 0; j < k; ++j) {
             // one step of Fisher-Yates shuffling
             rout = g(impl_state.ctr, impl_state.key);
-            ell = j + rout.v[0] % (sa_len - j);
+            ell = j + rout.v[0] % (vec_len - j);
             pivots[j] = ell;
-            swap = sa_vec_work[ell];
-            sa_vec_work[ell] = sa_vec_work[j];
-            sa_vec_work[j] = swap;
+            swap = curr_vec_work[ell];
+            curr_vec_work[ell] = curr_vec_work[j];
+            curr_vec_work[j] = swap;
 
             // update (rows, cols, vals)
-            sa_idxs[j + offset] = swap;
+            vecax_idxs[j + offset] = swap;
             vals[j + offset] = (rout.v[1] % 2 == 0) ? 1.0 : -1.0;
-            la_idxs[j + offset] = i;
+            indax_idxs[j + offset] = i;
 
             // increment counter
             impl_state.ctr.incr(1);
         }
-        // Restore sa_vec_work for next iteration of Fisher-Yates.
+        // Restore curr_vec_work for next iteration of Fisher-Yates.
         //      This isn't necessary from a statistical perspective,
         //      but it makes it easier to generate submatrices of
         //      a given SparseSkOp.
         for (j = 1; j <= k; ++j) {
             int jj = k - j;
-            swap = sa_idxs[jj + offset];
+            swap = vecax_idxs[jj + offset];
             ell = pivots[jj];
-            sa_vec_work[jj] = sa_vec_work[ell];
-            sa_vec_work[ell] = swap;
+            curr_vec_work[jj] = curr_vec_work[ell];
+            curr_vec_work[ell] = swap;
         }
         out_state = impl_state;
     }
@@ -90,20 +113,20 @@ static RNGState template_fill_saso(
     return out_state;
 }
 
-template RNGState template_fill_saso<float, Philox>(SparseSkOp<float> &S0);
-template RNGState template_fill_saso<double, Philox>(SparseSkOp<double> &S0);
-template RNGState template_fill_saso<float, Threefry>(SparseSkOp<float> &S0);
-template RNGState template_fill_saso<double, Threefry>(SparseSkOp<double> &S0);
+template RNGState template_fill_sparse<float, Philox>(SparseSkOp<float> &S0);
+template RNGState template_fill_sparse<double, Philox>(SparseSkOp<double> &S0);
+template RNGState template_fill_sparse<float, Threefry>(SparseSkOp<float> &S0);
+template RNGState template_fill_sparse<double, Threefry>(SparseSkOp<double> &S0);
 
 template <typename T>
-RNGState fill_saso(
+RNGState fill_sparse(
     SparseSkOp<T> &S0
 ) {
     switch (S0.seed_state.rng_name) {
         case RNGName::Philox:
-            return template_fill_saso<T, Philox>(S0);
+            return template_fill_sparse<T, Philox>(S0);
         case RNGName::Threefry:
-            return template_fill_saso<T, Threefry>(S0);
+            return template_fill_sparse<T, Threefry>(S0);
         default:
             throw std::runtime_error(std::string("Unrecognized generator."));
     }
@@ -133,7 +156,7 @@ void print_saso(SparseSkOp<T>& S0) {
 }
 
 template <typename T>
-static int64_t filter_cscoo(
+static int64_t filter_regular_cscoo(
     const int64_t *nzidx2row,
     const int64_t *nzidx2col,
     const T *nzidx2val,
@@ -146,6 +169,21 @@ static int64_t filter_cscoo(
     int64_t *cols_view,
     T *vals_view
 ) {
+    // (nzidx2row, nzidx2col, nzidx2val) define a sparse matrix S0
+    //  in COO format with a CSC-like property. The CSC-like property
+    //  is that all nonzero entries in a given column of S0 are 
+    //  contiguous in "nzidx2col". The sparse matrix S0 must be "regular"
+    //  in the sense that it must have exactly vec_nnz nonzeros in each
+    //  column.
+    //
+    //  This function writes data to (rows_view, cols_view, vals_view)
+    //  for a sparse matrix S in the same "COO/CSC-like" format.
+    //  Mathematically, we have S = S0[row_start:row_end, col_start:col_end].
+    //  The sparse matrix S does not necessarily have a fixed number of
+    //  nonzeros in each column.
+    //
+    //  Neither S0 nor S need to be wide.  
+    //
     int64_t nnz = 0;
     for (int64_t i = col_start * vec_nnz; i < col_end * vec_nnz; ++i) {
         int64_t row = nzidx2row[i];
@@ -160,17 +198,26 @@ static int64_t filter_cscoo(
 }
 
 template <typename T>
-static void cscoo_matvec(
+static void apply_cscoo_submat_to_vector_from_left(
     const T *v,
-    int64_t incv, // stride between elements of v
-    T *Sv, // Sv += S0[:, col_start:col_end] * v.
-    int64_t incSv, // stride between elements of Sv
+    int64_t incv,   // stride between elements of v
+    T *Sv,          // Sv += S * v.
+    int64_t incSv,  // stride between elements of Sv
     const int64_t *rows_view,
     const int64_t *cols_view,
     const T       *vals_view,
     int64_t num_cols,
     int64_t nnz
 ) {
+    // (rows_view, cols_view, vals_view) define a sparse matrix
+    // "S" in COO-format with a CSC-like property.
+    //
+    //      The CSC-like property requires that all nonzero entries
+    //      in a given column of the sparse matrix are contiguous in
+    //      "cols_view".
+    //  
+    //      The sparse matrix does not need to be wide.
+    //
     int64_t i = 0;
     for (int64_t c = 0; c < num_cols; ++c) {
         T scale = v[c * incv];
@@ -183,7 +230,7 @@ static void cscoo_matvec(
 }
 
 template <typename T>
-static void apply_wide_saso_left(
+static void apply_cscoo_left(
     blas::Layout layout,
     int64_t d,
     int64_t n,
@@ -197,20 +244,24 @@ static void apply_wide_saso_left(
     int64_t ldb,
     int threads
 ) {
-    RandBLAS::sparse::SparseDist D = S0.dist;
-    int64_t r0 = i_os;
-    int64_t c0 = j_os;
-    int64_t rf = r0 + d;
-    int64_t cf = c0 + m;
-
-    int64_t vec_nnz = D.vec_nnz;
-    int64_t *rows_view = new int64_t[m * vec_nnz]{};
-    int64_t *cols_view = new int64_t[m * vec_nnz]{};
-    T       *vals_view = new       T[m * vec_nnz]{};
-    int64_t nnz = filter_cscoo<T>(
-        S0.rows, S0.cols, S0.vals, vec_nnz, c0, cf, r0, rf,
-        rows_view, cols_view, vals_view
+    int64_t vec_nnz = S0.dist.vec_nnz;
+    int64_t *S_rows = new int64_t[m * vec_nnz]{};
+    int64_t *S_cols = new int64_t[m * vec_nnz]{};
+    T       *S_vals = new       T[m * vec_nnz]{};
+    int64_t nnz = filter_regular_cscoo<T>(
+        S0.rows, S0.cols, S0.vals, vec_nnz,
+        j_os, j_os + m,
+        i_os, i_os + d,
+        S_rows, S_cols, S_vals
     );
+    // The implementation of filter_regular_cscoo has a HARD requirement
+    // that S0 has a fixed number of nonzeros per column.
+    //
+    // Once we have (S_rows, S_cols, S_vals) in the format ensured
+    // by filter_regular_cscoo, we apply the resulting sparse matrix "S"
+    // to the left of A to get B = S*A.
+    //
+    // This function does not require that S or S0 is wide.
 
     omp_set_num_threads(threads);
     #pragma omp parallel default(shared)
@@ -224,21 +275,27 @@ static void apply_wide_saso_left(
             for (int64_t k = 0; k < n; k++) {
                 A_col = &A[lda * k];
                 B_col = &B[ldb * k];
-                cscoo_matvec<T>(A_col, 1, B_col, 1, rows_view, cols_view, vals_view, m, nnz);
+                apply_cscoo_submat_to_vector_from_left<T>(
+                    A_col, 1, B_col, 1,
+                    S_rows, S_cols, S_vals, m, nnz
+                );
             }
         } else {
             #pragma omp for schedule(static)
             for (int64_t k = 0; k < n; k++) {
                 A_col = &A[k];
                 B_col = &B[k];
-                cscoo_matvec<T>(A_col, lda, B_col, ldb, rows_view, cols_view, vals_view, m, nnz);
+                apply_cscoo_submat_to_vector_from_left<T>(
+                    A_col, lda, B_col, ldb,
+                    S_rows, S_cols, S_vals, m, nnz
+                );
             }
         }
     }
 
-    delete [] rows_view;
-    delete [] cols_view;
-    delete [] vals_view;
+    delete [] S_rows;
+    delete [] S_cols;
+    delete [] S_vals;
 }
 
 template <typename T>
@@ -261,9 +318,7 @@ void lskges(
     int threads // default is 4.
 ) {
     randblas_require(S0.rows != NULL); // must be filled.
-    // randblas_require(d <= m);
-    //  ^ Sketching can't increase dimension, but sometimes we need to "lift" something that's
-    //    been sketched back to the original (higher) dimension.
+    randblas_require(fixed_nnz_per_col(S0));
     randblas_require(alpha == 1.0); // implementation limitation
     randblas_require(beta == 0.0); // implementation limitation
 
@@ -285,19 +340,10 @@ void lskges(
         rows_S = d;
         cols_S = m;
     } else {
-        randblas_require(false); // not implemented. The only reasonable next step implementation-wise is below.
+        randblas_require(false); // not implemented.
         // rows_S = m;
         // cols_S = d;
-        // if (rows_S < cols_S && S0.dist.family == SparseDistName::SASO) {
-        //     // This dimensionality check is just to make sure the transpose of the SASO has a fixed number
-        //     // of nonzeros per column. (It's possible that we want to take linear combinations of columns
-        //     // of a tall SASO or rows of a wide SASO!)
-        //     throw std::runtime_error(std::string("Not implemented. We need op(S) to have a fixed number
-        //     of nonzeros per column."))
-        // }
-        // ^ Implementation-wise, could have a function that returns a wide-SASO view of a transpose of a tall SASO.
     }
-    randblas_require(S0.dist.family == SparseDistName::SASO);
     // ^ Implementation limitation.
     // Dimensionality sanity checks, and perform the sketch.
     if (layout == blas::Layout::ColMajor) {
@@ -307,12 +353,12 @@ void lskges(
         randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
     }
-    apply_wide_saso_left<T>(layout, d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
+    apply_cscoo_left<T>(layout, d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
     return;
 }
 
-template RNGState fill_saso<float>(SparseSkOp<float> &S0);
-template RNGState fill_saso<double>(SparseSkOp<double> &S0);
+template RNGState fill_sparse<float>(SparseSkOp<float> &S0);
+template RNGState fill_sparse<double>(SparseSkOp<double> &S0);
 
 template void print_saso<float>(SparseSkOp<float> &S0);
 template void print_saso<double>(SparseSkOp<double> &S0);

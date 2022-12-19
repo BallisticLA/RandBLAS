@@ -136,7 +136,7 @@ SparseSkOp<T>::~SparseSkOp() {
 
 
 template <typename T>
-base::RNGState fill_saso(
+base::RNGState fill_sparse(
     SparseSkOp<T> &sas
 );
 
