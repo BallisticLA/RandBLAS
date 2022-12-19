@@ -133,111 +133,58 @@ void print_saso(SparseSkOp<T>& S0) {
 }
 
 template <typename T>
-static void left_sketch_rowmajor_data(
-    int64_t d,
-    int64_t n,
-    int64_t m,
-    SparseSkOp<T>& S0,
-    int64_t i_os,
-    int64_t j_os,
-    const T *A,
-    int64_t lda,
-    T *B,
-    int64_t ldb,
-    int threads
+static int64_t filter_cscoo(
+    const int64_t *nzidx2row,
+    const int64_t *nzidx2col,
+    const T *nzidx2val,
+    int64_t vec_nnz,
+    int64_t col_start,
+    int64_t col_end,
+    int64_t row_start,
+    int64_t row_end,
+    int64_t *rows_view,
+    int64_t *cols_view,
+    T *vals_view
 ) {
-    RandBLAS::sparse::SparseDist D = S0.dist;
-    int64_t S_row_start = i_os;
-    int64_t S_col_start = j_os;
-    int64_t S_col_end = S_col_start + m;
-
-    // Identify the range of rows to be processed by each thread.
-    // TODO: replace threads = MIN(threads, d) ?
-    int64_t rows_per_thread = MAX(d / threads, 1);
-    int64_t *S_row_blocks = new int64_t[threads + 1];
-    S_row_blocks[0] = S_row_start;
-    for(int i = 1; i < threads + 1; ++i)
-        S_row_blocks[i] = S_row_blocks[i - 1] + rows_per_thread;
-    S_row_blocks[threads] = d + S_row_start;
-
-    omp_set_num_threads(threads);
-    #pragma omp parallel default(shared)
-    {
-        // Setup variables for the current thread
-        int my_id = omp_get_thread_num();
-        int64_t outer, c, offset, r, inner, S_row;
-        const T *A_row = nullptr;
-        T *B_row = nullptr;
-        T scale;
-        // Do the work for the current thread
-        #pragma omp for schedule(static)
-        for (outer = 0; outer < threads; ++outer) {
-            for(c = S_col_start; c < S_col_end; ++c) {
-                // process column c of the sketching operator (row c of a)
-                A_row = &A[c * lda];
-                offset = c * D.vec_nnz;
-                for (r = 0; r < D.vec_nnz; ++r) {
-                    inner = offset + r;
-                    S_row = S0.rows[inner];
-                    if (
-                        S_row_blocks[my_id] <= S_row && S_row < S_row_blocks[my_id + 1]
-                    ) {
-                        // only perform a write operation if the current row
-                        // index falls in the block assigned to the current thread.
-                        scale = S0.vals[inner];
-                        B_row = &B[(S_row - S_row_start) * ldb];
-                        blas::axpy<T>(n, scale, A_row, 1, B_row, 1);
-                    }
-                } // end processing of column c
-            }
+    int64_t nnz = 0;
+    for (int64_t i = col_start * vec_nnz; i < col_end * vec_nnz; ++i) {
+        int64_t row = nzidx2row[i];
+        if (row_start <= row && row < row_end)  {
+            rows_view[nnz] = row - row_start;
+            cols_view[nnz] = nzidx2col[i] - col_start;
+            vals_view[nnz] = nzidx2val[i];
+            nnz += 1;
         }
     }
+    return nnz;
 }
 
 template <typename T>
-static void wide_saso_matvec(
+static void cscoo_matvec(
     const T *v,
     int64_t incv, // stride between elements of v
     T *Sv, // Sv += S0[:, col_start:col_end] * v.
     int64_t incSv, // stride between elements of Sv
-    SparseSkOp<T> &S0,
-    int64_t col_start,
-    int64_t col_end,
-    int64_t row_start,
-    int64_t row_end
+    const int64_t *rows_view,
+    const int64_t *cols_view,
+    const T       *vals_view,
+    int64_t num_cols,
+    int64_t nnz
 ) {
-    randblas_require(S0.dist.n_rows <= S0.dist.n_cols);
-    int64_t sa_dim;
-    int64_t *sa_indices;
-    sa_dim = S0.dist.n_rows;
-    sa_indices = S0.rows;
-    int64_t vec_nnz = S0.dist.vec_nnz;
-    // We have two nearly-identical code blocks below. The second block contains
-    // an inner if-statement that does not appear in the first block. The point
-    // of having the duplicated code is to avoid branch-misprediction when
-    // the if-statement will always trivially hold.
-    if (row_start == 0 && row_end == sa_dim) {
-        for (int64_t c = col_start; c < col_end; c++) {
-            T scale = v[(c - col_start) * incv];
-            for (int64_t r = c * vec_nnz; r < (c + 1) * vec_nnz; r++) {
-                int64_t row = sa_indices[r];
-                Sv[row * incSv] += (S0.vals[r] * scale);
-            }
-        }
-    } else {
-        for (int64_t c = col_start; c < col_end; c++) {
-            T scale = v[(c - col_start) * incv];
-            for (int64_t r = c * vec_nnz; r < (c + 1) * vec_nnz; r++) {
-                int64_t row = sa_indices[r];
-                if (row_start <= row && row < row_end)
-                    Sv[(row - row_start) * incSv] += (S0.vals[r] * scale);
-            }
+    int64_t i = 0;
+    for (int64_t c = 0; c < num_cols; ++c) {
+        T scale = v[c * incv];
+        while (cols_view[i] == c && i < nnz) {
+            int64_t row = rows_view[i];
+            Sv[row * incSv] += (vals_view[i] * scale);
+            i += 1;
         }
     }
 }
 
 template <typename T>
-static void left_sketch_colmajor_data(
+static void apply_wide_saso_left(
+    blas::Layout layout,
     int64_t d,
     int64_t n,
     int64_t m,
@@ -249,12 +196,21 @@ static void left_sketch_colmajor_data(
     T *B,
     int64_t ldb,
     int threads
-){
+) {
     RandBLAS::sparse::SparseDist D = S0.dist;
     int64_t r0 = i_os;
     int64_t c0 = j_os;
     int64_t rf = r0 + d;
     int64_t cf = c0 + m;
+
+    int64_t vec_nnz = D.vec_nnz;
+    int64_t *rows_view = new int64_t[m * vec_nnz]{};
+    int64_t *cols_view = new int64_t[m * vec_nnz]{};
+    T       *vals_view = new       T[m * vec_nnz]{};
+    int64_t nnz = filter_cscoo<T>(
+        S0.rows, S0.cols, S0.vals, vec_nnz, c0, cf, r0, rf,
+        rows_view, cols_view, vals_view
+    );
 
     omp_set_num_threads(threads);
     #pragma omp parallel default(shared)
@@ -262,15 +218,27 @@ static void left_sketch_colmajor_data(
         // Setup variables for the current thread
         const T *A_col = nullptr;
         T *B_col = nullptr;
-
         // Do the work for the current thread.
-        #pragma omp for schedule(static)
-        for (int64_t k = 0; k < n; k++) {
-            A_col = &A[lda * k];
-            B_col = &B[ldb * k];
-            wide_saso_matvec<T>(A_col, 1, B_col, 1, S0, c0, cf, r0, rf);
+        if (layout == blas::Layout::ColMajor) {
+            #pragma omp for schedule(static)
+            for (int64_t k = 0; k < n; k++) {
+                A_col = &A[lda * k];
+                B_col = &B[ldb * k];
+                cscoo_matvec<T>(A_col, 1, B_col, 1, rows_view, cols_view, vals_view, m, nnz);
+            }
+        } else {
+            #pragma omp for schedule(static)
+            for (int64_t k = 0; k < n; k++) {
+                A_col = &A[k];
+                B_col = &B[k];
+                cscoo_matvec<T>(A_col, lda, B_col, ldb, rows_view, cols_view, vals_view, m, nnz);
+            }
         }
     }
+
+    delete [] rows_view;
+    delete [] cols_view;
+    delete [] vals_view;
 }
 
 template <typename T>
@@ -292,9 +260,10 @@ void lskges(
     int64_t ldb,
     int threads // default is 4.
 ) {
-    randblas_require(S0.dist.family == SparseDistName::SASO);
     randblas_require(S0.rows != NULL); // must be filled.
-    randblas_require(d <= m);
+    // randblas_require(d <= m);
+    //  ^ Sketching can't increase dimension, but sometimes we need to "lift" something that's
+    //    been sketched back to the original (higher) dimension.
     randblas_require(alpha == 1.0); // implementation limitation
     randblas_require(beta == 0.0); // implementation limitation
 
@@ -316,19 +285,29 @@ void lskges(
         rows_S = d;
         cols_S = m;
     } else {
-        rows_S = m;
-        cols_S = d;
+        randblas_require(false); // not implemented. The only reasonable next step implementation-wise is below.
+        // rows_S = m;
+        // cols_S = d;
+        // if (rows_S < cols_S && S0.dist.family == SparseDistName::SASO) {
+        //     // This dimensionality check is just to make sure the transpose of the SASO has a fixed number
+        //     // of nonzeros per column. (It's possible that we want to take linear combinations of columns
+        //     // of a tall SASO or rows of a wide SASO!)
+        //     throw std::runtime_error(std::string("Not implemented. We need op(S) to have a fixed number
+        //     of nonzeros per column."))
+        // }
+        // ^ Implementation-wise, could have a function that returns a wide-SASO view of a transpose of a tall SASO.
     }
+    randblas_require(S0.dist.family == SparseDistName::SASO);
+    // ^ Implementation limitation.
     // Dimensionality sanity checks, and perform the sketch.
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= d);
-        left_sketch_colmajor_data<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
     } else {
         randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
-        left_sketch_rowmajor_data<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
     }
+    apply_wide_saso_left<T>(layout, d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
     return;
 }
 
@@ -337,12 +316,6 @@ template RNGState fill_saso<double>(SparseSkOp<double> &S0);
 
 template void print_saso<float>(SparseSkOp<float> &S0);
 template void print_saso<double>(SparseSkOp<double> &S0);
-
-template void left_sketch_rowmajor_data<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float *B, int64_t ldb, int threads);
-template void left_sketch_rowmajor_data<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, const double *A, int64_t lda, double *B, int64_t ldb, int threads);
-
-template void left_sketch_colmajor_data<float>(int64_t d, int64_t n, int64_t m, SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float *B, int64_t ldb, int threads);
-template void left_sketch_colmajor_data<double>(int64_t d, int64_t n, int64_t m, SparseSkOp<double> &S0, int64_t i_os, int64_t j_os, const double *A, int64_t lda, double *B, int64_t ldb, int threads);
 
 template void lskges<float>(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, float alpha,
     SparseSkOp<float> &S0, int64_t i_os, int64_t j_os, const float *A, int64_t lda, float beta, float *B, int64_t ldb, int threads);
