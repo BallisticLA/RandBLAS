@@ -29,43 +29,34 @@ template <typename T, typename T_gen>
 static RNGState template_fill_sparse(
     SparseSkOp<T>& S0
 ) {
-    randblas_require(fixed_nnz_per_col(S0));
-    RNGState init_state = S0.seed_state;
+    int64_t long_ax_len = MAX(S0.dist.n_rows, S0.dist.n_cols);
+    int64_t short_ax_len = MIN(S0.dist.n_rows, S0.dist.n_cols);
 
-    // Load shorter names into the workspace
-    int64_t k = S0.dist.vec_nnz;
-    T *vals = S0.vals; // point to array of length nnz
+    bool is_wide = S0.dist.n_rows == short_ax_len;
+    int64_t *short_ax_idxs = (is_wide) ? S0.rows : S0.cols;
+    int64_t *long_ax_idxs = (is_wide) ? S0.cols : S0.rows;
 
-    int64_t la_len = MAX(S0.dist.n_rows, S0.dist.n_cols);
-    int64_t sa_len = MIN(S0.dist.n_rows, S0.dist.n_cols);
-    int64_t *la_idxs, *sa_idxs;
-    if (S0.dist.n_rows <= S0.dist.n_cols) {
-        la_idxs = S0.cols; // indices of nonzeros for the long-axis
-        sa_idxs = S0.rows; // indices of nonzeros for the short-axis
-    } else {
-        sa_idxs = S0.cols; // indices of nonzeros for the short-axis
-        la_idxs = S0.rows; // indices of nonzeros for the long-axis
-    }
-    int64_t *vecax_idxs, *indax_idxs;
+    int64_t *vec_ax_idxs, *rep_ax_idxs;
     int64_t vec_len, num_vecs;
     if (S0.dist.family == SparseDistName::SASO) {
-        vec_len = sa_len;
-        num_vecs = la_len;
-        vecax_idxs = sa_idxs;
-        indax_idxs = la_idxs;
+        vec_len = short_ax_len;
+        num_vecs = long_ax_len;
+        vec_ax_idxs = short_ax_idxs;
+        rep_ax_idxs = long_ax_idxs;
     } else {
-        vec_len = la_len;
-        num_vecs = sa_len;
-        vecax_idxs = la_idxs;
-        vecax_idxs = sa_idxs;
+        vec_len = long_ax_len;
+        num_vecs = short_ax_len;
+        vec_ax_idxs = long_ax_idxs;
+        rep_ax_idxs = short_ax_idxs;
     }
 
-    // Define variables needed in the main loop
+    RNGState init_state = S0.seed_state;
+    int64_t vec_nnz = S0.dist.vec_nnz;
     int64_t i, j, ell, swap, offset;
-    std::vector<int64_t> pivots(k);
-    std::vector<int64_t> curr_vec_work(vec_len); // short-axis vector workspace
+    std::vector<int64_t> pivots(vec_nnz);
+    std::vector<int64_t> vec_work(vec_len);
     for (j = 0; j < vec_len; ++j) {
-        curr_vec_work[j] = j;
+        vec_work[j] = j;
     }
     T_gen g;
     typedef typename T_gen::ctr_type ctr_type;
@@ -75,37 +66,35 @@ static RNGState template_fill_sparse(
 
     // Use Fisher-Yates
     for (i = 0; i < num_vecs; ++i) {
-        offset = i * k;
-
+        // set the state of the Random123 RNG.
+        offset = i * vec_nnz;
         Random123_RNGState<T_gen> impl_state(init_state);
         impl_state.ctr.incr(offset);
-        for (j = 0; j < k; ++j) {
+        for (j = 0; j < vec_nnz; ++j) {
             // one step of Fisher-Yates shuffling
             rout = g(impl_state.ctr, impl_state.key);
             ell = j + rout.v[0] % (vec_len - j);
             pivots[j] = ell;
-            swap = curr_vec_work[ell];
-            curr_vec_work[ell] = curr_vec_work[j];
-            curr_vec_work[j] = swap;
-
+            swap = vec_work[ell];
+            vec_work[ell] = vec_work[j];
+            vec_work[j] = swap;
             // update (rows, cols, vals)
-            vecax_idxs[j + offset] = swap;
-            vals[j + offset] = (rout.v[1] % 2 == 0) ? 1.0 : -1.0;
-            indax_idxs[j + offset] = i;
-
+            vec_ax_idxs[j + offset] = swap;
+            S0.vals[j + offset] = (rout.v[1] % 2 == 0) ? 1.0 : -1.0;
+            rep_ax_idxs[j + offset] = i;
             // increment counter
             impl_state.ctr.incr(1);
         }
-        // Restore curr_vec_work for next iteration of Fisher-Yates.
+        // Restore vec_work for next iteration of Fisher-Yates.
         //      This isn't necessary from a statistical perspective,
         //      but it makes it easier to generate submatrices of
         //      a given SparseSkOp.
-        for (j = 1; j <= k; ++j) {
-            int jj = k - j;
-            swap = vecax_idxs[jj + offset];
+        for (j = 1; j <= vec_nnz; ++j) {
+            int jj = vec_nnz - j;
+            swap = vec_ax_idxs[jj + offset];
             ell = pivots[jj];
-            curr_vec_work[jj] = curr_vec_work[ell];
-            curr_vec_work[ell] = swap;
+            vec_work[jj] = vec_work[ell];
+            vec_work[ell] = swap;
         }
         out_state = impl_state;
     }
