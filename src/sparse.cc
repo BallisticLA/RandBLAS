@@ -196,6 +196,76 @@ static int64_t filter_regular_cscoo(
 }
 
 template <typename T>
+static int64_t filter_and_convert_regular_csroo_to_cscoo(
+    const int64_t *nonzeroidx2row,
+    const int64_t *nonzeroidx2col,
+    const T *nonzeroidx2val,
+    int64_t vec_nnz,
+    int64_t col_start,
+    int64_t col_end,
+    int64_t row_start,
+    int64_t row_end,
+    int64_t *rows_view,
+    int64_t *cols_view,
+    T *vals_view
+) {
+    // (nonzeroidx2row, nonzeroidx2col, nonzeroidx2val) define a sparse matrix S0
+    //  in COO format with a CSR-like property. The CSR-like property
+    //  is that all nonzero entries in a given row of S0 are 
+    //  contiguous in "nonzeroidx2col". The sparse matrix S0 must be "regular"
+    //  in the sense that it must have exactly vec_nnz nonzeros in each
+    //  row.
+    //
+    //  This function writes data to (rows_view, cols_view, vals_view)
+    //  for a sparse matrix S in an analogous "COO/CSC-like" format.
+    //  Mathematically, we have S = S0[row_start:row_end, col_start:col_end].
+    //  The sparse matrix S does not necessarily have a fixed number of
+    //  nonzeros in each column.
+    //
+    //  Neither S0 nor S need to be wide.  
+    //
+    typedef std::tuple<int64_t, int64_t, T> tuple_type;
+    std::vector<tuple_type> nonzeros;
+    nonzeros.reserve((row_end - row_start) * vec_nnz);
+
+    for (int64_t i = row_start * vec_nnz; i < row_end * vec_nnz; ++i) {
+        int64_t col = nonzeroidx2col[i];
+        if (col_start <= col && col < col_end)  {
+            tuple_type tup{
+                nonzeroidx2row[i] - row_start,
+                col - col_start,
+                nonzeroidx2val[i]
+            };
+            nonzeros.push_back(tup);
+        }
+    }
+
+    auto sort_func = [](tuple_type t1, tuple_type t2) {
+        if (std::get<1>(t1) < std::get<1>(t2)) {
+            return true;
+        } else if (std::get<1>(t1) > std::get<1>(t2)) {
+            return false;
+        }
+        // t1.second == t2.second
+        if (std::get<0>(t1) < std::get<0>(t2)) {
+            return true;
+        } else {
+            return false;
+        }
+    };
+    std::sort(nonzeros.begin(), nonzeros.end(), sort_func);
+    
+    int64_t nnz = nonzeros.size();
+    for (int64_t i = 0; i < nnz; ++i) {
+        tuple_type tup = nonzeros[i];
+        rows_view[i] = std::get<0>(tup);
+        cols_view[i] = std::get<1>(tup);
+        vals_view[i] = std::get<2>(tup);
+    }
+    return nnz;
+}
+
+template <typename T>
 static void apply_cscoo_submat_to_vector_from_left(
     const T *v,
     int64_t incv,   // stride between elements of v
@@ -212,7 +282,7 @@ static void apply_cscoo_submat_to_vector_from_left(
     //
     //      The CSC-like property requires that all nonzero entries
     //      in a given column of the sparse matrix are contiguous in
-    //      "cols_view".
+    //      "cols_view" and that entries in cols_view are nondecreasing.
     //  
     //      The sparse matrix does not need to be wide.
     //
@@ -228,7 +298,7 @@ static void apply_cscoo_submat_to_vector_from_left(
 }
 
 template <typename T>
-static void apply_cscoo_left(
+static void apply_cscoo_csroo_left(
     blas::Layout layout,
     int64_t d,
     int64_t n,
@@ -246,17 +316,32 @@ static void apply_cscoo_left(
     int64_t *S_rows = new int64_t[m * vec_nnz]{};
     int64_t *S_cols = new int64_t[m * vec_nnz]{};
     T       *S_vals = new       T[m * vec_nnz]{};
-    int64_t nnz = filter_regular_cscoo<T>(
-        S0.rows, S0.cols, S0.vals, vec_nnz,
-        j_os, j_os + m,
-        i_os, i_os + d,
-        S_rows, S_cols, S_vals
-    );
-    // The implementation of filter_regular_cscoo has a HARD requirement
-    // that S0 has a fixed number of nonzeros per column.
-    //
+    int64_t nnz;
+    if (fixed_nnz_per_col(S0)) {
+        nnz = filter_regular_cscoo<T>(
+            S0.rows, S0.cols, S0.vals, vec_nnz,
+            j_os, j_os + m,
+            i_os, i_os + d,
+            S_rows, S_cols, S_vals
+        );
+        // The function above has a HARD requirement that
+        // S0 has a fixed number of nonzeros per column.
+        // It also requires that the entries in S.cols 
+        // comprise a nondecreasing sequence.
+    } else {
+        nnz = filter_and_convert_regular_csroo_to_cscoo<T>(
+            S0.rows, S0.cols, S0.vals, vec_nnz,
+            j_os, j_os + m,
+            i_os, i_os + d,
+            S_rows, S_cols, S_vals
+        );
+        // The function above has a HARD requirement that
+        // S0 has a fixed number of nonzeros per row.
+        // It also requires that the entries in S.rows 
+        // comprise a nondecreasing sequence.
+    }
     // Once we have (S_rows, S_cols, S_vals) in the format ensured
-    // by filter_regular_cscoo, we apply the resulting sparse matrix "S"
+    // by the functions above, we apply the resulting sparse matrix "S"
     // to the left of A to get B = S*A.
     //
     // This function does not require that S or S0 is wide.
@@ -316,7 +401,6 @@ void lskges(
     int threads // default is 4.
 ) {
     randblas_require(S0.rows != NULL); // must be filled.
-    randblas_require(fixed_nnz_per_col(S0));
     randblas_require(alpha == 1.0); // implementation limitation
     randblas_require(beta == 0.0); // implementation limitation
 
@@ -342,8 +426,8 @@ void lskges(
         // rows_S = m;
         // cols_S = d;
     }
-    // ^ Implementation limitation.
-    // Dimensionality sanity checks, and perform the sketch.
+
+    // Dimensionality sanity checks
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= d);
@@ -351,7 +435,9 @@ void lskges(
         randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
     }
-    apply_cscoo_left<T>(layout, d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
+
+    // Perform the sketch
+    apply_cscoo_csroo_left<T>(layout, d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
     return;
 }
 
