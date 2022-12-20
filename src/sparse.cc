@@ -26,6 +26,60 @@ static bool fixed_nnz_per_col(
 }
 
 template <typename T, typename T_gen>
+static RNGState repeated_fisher_yates(
+    RNGState init_state,
+    int64_t num_vecs,
+    int64_t vec_len,
+    int64_t vec_nnz,
+    int64_t *vec_ax_idxs,
+    int64_t *rep_ax_idxs,
+    T *vals
+) {
+    std::vector<int64_t> vec_work(vec_len);
+    for (int64_t j = 0; j < vec_len; ++j)
+        vec_work[j] = j;
+    std::vector<int64_t> pivots(vec_nnz);
+    typedef typename T_gen::ctr_type ctr_type;
+    ctr_type rout;
+    T_gen g;
+    RNGState out_state(init_state);
+    for (int64_t i = 0; i < num_vecs; ++i) {
+        // set the state of the Random123 RNG.
+        int64_t offset = i * vec_nnz;
+        Random123_RNGState<T_gen> impl_state(init_state);
+        impl_state.ctr.incr(offset);
+        for (int64_t j = 0; j < vec_nnz; ++j) {
+            // one step of Fisher-Yates shuffling
+            rout = g(impl_state.ctr, impl_state.key);
+            int64_t ell = j + rout.v[0] % (vec_len - j);
+            pivots[j] = ell;
+            int64_t swap = vec_work[ell];
+            vec_work[ell] = vec_work[j];
+            vec_work[j] = swap;
+            // update (rows, cols, vals)
+            vec_ax_idxs[j + offset] = swap;
+            vals[j + offset] = (rout.v[1] % 2 == 0) ? 1.0 : -1.0;
+            rep_ax_idxs[j + offset] = i;
+            // increment counter
+            impl_state.ctr.incr(1);
+        }
+        // Restore vec_work for next iteration of Fisher-Yates.
+        //      This isn't necessary from a statistical perspective,
+        //      but it makes it easier to generate submatrices of
+        //      a given SparseSkOp.
+        for (int64_t j = 1; j <= vec_nnz; ++j) {
+            int64_t jj = vec_nnz - j;
+            int64_t swap = vec_ax_idxs[jj + offset];
+            int64_t ell = pivots[jj];
+            vec_work[jj] = vec_work[ell];
+            vec_work[ell] = swap;
+        }
+        out_state = impl_state;
+    }
+    return out_state;
+}
+
+template <typename T, typename T_gen>
 static RNGState template_fill_sparse(
     SparseSkOp<T>& S0
 ) {
@@ -49,55 +103,10 @@ static RNGState template_fill_sparse(
         vec_ax_idxs = long_ax_idxs;
         rep_ax_idxs = short_ax_idxs;
     }
-
-    RNGState init_state = S0.seed_state;
-    int64_t vec_nnz = S0.dist.vec_nnz;
-    int64_t i, j, ell, swap, offset;
-    std::vector<int64_t> pivots(vec_nnz);
-    std::vector<int64_t> vec_work(vec_len);
-    for (j = 0; j < vec_len; ++j) {
-        vec_work[j] = j;
-    }
-    T_gen g;
-    typedef typename T_gen::ctr_type ctr_type;
-    ctr_type rout;
-
-    RNGState out_state(init_state);
-
-    // Use Fisher-Yates
-    for (i = 0; i < num_vecs; ++i) {
-        // set the state of the Random123 RNG.
-        offset = i * vec_nnz;
-        Random123_RNGState<T_gen> impl_state(init_state);
-        impl_state.ctr.incr(offset);
-        for (j = 0; j < vec_nnz; ++j) {
-            // one step of Fisher-Yates shuffling
-            rout = g(impl_state.ctr, impl_state.key);
-            ell = j + rout.v[0] % (vec_len - j);
-            pivots[j] = ell;
-            swap = vec_work[ell];
-            vec_work[ell] = vec_work[j];
-            vec_work[j] = swap;
-            // update (rows, cols, vals)
-            vec_ax_idxs[j + offset] = swap;
-            S0.vals[j + offset] = (rout.v[1] % 2 == 0) ? 1.0 : -1.0;
-            rep_ax_idxs[j + offset] = i;
-            // increment counter
-            impl_state.ctr.incr(1);
-        }
-        // Restore vec_work for next iteration of Fisher-Yates.
-        //      This isn't necessary from a statistical perspective,
-        //      but it makes it easier to generate submatrices of
-        //      a given SparseSkOp.
-        for (j = 1; j <= vec_nnz; ++j) {
-            int jj = vec_nnz - j;
-            swap = vec_ax_idxs[jj + offset];
-            ell = pivots[jj];
-            vec_work[jj] = vec_work[ell];
-            vec_work[ell] = swap;
-        }
-        out_state = impl_state;
-    }
+    RNGState out_state = repeated_fisher_yates<T, T_gen>(
+        S0.seed_state, num_vecs, vec_len,
+        S0.dist.vec_nnz, vec_ax_idxs, rep_ax_idxs, S0.vals
+    );
     S0.next_state = out_state;
     return out_state;
 }
