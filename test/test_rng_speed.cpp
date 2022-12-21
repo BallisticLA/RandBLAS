@@ -11,6 +11,12 @@
 #include <cstdint>
 #include <utility>
 #include <chrono>
+#include <type_traits>
+
+#define USE_OMP
+#if defined(USE_OMP)
+#include <omp.h>
+#endif
 
 
 
@@ -52,18 +58,37 @@ struct RNGState
     KEY key;
 };
 
-template <typename RNG, typename CTR = typename RNG::ctr_type, typename KEY = typename RNG::key_type>
-auto generate_boxmuller(RNG &rng, CTR &&c, KEY &&k)
+struct boxmul
 {
-    auto r = rng(c, k);
-    auto [v0, v1] = r123::boxmuller(r.v[0], r.v[1]);
-    auto [v2, v3] = r123::boxmuller(r.v[2], r.v[3]);
-    return std::array {v0, v1, v2, v3};
-}
+    template <typename RNG, typename CTR = typename RNG::ctr_type, typename KEY = typename RNG::key_type>
+    static
+    auto generate(RNG &rng, CTR &&c, KEY &&k)
+    {
+        auto r = rng(c, k);
+        auto [v0, v1] = r123::boxmuller(r.v[0], r.v[1]);
+        auto [v2, v3] = r123::boxmuller(r.v[2], r.v[3]);
+        return std::array {v0, v1, v2, v3};
+    }
+};
 
 
-template <typename T, typename RNG, typename CTR = typename RNG::ctr_type, typename KEY = typename RNG::key_type>
-auto gen_norm(
+
+struct uneg11
+{
+    template <typename RNG, typename CTR = typename RNG::ctr_type, typename KEY = typename RNG::key_type,
+        typename VAL = typename std::conditional
+            <sizeof(typename RNG::ctr_type::value_type) == sizeof(uint32_t), float, double>::type>
+    static
+    auto generate(RNG &rng, CTR &&c, KEY &&k)
+    {
+        auto r = rng(c, k);
+        return r123::uneg11all<VAL>(r);
+    }
+};
+
+
+template <typename T, typename RNG, typename OP, typename CTR = typename RNG::ctr_type, typename KEY = typename RNG::key_type>
+auto generate(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
@@ -72,30 +97,52 @@ auto gen_norm(
     RNG rng;
     auto [c, k] = seed();
 
-    int64_t i = 0;
     int64_t dim = n_rows * n_cols;
     int64_t nit = dim / 4;
     int64_t nlast = dim % 4;
 
-    for (; i < nit; ++i)
+#if defined(USE_OMP)
+    #pragma omp parallel firstprivate(c, k)
     {
-        auto v = generate_boxmuller<RNG>(rng, c, k);
+        int q = omp_get_thread_num();
 
-        mat[4*i    ] = v[0];
-        mat[4*i + 1] = v[1];
-        mat[4*i + 2] = v[2];
-        mat[4*i + 3] = v[3];
+        // give each thread a unique key so each will generate a unique
+        // sequence
+        k[0] = q;
 
-        c.incr(4);
+        #pragma omp for
+#endif
+        for (int64_t i = 0; i < nit; ++i)
+        {
+            auto v = OP::generate(rng, c, k);
+
+            mat[4*i    ] = v[0];
+            mat[4*i + 1] = v[1];
+            mat[4*i + 2] = v[2];
+            mat[4*i + 3] = v[3];
+
+            c.incr();
+        }
+#if defined(USE_OMP)
     }
 
-    auto v = generate_boxmuller<RNG>(rng, c, k);
+    c.incr(nit);
+#endif
 
-    for (int64_t j = 0; j < nlast; ++j)
-        mat[4*i + j] = v[j];
+    if (nlast)
+    {
+        auto v = OP::generate(rng, c, k);
+
+        for (int64_t j = 0; j < nlast; ++j)
+            mat[4*nit + j] = v[j];
+
+        c.incr();
+    }
 
     return RNGState<RNG> {c, k};
 }
+
+
 
 
 
@@ -116,12 +163,12 @@ std::ostream &operator<<(std::ostream &os, std::vector<T> &v)
 
 
 
-template <typename T, typename RNG>
+template <typename T, typename RNG, typename OP>
 auto run_test(int64_t m, int64_t n, T *mat)
 {
     auto t0 = std::chrono::high_resolution_clock::now();
     RNGState<RNG> seed;
-    gen_norm(m, n, mat, seed);
+    generate<T,RNG,OP>(m, n, mat, seed);
     auto t1 = std::chrono::high_resolution_clock::now();
     return (t1 - t0).count();
 }
@@ -130,6 +177,12 @@ auto run_test(int64_t m, int64_t n, T *mat)
 int main(int argc, char **argv)
 {
     using RNG = r123::Philox4x32;
+    using OP = boxmul; //uneg11;
+
+
+
+    //r123::Array4x32::value_type a;
+    RNG::ctr_type::value_type a;
 
     int64_t m = atoi(argv[1]);
     int64_t n = atoi(argv[2]);
@@ -137,15 +190,19 @@ int main(int argc, char **argv)
 
     std::vector<float> mat(d);
 
-    auto phi = run_test<float, r123::Philox4x32>(m, n, mat.data());
-    auto tfr = run_test<float, r123::Threefry4x32>(m, n, mat.data());
-#if defined(__AES__)
-    auto aes = run_test<float, r123::AESNI4x32>(m, n, mat.data());
-    auto ars = run_test<float, r123::ARS4x32>(m, n, mat.data());
+
+    auto phi = run_test<float, r123::Philox4x32, OP>(m, n, mat.data());
+#if 0
+    auto tfr = run_test<float, r123::Threefry4x32, OP>(m, n, mat.data());
+    //#if defined(__AES__)
+    auto aes = run_test<float, r123::AESNI4x32, OP>(m, n, mat.data());
+    auto ars = run_test<float, r123::ARS4x32, OP>(m, n, mat.data());
 #endif
+
     std::cerr << "phi = " << phi << std::endl
+#if 0
         << "tfr = " << tfr << std::endl
-#if defined(__AES__)
+//#if defined(__AES__)
         << "aes = " << aes << std::endl
         << "ars = " << ars << std::endl
 #endif

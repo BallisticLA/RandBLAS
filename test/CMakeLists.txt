@@ -20,4 +20,4 @@ endif()
 message(STATUS "Checking for regression tests ... ${tmp}")
 
 add_executable(test_rng_speed test_rng_speed.cpp)
-target_link_libraries(test_rng_speed Random123)
+target_link_libraries(test_rng_speed Random123 OpenMP::OpenMP_CXX)
