@@ -313,11 +313,13 @@ static void apply_cscoo_csroo_left(
     int threads
 ) {
     int64_t vec_nnz = S0.dist.vec_nnz;
-    int64_t *S_rows = new int64_t[m * vec_nnz]{};
-    int64_t *S_cols = new int64_t[m * vec_nnz]{};
-    T       *S_vals = new       T[m * vec_nnz]{};
     int64_t nnz;
+    int64_t *S_rows, *S_cols;
+    T *S_vals;
     if (fixed_nnz_per_col(S0)) {
+        S_rows = new int64_t[m * vec_nnz]{};
+        S_cols = new int64_t[m * vec_nnz]{};
+        S_vals = new       T[m * vec_nnz]{};
         nnz = filter_regular_cscoo<T>(
             S0.rows, S0.cols, S0.vals, vec_nnz,
             j_os, j_os + m,
@@ -329,6 +331,9 @@ static void apply_cscoo_csroo_left(
         // It also requires that the entries in S.cols 
         // comprise a nondecreasing sequence.
     } else {
+        S_rows = new int64_t[d * vec_nnz]{};
+        S_cols = new int64_t[d * vec_nnz]{};
+        S_vals = new       T[d * vec_nnz]{};
         nnz = filter_and_convert_regular_csroo_to_cscoo<T>(
             S0.rows, S0.cols, S0.vals, vec_nnz,
             j_os, j_os + m,

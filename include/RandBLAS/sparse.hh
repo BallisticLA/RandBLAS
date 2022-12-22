@@ -110,9 +110,14 @@ SparseSkOp<T>::SparseSkOp(
     //      own_memory is a bool that's true iff the
     //      rows_, cols_, and vals_ pointers were all NULL.
     //
-    int64_t long_ax_len = MAX(this->dist.n_rows, this->dist.n_cols);
+    int64_t rep_ax_len;
+    if (this->dist.family == SparseDistName::SASO) {
+        rep_ax_len = MAX(this->dist.n_rows, this->dist.n_cols);
+    } else { 
+        rep_ax_len = MIN(this->dist.n_rows, this->dist.n_cols);
+    }
     if (this->own_memory) {
-        int64_t nnz = this->dist.vec_nnz * long_ax_len;
+        int64_t nnz = this->dist.vec_nnz * rep_ax_len;
         this->rows = new int64_t[nnz];
         this->cols = new int64_t[nnz];
         this->vals = new T[nnz];

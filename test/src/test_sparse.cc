@@ -14,12 +14,12 @@ RandBLAS::sparse::SparseSkOp<T> make_wide_saso(
     uint32_t key
 ) {
     assert(n_rows <= n_cols);
-    RandBLAS::sparse::SparseSkOp<T> sas(
+    RandBLAS::sparse::SparseSkOp<T> S0(
         RandBLAS::sparse::SparseDistName::SASO,
         n_rows, n_cols, vec_nnz, key, ctr_offset
     );
-    RandBLAS::sparse::fill_sparse<T>(sas);
-    return sas;
+    RandBLAS::sparse::fill_sparse<T>(S0);
+    return S0;
 }
 
 
@@ -61,28 +61,28 @@ class TestSparseSkOpConstruction : public ::testing::Test
     }
 
     virtual void proper_saso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
-        RandBLAS::sparse::SparseSkOp<double> sas(
+        RandBLAS::sparse::SparseSkOp<double> S0(
             RandBLAS::sparse::SparseDistName::SASO,
             d, m, vec_nnzs[nnz_index], keys[key_index], 0
         );
-        RandBLAS::sparse::fill_sparse<double>(sas);
+        RandBLAS::sparse::fill_sparse<double>(S0);
        if (d < m) {
-            fixed_nnz_per_col(sas);
+            fixed_nnz_per_col(S0);
        } else {
-            fixed_nnz_per_row(sas);
+            fixed_nnz_per_row(S0);
        }
     } 
 
     virtual void proper_laso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
-        RandBLAS::sparse::SparseSkOp<double> sas(
+        RandBLAS::sparse::SparseSkOp<double> S0(
             RandBLAS::sparse::SparseDistName::LASO,
             d, m, vec_nnzs[nnz_index], keys[key_index], 0
         );
-        RandBLAS::sparse::fill_sparse<double>(sas);
+        RandBLAS::sparse::fill_sparse<double>(S0);
        if (d < m) {
-            fixed_nnz_per_row(sas);
+            fixed_nnz_per_row(S0);
        } else {
-            fixed_nnz_per_col(sas);
+            fixed_nnz_per_col(S0);
        }
     } 
 };
@@ -164,35 +164,34 @@ TEST_F(TestSparseSkOpConstruction, LASO_Dim_15by7) {
 }
 
 template <typename T>
-void sas_to_dense(
-    RandBLAS::sparse::SparseSkOp<T> &sas,
+void sparseskop_to_dense(
+    RandBLAS::sparse::SparseSkOp<T> &S0,
     T *mat,
     blas::Layout layout
 ) {
-    RandBLAS::sparse::SparseDist D = sas.dist;
+    RandBLAS::sparse::SparseDist D = S0.dist;
     for (int64_t i = 0; i < D.n_rows * D.n_cols; ++i)
         mat[i] = 0.0;
-
     auto idx = [D, layout](int64_t i, int64_t j) {
         return  (layout == blas::Layout::ColMajor) ? (i + j*D.n_rows) : (j + i*D.n_cols);
     };
-
-    int64_t nnz = D.n_cols * D.vec_nnz;
+    int64_t nnz;
+    if (D.family == RandBLAS::sparse::SparseDistName::SASO) {
+        nnz = D.vec_nnz * MAX(D.n_rows, D.n_cols);
+    } else {
+        nnz = D.vec_nnz * MIN(D.n_rows, D.n_cols);
+    }
     for (int64_t i = 0; i < nnz; ++i) {
-        int64_t row = sas.rows[i];
-        int64_t col = sas.cols[i];
-        T val = sas.vals[i];
+        int64_t row = S0.rows[i];
+        int64_t col = S0.cols[i];
+        T val = S0.vals[i];
         mat[idx(row, col)] = val;
     }
 }
 
 class TestLSKGES : public ::testing::Test
 {
-    // only tests column-sparse SASOs for now.
     protected:
-        static inline int64_t d = 19;
-        static inline int64_t m = 201;
-        static inline int64_t n = 12;
         static inline std::vector<uint32_t> keys = {42, 0, 1};
         static inline std::vector<uint64_t> vec_nnzs = {1, 2, 3, 7, 19};     
     
@@ -201,19 +200,25 @@ class TestLSKGES : public ::testing::Test
     virtual void TearDown() {};
 
     template <typename T>
-    static void apply(blas::Layout layout, int64_t key_index, int64_t nnz_index, int threads)
+    static void apply(
+        RandBLAS::sparse::SparseDistName distname,
+        int64_t d, int64_t m, int64_t n,
+        blas::Layout layout, int64_t
+        key_index, int64_t nnz_index, int threads)
     {
-        uint32_t key = keys[key_index];
-        uint64_t vec_nnz = vec_nnzs[nnz_index];
         uint32_t a_seed = 99;
 
-        // construct test data: matrix A, SparseSkOp "sas", and dense representation S
+        // construct test data: matrix A, SparseSkOp "S0", and dense representation S
         T *a = new T[m * n];
         T *a_hat = new T[d * n]{};
         T *S = new T[d * m];
         RandBLAS::util::genmat(m, n, a, a_seed);
-        auto sas = make_wide_saso<T>(d, m, vec_nnz, 0, key);
-        sas_to_dense<T>(sas, S, layout);
+        RandBLAS::sparse::SparseSkOp<T> S0(
+            distname, d, m,
+            vec_nnzs[nnz_index], keys[key_index], 0
+        );
+        RandBLAS::sparse::fill_sparse<T>(S0);
+        sparseskop_to_dense<T>(S0, S, layout);
         int64_t lda, ldahat, lds;
         if (layout == blas::Layout::RowMajor) {
             lda = n; 
@@ -230,7 +235,7 @@ class TestLSKGES : public ::testing::Test
             RandBLAS::sparse::lskges<T>(
                 layout, blas::Op::NoTrans, blas::Op::NoTrans,
                 d, n, m,
-                1.0, sas, 0, 0, a, lda,
+                1.0, S0, 0, 0, a, lda,
                 0.0, a_hat, ldahat,
                 threads   
             );
@@ -238,7 +243,7 @@ class TestLSKGES : public ::testing::Test
             RandBLAS::sparse::lskges<T>(
                 layout, blas::Op::NoTrans, blas::Op::NoTrans,
                 d, n, m,
-                1.0, sas, 0, 0, a, lda,
+                1.0, S0, 0, 0, a, lda,
                 0.0, a_hat, ldahat
             );
         }
@@ -290,7 +295,7 @@ class TestLSKGES : public ::testing::Test
         int64_t vec_nnz = d0 / 4; // this is actually quite dense. 
         auto S0 = make_wide_saso<T>(d0, m0, vec_nnz, 0, seed);
         T *S0_dense = new T[d0 * m0];
-        sas_to_dense<T>(S0, S0_dense, layout);
+        sparseskop_to_dense<T>(S0, S0_dense, layout);
         int64_t lda, ldb, lds0;
         if (is_colmajor) {
             lda = m1;
@@ -393,65 +398,155 @@ class TestLSKGES : public ::testing::Test
 };
 
 
-TEST_F(TestLSKGES, OneThread_RowMajor)
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      Sketch with SASOs and LASOs.
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+TEST_F(TestLSKGES, sketch_saso_rowMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(blas::Layout::RowMajor, k_idx, nz_idx, 1);
-            apply<float>(blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
         }
     }
 }
 
-TEST_F(TestLSKGES, TwoThreads_RowMajor)
+TEST_F(TestLSKGES, sketch_laso_rowMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(blas::Layout::RowMajor, k_idx, nz_idx, 2);
-            apply<float>(blas::Layout::RowMajor, k_idx, nz_idx, 2);
+            apply<double>(RandBLAS::sparse::SparseDistName::LASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::sparse::SparseDistName::LASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
         }
     }
 }
 
-TEST_F(TestLSKGES, OneThread_ColMajor)
+
+TEST_F(TestLSKGES, sketch_saso_rowMajor_twoThreads)
 {
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(blas::Layout::ColMajor, k_idx, nz_idx, 1);
-            apply<float>(blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 2);
+            apply<float>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 2);
         }
     }
 }
 
-TEST_F(TestLSKGES, TwoThreads_ColMajor)
+TEST_F(TestLSKGES, sketch_saso_colMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(blas::Layout::ColMajor, k_idx, nz_idx, 2);
-            apply<float>(blas::Layout::ColMajor, k_idx, nz_idx, 2);
+            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
     }
 }
 
-TEST_F(TestLSKGES, DefaultThreads)
+TEST_F(TestLSKGES, sketch_laso_colMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(blas::Layout::ColMajor, k_idx, nz_idx, 0);
-            apply<double>(blas::Layout::RowMajor, k_idx, nz_idx, 0);
+            apply<double>(RandBLAS::sparse::SparseDistName::LASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::sparse::SparseDistName::LASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
     }
 }
+
+TEST_F(TestLSKGES, sketch_saso_colMajor_twoThreads)
+{
+    for (int64_t k_idx : {0, 1, 2})
+    {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0})
+        {
+            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 2);
+            apply<float>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 2);
+        }
+    }
+}
+
+TEST_F(TestLSKGES, sketch_saso_default_threads)
+{
+    for (int64_t k_idx : {0, 1, 2})
+    {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0})
+        {
+            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 0);
+            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 0);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      Lift with SASOs and LASOs.
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+TEST_F(TestLSKGES, lift_saso_rowMajor_oneThread)
+{
+    for (int64_t k_idx : {0, 1, 2})
+    {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0})
+        {
+            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::sparse::SparseDistName::SASO, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+        }
+    }
+}
+
+TEST_F(TestLSKGES, lift_laso_rowMajor_oneThread)
+{
+    for (int64_t k_idx : {0, 1, 2})
+    {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0})
+        {
+            apply<double>(RandBLAS::sparse::SparseDistName::LASO, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::sparse::SparseDistName::LASO, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+        }
+    }
+}
+
+TEST_F(TestLSKGES, lift_saso_colMajor_oneThread)
+{
+    for (int64_t k_idx : {0, 1, 2})
+    {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0})
+        {
+            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::sparse::SparseDistName::SASO, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+        }
+    }
+}
+
+TEST_F(TestLSKGES, lift_laso_colMajor_oneThread)
+{
+    for (int64_t k_idx : {0, 1, 2})
+    {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0})
+        {
+            apply<double>(RandBLAS::sparse::SparseDistName::LASO, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::sparse::SparseDistName::LASO, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+        }
+    }
+}
+
 
 ////////////////////////////////////////////////////////////////////////
 //
