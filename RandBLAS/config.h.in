@@ -6,6 +6,6 @@
 #define RandBLAS_VERSION_MINOR @RandBLAS_VERSION_MINOR@
 #define RandBLAS_VERSION_PATCH @RandBLAS_VERSION_PATCH@
 
-#CMAKEDEFINE RandBLAS_HAS_OpenMP
+#cmakedefine RandBLAS_HAS_OpenMP
 
 #endif
