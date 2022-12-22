@@ -1,3 +1,4 @@
+#include "RandBLAS/config.h"
 #include "RandBLAS/sparse.hh"
 #include "RandBLAS/util.hh"
 #include "RandBLAS/test_util.hh"
@@ -126,6 +127,9 @@ class TestLSKGES : public ::testing::Test
     template <typename T>
     static void apply(blas::Layout layout, int64_t key_index, int64_t nnz_index, int threads)
     {
+#if !defined (RandBLAS_HAS_OpenMP)
+        SET_BUT_UNUSED(threads);
+#endif
         uint32_t key = keys[key_index];
         uint64_t vec_nnz = vec_nnzs[nnz_index];
         uint32_t a_seed = 99;
@@ -148,16 +152,20 @@ class TestLSKGES : public ::testing::Test
             lds = d;
         }
 
-        // compute S*A. 
+        // compute S*A.
+#if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         omp_set_num_threads(threads);
+#endif
         RandBLAS::sparse::lskges<T>(
             layout, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
             1.0, sas, 0, 0, a, lda,
             0.0, a_hat, ldahat  
         );
+#if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
+#endif
 
         // compute expected result
         T *a_hat_expect = new T[d * n]{};
@@ -225,8 +233,10 @@ class TestLSKGES : public ::testing::Test
         std::vector<T> B(d1 * m1, 0.0);
         
         // Perform the sketch
+#if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         omp_set_num_threads(1);
+#endif
         RandBLAS::sparse::lskges<T>(
             layout,
             blas::Op::NoTrans,
@@ -236,8 +246,9 @@ class TestLSKGES : public ::testing::Test
             A.data(), lda,
             0.0, B.data(), ldb
         );
+#if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
-
+#endif
 
         // Check the result
         T *S_ptr = &S0_dense[pos];

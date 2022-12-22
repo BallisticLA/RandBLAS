@@ -1,6 +1,7 @@
 #ifndef randblas_sparse_hh
 #define randblas_sparse_hh
 
+#include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/random_gen.hh"
@@ -9,7 +10,10 @@
 #include <iostream>
 #include <cstdio>
 #include <cmath>
+#include <algorithm>
+#if defined(RandBLAS_HAS_OpenMP)
 #include <omp.h>
+#endif
 
 #define MAX(a, b) ((a) < (b)) ? (b) : (a)
 
@@ -253,7 +257,11 @@ static void sketch_cscrow(
     T *B,
     int64_t ldb
 ) {
+#if defined(RandBLAS_HAS_OpenMP)
     int threads = omp_get_num_threads();
+#else
+    int threads = 1;
+#endif
 
     RandBLAS::sparse::SparseDist D = S0.dist;
     int64_t S_row_start = i_os;
@@ -262,23 +270,30 @@ static void sketch_cscrow(
 
     // Identify the range of rows to be processed by each thread.
     // TODO: replace threads = MIN(threads, d) ?
-    int64_t rows_per_thread = MAX(d / threads, 1l);
+    int64_t rows_per_thread = std::max(d / threads, 1ll);
     int64_t *S_row_blocks = new int64_t[threads + 1];
     S_row_blocks[0] = S_row_start;
     for(int i = 1; i < threads + 1; ++i)
         S_row_blocks[i] = S_row_blocks[i - 1] + rows_per_thread;
     S_row_blocks[threads] = d + S_row_start;
 
+#if defined(RandBLAS_HAS_OpenMP)
+    omp_set_num_threads(threads);
     #pragma omp parallel default(shared)
     {
         // Setup variables for the current thread
         int my_id = omp_get_thread_num();
+#else
+        int my_id = 0;
+#endif
         int64_t outer, c, offset, r, inner, S_row;
         const T *A_row = nullptr;
         T *B_row = nullptr;
         T scale;
         // Do the work for the current thread
+#if defined(RandBLAS_HAS_OpenMP)
         #pragma omp for schedule(static)
+#endif
         for (outer = 0; outer < threads; ++outer) {
             for(c = S_col_start; c < S_col_end; ++c) {
                 // process column c of the sketching operator (row c of a)
@@ -299,7 +314,9 @@ static void sketch_cscrow(
                 } // end processing of column c
             }
         }
+#if defined(RandBLAS_HAS_OpenMP)
     }
+#endif
 }
 
 template <typename T>
@@ -361,14 +378,18 @@ static void sketch_csccol(
     int64_t cf = c0 + m;
     bool all_rows_S0 = (r0 == 0 && rf == D.n_rows);
 
+#if defined(RandBLAS_HAS_OpenMP)
     #pragma omp parallel default(shared)
     {
+#endif
         // Setup variables for the current thread
         const T *A_col = nullptr;
         T *B_col = nullptr;
 
         // Do the work for the current thread.
+#if defined(RandBLAS_HAS_OpenMP)
         #pragma omp for schedule(static)
+#endif
         for (int64_t k = 0; k < n; k++) {
             A_col = &A[lda * k];
             B_col = &B[ldb * k];
@@ -378,7 +399,9 @@ static void sketch_csccol(
                 somerows_saso_csc_matvec<T>(A_col, B_col, S0, c0, cf, r0, rf);
             }
         }
+#if defined(RandBLAS_HAS_OpenMP)
     }
+#endif
 }
 
 template <typename T>
