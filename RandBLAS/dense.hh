@@ -147,7 +147,10 @@ DenseSkOp<T>::DenseSkOp(
     filled(filled_),
     persistent(persistent_),
     layout(layout_)
-{   // Initialization logic
+{   // sanity checks
+    randblas_require(this->dist.n_rows > 0);
+    randblas_require(this->dist.n_cols > 0);
+    // Initialization logic
     //
     //      own_memory is a bool that's true iff buff_ is nullptr.
     //

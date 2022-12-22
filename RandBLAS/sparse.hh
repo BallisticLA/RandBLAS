@@ -15,7 +15,8 @@
 #include <omp.h>
 #endif
 
-#define MAX(a, b) ((a) < (b)) ? (b) : (a)
+#define MAX(a, b) (((a) < (b)) ? (b) : (a))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 namespace RandBLAS::sparse {
 
@@ -105,13 +106,22 @@ SparseSkOp<T>::SparseSkOp(
     dist(dist_),
     seed_state(state_),
     own_memory(!rows_ && !cols_ && !vals_)
-{   // Initialization logic
+{   // sanity checks
+    randblas_require(this->dist.n_rows > 0);
+    randblas_require(this->dist.n_cols > 0);
+    // Initialization logic
     //
     //      own_memory is a bool that's true iff the
     //      rows_, cols_, and vals_ pointers were all nullptr.
     //
+    int64_t rep_ax_len;
+    if (this->dist.family == SparseDistName::SASO) {
+        rep_ax_len = MAX(this->dist.n_rows, this->dist.n_cols);
+    } else { 
+        rep_ax_len = MIN(this->dist.n_rows, this->dist.n_cols);
+    }
     if (this->own_memory) {
-        int64_t nnz = this->dist.vec_nnz * this->dist.n_cols;
+        int64_t nnz = this->dist.vec_nnz * rep_ax_len;
         this->rows = new int64_t[nnz];
         this->cols = new int64_t[nnz];
         this->vals = new T[nnz];
@@ -123,8 +133,6 @@ SparseSkOp<T>::SparseSkOp(
         this->cols = cols_;
         this->vals = vals_;
     }
-    // Implementation limitations
-    randblas_require(this->dist.n_rows <= this->dist.n_cols);
 };
 
 template <typename T>
@@ -136,97 +144,130 @@ SparseSkOp<T>::~SparseSkOp() {
     }
 };
 
-template <typename T, typename T_gen>
-static RNGState template_fill_saso(
-    SparseSkOp<T>& S0
+template <typename T>
+static bool fixed_nnz_per_col(
+    SparseSkOp<T> &S0
 ) {
-    randblas_require(S0.dist.family == SparseDistName::SASO);
-    randblas_require(S0.dist.n_rows <= S0.dist.n_cols);
-    RNGState init_state = S0.seed_state;
-
-    // Load shorter names into the workspace
-    int64_t k = S0.dist.vec_nnz;
-    int64_t sa_len = S0.dist.n_rows; // short-axis length
-    int64_t la_len = S0.dist.n_cols; // long-axis length
-    T *vals = S0.vals; // point to array of length nnz
-    int64_t *la_idxs = S0.cols; // indices of nonzeros for the long-axis
-    int64_t *sa_idxs = S0.rows; // indices of nonzeros for the short-axis
-
-    // Define variables needed in the main loop
-    int64_t i, j, ell, swap, offset;
-    std::vector<int64_t> pivots(k);
-    std::vector<int64_t> sa_vec_work(sa_len); // short-axis vector workspace
-    for (j = 0; j < sa_len; ++j) {
-        sa_vec_work[j] = j;
+    if (S0.dist.family == SparseDistName::SASO) {
+        return S0.dist.n_rows < S0.dist.n_cols;
+    } else {
+        return S0.dist.n_cols < S0.dist.n_rows;
     }
-    T_gen g;
+}
+
+template <typename T, typename T_gen>
+static RNGState repeated_fisher_yates(
+    RNGState init_state,
+    int64_t num_vecs,
+    int64_t vec_len,
+    int64_t vec_nnz,
+    int64_t *vec_ax_idxs,
+    int64_t *rep_ax_idxs,
+    T *vals
+) {
+    std::vector<int64_t> vec_work(vec_len);
+    for (int64_t j = 0; j < vec_len; ++j)
+        vec_work[j] = j;
+    std::vector<int64_t> pivots(vec_nnz);
     typedef typename T_gen::ctr_type ctr_type;
     ctr_type rout;
-
+    T_gen g;
     RNGState out_state(init_state);
-
-    // Use Fisher-Yates
-    for (i = 0; i < la_len; ++i) {
-        offset = i * k;
-
+    for (int64_t i = 0; i < num_vecs; ++i) {
+        // set the state of the Random123 RNG.
+        int64_t offset = i * vec_nnz;
         Random123_RNGState<T_gen> impl_state(init_state);
         impl_state.ctr.incr(offset);
-        for (j = 0; j < k; ++j) {
+        for (int64_t j = 0; j < vec_nnz; ++j) {
             // one step of Fisher-Yates shuffling
             rout = g(impl_state.ctr, impl_state.key);
-            ell = j + rout.v[0] % (sa_len - j);
+            int64_t ell = j + rout.v[0] % (vec_len - j);
             pivots[j] = ell;
-            swap = sa_vec_work[ell];
-            sa_vec_work[ell] = sa_vec_work[j];
-            sa_vec_work[j] = swap;
-
+            int64_t swap = vec_work[ell];
+            vec_work[ell] = vec_work[j];
+            vec_work[j] = swap;
             // update (rows, cols, vals)
-            sa_idxs[j + offset] = swap;
+            vec_ax_idxs[j + offset] = swap;
             vals[j + offset] = (rout.v[1] % 2 == 0) ? 1.0 : -1.0;
-            la_idxs[j + offset] = i;
-
+            rep_ax_idxs[j + offset] = i;
             // increment counter
             impl_state.ctr.incr(1);
         }
-        // Restore sa_vec_work for next iteration of Fisher-Yates.
+        // Restore vec_work for next iteration of Fisher-Yates.
         //      This isn't necessary from a statistical perspective,
         //      but it makes it easier to generate submatrices of
         //      a given SparseSkOp.
-        for (j = 1; j <= k; ++j) {
-            int jj = k - j;
-            swap = sa_idxs[jj + offset];
-            ell = pivots[jj];
-            sa_vec_work[jj] = sa_vec_work[ell];
-            sa_vec_work[ell] = swap;
+        for (int64_t j = 1; j <= vec_nnz; ++j) {
+            int64_t jj = vec_nnz - j;
+            int64_t swap = vec_ax_idxs[jj + offset];
+            int64_t ell = pivots[jj];
+            vec_work[jj] = vec_work[ell];
+            vec_work[ell] = swap;
         }
-
         out_state = impl_state;
     }
+    return out_state;
+}
+
+template <typename T, typename T_gen>
+static RNGState template_fill_sparse(
+    SparseSkOp<T>& S0
+) {
+    int64_t long_ax_len = MAX(S0.dist.n_rows, S0.dist.n_cols);
+    int64_t short_ax_len = MIN(S0.dist.n_rows, S0.dist.n_cols);
+
+    bool is_wide = S0.dist.n_rows == short_ax_len;
+    int64_t *short_ax_idxs = (is_wide) ? S0.rows : S0.cols;
+    int64_t *long_ax_idxs = (is_wide) ? S0.cols : S0.rows;
+
+    int64_t *vec_ax_idxs, *rep_ax_idxs;
+    int64_t vec_len, num_vecs;
+    if (S0.dist.family == SparseDistName::SASO) {
+        vec_len = short_ax_len;
+        num_vecs = long_ax_len;
+        vec_ax_idxs = short_ax_idxs;
+        rep_ax_idxs = long_ax_idxs;
+    } else {
+        vec_len = long_ax_len;
+        num_vecs = short_ax_len;
+        vec_ax_idxs = long_ax_idxs;
+        rep_ax_idxs = short_ax_idxs;
+    }
+    RNGState out_state = repeated_fisher_yates<T, T_gen>(
+        S0.seed_state, num_vecs, vec_len,
+        S0.dist.vec_nnz, vec_ax_idxs, rep_ax_idxs, S0.vals
+    );
     S0.next_state = out_state;
     return out_state;
 }
 
 
 template <typename T>
-RNGState fill_saso(
+RNGState fill_sparse(
     SparseSkOp<T> &S0
 ) {
     switch (S0.seed_state.rng_name) {
         case RNGName::Philox:
-            return template_fill_saso<T, Philox>(S0);
+            return template_fill_sparse<T, Philox>(S0);
         case RNGName::Threefry:
-            return template_fill_saso<T, Threefry>(S0);
+            return template_fill_sparse<T, Threefry>(S0);
         default:
             throw std::runtime_error(std::string("Unrecognized generator."));
     }
 }
 
+
 template <typename T>
 void print_saso(SparseSkOp<T>& S0) {
-    std::cout << "SASO information" << std::endl;
+    std::cout << "SparseSkOp information" << std::endl;
     std::cout << "\tn_rows = " << S0.dist.n_rows << std::endl;
     std::cout << "\tn_cols = " << S0.dist.n_cols << std::endl;
-    int64_t nnz = S0.dist.vec_nnz * std::min(S0.dist.n_rows, S0.dist.n_cols);
+    int64_t nnz;
+    if (S0.dist.family == SparseDistName::SASO) {
+        nnz = S0.dist.vec_nnz * MAX(S0.dist.n_rows, S0.dist.n_cols);
+    } else {
+        nnz = S0.dist.vec_nnz * MIN(S0.dist.n_rows, S0.dist.n_cols);
+    }
     std::cout << "\tvector of row indices\n\t\t";
     for (int64_t i = 0; i < nnz; ++i) {
         std::cout << S0.rows[i] << ", ";
@@ -245,121 +286,153 @@ void print_saso(SparseSkOp<T>& S0) {
 }
 
 template <typename T>
-static void sketch_cscrow(
-    int64_t d,
-    int64_t n,
-    int64_t m,
-    SparseSkOp<T>& S0,
-    int64_t i_os,
-    int64_t j_os,
-    const T *A,
-    int64_t lda,
-    T *B,
-    int64_t ldb
-) {
-#if defined(RandBLAS_HAS_OpenMP)
-    int threads = omp_get_num_threads();
-#else
-    int threads = 1;
-#endif
-
-    RandBLAS::sparse::SparseDist D = S0.dist;
-    int64_t S_row_start = i_os;
-    int64_t S_col_start = j_os;
-    int64_t S_col_end = S_col_start + m;
-
-    // Identify the range of rows to be processed by each thread.
-    // TODO: replace threads = MIN(threads, d) ?
-    int64_t rows_per_thread = std::max(d / threads, int64_t(1));
-    int64_t *S_row_blocks = new int64_t[threads + 1];
-    S_row_blocks[0] = S_row_start;
-    for(int i = 1; i < threads + 1; ++i)
-        S_row_blocks[i] = S_row_blocks[i - 1] + rows_per_thread;
-    S_row_blocks[threads] = d + S_row_start;
-
-#if defined(RandBLAS_HAS_OpenMP)
-    omp_set_num_threads(threads);
-    #pragma omp parallel default(shared)
-    {
-        // Setup variables for the current thread
-        int my_id = omp_get_thread_num();
-#else
-        int my_id = 0;
-#endif
-        int64_t outer, c, offset, r, inner, S_row;
-        const T *A_row = nullptr;
-        T *B_row = nullptr;
-        T scale;
-        // Do the work for the current thread
-#if defined(RandBLAS_HAS_OpenMP)
-        #pragma omp for schedule(static)
-#endif
-        for (outer = 0; outer < threads; ++outer) {
-            for(c = S_col_start; c < S_col_end; ++c) {
-                // process column c of the sketching operator (row c of a)
-                A_row = &A[c * lda];
-                offset = c * D.vec_nnz;
-                for (r = 0; r < D.vec_nnz; ++r) {
-                    inner = offset + r;
-                    S_row = S0.rows[inner];
-                    if (
-                        S_row_blocks[my_id] <= S_row && S_row < S_row_blocks[my_id + 1]
-                    ) {
-                        // only perform a write operation if the current row
-                        // index falls in the block assigned to the current thread.
-                        scale = S0.vals[inner];
-                        B_row = &B[(S_row - S_row_start) * ldb];
-                        blas::axpy<T>(n, scale, A_row, 1, B_row, 1);
-                    }
-                } // end processing of column c
-            }
-        }
-#if defined(RandBLAS_HAS_OpenMP)
-    }
-#endif
-}
-
-template <typename T>
-static void allrows_saso_csc_matvec(
-    const T *v,
-    T *Sv, // Sv += S0[:, col_start:col_end] * v.
-    SparseSkOp<T> &S0,
-    int64_t col_start,
-    int64_t col_end
-) {
-    int64_t vec_nnz = S0.dist.vec_nnz;
-    for (int64_t c = col_start; c < col_end; c++) {
-        T scale = v[c - col_start];
-        for (int64_t r = c * vec_nnz; r < (c + 1) * vec_nnz; r++) {
-            int64_t S0_row = S0.rows[r];
-            Sv[S0_row] += (S0.vals[r] * scale);
-        }
-    }
-}
-
-template <typename T>
-static void somerows_saso_csc_matvec(
-    const T *v,
-    T *Sv, // Sv += S0[row_start:row_end, col_start:col_end] * v.
-    SparseSkOp<T> &S0,
+static int64_t filter_regular_cscoo(
+    const int64_t *nzidx2row,
+    const int64_t *nzidx2col,
+    const T *nzidx2val,
+    int64_t vec_nnz,
     int64_t col_start,
     int64_t col_end,
     int64_t row_start,
-    int64_t row_end
+    int64_t row_end,
+    int64_t *rows_view,
+    int64_t *cols_view,
+    T *vals_view
 ) {
-    int64_t vec_nnz = S0.dist.vec_nnz;
-    for (int64_t c = col_start; c < col_end; c++) {
-        T scale = v[c - col_start];
-        for (int64_t r = c * vec_nnz; r < (c + 1) * vec_nnz; r++) {
-            int64_t S0_row = S0.rows[r];
-            if (row_start <= S0_row && S0_row < row_end)
-                Sv[S0_row - row_start] += (S0.vals[r] * scale);
+    // (nzidx2row, nzidx2col, nzidx2val) define a sparse matrix S0
+    //  in COO format with a CSC-like property. The CSC-like property
+    //  is that all nonzero entries in a given column of S0 are 
+    //  contiguous in "nzidx2col". The sparse matrix S0 must be "regular"
+    //  in the sense that it must have exactly vec_nnz nonzeros in each
+    //  column.
+    //
+    //  This function writes data to (rows_view, cols_view, vals_view)
+    //  for a sparse matrix S in the same "COO/CSC-like" format.
+    //  Mathematically, we have S = S0[row_start:row_end, col_start:col_end].
+    //  The sparse matrix S does not necessarily have a fixed number of
+    //  nonzeros in each column.
+    //
+    //  Neither S0 nor S need to be wide.  
+    //
+    int64_t nnz = 0;
+    for (int64_t i = col_start * vec_nnz; i < col_end * vec_nnz; ++i) {
+        int64_t row = nzidx2row[i];
+        if (row_start <= row && row < row_end)  {
+            rows_view[nnz] = row - row_start;
+            cols_view[nnz] = nzidx2col[i] - col_start;
+            vals_view[nnz] = nzidx2val[i];
+            nnz += 1;
+        }
+    }
+    return nnz;
+}
+
+template <typename T>
+static int64_t filter_and_convert_regular_csroo_to_cscoo(
+    const int64_t *nonzeroidx2row,
+    const int64_t *nonzeroidx2col,
+    const T *nonzeroidx2val,
+    int64_t vec_nnz,
+    int64_t col_start,
+    int64_t col_end,
+    int64_t row_start,
+    int64_t row_end,
+    int64_t *rows_view,
+    int64_t *cols_view,
+    T *vals_view
+) {
+    // (nonzeroidx2row, nonzeroidx2col, nonzeroidx2val) define a sparse matrix S0
+    //  in COO format with a CSR-like property. The CSR-like property
+    //  is that all nonzero entries in a given row of S0 are 
+    //  contiguous in "nonzeroidx2col". The sparse matrix S0 must be "regular"
+    //  in the sense that it must have exactly vec_nnz nonzeros in each
+    //  row.
+    //
+    //  This function writes data to (rows_view, cols_view, vals_view)
+    //  for a sparse matrix S in an analogous "COO/CSC-like" format.
+    //  Mathematically, we have S = S0[row_start:row_end, col_start:col_end].
+    //  The sparse matrix S does not necessarily have a fixed number of
+    //  nonzeros in each column.
+    //
+    //  Neither S0 nor S need to be wide.  
+    //
+    typedef std::tuple<int64_t, int64_t, T> tuple_type;
+    std::vector<tuple_type> nonzeros;
+    nonzeros.reserve((row_end - row_start) * vec_nnz);
+
+    for (int64_t i = row_start * vec_nnz; i < row_end * vec_nnz; ++i) {
+        int64_t col = nonzeroidx2col[i];
+        if (col_start <= col && col < col_end)  {
+            tuple_type tup{
+                nonzeroidx2row[i] - row_start,
+                col - col_start,
+                nonzeroidx2val[i]
+            };
+            nonzeros.push_back(tup);
+        }
+    }
+
+    auto sort_func = [](tuple_type t1, tuple_type t2) {
+        if (std::get<1>(t1) < std::get<1>(t2)) {
+            return true;
+        } else if (std::get<1>(t1) > std::get<1>(t2)) {
+            return false;
+        }
+        // t1.second == t2.second
+        if (std::get<0>(t1) < std::get<0>(t2)) {
+            return true;
+        } else {
+            return false;
+        }
+    };
+    std::sort(nonzeros.begin(), nonzeros.end(), sort_func);
+    
+    int64_t nnz = nonzeros.size();
+    for (int64_t i = 0; i < nnz; ++i) {
+        tuple_type tup = nonzeros[i];
+        rows_view[i] = std::get<0>(tup);
+        cols_view[i] = std::get<1>(tup);
+        vals_view[i] = std::get<2>(tup);
+    }
+    return nnz;
+}
+
+template <typename T>
+static void apply_cscoo_submat_to_vector_from_left(
+    const T *v,
+    int64_t incv,   // stride between elements of v
+    T *Sv,          // Sv += S * v.
+    int64_t incSv,  // stride between elements of Sv
+    const int64_t *rows_view,
+    const int64_t *cols_view,
+    const T       *vals_view,
+    int64_t num_cols,
+    int64_t nnz
+) {
+    // (rows_view, cols_view, vals_view) define a sparse matrix
+    // "S" in COO-format with a CSC-like property.
+    //
+    //      The CSC-like property requires that all nonzero entries
+    //      in a given column of the sparse matrix are contiguous in
+    //      "cols_view" and that entries in cols_view are nondecreasing.
+    //  
+    //      The sparse matrix does not need to be wide.
+    //
+    int64_t i = 0;
+    for (int64_t c = 0; c < num_cols; ++c) {
+        T scale = v[c * incv];
+        while (cols_view[i] == c && i < nnz) {
+            int64_t row = rows_view[i];
+            Sv[row * incSv] += (vals_view[i] * scale);
+            i += 1;
         }
     }
 }
 
 template <typename T>
-static void sketch_csccol(
+static void apply_cscoo_csroo_left(
+    blas::Layout layout_A,
+    blas::Layout layout_B,
     int64_t d,
     int64_t n,
     int64_t m,
@@ -370,38 +443,93 @@ static void sketch_csccol(
     int64_t lda,
     T *B,
     int64_t ldb
-){
-    RandBLAS::sparse::SparseDist D = S0.dist;
-    int64_t r0 = i_os;
-    int64_t c0 = j_os;
-    int64_t rf = r0 + d;
-    int64_t cf = c0 + m;
-    bool all_rows_S0 = (r0 == 0 && rf == D.n_rows);
+) {
+    int64_t vec_nnz = S0.dist.vec_nnz;
+    int64_t nnz;
+    int64_t *S_rows, *S_cols;
+    T *S_vals;
+    if (fixed_nnz_per_col(S0)) {
+        S_rows = new int64_t[m * vec_nnz]{};
+        S_cols = new int64_t[m * vec_nnz]{};
+        S_vals = new       T[m * vec_nnz]{};
+        nnz = filter_regular_cscoo<T>(
+            S0.rows, S0.cols, S0.vals, vec_nnz,
+            j_os, j_os + m,
+            i_os, i_os + d,
+            S_rows, S_cols, S_vals
+        );
+    } else {
+        S_rows = new int64_t[d * vec_nnz]{};
+        S_cols = new int64_t[d * vec_nnz]{};
+        S_vals = new       T[d * vec_nnz]{};
+        nnz = filter_and_convert_regular_csroo_to_cscoo<T>(
+            S0.rows, S0.cols, S0.vals, vec_nnz,
+            j_os, j_os + m,
+            i_os, i_os + d,
+            S_rows, S_cols, S_vals
+        );
+    }
+    // Once we have (S_rows, S_cols, S_vals) in the format ensured
+    // by the functions above, we apply the resulting sparse matrix "S"
+    // to the left of A to get B = S*A.
+    //
+    // This function does not require that S or S0 is wide.
 
-#if defined(RandBLAS_HAS_OpenMP)
+    int64_t A_inter_col_stride, A_intra_col_stride;
+    if (layout_A == blas::Layout::ColMajor) {
+        A_inter_col_stride = lda;
+        A_intra_col_stride = 1;
+    } else {
+        A_inter_col_stride = 1;
+        A_intra_col_stride = lda;
+    }
+    int64_t B_inter_col_stride, B_intra_col_stride;
+    if (layout_B == blas::Layout::ColMajor) {
+        B_inter_col_stride = ldb;
+        B_intra_col_stride = 1;
+    } else {
+        B_inter_col_stride = 1;
+        B_intra_col_stride = ldb;
+    }
+
     #pragma omp parallel default(shared)
     {
-#endif
-        // Setup variables for the current thread
         const T *A_col = nullptr;
         T *B_col = nullptr;
-
-        // Do the work for the current thread.
-#if defined(RandBLAS_HAS_OpenMP)
         #pragma omp for schedule(static)
-#endif
         for (int64_t k = 0; k < n; k++) {
-            A_col = &A[lda * k];
-            B_col = &B[ldb * k];
-            if (all_rows_S0) {
-                allrows_saso_csc_matvec<T>(A_col, B_col, S0, c0, cf);
-            } else {
-                somerows_saso_csc_matvec<T>(A_col, B_col, S0, c0, cf, r0, rf);
-            }
+            A_col = &A[A_inter_col_stride * k];
+            B_col = &B[B_inter_col_stride * k];
+            apply_cscoo_submat_to_vector_from_left<T>(
+                A_col, A_intra_col_stride,
+                B_col, B_intra_col_stride,
+                S_rows, S_cols, S_vals, m, nnz
+            );
         }
-#if defined(RandBLAS_HAS_OpenMP)
     }
-#endif
+
+    delete [] S_rows;
+    delete [] S_cols;
+    delete [] S_vals;
+}
+
+template <typename T>
+static SparseSkOp<T> transpose(SparseSkOp<T> &S0) {
+    SparseDist dist = {
+        .family = S0.dist.family,
+        .n_rows = S0.dist.n_cols,
+        .n_cols = S0.dist.n_rows,
+        .vec_nnz = S0.dist.vec_nnz
+    };
+    SparseSkOp<T> S1(
+        dist,
+        S0.seed_state,
+        S0.cols,
+        S0.rows,
+        S0.vals
+    );
+    S1.next_state = RNGState(S0.next_state);
+    return S1;
 }
 
 template <typename T>
@@ -422,44 +550,51 @@ void lskges(
     T *B,
     int64_t ldb
 ) {
-    randblas_require(S0.dist.family == SparseDistName::SASO);
-    randblas_require(S0.rows != nullptr); // must be filled.
-    randblas_require(d <= m);
+    randblas_require(S0.rows != NULL); // must be filled.
     randblas_require(alpha == 1.0); // implementation limitation
     randblas_require(beta == 0.0); // implementation limitation
 
+    // handle applying a transposed sparse sketching operator.
+    if (transS == blas::Op::Trans) {
+        SparseSkOp<T> S1 = transpose<T>(S0);
+        lskges<T>(
+            layout, blas::Op::NoTrans, transA,
+            d, m, n, alpha, S1, j_os, i_os,
+            A, lda, beta, B, ldb
+        );
+        return; 
+    }
+    // Below this point, we can assume S0 is not transposed.
+
     // Dimensions of A, rather than op(A)
-    int64_t rows_A, cols_A, rows_S, cols_S;
-    SET_BUT_UNUSED(rows_S); // TODO -- implement check on rows_s and cols_s
-    SET_BUT_UNUSED(cols_S);
+    blas::Layout layout_B = layout;
+    blas::Layout layout_A;
+    int64_t rows_A, cols_A;
     if (transA == blas::Op::NoTrans) {
         rows_A = m;
         cols_A = n;
+        layout_A = layout;
     } else {
-        randblas_require(false); // Not implemented.
-        //rows_A = n;
-        //cols_A = m;
-    }
-    // Dimensions of S, rather than op(S)
-    if (transS == blas::Op::NoTrans) {
-        rows_S = d;
-        cols_S = m;
-    } else {
-        randblas_require(false);  // Not implemented.
-        // rows_S = m;
-        // cols_S = d;
+        rows_A = n;
+        cols_A = m;
+        layout_A = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : blas::Layout::ColMajor;
+        // ^ Lie.
     }
 
-    // Dimensionality sanity checks, and perform the sketch.
+    // Dimensionality sanity checks
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
-        randblas_require(ldb >= d);
-        sketch_csccol<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb);
     } else {
         randblas_require(lda >= cols_A);
-        randblas_require(ldb >= n);
-        sketch_cscrow<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb);
     }
+    if (layout == blas::Layout::ColMajor) {
+        randblas_require(ldb >= d);
+    } else {
+        randblas_require(ldb >= n);
+    }
+
+    // Perform the sketch
+    apply_cscoo_csroo_left<T>(layout_A, layout_B, d, n, m, S0, i_os, j_os, A, lda, B, ldb);
     return;
 }
 
