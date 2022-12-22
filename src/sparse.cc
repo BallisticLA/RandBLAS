@@ -472,7 +472,7 @@ void lskges(
     } else {
         randblas_require(lda >= cols_A);
     }
-    if (layout_B == blas::Layout::ColMajor) {
+    if (layout == blas::Layout::ColMajor) {
         randblas_require(ldb >= d);
     } else {
         randblas_require(ldb >= n);
