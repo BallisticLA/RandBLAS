@@ -448,17 +448,27 @@ static void apply_cscoo_csroo_left(
     int64_t nnz;
     int64_t *S_rows, *S_cols;
     T *S_vals;
+    bool use_existing_memory = true;
     if (fixed_nnz_per_col(S0)) {
-        S_rows = new int64_t[m * vec_nnz]{};
-        S_cols = new int64_t[m * vec_nnz]{};
-        S_vals = new       T[m * vec_nnz]{};
-        nnz = filter_regular_cscoo<T>(
-            S0.rows, S0.cols, S0.vals, vec_nnz,
-            j_os, j_os + m,
-            i_os, i_os + d,
-            S_rows, S_cols, S_vals
-        );
+        use_existing_memory = (i_os == 0) && (j_os == 0) && (d == S0.dist.n_rows);
+        if (use_existing_memory) {
+            S_rows = S0.rows;
+            S_cols = S0.cols;
+            S_vals = S0.vals;
+            nnz = vec_nnz * m;
+        } else {
+            S_rows = new int64_t[m * vec_nnz]{};
+            S_cols = new int64_t[m * vec_nnz]{};
+            S_vals = new       T[m * vec_nnz]{};
+            nnz = filter_regular_cscoo<T>(
+                S0.rows, S0.cols, S0.vals, vec_nnz,
+                j_os, j_os + m,
+                i_os, i_os + d,
+                S_rows, S_cols, S_vals
+            );
+        }
     } else {
+        // We have to use new memory, because we need the CSCOO representation.
         S_rows = new int64_t[d * vec_nnz]{};
         S_cols = new int64_t[d * vec_nnz]{};
         S_vals = new       T[d * vec_nnz]{};
@@ -508,9 +518,12 @@ static void apply_cscoo_csroo_left(
         }
     }
 
-    delete [] S_rows;
-    delete [] S_cols;
-    delete [] S_vals;
+    if (!use_existing_memory) {
+        delete [] S_rows;
+        delete [] S_cols;
+        delete [] S_vals;
+    }
+    return;
 }
 
 template <typename T>
