@@ -5,7 +5,7 @@
 #include <cmath>
 #include <numeric>
 
-#define RELTOL_POWER 0.6
+#define RELTOL_POWER 0.5
 #define ABSTOL_POWER 0.75
 
 namespace RandBLAS_Testing::Util {
