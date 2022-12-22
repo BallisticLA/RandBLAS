@@ -332,10 +332,6 @@ static void apply_cscoo_csroo_left(
             i_os, i_os + d,
             S_rows, S_cols, S_vals
         );
-        // The function above has a HARD requirement that
-        // S0 has a fixed number of nonzeros per column.
-        // It also requires that the entries in S.cols 
-        // comprise a nondecreasing sequence.
     } else {
         S_rows = new int64_t[d * vec_nnz]{};
         S_cols = new int64_t[d * vec_nnz]{};
@@ -346,10 +342,6 @@ static void apply_cscoo_csroo_left(
             i_os, i_os + d,
             S_rows, S_cols, S_vals
         );
-        // The function above has a HARD requirement that
-        // S0 has a fixed number of nonzeros per row.
-        // It also requires that the entries in S.rows 
-        // comprise a nondecreasing sequence.
     }
     // Once we have (S_rows, S_cols, S_vals) in the format ensured
     // by the functions above, we apply the resulting sparse matrix "S"
