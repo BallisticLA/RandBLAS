@@ -3,9 +3,6 @@
 
 #include <blas.hh>
 #include <cstdio>
-//#include <iostream>
-//#include <string>
-
 #include <Random123/philox.h>
 #include <Random123/uniform.hpp>
 

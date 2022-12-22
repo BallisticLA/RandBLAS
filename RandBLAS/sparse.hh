@@ -8,7 +8,10 @@
 #include <blas.hh>
 #include <iostream>
 #include <cstdio>
+#include <cmath>
 #include <omp.h>
+
+#define MAX(a, b) ((a) < (b)) ? (b) : (a)
 
 namespace RandBLAS::sparse {
 
@@ -248,10 +251,9 @@ static void sketch_cscrow(
     const T *A,
     int64_t lda,
     T *B,
-    int64_t ldb,
-    int threads
+    int64_t ldb
 ) {
-    randblas_require(threads > 0);
+    int threads = omp_get_num_threads();
 
     RandBLAS::sparse::SparseDist D = S0.dist;
     int64_t S_row_start = i_os;
@@ -260,14 +262,13 @@ static void sketch_cscrow(
 
     // Identify the range of rows to be processed by each thread.
     // TODO: replace threads = MIN(threads, d) ?
-    int64_t rows_per_thread = std::max(d / threads, 1l);
+    int64_t rows_per_thread = MAX(d / threads, 1l);
     int64_t *S_row_blocks = new int64_t[threads + 1];
     S_row_blocks[0] = S_row_start;
     for(int i = 1; i < threads + 1; ++i)
         S_row_blocks[i] = S_row_blocks[i - 1] + rows_per_thread;
     S_row_blocks[threads] = d + S_row_start;
 
-    omp_set_num_threads(threads);
     #pragma omp parallel default(shared)
     {
         // Setup variables for the current thread
@@ -351,8 +352,7 @@ static void sketch_csccol(
     const T *A,
     int64_t lda,
     T *B,
-    int64_t ldb,
-    int threads
+    int64_t ldb
 ){
     RandBLAS::sparse::SparseDist D = S0.dist;
     int64_t r0 = i_os;
@@ -361,7 +361,6 @@ static void sketch_csccol(
     int64_t cf = c0 + m;
     bool all_rows_S0 = (r0 == 0 && rf == D.n_rows);
 
-    omp_set_num_threads(threads);
     #pragma omp parallel default(shared)
     {
         // Setup variables for the current thread
@@ -398,8 +397,7 @@ void lskges(
     int64_t lda,
     T beta,
     T *B,
-    int64_t ldb,
-    int threads // default is 4.
+    int64_t ldb
 ) {
     randblas_require(S0.dist.family == SparseDistName::SASO);
     randblas_require(S0.rows != nullptr); // must be filled.
@@ -433,11 +431,11 @@ void lskges(
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= d);
-        sketch_csccol<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
+        sketch_csccol<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb);
     } else {
         randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
-        sketch_cscrow<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
+        sketch_cscrow<T>(d, n, m, S0, i_os, j_os, A, lda, B, ldb);
     }
     return;
 }

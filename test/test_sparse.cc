@@ -149,22 +149,15 @@ class TestLSKGES : public ::testing::Test
         }
 
         // compute S*A. 
-        if (threads > 0) {
-            RandBLAS::sparse::lskges<T>(
-                layout, blas::Op::NoTrans, blas::Op::NoTrans,
-                d, n, m,
-                1.0, sas, 0, 0, a, lda,
-                0.0, a_hat, ldahat,
-                threads   
-            );
-        } else {
-            RandBLAS::sparse::lskges<T>(
-                layout, blas::Op::NoTrans, blas::Op::NoTrans,
-                d, n, m,
-                1.0, sas, 0, 0, a, lda,
-                0.0, a_hat, ldahat, 1
-            );
-        }
+        int orig_threads = omp_get_num_threads();
+        omp_set_num_threads(threads);
+        RandBLAS::sparse::lskges<T>(
+            layout, blas::Op::NoTrans, blas::Op::NoTrans,
+            d, n, m,
+            1.0, sas, 0, 0, a, lda,
+            0.0, a_hat, ldahat  
+        );
+        omp_set_num_threads(orig_threads);
 
         // compute expected result
         T *a_hat_expect = new T[d * n]{};
@@ -232,6 +225,8 @@ class TestLSKGES : public ::testing::Test
         std::vector<T> B(d1 * m1, 0.0);
         
         // Perform the sketch
+        int orig_threads = omp_get_num_threads();
+        omp_set_num_threads(1);
         RandBLAS::sparse::lskges<T>(
             layout,
             blas::Op::NoTrans,
@@ -239,8 +234,10 @@ class TestLSKGES : public ::testing::Test
             d1, m1, m1,
             1.0, S0, S_ro, S_co,
             A.data(), lda,
-            0.0, B.data(), ldb, 1
+            0.0, B.data(), ldb
         );
+        omp_set_num_threads(orig_threads);
+
 
         // Check the result
         T *S_ptr = &S0_dense[pos];
