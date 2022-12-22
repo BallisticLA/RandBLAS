@@ -5,6 +5,7 @@
 #include <Random123/aes.h>
 #include <Random123/ars.h>
 
+#include <tuple>
 #include <vector>
 #include <iostream>
 #include <cstring>
@@ -21,7 +22,7 @@
 
 
 
-
+/// extend r123::float2 to work with structured bindings
 namespace std {
   template<> struct tuple_size<r123::float2> { static constexpr size_t value = 2; };
   template<> struct tuple_element<0, r123::float2> { using type = float; };
@@ -30,7 +31,7 @@ namespace std {
 
 namespace r123 {
 template<std::size_t I>
-std::tuple_element_t<I, r123::float2> get(const r123::float2 &f2)
+std::tuple_element_t<I, r123::float2> get(r123::float2 const& f2)
 {
   if constexpr (I == 0) return f2.x;
   if constexpr (I == 1) return f2.y;
@@ -38,103 +39,147 @@ std::tuple_element_t<I, r123::float2> get(const r123::float2 &f2)
 
 }
 
+
+
+
+/** CBRNG state.
+ * @param RNG One of Random123 CBRNG's e.g. Philox4x32
+ */
 template <typename RNG, typename CTR = typename RNG::ctr_type, typename KEY = typename RNG::key_type, typename UKEY = typename RNG::ukey_type>
 struct RNGState
 {
     using generator = RNG;
 
+    /// default construct both counter and key are zero'd
     RNGState() : counter{{}}, key(UKEY{{}}) {}
 
+    /** construct with a seed
+     * @param[in] k a key value to use as a seed
+     */
+    RNGState(const UKEY &k) : counter{{}}, key(k) {}
+
+    /// construct from an initial counter and key
     RNGState(const CTR &c, const KEY &k) : counter(c), key(k) {}
+
+    /// construct from an initial counter and key
     RNGState(CTR &&c, KEY &&k) : counter(std::move(c)), key(std::move(k)) {}
 
-    //RNGState(const CTR &c, const UKEY &k) : counter(c), key(k) {}
-    //RNGState(CTR &&c, UKEY &&k) : counter(std::move(c)), key(std::move(k)) {}
+    /// @name conversions to/from std::tuple<CTR,KEY>
+    ///{
+    RNGState(std::tuple<CTR, KEY> const& tup) : counter(std::get<0>(tup)), key(std::get<1>(tup)) {}
+    operator std::tuple<CTR const&, KEY const&> () const { return std::tie(std::as_const(counter), std::as_const(key)); }
+    operator std::tuple<CTR&, KEY&> () { return std::tie(counter, key); }
+    ///}
 
-    auto operator()() { return std::make_tuple(counter, key); }
-    auto operator()() const { return std::make_tuple(counter, key); }
-
-    CTR counter;
-    KEY key;
+    CTR counter; ///< the counter
+    KEY key;     ///< the key
 };
 
+
+/** apply boxmuller transform to all elements of r. The number of elements of r
+ * must be evenly divisible by 2.
+ */
+template <typename RNG, typename CTR = typename RNG::ctr_type,
+    typename T = typename std::conditional
+        <sizeof(typename RNG::ctr_type::value_type) == sizeof(uint32_t), float, double>::type>
+auto boxmulall(typename RNG::ctr_type const& ri)
+{
+    std::array<T, CTR::static_size> ro;
+    int nit = CTR::static_size / 2;
+    for (int i = 0; i < nit; ++i)
+    {
+        auto [v0, v1] = r123::boxmuller(ri[2*i], ri[2*i + 1]);
+        ro[2*i    ] = v0;
+        ro[2*i + 1] = v1;
+    }
+    return ro;
+
+}
+
+/// generate a sequence of random values and apply a Box-Muller transform
 struct boxmul
 {
     template <typename RNG, typename CTR = typename RNG::ctr_type, typename KEY = typename RNG::key_type>
     static
-    auto generate(RNG &rng, CTR &&c, KEY &&k)
+    auto generate(RNG &rng, CTR const& c, KEY const& k)
     {
-        auto r = rng(c, k);
-        auto [v0, v1] = r123::boxmuller(r.v[0], r.v[1]);
-        auto [v2, v3] = r123::boxmuller(r.v[2], r.v[3]);
-        return std::array {v0, v1, v2, v3};
+        return boxmulall<RNG>(rng(c,k));
     }
 };
 
-
-
+/// generate a sequence of random values and transform to -1.0 to 1.0
 struct uneg11
 {
     template <typename RNG, typename CTR = typename RNG::ctr_type, typename KEY = typename RNG::key_type,
-        typename VAL = typename std::conditional
+        typename T = typename std::conditional
             <sizeof(typename RNG::ctr_type::value_type) == sizeof(uint32_t), float, double>::type>
     static
-    auto generate(RNG &rng, CTR &&c, KEY &&k)
+    auto generate(RNG &rng, CTR const& c, KEY const& k)
     {
-        auto r = rng(c, k);
-        return r123::uneg11all<VAL>(r);
+        return r123::uneg11all<T>(rng(c,k));
     }
 };
 
 
+/**
+ */
 template <typename T, typename RNG, typename OP, typename CTR = typename RNG::ctr_type, typename KEY = typename RNG::key_type>
-auto generate(
+auto fill_rmat(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
-    const RNGState<RNG> &seed
+    const RNGState<RNG> & seed
 ) {
     RNG rng;
-    auto [c, k] = seed();
+    auto [c, k] = seed;
 
     int64_t dim = n_rows * n_cols;
-    int64_t nit = dim / 4;
-    int64_t nlast = dim % 4;
+    int64_t nit = dim / CTR::static_size;
+    int64_t nlast = dim % CTR::static_size;
+
+    std::cerr << "dim=" << dim << " nit=" << nit << " nlast=" << nlast << " static_size=" << CTR::static_size << std::endl;
 
 #if defined(USE_OMP)
     #pragma omp parallel firstprivate(c, k)
     {
-        int q = omp_get_thread_num();
+        // add the start index to the counter in order to make the sequence
+        // deterministic independent of the number of threads.
+        int ti = omp_get_thread_num();
+        int nt = omp_get_num_threads();
 
-        // give each thread a unique key so each will generate a unique
-        // sequence
-        k[0] = q;
+        int64_t chs = nit / nt;
+        int64_t nlg = nit % nt;
+        int64_t i0 = chs * ti + (ti < nlg ? ti : nlg);
+        int64_t i1 = i0 + chs + (ti < nlg ? 1 : 0);
 
-        #pragma omp for
+        auto cc = c; // because of pointers used internal to CTR
+
+        cc.incr(i0);
+#else
+        int64_t i0 = 0;
+        int64_t i1 = nit;
 #endif
-        for (int64_t i = 0; i < nit; ++i)
+        for (int64_t i = i0; i < i1; ++i)
         {
-            auto v = OP::generate(rng, c, k);
+            auto rv = OP::generate(rng, cc, k);
 
-            mat[4*i    ] = v[0];
-            mat[4*i + 1] = v[1];
-            mat[4*i + 2] = v[2];
-            mat[4*i + 3] = v[3];
+            for (int j = 0; j < CTR::static_size; ++j)
+               mat[CTR::static_size*i + j] = rv[j];
 
-            c.incr();
+            cc.incr();
         }
 #if defined(USE_OMP)
     }
-
+    // puts the counter in the correct state when threads are used.
     c.incr(nit);
 #endif
 
     if (nlast)
     {
-        auto v = OP::generate(rng, c, k);
+        auto rv = OP::generate(rng, c, k);
 
         for (int64_t j = 0; j < nlast; ++j)
-            mat[4*nit + j] = v[j];
+            mat[CTR::static_size*nit + j] = rv[j];
 
         c.incr();
     }
@@ -168,7 +213,7 @@ auto run_test(int64_t m, int64_t n, T *mat)
 {
     auto t0 = std::chrono::high_resolution_clock::now();
     RNGState<RNG> seed;
-    generate<T,RNG,OP>(m, n, mat, seed);
+    fill_rmat<T,RNG,OP>(m, n, mat, seed);
     auto t1 = std::chrono::high_resolution_clock::now();
     return (t1 - t0).count();
 }
@@ -176,37 +221,20 @@ auto run_test(int64_t m, int64_t n, T *mat)
 
 int main(int argc, char **argv)
 {
+    using T = float;
     using RNG = r123::Philox4x32;
-    using OP = boxmul; //uneg11;
-
-
-
-    //r123::Array4x32::value_type a;
-    RNG::ctr_type::value_type a;
+    using OP = boxmul;
 
     int64_t m = atoi(argv[1]);
     int64_t n = atoi(argv[2]);
     int64_t d = m*n;
 
-    std::vector<float> mat(d);
+    std::vector<T> mat(d);
 
+    auto dt = run_test<T,RNG,OP>(m, n, mat.data());
 
-    auto phi = run_test<float, r123::Philox4x32, OP>(m, n, mat.data());
-#if 0
-    auto tfr = run_test<float, r123::Threefry4x32, OP>(m, n, mat.data());
-    //#if defined(__AES__)
-    auto aes = run_test<float, r123::AESNI4x32, OP>(m, n, mat.data());
-    auto ars = run_test<float, r123::ARS4x32, OP>(m, n, mat.data());
-#endif
-
-    std::cerr << "phi = " << phi << std::endl
-#if 0
-        << "tfr = " << tfr << std::endl
-//#if defined(__AES__)
-        << "aes = " << aes << std::endl
-        << "ars = " << ars << std::endl
-#endif
-        ;
+    std::cerr << "[" << typeid(RNG).name() << ", "
+        << typeid(OP).name() << "] dt = " << dt << std::endl;
 
     if (d < 100)
         std::cerr << "mat = " << mat << std::endl;
