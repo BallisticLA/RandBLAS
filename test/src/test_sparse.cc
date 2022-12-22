@@ -333,6 +333,56 @@ class TestLSKGES : public ::testing::Test
         );
     }
 
+    template <typename T>
+    static void transpose_S(
+        RandBLAS::sparse::SparseDistName distname,
+        uint32_t key,
+        int64_t m,
+        int64_t d,
+        blas::Layout layout
+    ) {
+        randblas_require(m > d);
+        bool is_saso = (distname == RandBLAS::sparse::SparseDistName::SASO);
+        int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
+        RandBLAS::sparse::SparseDist Dt = {
+            .family = distname,
+            .n_rows = m,
+            .n_cols = d,
+            .vec_nnz = vec_nnz
+        };
+        RandBLAS::sparse::SparseSkOp<T> S0(Dt, key, 0, NULL, NULL, NULL);
+        RandBLAS::sparse::fill_sparse(S0);
+        std::vector<T> S0_dense(m * d);
+        sparseskop_to_dense<T>(S0, S0_dense.data(), layout);
+
+        // define a matrix to be sketched, and create workspace for sketch.
+        std::vector<T> A(m * m, 0.0);
+        for (int i = 0; i < m; ++i)
+            A[i + m*i] = 1.0;
+        std::vector<T> B(d * m, 0.0);
+        bool is_colmajor = (blas::Layout::ColMajor == layout);
+        int64_t ldb = (is_colmajor) ? d : m;
+        int64_t lds = (is_colmajor) ? m : d;
+
+        // perform the sketch
+        //  S0 is tall.
+        //  We apply S0.T, which is wide.
+        RandBLAS::sparse::lskges<T>(
+            layout,
+            blas::Op::Trans,
+            blas::Op::NoTrans,
+            d, m, m,
+            1.0, S0, 0, 0, A.data(), m,
+            0.0, B.data(), ldb   
+        );
+
+        // check that B == S.T
+        RandBLAS_Testing::Util::matrices_approx_equal<T>(
+            layout, blas::Op::Trans, d, m,
+            B.data(), ldb, S0_dense.data(), lds      
+        );
+    }
+
     // template <typename T>
     // static void submatrix_A(
     //     uint32_t seed_S0, // seed for S0
@@ -676,3 +726,36 @@ TEST_F(TestLSKGES, subset_cols_s_rowmajor2)
 //             blas::Layout::ColMajor
 //         );
 //}
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      tranpose of S
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+
+TEST_F(TestLSKGES, transpose_saso_double_colmajor)
+{
+    uint32_t seed = 0;
+    transpose_S<double>(RandBLAS::sparse::SparseDistName::SASO, seed, 21, 4, blas::Layout::ColMajor);
+}
+
+TEST_F(TestLSKGES, transpose_laso_double_colmajor)
+{
+    uint32_t seed = 0;
+    transpose_S<double>(RandBLAS::sparse::SparseDistName::LASO, seed, 21, 4, blas::Layout::ColMajor);
+}
+
+TEST_F(TestLSKGES, transpose_saso_double_rowmajor)
+{
+    uint32_t seed = 0;
+    transpose_S<double>(RandBLAS::sparse::SparseDistName::SASO, seed, 21, 4, blas::Layout::RowMajor);
+}
+
+TEST_F(TestLSKGES, transpose_laso_double_rowmajor)
+{
+    uint32_t seed = 0;
+    transpose_S<double>(RandBLAS::sparse::SparseDistName::LASO, seed, 21, 4, blas::Layout::RowMajor);
+}

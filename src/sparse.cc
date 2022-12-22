@@ -132,10 +132,15 @@ RNGState fill_sparse(
 
 template <typename T>
 void print_saso(SparseSkOp<T>& S0) {
-    std::cout << "SASO information" << std::endl;
+    std::cout << "SparseSkOp information" << std::endl;
     std::cout << "\tn_rows = " << S0.dist.n_rows << std::endl;
     std::cout << "\tn_cols = " << S0.dist.n_cols << std::endl;
-    int64_t nnz = S0.dist.vec_nnz * MIN(S0.dist.n_rows, S0.dist.n_cols);
+    int64_t nnz;
+    if (S0.dist.family == SparseDistName::SASO) {
+        nnz = S0.dist.vec_nnz * MAX(S0.dist.n_rows, S0.dist.n_cols);
+    } else {
+        nnz = S0.dist.vec_nnz * MIN(S0.dist.n_rows, S0.dist.n_cols);
+    }
     std::cout << "\tvector of row indices\n\t\t";
     for (int64_t i = 0; i < nnz; ++i) {
         std::cout << S0.rows[i] << ", ";
@@ -387,6 +392,25 @@ static void apply_cscoo_csroo_left(
 }
 
 template <typename T>
+static SparseSkOp<T> transpose(SparseSkOp<T> &S0) {
+    SparseDist dist = {
+        .family = S0.dist.family,
+        .n_rows = S0.dist.n_cols,
+        .n_cols = S0.dist.n_rows,
+        .vec_nnz = S0.dist.vec_nnz
+    };
+    SparseSkOp<T> S1(
+        dist,
+        S0.seed_state,
+        S0.cols,
+        S0.rows,
+        S0.vals
+    );
+    S1.next_state = RNGState(S0.next_state);
+    return S1;
+}
+
+template <typename T>
 void lskges(
     blas::Layout layout,
     blas::Op transS,
@@ -427,7 +451,13 @@ void lskges(
         rows_S = d;
         cols_S = m;
     } else {
-        randblas_require(false); // not implemented.
+        SparseSkOp<T> S1 = transpose<T>(S0);
+        lskges<T>(
+            layout, blas::Op::NoTrans, blas::Op::NoTrans,
+            d, m, n, alpha, S1, j_os, i_os,
+            A, lda, beta, B, ldb, threads
+        );
+        return;
         // rows_S = m;
         // cols_S = d;
     }
