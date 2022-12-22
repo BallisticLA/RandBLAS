@@ -1,7 +1,3 @@
-configure_file(RandBLAS_config.h.in RandBLAS_config.h)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/RandBLAS_config.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/RandBLAS)
-
 configure_file(CMake/RandBLASConfig.cmake.in
     ${CMAKE_INSTALL_LIBDIR}/cmake/RandBLASConfig.cmake @ONLY)
 

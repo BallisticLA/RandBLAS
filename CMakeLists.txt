@@ -16,7 +16,7 @@ find_package(Random123 REQUIRED)
 include(OpenMP)
 
 # compile sources
-add_subdirectory(src)
+add_subdirectory(RandBLAS)
 add_subdirectory(test)
 
 # export the configuration

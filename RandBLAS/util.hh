@@ -1,10 +1,11 @@
-#include <iostream>
-#include <memory>
-#include <string>
-#include <stdexcept>
-#include <stdio.h>
+#ifndef randblas_util_hh
+#define randblas_util_hh
+
+#include <blas.hh>
+#include <cstdio>
 #include <Random123/philox.h>
 #include <Random123/uniform.hpp>
+
 
 namespace RandBLAS::util {
 
@@ -62,9 +63,8 @@ void print_colmaj(int64_t n_rows, int64_t n_cols, T *a, char label[])
 }
 
 
-template void print_colmaj<float>(int64_t n_rows, int64_t n_cols, float *a, char label[]);
-template void print_colmaj<double>(int64_t n_rows, int64_t n_cols, double *a, char label[]);
 
-template void genmat<float>(int64_t n_rows, int64_t n_cols, float* mat, uint64_t seed);
-template void genmat<double>(int64_t n_rows, int64_t n_cols, double* mat, uint64_t seed);
+
 } // end namespace RandBLAS::util
+
+#endif
