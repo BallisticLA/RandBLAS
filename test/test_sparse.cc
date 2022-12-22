@@ -362,18 +362,6 @@ TEST_F(TestLSKGES, TwoThreads_ColMajor)
     }
 }
 
-TEST_F(TestLSKGES, DefaultThreads)
-{
-    for (int64_t k_idx : {0, 1, 2})
-    {
-        for (int64_t nz_idx: {4, 1, 2, 3, 0})
-        {
-            apply<double>(blas::Layout::ColMajor, k_idx, nz_idx, 0);
-            apply<double>(blas::Layout::RowMajor, k_idx, nz_idx, 0);
-        }
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////
 //
 //
