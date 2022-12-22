@@ -270,7 +270,7 @@ static void sketch_cscrow(
 
     // Identify the range of rows to be processed by each thread.
     // TODO: replace threads = MIN(threads, d) ?
-    int64_t rows_per_thread = std::max(d / threads, 1ll);
+    int64_t rows_per_thread = std::max(d / threads, int64_t(1));
     int64_t *S_row_blocks = new int64_t[threads + 1];
     S_row_blocks[0] = S_row_start;
     for(int i = 1; i < threads + 1; ++i)
