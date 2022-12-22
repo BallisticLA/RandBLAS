@@ -109,6 +109,7 @@ SparseSkOp<T>::SparseSkOp(
 {   // sanity checks
     randblas_require(this->dist.n_rows > 0);
     randblas_require(this->dist.n_cols > 0);
+    randblas_require(this->dist.vec_nnz > 0);
     // Initialization logic
     //
     //      own_memory is a bool that's true iff the
@@ -145,7 +146,7 @@ SparseSkOp<T>::~SparseSkOp() {
 };
 
 template <typename T>
-static bool fixed_nnz_per_col(
+static bool has_fixed_nnz_per_col(
     SparseSkOp<T> &S0
 ) {
     if (S0.dist.family == SparseDistName::SASO) {
@@ -418,13 +419,28 @@ static void apply_cscoo_submat_to_vector_from_left(
     //  
     //      The sparse matrix does not need to be wide.
     //
-    int64_t i = 0;
-    for (int64_t c = 0; c < num_cols; ++c) {
-        T scale = v[c * incv];
-        while (cols_view[i] == c && i < nnz) {
-            int64_t row = rows_view[i];
-            Sv[row * incSv] += (vals_view[i] * scale);
-            i += 1;
+    // When nnz < 0, each of the "num_cols" blocks in "cols_view" 
+    // must be the same size -nnz > 0. Furthermore, consecutive values
+    // in cols_view can only differ from one another by at most one.
+    //
+    if (nnz >= 0) {
+        int64_t i = 0;
+        for (int64_t c = 0; c < num_cols; ++c) {
+            T scale = v[c * incv];
+            while (i < nnz && cols_view[i] == c) {
+                int64_t row = rows_view[i];
+                Sv[row * incSv] += (vals_view[i] * scale);
+                i += 1;
+            }
+        }
+    } else {
+        int64_t col_nnz = -nnz;
+        for (int64_t c = 0; c < num_cols; ++c) {
+            T scale = v[c * incv];
+            for (int64_t j = c * col_nnz; j < (c + 1) * col_nnz; ++j) {
+                int64_t row = rows_view[j];
+                Sv[row * incSv] += (vals_view[j] * scale);
+            }
         }
     }
 }
@@ -437,8 +453,8 @@ static void apply_cscoo_csroo_left(
     int64_t n,
     int64_t m,
     SparseSkOp<T>& S0,
-    int64_t i_os,
-    int64_t j_os,
+    int64_t row_offset,
+    int64_t col_offset,
     const T *A,
     int64_t lda,
     T *B,
@@ -448,25 +464,33 @@ static void apply_cscoo_csroo_left(
     int64_t nnz;
     int64_t *S_rows, *S_cols;
     T *S_vals;
-    bool use_existing_memory = true;
-    if (fixed_nnz_per_col(S0)) {
-        use_existing_memory = (i_os == 0) && (j_os == 0) && (d == S0.dist.n_rows);
+
+    bool use_existing_memory = false;
+    bool S0_fixed_nnz_per_col = has_fixed_nnz_per_col(S0);
+    if (S0_fixed_nnz_per_col) {
+        bool S_fixed_nnz_per_col = (row_offset == 0) && (d == S0.dist.n_rows);
+        use_existing_memory = (col_offset == 0) && S_fixed_nnz_per_col;
+        // ^ If col_offset is nonzero, then we need to make an altered 
+        //   version of S0.cols that shifts all entries by -col_offset.
         if (use_existing_memory) {
             S_rows = S0.rows;
             S_cols = S0.cols;
             S_vals = S0.vals;
-            nnz = vec_nnz * m;
+            // we set nnz in a moment.
         } else {
             S_rows = new int64_t[m * vec_nnz]{};
             S_cols = new int64_t[m * vec_nnz]{};
             S_vals = new       T[m * vec_nnz]{};
             nnz = filter_regular_cscoo<T>(
                 S0.rows, S0.cols, S0.vals, vec_nnz,
-                j_os, j_os + m,
-                i_os, i_os + d,
+                col_offset, col_offset + m,
+                row_offset, row_offset + d,
                 S_rows, S_cols, S_vals
             );
+            // ^ we might overwrite that value of nnz.
         }
+        if (S_fixed_nnz_per_col)
+            nnz = -vec_nnz;
     } else {
         // We have to use new memory, because we need the CSCOO representation.
         S_rows = new int64_t[d * vec_nnz]{};
@@ -474,8 +498,8 @@ static void apply_cscoo_csroo_left(
         S_vals = new       T[d * vec_nnz]{};
         nnz = filter_and_convert_regular_csroo_to_cscoo<T>(
             S0.rows, S0.cols, S0.vals, vec_nnz,
-            j_os, j_os + m,
-            i_os, i_os + d,
+            col_offset, col_offset + m,
+            row_offset, row_offset + d,
             S_rows, S_cols, S_vals
         );
     }
@@ -555,8 +579,8 @@ void lskges(
     int64_t m, // op(S) is d-by-m
     T alpha,
     SparseSkOp<T> &S0,
-    int64_t i_os,
-    int64_t j_os,
+    int64_t row_offset,
+    int64_t col_offset,
     const T *A,
     int64_t lda,
     T beta,
@@ -572,7 +596,7 @@ void lskges(
         SparseSkOp<T> S1 = transpose<T>(S0);
         lskges<T>(
             layout, blas::Op::NoTrans, transA,
-            d, m, n, alpha, S1, j_os, i_os,
+            d, m, n, alpha, S1, col_offset, row_offset,
             A, lda, beta, B, ldb
         );
         return; 
@@ -607,7 +631,7 @@ void lskges(
     }
 
     // Perform the sketch
-    apply_cscoo_csroo_left<T>(layout_A, layout_B, d, n, m, S0, i_os, j_os, A, lda, B, ldb);
+    apply_cscoo_csroo_left<T>(layout_A, layout_B, d, n, m, S0, row_offset, col_offset, A, lda, B, ldb);
     return;
 }
 

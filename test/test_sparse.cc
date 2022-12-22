@@ -35,7 +35,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
 
     virtual void TearDown() {};
 
-    void fixed_nnz_per_col(RandBLAS::sparse::SparseSkOp<double> &S0) {
+    void check_fixed_nnz_per_col(RandBLAS::sparse::SparseSkOp<double> &S0) {
         std::set<int64_t> s;
         for (int64_t i = 0; i < S0.dist.n_cols; ++i) {
             int64_t offset = S0.dist.vec_nnz * i;
@@ -48,7 +48,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
         }
     }
 
-    void fixed_nnz_per_row(RandBLAS::sparse::SparseSkOp<double> &S0) {
+    void check_fixed_nnz_per_row(RandBLAS::sparse::SparseSkOp<double> &S0) {
         std::set<int64_t> s;
         for (int64_t i = 0; i < S0.dist.n_rows; ++i) {
             int64_t offset = S0.dist.vec_nnz * i;
@@ -68,9 +68,9 @@ class TestSparseSkOpConstruction : public ::testing::Test
         );
         RandBLAS::sparse::fill_sparse<double>(S0);
        if (d < m) {
-            fixed_nnz_per_col(S0);
+            check_fixed_nnz_per_col(S0);
        } else {
-            fixed_nnz_per_row(S0);
+            check_fixed_nnz_per_row(S0);
        }
     } 
 
@@ -81,9 +81,9 @@ class TestSparseSkOpConstruction : public ::testing::Test
         );
         RandBLAS::sparse::fill_sparse<double>(S0);
        if (d < m) {
-            fixed_nnz_per_row(S0);
+            check_fixed_nnz_per_row(S0);
        } else {
-            fixed_nnz_per_col(S0);
+            check_fixed_nnz_per_col(S0);
        }
     } 
 };
@@ -293,7 +293,7 @@ class TestLSKGES : public ::testing::Test
         int64_t pos = (is_colmajor) ? (S_ro + d0 * S_co) : (S_ro * m0 + S_co);
         assert(d0 * m0 >= pos + d1 * m1);
 
-        int64_t vec_nnz = d0 / 4; // this is actually quite dense. 
+        int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
         auto S0 = make_wide_saso<T>(d0, m0, vec_nnz, 0, seed);
         T *S0_dense = new T[d0 * m0];
         sparseskop_to_dense<T>(S0, S0_dense, layout);
@@ -549,14 +549,14 @@ TEST_F(TestLSKGES, sketch_laso_rowMajor_oneThread)
 }
 
 
-TEST_F(TestLSKGES, sketch_saso_rowMajor_twoThreads)
+TEST_F(TestLSKGES, sketch_saso_rowMajor_FourThreads)
 {
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 2);
-            apply<float>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 2);
+            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4);
+            apply<float>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4);
         }
     }
 }
@@ -585,26 +585,14 @@ TEST_F(TestLSKGES, sketch_laso_colMajor_oneThread)
     }
 }
 
-TEST_F(TestLSKGES, sketch_saso_colMajor_twoThreads)
+TEST_F(TestLSKGES, sketch_saso_colMajor_fourThreads)
 {
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 2);
-            apply<float>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 2);
-        }
-    }
-}
-
-TEST_F(TestLSKGES, sketch_saso_default_threads)
-{
-    for (int64_t k_idx : {0, 1, 2})
-    {
-        for (int64_t nz_idx: {4, 1, 2, 3, 0})
-        {
-            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 0);
-            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 0);
+            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 4);
+            apply<float>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 4);
         }
     }
 }
