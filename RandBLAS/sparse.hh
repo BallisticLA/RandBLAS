@@ -619,14 +619,12 @@ void lskges(
     }
 
     // Dimensionality sanity checks
+    //      Both A and B are checked based on "layout"; A is *not* checked on layout_A.
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
-    } else {
-        randblas_require(lda >= cols_A);
-    }
-    if (layout == blas::Layout::ColMajor) {
         randblas_require(ldb >= d);
     } else {
+        randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
     }
 
