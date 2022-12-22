@@ -1,3 +1,4 @@
+#include <RandBLAS/dense.hh>
 #include <RandBLAS/sparse.hh>
 #include <RandBLAS/util.hh>
 #include <rbtutil.hh>
@@ -383,68 +384,70 @@ class TestLSKGES : public ::testing::Test
         );
     }
 
-    // template <typename T>
-    // static void submatrix_A(
-    //     uint32_t seed_S0, // seed for S0
-    //     int64_t d, // rows in S0
-    //     int64_t m, // cols in S0, and rows in A.
-    //     int64_t n, // cols in A
-    //     int64_t m0, // rows in A0
-    //     int64_t n0, // cols in A0
-    //     int64_t A_ro, // row offset for A in A0
-    //     int64_t A_co, // column offset for A in A0
-    //     blas::Layout layout
-    // ) {
-    //     assert(m0 > m);
-    //     assert(n0 > n);
+    template <typename T>
+    static void submatrix_A(
+        RandBLAS::sparse::SparseDistName distname,
+        uint32_t seed_S0, // seed for S0
+        int64_t d, // rows in S0
+        int64_t m, // cols in S0, and rows in A.
+        int64_t n, // cols in A
+        int64_t m0, // rows in A0
+        int64_t n0, // cols in A0
+        int64_t A_ro, // row offset for A in A0
+        int64_t A_co, // column offset for A in A0
+        blas::Layout layout
+    ) {
+        assert(m0 > m);
+        assert(n0 > n);
+        bool is_colmajor = (layout == blas::Layout::ColMajor);
 
-    //     // Define the distribution for S0.
-    //     RandBLAS::dense_op::Dist D = {
-    //         .family = RandBLAS::dense_op::SparseDistName::Gaussian,
-    //         .n_rows = d,
-    //         .n_cols = m
-    //     };
-    //     // Define the sketching operator struct, S0.
-    //     RandBLAS::dense_op::SketchingOperator<T> S0 = {
-    //         .dist = D,
-    //         .key = seed_S0,
-    //         .layout = layout
-    //     };
-    //     bool is_colmajor = layout == blas::Layout::ColMajor;
+        // Define the distribution for S0.
+        bool is_saso = (distname == RandBLAS::sparse::SparseDistName::SASO);
+        int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
+        RandBLAS::sparse::SparseDist D = {
+            .family = distname,
+            .n_rows = d,
+            .n_cols = m,
+            .vec_nnz = vec_nnz
+        };
+        RandBLAS::sparse::SparseSkOp<T> S0(D, seed_S0, 0, NULL, NULL, NULL);
+        RandBLAS::sparse::fill_sparse(S0);
+        std::vector<T> S0_dense(m * d);
+        sparseskop_to_dense<T>(S0, S0_dense.data(), layout);
 
-    //     // define a matrix to be sketched, and create workspace for sketch.
-    //     std::vector<T> A0(m0 * n0, 0.0);
-    //     uint32_t ctr_A0 = 42;
-    //     uint32_t seed_A0 = 42000;
-    //     RandBLAS::dense_op::Dist DA0 = {.n_rows = m0, .n_cols = n0};
-    //     RandBLAS::dense_op::fill_buff(A0.data(), DA0, ctr_A0, seed_A0);
-    //     std::vector<T> B(d * n, 0.0);
-    //     int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
-    //     int64_t ldb = (is_colmajor) ? d : n;
+        // define a matrix to be sketched, and create workspace for sketch.
+        std::vector<T> A0(m0 * n0, 0.0);
+        uint32_t ctr_A0 = 42;
+        uint32_t seed_A0 = 42000;
+        RandBLAS::dense::DenseDist DA0 = {.n_rows = m0, .n_cols = n0};
+        RandBLAS::dense::fill_buff(A0.data(), DA0, RandBLAS::base::RNGState{ctr_A0, seed_A0});
+        std::vector<T> B(d * n, 0.0);
+        int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
+        int64_t ldb = (is_colmajor) ? d : n;
         
-    //     // Perform the sketch
-    //     int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
-    //     T *A_ptr = &A0.data()[a_offset]; 
-    //     RandBLAS::dense_op::lskge3<T>(
-    //         S0.layout,
-    //         blas::Op::NoTrans,
-    //         blas::Op::NoTrans,
-    //         d, n, m,
-    //         1.0, S0, 0,
-    //         A_ptr, lda,
-    //         0.0, B.data(), ldb   
-    //     );
+        // Perform the sketch
+        int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
+        T *A_ptr = &A0.data()[a_offset]; 
+        RandBLAS::sparse::lskges<T>(
+            layout,
+            blas::Op::NoTrans,
+            blas::Op::NoTrans,
+            d, n, m,
+            1.0, S0, 0, 0,
+            A_ptr, lda,
+            0.0, B.data(), ldb   
+        );
 
-    //     // Check the result
-    //     int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
-    //     std::vector<T> B_expect(d * n, 0.0);
-    //     blas::gemm<T>(S0.layout, blas::Op::NoTrans, blas::Op::NoTrans,
-    //         d, n, m,
-    //         1.0, S0.buff, lds, A_ptr, lda,
-    //         0.0, B_expect.data(), ldb
-    //     );
-    //     buffs_approx_equal(B.data(), B_expect.data(), d * n);
-    // }
+        // Check the result
+        int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
+        std::vector<T> B_expect(d * n, 0.0);
+        blas::gemm<T>(layout, blas::Op::NoTrans, blas::Op::NoTrans,
+            d, n, m,
+            1.0, S0_dense.data(), lds, A_ptr, lda,
+            0.0, B_expect.data(), ldb
+        );
+        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), B_expect.data(), d * n);
+    }
 };
 
 
@@ -715,22 +718,10 @@ TEST_F(TestLSKGES, subset_cols_s_rowmajor2)
 }
 
 
-// TEST_F(TestLSKGES, submatrix_s_single) 
-// {
-//     for (uint32_t seed : {0})
-//         submatrix_S<float>(seed,
-//             3, 10, // (rows, cols) in S.
-//             8, 12, // (rows, cols) in S0.
-//             3, // The first row of S is in the forth row of S0
-//             1, // The first col of S is in the second col of S0
-//             blas::Layout::ColMajor
-//         );
-//}
-
 ////////////////////////////////////////////////////////////////////////
 //
 //
-//      tranpose of S
+//      transpose of S
 //
 //
 ////////////////////////////////////////////////////////////////////////
@@ -759,3 +750,81 @@ TEST_F(TestLSKGES, transpose_laso_double_rowmajor)
     uint32_t seed = 0;
     transpose_S<double>(RandBLAS::sparse::SparseDistName::LASO, seed, 21, 4, blas::Layout::RowMajor);
 }
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//     submatrix of A
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+
+TEST_F(TestLSKGES, saso_submatrix_a_colmajor) 
+{
+    for (uint32_t seed : {0})
+        submatrix_A<double>(
+            RandBLAS::sparse::SparseDistName::SASO,
+            seed,
+            3, // number of rows in sketch
+            10, 5, // (rows, cols) in A.
+            12, 8, // (rows, cols) in A0.
+            2, // The first row of A is in the third row of A0.
+            1, // The first col of A is in the second col of A0.
+            blas::Layout::ColMajor
+        );
+}
+
+TEST_F(TestLSKGES, saso_submatrix_a_rowmajor) 
+{
+    for (uint32_t seed : {0})
+        submatrix_A<double>(
+            RandBLAS::sparse::SparseDistName::SASO,
+            seed,
+            3, // number of rows in sketch
+            10, 5, // (rows, cols) in A.
+            12, 8, // (rows, cols) in A0.
+            2, // The first row of A is in the third row of A0.
+            1, // The first col of A is in the second col of A0.
+            blas::Layout::RowMajor
+        );
+}
+
+TEST_F(TestLSKGES, laso_submatrix_a_colmajor) 
+{
+    for (uint32_t seed : {0})
+        submatrix_A<double>(
+            RandBLAS::sparse::SparseDistName::LASO,
+            seed,
+            3, // number of rows in sketch
+            10, 5, // (rows, cols) in A.
+            12, 8, // (rows, cols) in A0.
+            2, // The first row of A is in the third row of A0.
+            1, // The first col of A is in the second col of A0.
+            blas::Layout::ColMajor
+        );
+}
+
+TEST_F(TestLSKGES, laso_submatrix_a_rowmajor) 
+{
+    for (uint32_t seed : {0})
+        submatrix_A<double>(
+            RandBLAS::sparse::SparseDistName::LASO,
+            seed,
+            3, // number of rows in sketch
+            10, 5, // (rows, cols) in A.
+            12, 8, // (rows, cols) in A0.
+            2, // The first row of A is in the third row of A0.
+            1, // The first col of A is in the second col of A0.
+            blas::Layout::RowMajor
+        );
+}
+
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//     transpose of A --- TODO(riley): write me!
+//
+//
+////////////////////////////////////////////////////////////////////////

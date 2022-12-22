@@ -304,7 +304,8 @@ static void apply_cscoo_submat_to_vector_from_left(
 
 template <typename T>
 static void apply_cscoo_csroo_left(
-    blas::Layout layout,
+    blas::Layout layout_A,
+    blas::Layout layout_B,
     int64_t d,
     int64_t n,
     int64_t m,
@@ -356,33 +357,38 @@ static void apply_cscoo_csroo_left(
     //
     // This function does not require that S or S0 is wide.
 
+    int64_t A_inter_col_stride, A_intra_col_stride;
+    if (layout_A == blas::Layout::ColMajor) {
+        A_inter_col_stride = lda;
+        A_intra_col_stride = 1;
+    } else {
+        A_inter_col_stride = 1;
+        A_intra_col_stride = lda;
+    }
+    int64_t B_inter_col_stride, B_intra_col_stride;
+    if (layout_B == blas::Layout::ColMajor) {
+        B_inter_col_stride = ldb;
+        B_intra_col_stride = 1;
+    } else {
+        B_inter_col_stride = 1;
+        B_intra_col_stride = ldb;
+    }
+
+
     omp_set_num_threads(threads);
     #pragma omp parallel default(shared)
     {
-        // Setup variables for the current thread
         const T *A_col = nullptr;
         T *B_col = nullptr;
-        // Do the work for the current thread.
-        if (layout == blas::Layout::ColMajor) {
-            #pragma omp for schedule(static)
-            for (int64_t k = 0; k < n; k++) {
-                A_col = &A[lda * k];
-                B_col = &B[ldb * k];
-                apply_cscoo_submat_to_vector_from_left<T>(
-                    A_col, 1, B_col, 1,
-                    S_rows, S_cols, S_vals, m, nnz
-                );
-            }
-        } else {
-            #pragma omp for schedule(static)
-            for (int64_t k = 0; k < n; k++) {
-                A_col = &A[k];
-                B_col = &B[k];
-                apply_cscoo_submat_to_vector_from_left<T>(
-                    A_col, lda, B_col, ldb,
-                    S_rows, S_cols, S_vals, m, nnz
-                );
-            }
+        #pragma omp for schedule(static)
+        for (int64_t k = 0; k < n; k++) {
+            A_col = &A[A_inter_col_stride * k];
+            B_col = &B[B_inter_col_stride * k];
+            apply_cscoo_submat_to_vector_from_left<T>(
+                A_col, A_intra_col_stride,
+                B_col, B_intra_col_stride,
+                S_rows, S_cols, S_vals, m, nnz
+            );
         }
     }
 
@@ -433,46 +439,47 @@ void lskges(
     randblas_require(alpha == 1.0); // implementation limitation
     randblas_require(beta == 0.0); // implementation limitation
 
-    // Dimensions of A, rather than op(A)
-    int64_t rows_A, cols_A, rows_S, cols_S;
-    SET_BUT_UNUSED(rows_S); // TODO -- implement check on rows_s and cols_s
-    SET_BUT_UNUSED(cols_S);
-    if (transA == blas::Op::NoTrans) {
-        rows_A = m;
-        cols_A = n;
-    } else {
-        randblas_require(false); // Not implemented.
-        //rows_A = n;
-        //cols_A = m;
-    }
-
-    // Dimensions of S, rather than op(S)
-    if (transS == blas::Op::NoTrans) {
-        rows_S = d;
-        cols_S = m;
-    } else {
+    // handle applying a transposed sparse sketching operator.
+    if (transS == blas::Op::Trans) {
         SparseSkOp<T> S1 = transpose<T>(S0);
         lskges<T>(
-            layout, blas::Op::NoTrans, blas::Op::NoTrans,
+            layout, blas::Op::NoTrans, transA,
             d, m, n, alpha, S1, j_os, i_os,
             A, lda, beta, B, ldb, threads
         );
-        return;
-        // rows_S = m;
-        // cols_S = d;
+        return; 
+    }
+    // Below this point, we can assume S0 is not transposed.
+
+    // Dimensions of A, rather than op(A)
+    blas::Layout layout_B = layout;
+    blas::Layout layout_A;
+    int64_t rows_A, cols_A;
+    if (transA == blas::Op::NoTrans) {
+        rows_A = m;
+        cols_A = n;
+        layout_A = layout;
+    } else {
+        rows_A = n;
+        cols_A = m;
+        layout_A = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : layout;
+        // ^ Lie.
     }
 
     // Dimensionality sanity checks
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
-        randblas_require(ldb >= d);
     } else {
         randblas_require(lda >= cols_A);
+    }
+    if (layout_B == blas::Layout::ColMajor) {
+        randblas_require(ldb >= d);
+    } else {
         randblas_require(ldb >= n);
     }
 
     // Perform the sketch
-    apply_cscoo_csroo_left<T>(layout, d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
+    apply_cscoo_csroo_left<T>(layout_A, layout_B, d, n, m, S0, i_os, j_os, A, lda, B, ldb, threads);
     return;
 }
 
