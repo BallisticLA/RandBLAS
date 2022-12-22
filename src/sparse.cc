@@ -462,7 +462,7 @@ void lskges(
     } else {
         rows_A = n;
         cols_A = m;
-        layout_A = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : layout;
+        layout_A = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : blas::Layout::ColMajor;
         // ^ Lie.
     }
 
