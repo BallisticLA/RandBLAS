@@ -45,47 +45,58 @@ std::tuple_element_t<I, r123::float2> get(r123::float2 const& f2)
 /** CBRNG state.
  * @param RNG One of Random123 CBRNG's e.g. Philox4x32
  */
-template <typename RNG, typename CTR = typename RNG::ctr_type, typename KEY = typename RNG::key_type, typename UKEY = typename RNG::ukey_type>
+template <typename RNG>
 struct RNGState
 {
     using generator = RNG;
 
     /// default construct both counter and key are zero'd
-    RNGState() : counter{{}}, key(UKEY{{}}) {}
+    RNGState() : counter{{}}, key(typename RNG::ukey_type{{}}) {}
 
     /** construct with a seed
      * @param[in] k a key value to use as a seed
      */
-    RNGState(const UKEY &k) : counter{{}}, key(k) {}
+    RNGState(typename RNG::ukey_type const& k) : counter{{}}, key(k) {}
 
     /// construct from an initial counter and key
-    RNGState(const CTR &c, const KEY &k) : counter(c), key(k) {}
+    RNGState(typename RNG::ctr_type const& c, typename RNG::key_type const& k) : counter(c), key(k) {}
 
     /// construct from an initial counter and key
-    RNGState(CTR &&c, KEY &&k) : counter(std::move(c)), key(std::move(k)) {}
+    RNGState(typename RNG::ctr_type &&c, typename RNG::key_type &&k) : counter(std::move(c)), key(std::move(k)) {}
 
-    /// @name conversions to/from std::tuple<CTR,KEY>
+    /// @name conversions
     ///{
-    RNGState(std::tuple<CTR, KEY> const& tup) : counter(std::get<0>(tup)), key(std::get<1>(tup)) {}
-    operator std::tuple<CTR const&, KEY const&> () const { return std::tie(std::as_const(counter), std::as_const(key)); }
-    operator std::tuple<CTR&, KEY&> () { return std::tie(counter, key); }
+    RNGState(std::tuple<typename RNG::ctr_type, typename RNG::key_type> const& tup) : counter(std::get<0>(tup)), key(std::get<1>(tup)) {}
+    operator std::tuple<typename RNG::ctr_type const&, typename RNG::key_type const&> () const { return std::tie(std::as_const(counter), std::as_const(key)); }
+    operator std::tuple<typename RNG::ctr_type&, typename RNG::key_type&> () { return std::tie(counter, key); }
     ///}
 
-    CTR counter; ///< the counter
-    KEY key;     ///< the key
+    typename RNG::ctr_type counter; ///< the counter
+    typename RNG::key_type key;     ///< the key
 };
+
+
+/// serialize the state to a stream
+template <typename RNG>
+std::ostream &operator<<(
+    std::ostream &out,
+    const RNGState<RNG> &s
+) {
+    out << "counter : {" << s.counter << "}" << std::endl
+        << "key     : {" << s.key << "}" << std::endl;
+    return out;
+}
 
 
 /** apply boxmuller transform to all elements of r. The number of elements of r
  * must be evenly divisible by 2.
  */
-template <typename RNG, typename CTR = typename RNG::ctr_type,
-    typename T = typename std::conditional
+template <typename RNG, typename T = typename std::conditional
         <sizeof(typename RNG::ctr_type::value_type) == sizeof(uint32_t), float, double>::type>
 auto boxmulall(typename RNG::ctr_type const& ri)
 {
-    std::array<T, CTR::static_size> ro;
-    int nit = CTR::static_size / 2;
+    std::array<T, RNG::ctr_type::static_size> ro;
+    int nit = RNG::ctr_type::static_size / 2;
     for (int i = 0; i < nit; ++i)
     {
         auto [v0, v1] = r123::boxmuller(ri[2*i], ri[2*i + 1]);
@@ -99,9 +110,9 @@ auto boxmulall(typename RNG::ctr_type const& ri)
 /// generate a sequence of random values and apply a Box-Muller transform
 struct boxmul
 {
-    template <typename RNG, typename CTR = typename RNG::ctr_type, typename KEY = typename RNG::key_type>
+    template <typename RNG>
     static
-    auto generate(RNG &rng, CTR const& c, KEY const& k)
+    auto generate(RNG &rng, typename RNG::ctr_type const& c, typename RNG::key_type const& k)
     {
         return boxmulall<RNG>(rng(c,k));
     }
@@ -110,11 +121,10 @@ struct boxmul
 /// generate a sequence of random values and transform to -1.0 to 1.0
 struct uneg11
 {
-    template <typename RNG, typename CTR = typename RNG::ctr_type, typename KEY = typename RNG::key_type,
-        typename T = typename std::conditional
+    template <typename RNG, typename T = typename std::conditional
             <sizeof(typename RNG::ctr_type::value_type) == sizeof(uint32_t), float, double>::type>
     static
-    auto generate(RNG &rng, CTR const& c, KEY const& k)
+    auto generate(RNG &rng, typename RNG::ctr_type const& c, typename RNG::key_type const& k)
     {
         return r123::uneg11all<T>(rng(c,k));
     }
@@ -123,7 +133,7 @@ struct uneg11
 
 /**
  */
-template <typename T, typename RNG, typename OP, typename CTR = typename RNG::ctr_type, typename KEY = typename RNG::key_type>
+template <typename T, typename RNG, typename OP>
 auto fill_rmat(
     int64_t n_rows,
     int64_t n_cols,
@@ -134,10 +144,8 @@ auto fill_rmat(
     auto [c, k] = seed;
 
     int64_t dim = n_rows * n_cols;
-    int64_t nit = dim / CTR::static_size;
-    int64_t nlast = dim % CTR::static_size;
-
-    std::cerr << "dim=" << dim << " nit=" << nit << " nlast=" << nlast << " static_size=" << CTR::static_size << std::endl;
+    int64_t nit = dim / RNG::ctr_type::static_size;
+    int64_t nlast = dim % RNG::ctr_type::static_size;
 
 #if defined(USE_OMP)
     #pragma omp parallel firstprivate(c, k)
@@ -152,7 +160,7 @@ auto fill_rmat(
         int64_t i0 = chs * ti + (ti < nlg ? ti : nlg);
         int64_t i1 = i0 + chs + (ti < nlg ? 1 : 0);
 
-        auto cc = c; // because of pointers used internal to CTR
+        auto cc = c; // because of pointers used internal to RNG::ctr_type
 
         cc.incr(i0);
 #else
@@ -163,8 +171,10 @@ auto fill_rmat(
         {
             auto rv = OP::generate(rng, cc, k);
 
-            for (int j = 0; j < CTR::static_size; ++j)
-               mat[CTR::static_size*i + j] = rv[j];
+            for (int j = 0; j < RNG::ctr_type::static_size; ++j)
+            {
+               mat[RNG::ctr_type::static_size * i + j] = rv[j];
+            }
 
             cc.incr();
         }
@@ -179,7 +189,9 @@ auto fill_rmat(
         auto rv = OP::generate(rng, c, k);
 
         for (int64_t j = 0; j < nlast; ++j)
-            mat[CTR::static_size*nit + j] = rv[j];
+        {
+            mat[RNG::ctr_type::static_size * nit + j] = rv[j];
+        }
 
         c.incr();
     }
