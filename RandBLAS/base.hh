@@ -23,33 +23,8 @@
 /// code common across the project
 namespace RandBLAS::base {
 
-/** Enumerate the names of the Random123 CBRNGs
- *
- * Philox matches or exceeds the performance of the other options on the
- * non-vector types. Changing the counter length from 2 to 4 elements does not
- * impact performance. The 32 bit word sized counters are faster than their
- * counter parts.
- *
- * The AESNI and ARS CBRNG's will not be compiled without the approriate flags
- * (i.e. -march=native). The vectorized types do not work with uneg11 nor
- * boxmuller two transforms which we rely upon.
- */
-enum class RNGName : char {
-    None,         ///< an invlaid or unitialized name
-    Philox2x32,   ///< use the r123::Philox2x32 CBRNG
-    Philox4x32,   ///< use the r123::Philox4x32 CBRNG
-    Philox2x64,   ///< use the r123::Philox2x64 CBRNG
-    Philox4x64,   ///< use the r123::Philox4x64 CBRNG
-    Threefry2x32, ///< use the r123::Threefry2x32 CBRNG
-    Threefry4x32, ///< use the r123::Threefry4x32 CBRNG
-    Threefry2x64, ///< use the r123::Threefry2x64 CBRNG
-    Threefry4x64, ///< use the r123::Threefry4x64 CBRNG
-    AESNI4x32,    ///< use the r123::AESNI4x32 CBRNG
-    AESNI1xm128i, ///< use the r123::AESNI1xm128i CBRNG
-    ARS1xm128i,   ///< use the r123::ARS1xm128i CBRNG
-    ARS4x32       ///< use the r123::ARS1xm128i CBRNG
-};
-
+/// Enumerate the names of the Random123 CBRNGs
+enum class RNGName : char {None = '\0', Philox = 'P', Threefry = 'T'};
 
 
 /** A CBRNG state consiting of a counter and a key.
