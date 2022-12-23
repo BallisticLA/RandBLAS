@@ -55,11 +55,11 @@ namespace RandBLAS::dense {
 using namespace RandBLAS::base;
 
 enum class DenseDistName : char {
-    Gaussian = 'G',         
-    Uniform = 'U',          // uniform over the interval [-1, 1].
-    Rademacher = 'R',       // uniform over {+1, -1}.
-    Haar = 'H',             // uniform over row-orthonormal or column-orthonormal matrices.
-    DisjointIntervals = 'I' // might require additional metadata.
+    Gaussian = 'G',         ///< ??
+    Uniform = 'U',          ///< uniform over the interval [-1, 1].
+    Rademacher = 'R',       ///< uniform over {+1, -1}.
+    Haar = 'H',             ///< uniform over row-orthonormal or column-orthonormal matrices.
+    DisjointIntervals = 'I' ///< might require additional metadata.
 };
 
 struct DenseDist {
@@ -68,33 +68,28 @@ struct DenseDist {
     const int64_t n_cols;
 };
 
-template <typename T>
+template <typename T, typename RNG = r123::Philox4x32>
 struct DenseSkOp {
-    const DenseDist dist;
-    const RNGState seed_state;
-    RNGState next_state;
-    const bool own_memory = true;
-    /////////////////////////////////////////////////////////////////////
-    //
-    //      Properties specific to dense sketching operators
-    //
-    /////////////////////////////////////////////////////////////////////
 
-    T *buff = nullptr;
-    bool filled = false;
-    bool persistent = true;
-    const blas::Layout layout = blas::Layout::ColMajor;
+    using generator = RNG;
+    using state_type = RNGState<RNG>;
 
-    /////////////////////////////////////////////////////////////////////
-    //
-    //      Member functions must directly relate to memory management.
-    //
-    /////////////////////////////////////////////////////////////////////
+    const DenseDist dist;            ///< the name of the distribution and matrix size
+    const RNGState<RNG> seed_state;  ///< the initial CBRNG state
+    RNGState<RNG> next_state;        ///< the current CBRNG state
+    const bool own_memory = true;    ///< a flag that inidicates who owns the memory
+
+    T *buff = nullptr;               ///< memory
+    bool filled = false;             ///< a flag that indicates if the memory was initialized
+    bool persistent = true;          ///< ???
+
+    const blas::Layout layout = blas::Layout::ColMajor; ///< matrix storage order
+
 
     //  Elementary constructor: needs an implementation
     DenseSkOp(
         DenseDist dist_,
-        const RNGState &state_,
+        RNGState<RNG> const& state_,
         T *buff_,
         bool filled_,
         bool persistent_,
@@ -110,30 +105,30 @@ struct DenseSkOp {
         bool filled,
         bool persistent,
         blas::Layout layout
-    ) : DenseSkOp(dist, RNGState{ctr_offset, key}, buff, filled, persistent, layout) {};
+    ) : DenseSkOp(dist, {{{ctr_offset}}, {{key}}}, buff, filled, persistent, layout) {};
 
     //  Convenience constructor (a wrapper)
     DenseSkOp(
         DenseDistName family,
         int64_t n_rows,
         int64_t n_cols,
-        uint32_t key,
         uint32_t ctr_offset,
+        uint32_t key,
         T *buff,
         bool filled,
         bool persistent,
         blas::Layout layout
-    ) : DenseSkOp(DenseDist{family, n_rows, n_cols}, RNGState{key, ctr_offset},
-        buff, filled, persistent, layout) {};
+    ) : DenseSkOp(DenseDist{family, n_rows, n_cols}, ctr_offset,
+                  key, buff, filled, persistent, layout) {};
 
     // Destructor
     ~DenseSkOp();
 };
 
-template <typename T>
-DenseSkOp<T>::DenseSkOp(
+template <typename T, typename RNG>
+DenseSkOp<T,RNG>::DenseSkOp(
     DenseDist dist_,
-    const RNGState &state_,
+    RNGState<RNG> const& state_,
     T *buff_,           
     bool filled_,       
     bool persistent_,   
@@ -141,7 +136,7 @@ DenseSkOp<T>::DenseSkOp(
 ) : // variable definitions
     dist(dist_),
     seed_state(state_),
-    next_state(),
+    next_state{},
     own_memory(!buff_),
     buff(buff_),
     filled(filled_),
@@ -162,8 +157,8 @@ DenseSkOp<T>::DenseSkOp(
     }
 }
 
-template <typename T>
-DenseSkOp<T>::~DenseSkOp() {
+template <typename T, typename RNG>
+DenseSkOp<T,RNG>::~DenseSkOp() {
     if (this->own_memory) {
         delete [] this->buff;
     }
@@ -174,147 +169,131 @@ DenseSkOp<T>::~DenseSkOp() {
 
 
 
-
-
-
-
-template <typename T, typename T_gen>
-static RNGState gen_unif(
+/** Fill a n by m matrix with random values. If RandBLAS is compiled with
+ * OpenMP threading support enabled, the operation is parallelized using
+ * OMP_NUM_THREADS. The sequence of values genrated is not dependent on the
+ * number of OpenMP threads.
+ *
+ * @tparam T the data type of the matrix
+ * @tparam RNG a random123 CBRNG type
+ * @tparm OP an operator that transforms raw random values into matrix
+ *           elements. See RandBLAS::base::uneg11 and RandBLAS::base::boxmul.
+ *
+ * @param[in] n_rows the number of rows in the matrix
+ * @param[in] n_cols the number of columns in the matrix
+ * @param[in] mat a pointer to a contiguous region of memory with space for
+ *                n_rows*n_cols elements of type T. This memory will be filled
+ *                with random values.
+ * @param[in] seed A CBRNG state
+ *
+ * @returns the updated CBRNG state
+ */
+template <typename T, typename RNG, typename OP>
+auto fill_rmat(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
-    const RNGState &state
+    const RNGState<RNG> & seed
 ) {
+    RNG rng;
+    auto [c, k] = seed;
+
     int64_t dim = n_rows * n_cols;
-    int64_t i;
-    Random123_RNGState<T_gen> impl_state(state);
-    T_gen gen;
-    typedef typename T_gen::ctr_type ctr_type;
-    ctr_type rout;
-    for (i = 0; i + 3 < dim; i += 4) {
-        rout = gen(impl_state.ctr, impl_state.key);
-        mat[i] = r123::uneg11<T>(rout.v[0]);
-        mat[i + 1] = r123::uneg11<T>(rout.v[1]);
-        mat[i + 2] = r123::uneg11<T>(rout.v[2]);
-        mat[i + 3] = r123::uneg11<T>(rout.v[3]);
-        impl_state.ctr.incr(4);
+    int64_t nit = dim / RNG::ctr_type::static_size;
+    int64_t nlast = dim % RNG::ctr_type::static_size;
+
+#if defined(RandBLAS_HAS_OpenMP)
+    #pragma omp parallel firstprivate(c, k)
+    {
+        // add the start index to the counter in order to make the sequence
+        // deterministic independent of the number of threads.
+        int ti = omp_get_thread_num();
+        int nt = omp_get_num_threads();
+
+        int64_t chs = nit / nt;
+        int64_t nlg = nit % nt;
+        int64_t i0 = chs * ti + (ti < nlg ? ti : nlg);
+        int64_t i1 = i0 + chs + (ti < nlg ? 1 : 0);
+
+        auto cc = c; // because of pointers used internal to RNG::ctr_type
+
+        cc.incr(i0);
+#else
+        int64_t i0 = 0;
+        int64_t i1 = nit;
+#endif
+        for (int64_t i = i0; i < i1; ++i)
+        {
+            auto rv = OP::generate(rng, cc, k);
+
+            for (int j = 0; j < RNG::ctr_type::static_size; ++j)
+            {
+               mat[RNG::ctr_type::static_size * i + j] = rv[j];
+            }
+
+            cc.incr();
+        }
+#if defined(RandBLAS_HAS_OpenMP)
     }
-    rout = gen(impl_state.ctr, impl_state.key);
-    int32_t j = 0;
-    while (i < dim) {
-        mat[i] =  r123::uneg11<T>(rout.v[j]);
-        ++i;
-        ++j;
+    // puts the counter in the correct state when threads are used.
+    c.incr(nit);
+#endif
+
+    if (nlast)
+    {
+        auto rv = OP::generate(rng, c, k);
+
+        for (int64_t j = 0; j < nlast; ++j)
+        {
+            mat[RNG::ctr_type::static_size * nit + j] = rv[j];
+        }
+
+        c.incr();
     }
-    return impl_state;
+
+    return RNGState<RNG> {c, k};
 }
 
 
-
-template <typename T>
-RNGState gen_rmat_unif(
-    int64_t n_rows,
-    int64_t n_cols,
-    T* mat,
-    const RNGState &state
-) {
-    switch (state.rng_name) {
-        case RNGName::Philox:
-            return gen_unif<T, Philox>(n_rows, n_cols, mat, state);
-        case RNGName::Threefry:
-            return gen_unif<T, Threefry>(n_rows, n_cols, mat, state);
-        default:
-            throw std::runtime_error(std::string("Unrecognized generator."));
-    }
-}
-
-template <typename T, typename T_gen>
-static RNGState gen_norm(
-    int64_t n_rows,
-    int64_t n_cols,
-    T* mat,
-    const RNGState &state
-) {
-    T_gen gen;
-    Random123_RNGState<T_gen> impl_state(state);
-    int64_t dim = n_rows * n_cols;
-    int64_t i;
-    typedef typename T_gen::ctr_type ctr_type;
-    ctr_type rout;
-    r123::float2 pair_1, pair_2;
-    for (i = 0; i + 3 < dim; i += 4) {
-        rout = gen(impl_state.ctr, impl_state.key);
-        pair_1 = r123::boxmuller(rout.v[0], rout.v[1]);
-        pair_2 = r123::boxmuller(rout.v[2], rout.v[3]);
-        mat[i] = pair_1.x;
-        mat[i + 1] = pair_1.y;
-        mat[i + 2] = pair_2.x;
-        mat[i + 3] = pair_2.y;
-        impl_state.ctr.incr(4);
-    }
-    rout = gen(impl_state.ctr, impl_state.key);
-    pair_1 = r123::boxmuller(rout.v[0], rout.v[1]);
-    pair_2 = r123::boxmuller(rout.v[2], rout.v[3]);
-    T v[4] = {pair_1.x, pair_1.y, pair_2.x, pair_2.y};
-    int32_t j = 0;
-    while (i < dim) {
-        mat[i] =  v[j];
-        ++i;
-        ++j;
-    }
-    RNGState out_state(state);
-    return out_state;
-}
-
-template <typename T>
-static RNGState gen_rmat_norm(
-    int64_t n_rows,
-    int64_t n_cols,
-    T* mat,
-    const RNGState &state
-) {
-    switch (state.rng_name) {
-        case RNGName::Philox:
-            return gen_norm<T, Philox>(n_rows, n_cols, mat, state);
-        case RNGName::Threefry:
-            return gen_norm<T, Threefry>(n_rows, n_cols, mat, state);
-        default:
-            throw std::runtime_error(std::string("Unrecognized generator."));
-    }
-}
-
-template <typename T>
-RNGState fill_buff(
+template <typename T, typename RNG>
+auto fill_buff(
     T *buff,
-    DenseDist D,
-    const RNGState &state
+    const DenseDist &D,
+    RNGState<RNG> const& state
 ) {
-    switch (D.family) { // no break statements needed as-written
+    switch (D.family) {
+
         case DenseDistName::Gaussian:
-            return gen_rmat_norm<T>(D.n_rows, D.n_cols, buff, state);
+            return fill_rmat<T,RNG,boxmul>(D.n_rows, D.n_cols, buff, state);
+
         case DenseDistName::Uniform:
-            return gen_rmat_unif<T>(D.n_rows, D.n_cols, buff, state);
+            return fill_rmat<T,RNG,uneg11>(D.n_rows, D.n_cols, buff, state);
+
         case DenseDistName::Rademacher:
             throw std::runtime_error(std::string("Not implemented."));
+
         case DenseDistName::Haar:
             // This won't be filled IID, but a Householder representation
             // of a column-orthonormal matrix Q can be stored in the lower
             // triangle of Q (with "tau" on the diagonal). So the size of
             // buff will still be D.n_rows*D.n_cols.
             throw std::runtime_error(std::string("Not implemented."));
+
         default:
             throw std::runtime_error(std::string("Unrecognized distribution."));
     }
+
+    return state;
 }
 
-template <typename T>
+template <typename T, typename RNG>
 T* fill_skop_buff(
-    DenseSkOp<T> &S0
+    DenseSkOp<T,RNG> &S0
 ) {
     T *S0_ptr = S0.buff;
     if (S0_ptr == nullptr) {
         S0_ptr = new T[S0.dist.n_rows * S0.dist.n_cols];
-        S0.next_state = fill_buff<T>(S0_ptr, S0.dist, S0.seed_state);
+        S0.next_state = fill_buff<T,RNG>(S0_ptr, S0.dist, S0.seed_state);
         if (S0.persistent) {
             S0.buff = S0_ptr;
             S0.filled = true;
@@ -329,7 +308,7 @@ T* fill_skop_buff(
     }
 }
 
-template <typename T>
+template <typename T, typename RNG>
 void lskge3(
     blas::Layout layout,
     blas::Op transS,
@@ -338,7 +317,7 @@ void lskge3(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(S) is d-by-m
     T alpha,
-    DenseSkOp<T> &S0,
+    DenseSkOp<T,RNG> &S0,
     int64_t i_os,
     int64_t j_os,
     const T *A,
@@ -397,8 +376,6 @@ void lskge3(
     );
     return;
 }
-
-
 
 } // end namespace RandBLAS::dense
 
