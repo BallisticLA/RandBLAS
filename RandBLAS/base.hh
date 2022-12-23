@@ -1,131 +1,192 @@
 #ifndef randblas_base_hh
 #define randblas_base_hh
 
+/// @file
+
+#include "RandBLAS/config.h"
 #include "RandBLAS/random_gen.hh"
 
-#include <typeinfo>
-#include <typeindex>
+#include <tuple>
+#include <utility>
+#include <type_traits>
 #include <cstring>
+#include <cstdint>
+#include <iostream>
+
+#define RandBLAS_HAS_OpenMP
+#if defined(RandBLAS_HAS_OpenMP)
+#include <omp.h>
+#endif
 
 #include<iostream>
 
+/// code common across the project
 namespace RandBLAS::base {
 
-enum class RNGName : char {None = '\0', Philox = 'P', Threefry = 'T'};
-
-struct RNGState {
-
-    int len_c = 0;
-    int len_k = 0;
-    uint32_t *ctr = nullptr;
-    uint32_t *key = nullptr;
-    RNGName rng_name = RNGName::Philox; // TODO -- use None here
-
-    RNGState() : len_c(0), len_k(0), ctr(nullptr), key(nullptr), rng_name(RNGName::None)  {};
-
-    ~RNGState();
-
-    RNGState(const RNGState &s);
-    RNGState(RNGState &&s);
-
-    RNGState(uint32_t c0, uint32_t k0);
-
-    template <typename T_state>
-    RNGState(const T_state &in_state);
-
-    RNGState &operator=(const RNGState &s);
-    RNGState &operator=(RNGState &&s);
+/** Enumerate the names of the Random123 CBRNGs
+ *
+ * Philox matches or exceeds the performance of the other options on the
+ * non-vector types. Changing the counter length from 2 to 4 elements does not
+ * impact performance. The 32 bit word sized counters are faster than their
+ * counter parts.
+ *
+ * The AESNI and ARS CBRNG's will not be compiled without the approriate flags
+ * (i.e. -march=native). The vectorized types do not work with uneg11 nor
+ * boxmuller two transforms which we rely upon.
+ */
+enum class RNGName : char {
+    None,         ///< an invlaid or unitialized name
+    Philox2x32,   ///< use the r123::Philox2x32 CBRNG
+    Philox4x32,   ///< use the r123::Philox4x32 CBRNG
+    Philox2x64,   ///< use the r123::Philox2x64 CBRNG
+    Philox4x64,   ///< use the r123::Philox4x64 CBRNG
+    Threefry2x32, ///< use the r123::Threefry2x32 CBRNG
+    Threefry4x32, ///< use the r123::Threefry4x32 CBRNG
+    Threefry2x64, ///< use the r123::Threefry2x64 CBRNG
+    Threefry4x64, ///< use the r123::Threefry4x64 CBRNG
+    AESNI4x32,    ///< use the r123::AESNI4x32 CBRNG
+    AESNI1xm128i, ///< use the r123::AESNI1xm128i CBRNG
+    ARS1xm128i,   ///< use the r123::ARS1xm128i CBRNG
+    ARS4x32       ///< use the r123::ARS1xm128i CBRNG
 };
 
-std::ostream &operator<<(std::ostream &out, const RNGState &s);
 
-template <typename T_gen>
-struct Random123_RNGState {
 
-    typedef T_gen gen_type;
-    typedef typename T_gen::key_type key_type;
-    typedef typename T_gen::ctr_type ctr_type;
-
-    ctr_type ctr{};
-    key_type key{};
-
-    const int len_c = ctr_type::static_size;
-    const int len_k = key_type::static_size;
-
-    Random123_RNGState(const RNGState &s);
-};
-
-// Convert from Random123_RNGState to RNGState
-template <typename T_state>
-RNGState::RNGState(
-    const T_state &in_state
-) : len_c(in_state.len_c),
-    len_k(in_state.len_k)
+/** A CBRNG state consiting of a counter and a key.
+ * @tparam RNG One of Random123 CBRNG's e.g. Philox4x32
+ */
+template <typename RNG = r123::Philox4x32>
+struct RNGState
 {
-    typedef typename T_state::gen_type gen_type;
-    Philox ph;
-    Threefry tf;
-    gen_type gt;
-    auto gtid = ::std::type_index(typeid(gt));
-    if (gtid == ::std::type_index(typeid(ph))) {
-        this->rng_name = RNGName::Philox;
-    } else if (gtid == ::std::type_index(typeid(tf))) {
-        this->rng_name = RNGName::Threefry;
-    } else {
-        throw std::runtime_error(std::string("Unknown gen_type."));
-    }
+    using generator = RNG;
 
-    this->ctr = new uint32_t[this->len_c];
-    this->key = new uint32_t[this->len_k];
+    /// default construct both counter and key are zero'd
+    RNGState() : counter{{}}, key(typename RNG::ukey_type{{}}) {}
 
-    memcpy(this->ctr, in_state.ctr.v, this->len_c * sizeof(uint32_t));
-    memcpy(this->key, in_state.key.v, this->len_k * sizeof(uint32_t));
-}
+    /** construct with a seed. the seed is stored in the key.
+     * @param[in] k a key value to use as a seed
+     */
+    RNGState(typename RNG::ukey_type const& k) : counter{{}}, key(k) {}
 
-template <typename T_gen>
-bool generator_type_is_same(
-    const RNGState &s
+    /// construct from an initial counter and key
+    RNGState(typename RNG::ctr_type const& c, typename RNG::key_type const& k) : counter(c), key(k) {}
+
+    /// move construct from an initial counter and key
+    RNGState(typename RNG::ctr_type &&c, typename RNG::key_type &&k) : counter(std::move(c)), key(std::move(k)) {}
+
+    /// @name conversions
+    ///{
+    RNGState(std::tuple<typename RNG::ctr_type, typename RNG::key_type> const& tup) : counter(std::get<0>(tup)), key(std::get<1>(tup)) {}
+    RNGState(std::tuple<typename RNG::ctr_type, typename RNG::key_type> && tup) : counter(std::move(std::get<0>(tup))), key(std::move(std::get<1>(tup))) {}
+    operator std::tuple<typename RNG::ctr_type const&, typename RNG::key_type const&> () const { return std::tie(std::as_const(counter), std::as_const(key)); }
+    operator std::tuple<typename RNG::ctr_type&, typename RNG::key_type&> () { return std::tie(counter, key); }
+    ///}
+
+    typename RNG::ctr_type counter; ///< the counter
+    typename RNG::key_type key;     ///< the key
+};
+
+
+/// serialize the state to a stream
+template <typename RNG>
+std::ostream &operator<<(
+    std::ostream &out,
+    const RNGState<RNG> &s
 ) {
-    T_gen gt;
-    auto gtid = ::std::type_index(typeid(gt));
-    switch (s.rng_name) {
-        case RNGName::Philox: {
-              Philox ph;
-              auto phid = ::std::type_index(typeid(ph));
-              return (phid == gtid);  
-        }
-        case RNGName::Threefry: {
-            Threefry tf;
-            auto tfid = ::std::type_index(typeid(tf));
-            return (tfid == gtid);
-        }
-        default:
-            throw std::runtime_error(std::string("Unrecognized rng_name."));
-    }
+    out << "counter : {" << s.counter << "}" << std::endl
+        << "key     : {" << s.key << "}" << std::endl;
+    return out;
 }
 
-// convert from RNGState to Random123_RNGState
-template <typename T_gen>
-Random123_RNGState<T_gen>::Random123_RNGState(
-    const RNGState &s
-) : ctr{},
-    key{},
-    len_c(T_gen::ctr_type::static_size),
-    len_k(T_gen::key_type::static_size)
+
+/** Apply boxmuller transform to all elements of r. The number of elements of r
+ * must be evenly divisible by 2.
+ *
+ * @tparam RNG a random123 CBRNG type
+ * @tparam T the desired return type. The default return type is dictated by
+ *           the RNG's counter element type. float for 32 bit counter elements
+ *           and double for 64.
+ *
+ * @param[in] ri a sequence of n random values generated using random123 CBRNG
+ *               type RNG. The transform is applied pair wise.
+ *
+ * @returns n transformed floating point values.
+ */
+template <typename RNG, typename T = typename std::conditional
+    <sizeof(typename RNG::ctr_type::value_type) == sizeof(uint32_t), float, double>::type>
+auto boxmulall(
+    typename RNG::ctr_type const& ri
+) {
+    std::array<T, RNG::ctr_type::static_size> ro;
+    int nit = RNG::ctr_type::static_size / 2;
+    for (int i = 0; i < nit; ++i)
+    {
+        auto [v0, v1] = r123::boxmuller(ri[2*i], ri[2*i + 1]);
+        ro[2*i    ] = v0;
+        ro[2*i + 1] = v1;
+    }
+    return ro;
+}
+
+/// Generate a sequence of random values and apply a Box-Muller transform.
+struct boxmul
 {
-    bool res = generator_type_is_same<T_gen>(s);
-
-    if (!res) {
-        throw std::runtime_error(std::string("T_gen must match s.rng_name."));
+    /** Generate a sequence of random values and apply a Box-Muller transform.
+     *
+     * @tparam RNG a random123 CBRNG type
+     * @tparam T the desired return type. The default return type is dictated by
+     *           the RNG's counter element type. float for 32 bit counter elements
+     *           and double for 64.
+     *
+     * @param[in] a random123 CBRNG instance used to generate the sequence
+     * @param[in] the CBRNG counter of n elements
+     * @param[in] the CBRNG key
+     *
+     * @returns the generated and transformed sequence of n floating point
+     *          values. The return type is dictated by the RNG's counter
+     *          element type. float for 32 bit counter elements and double for
+     *          64.
+     */
+    template <typename RNG>
+    static
+    auto generate(
+        RNG &rng,
+        typename RNG::ctr_type const& c,
+        typename RNG::key_type const& k
+    ) {
+        return boxmulall<RNG>(rng(c,k));
     }
+};
 
-    int ctr_len = std::min(this->len_c, s.len_c);
-    memcpy(this->ctr.v, s.ctr, sizeof(uint32_t) * ctr_len);
-
-    int key_len = std::max(this->len_k, s.len_k);
-    memcpy(this->key.v, s.key, sizeof(uint32_t) * key_len);
-}
-
+/// Generate a sequence of random values and transform to -1.0 to 1.0.
+struct uneg11
+{
+    /** Generate a sequence of random values and transform to -1.0 to 1.0.
+     *
+     * @tparam RNG a random123 CBRNG type
+     * @tparam T the desired return type. The default return type is dictated by
+     *           the RNG's counter element type. float for 32 bit counter elements
+     *           and double for 64.
+     *
+     * @param[in] a random123 CBRNG instance used to generate the sequence
+     * @param[in] the CBRNG counter of n elements
+     * @param[in] the CBRNG key
+     *
+     * @returns the generated and transformed sequence of n floating point
+     *          values. The return type is dictated by the counter element
+     *          type. float for 32 bit counter elements and double for 64.
+     */
+    template <typename RNG, typename T = typename std::conditional
+        <sizeof(typename RNG::ctr_type::value_type) == sizeof(uint32_t), float, double>::type>
+    static
+    auto generate(
+        RNG &rng,
+        typename RNG::ctr_type const& c,
+        typename RNG::key_type const& k
+    ) {
+        return r123::uneg11all<T>(rng(c,k));
+    }
+};
 }; // end namespace RandBLAS::base
 
 #endif
