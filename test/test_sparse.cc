@@ -7,7 +7,7 @@
 
 
 template <typename T>
-RandBLAS::sparse::SparseSkOp<T> make_wide_saso(
+auto make_wide_saso(
     int64_t n_rows,
     int64_t n_cols,
     int64_t vec_nnz,
@@ -19,7 +19,7 @@ RandBLAS::sparse::SparseSkOp<T> make_wide_saso(
         RandBLAS::sparse::SparseDistName::SASO,
         n_rows, n_cols, vec_nnz, key, ctr_offset
     );
-    RandBLAS::sparse::fill_sparse<T>(S0);
+    RandBLAS::sparse::fill_sparse(S0);
     return S0;
 }
 
@@ -66,7 +66,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
             RandBLAS::sparse::SparseDistName::SASO,
             d, m, vec_nnzs[nnz_index], keys[key_index], 0
         );
-        RandBLAS::sparse::fill_sparse<double>(S0);
+       RandBLAS::sparse::fill_sparse(S0);
        if (d < m) {
             check_fixed_nnz_per_col(S0);
        } else {
@@ -79,7 +79,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
             RandBLAS::sparse::SparseDistName::LASO,
             d, m, vec_nnzs[nnz_index], keys[key_index], 0
         );
-        RandBLAS::sparse::fill_sparse<double>(S0);
+        RandBLAS::sparse::fill_sparse(S0);
        if (d < m) {
             check_fixed_nnz_per_row(S0);
        } else {
@@ -221,7 +221,7 @@ class TestLSKGES : public ::testing::Test
             distname, d, m,
             vec_nnzs[nnz_index], keys[key_index], 0
         );
-        RandBLAS::sparse::fill_sparse<T>(S0);
+        RandBLAS::sparse::fill_sparse(S0);
         sparseskop_to_dense<T>(S0, S, layout);
         int64_t lda, ldahat, lds;
         if (layout == blas::Layout::RowMajor) {
@@ -428,7 +428,7 @@ class TestLSKGES : public ::testing::Test
         uint32_t ctr_A0 = 42;
         uint32_t seed_A0 = 42000;
         RandBLAS::dense::DenseDist DA0 = {.n_rows = m0, .n_cols = n0};
-        RandBLAS::dense::fill_buff(A0.data(), DA0, RandBLAS::base::RNGState{ctr_A0, seed_A0});
+        RandBLAS::dense::fill_buff(A0.data(), DA0, RandBLAS::base::RNGState{{{ctr_A0}}, {{seed_A0}}});
         std::vector<T> B(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
         int64_t ldb = (is_colmajor) ? d : n;
@@ -487,7 +487,7 @@ class TestLSKGES : public ::testing::Test
         uint32_t ctr_A = 42;
         uint32_t seed_A = 42000;
         RandBLAS::dense::DenseDist DAt = {.n_rows = n, .n_cols = m};
-        RandBLAS::dense::fill_buff(At.data(), DAt, RandBLAS::base::RNGState{ctr_A, seed_A});
+        RandBLAS::dense::fill_buff(At.data(), DAt, RandBLAS::base::RNGState{{{ctr_A}}, {{seed_A}}});
         std::vector<T> B(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DAt.n_rows : DAt.n_cols;
         int64_t ldb = (is_colmajor) ? d : n;

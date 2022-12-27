@@ -6,7 +6,7 @@ if (GTest_FOUND)
     set(tmp TRUE)
 
     add_executable(RandBLAS_tests
-        #test_sparse.cc
+        test_sparse.cc
         test_dense.cc
     )
     target_link_libraries(RandBLAS_tests
