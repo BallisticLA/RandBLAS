@@ -73,6 +73,7 @@ struct DenseSkOp {
 
     using generator = RNG;
     using state_type = RNGState<RNG>;
+    using buffer_type = T;
 
     const DenseDist dist;            ///< the name of the distribution and matrix size
     const RNGState<RNG> seed_state;  ///< the initial CBRNG state
@@ -265,23 +266,18 @@ auto fill_buff(
     RNGState<RNG> const& state
 ) {
     switch (D.family) {
-
         case DenseDistName::Gaussian:
             return fill_rmat<T,RNG,boxmul>(D.n_rows, D.n_cols, buff, state);
-
         case DenseDistName::Uniform:
             return fill_rmat<T,RNG,uneg11>(D.n_rows, D.n_cols, buff, state);
-
         case DenseDistName::Rademacher:
             throw std::runtime_error(std::string("Not implemented."));
-
         case DenseDistName::Haar:
             // This won't be filled IID, but a Householder representation
             // of a column-orthonormal matrix Q can be stored in the lower
             // triangle of Q (with "tau" on the diagonal). So the size of
             // buff will still be D.n_rows*D.n_cols.
             throw std::runtime_error(std::string("Not implemented."));
-
         default:
             throw std::runtime_error(std::string("Unrecognized distribution."));
     }
@@ -289,21 +285,21 @@ auto fill_buff(
     return state;
 }
 
-template <typename T, typename RNG>
-T* fill_skop_buff(
-    DenseSkOp<T,RNG> &S0
+template <typename SKOP>
+auto fill_skop_buff(
+    SKOP &S0
 ) {
-    T *S0_ptr = S0.buff;
+    auto S0_ptr = S0.buff;
     if (S0_ptr == nullptr) {
-        S0_ptr = new T[S0.dist.n_rows * S0.dist.n_cols];
-        S0.next_state = fill_buff<T,RNG>(S0_ptr, S0.dist, S0.seed_state);
+        S0_ptr = new typename SKOP::buffer_type [S0.dist.n_rows * S0.dist.n_cols];
+        S0.next_state = fill_buff(S0_ptr, S0.dist, S0.seed_state);
         if (S0.persistent) {
             S0.buff = S0_ptr;
             S0.filled = true;
         }
         return S0_ptr;
     } else if (!S0.filled) {
-        S0.next_state = fill_buff<T>(S0_ptr, S0.dist, S0.seed_state);
+        S0.next_state = fill_buff(S0_ptr, S0.dist, S0.seed_state);
         S0.filled = true;
         return S0_ptr;
     } else {
@@ -332,7 +328,7 @@ void lskge3(
     randblas_require(d <= m);
     randblas_require(S0.layout == layout);
 
-    T *S0_ptr = fill_skop_buff<T>(S0);
+    auto S0_ptr = fill_skop_buff(S0);
 
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_S, cols_S;
