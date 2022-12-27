@@ -55,7 +55,7 @@ namespace RandBLAS::dense {
 using namespace RandBLAS::base;
 
 enum class DenseDistName : char {
-    Gaussian = 'G',         ///< ??
+    Gaussian = 'G',         ///< a Gaussian with mean 0 and standard deviation 1
     Uniform = 'U',          ///< uniform over the interval [-1, 1].
     Rademacher = 'R',       ///< uniform over {+1, -1}.
     Haar = 'H',             ///< uniform over row-orthonormal or column-orthonormal matrices.
@@ -77,7 +77,7 @@ struct DenseSkOp {
     const DenseDist dist;            ///< the name of the distribution and matrix size
     const RNGState<RNG> seed_state;  ///< the initial CBRNG state
     RNGState<RNG> next_state;        ///< the current CBRNG state
-    const bool own_memory = true;    ///< a flag that inidicates who owns the memory
+    const bool own_memory = true;    ///< a flag that indicates who owns the memory
 
     T *buff = nullptr;               ///< memory
     bool filled = false;             ///< a flag that indicates if the memory was initialized
