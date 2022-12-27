@@ -240,23 +240,6 @@ auto fill_sparse(
     return S0.next_state;
 }
 
-/*
-template <typename T>
-RNGState fill_sparse(
-    SparseSkOp<T> &S0
-) {
-    switch (S0.seed_state.rng_name) {
-        case RNGName::Philox:
-            return template_fill_sparse<T, Philox>(S0);
-        case RNGName::Threefry:
-            return template_fill_sparse<T, Threefry>(S0);
-        default:
-            throw std::runtime_error(std::string("Unrecognized generator."));
-    }
-}
-*/
-
-
 template <typename SKOP>
 void print_saso(SKOP const& S0) {
     std::cout << "SparseSkOp information" << std::endl;
