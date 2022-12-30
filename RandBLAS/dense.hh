@@ -210,18 +210,21 @@ auto fill_rmat(
 #if defined(RandBLAS_HAS_OpenMP)
     #pragma omp parallel firstprivate(c, k)
     {
-        // add the start index to the counter in order to make the sequence
-        // deterministic independent of the number of threads.
+        // decompose the work into a set of approximately equal size chunks.
+        // if the number of iterations is not evenly divisible by the number
+        // of threads, the left over itertions are distributed one each among
+        // the first threads.
         int ti = omp_get_thread_num();
         int nt = omp_get_num_threads();
 
-        int64_t chs = nit / nt;
-        int64_t nlg = nit % nt;
-        int64_t i0 = chs * ti + (ti < nlg ? ti : nlg);
-        int64_t i1 = i0 + chs + (ti < nlg ? 1 : 0);
+        int64_t chs = nit / nt; // chunk size
+        int64_t nlg = nit % nt; // number of large chunks
+        int64_t i0 = chs * ti + (ti < nlg ? ti : nlg); // this threads start
+        int64_t i1 = i0 + chs + (ti < nlg ? 1 : 0);    // this threads end
 
-        auto cc = c; // because of pointers used internal to RNG::ctr_type
-
+        // add the start index to the counter in order to make the sequence
+        // deterministic independent of the number of threads.
+        auto cc = c;
         cc.incr(i0);
 #else
         int64_t i0 = 0;
