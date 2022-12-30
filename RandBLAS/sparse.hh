@@ -425,14 +425,14 @@ static void apply_cscoo_submat_to_vector_from_left(
     }
 }
 
-template <typename T, typename RNG>
+template <typename T, typename SKOP>
 static void apply_cscoo_csroo_left(
     blas::Layout layout_A,
     blas::Layout layout_B,
     int64_t d,
     int64_t n,
     int64_t m,
-    SparseSkOp<T,RNG> & S0,
+    SKOP & S0,
     int64_t row_offset,
     int64_t col_offset,
     const T *A,
