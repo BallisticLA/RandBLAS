@@ -76,6 +76,12 @@ struct DenseSkOp {
     using state_type = RNGState<RNG>;
     using buffer_type = T;
 
+    /////////////////////////////////////////////////////////////////////
+    //
+    //      Properties specific to dense sketching operators
+    //
+    /////////////////////////////////////////////////////////////////////
+
     const DenseDist dist;            ///< the name of the distribution and matrix size
     const RNGState<RNG> seed_state;  ///< the initial CBRNG state
     RNGState<RNG> next_state;        ///< the current CBRNG state
@@ -87,6 +93,11 @@ struct DenseSkOp {
 
     const blas::Layout layout = blas::Layout::ColMajor; ///< matrix storage order
 
+    /////////////////////////////////////////////////////////////////////
+    //
+    //      Member functions must directly relate to memory management.
+    //
+    /////////////////////////////////////////////////////////////////////
 
     //  Elementary constructor: needs an implementation
     DenseSkOp(
