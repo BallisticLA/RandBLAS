@@ -550,7 +550,7 @@ auto transpose(SKOP const& S0) {
     return S1;
 }
 
-template <typename T, typename RNG>
+template <typename T, typename SKOP>
 void lskges(
     blas::Layout layout,
     blas::Op transS,
@@ -559,7 +559,7 @@ void lskges(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(S) is d-by-m
     T alpha,
-    SparseSkOp<T,RNG> &S0,
+    SKOP &S0,
     int64_t row_offset,
     int64_t col_offset,
     const T *A,
