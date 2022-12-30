@@ -49,41 +49,9 @@ struct RNGState
     /// move construct from an initial counter and key
     RNGState(typename RNG::ctr_type &&c, typename RNG::key_type &&k) : counter(std::move(c)), key(std::move(k)) {}
 
-    /// @name conversions
-    ///{
-    RNGState(std::tuple<typename RNG::ctr_type, typename RNG::key_type> const& tup);
-    RNGState(std::tuple<typename RNG::ctr_type, typename RNG::key_type> && tup);
-    operator std::tuple<typename RNG::ctr_type const&, typename RNG::key_type const&> () const;
-    operator std::tuple<typename RNG::ctr_type&, typename RNG::key_type&> ();
-    ///}
-
     typename RNG::ctr_type counter; ///< the counter
     typename RNG::key_type key;     ///< the key
 };
-
-template <typename RNG>
-RNGState<RNG>::RNGState(
-    std::tuple<typename RNG::ctr_type,
-    typename RNG::key_type> const& tup
-) : counter(std::get<0>(tup)),
-    key(std::get<1>(tup)) {}
-
-template <typename RNG>
-RNGState<RNG>::RNGState(
-    std::tuple<typename RNG::ctr_type,
-    typename RNG::key_type> && tup
-) : counter(std::move(std::get<0>(tup))),
-    key(std::move(std::get<1>(tup))) {}
-
-template <typename RNG>
-RNGState<RNG>::operator std::tuple<typename RNG::ctr_type const&, typename RNG::key_type const&> () const {
-    return std::tie(std::as_const(counter), std::as_const(key));
-}
-
-template <typename RNG>
-RNGState<RNG>::operator std::tuple<typename RNG::ctr_type&, typename RNG::key_type&> () {
-    return std::tie(counter, key);
-}
 
 
 /// serialize the state to a stream
