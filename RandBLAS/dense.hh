@@ -118,7 +118,7 @@ struct DenseSkOp {
         bool filled,
         bool persistent,
         blas::Layout layout
-    ) : DenseSkOp(dist, {{{ctr_offset}}, {{key}}}, buff, filled, persistent, layout) {};
+    ) : DenseSkOp(dist, {ctr_offset, key}, buff, filled, persistent, layout) {};
 
     //  Convenience constructor (a wrapper)
     DenseSkOp(
