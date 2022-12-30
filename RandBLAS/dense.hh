@@ -3,6 +3,7 @@
 
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
+#include "RandBLAS/random_gen.hh"
 
 #include <blas.hh>
 
@@ -267,9 +268,9 @@ auto fill_buff(
 ) {
     switch (D.family) {
         case DenseDistName::Gaussian:
-            return fill_rmat<T,RNG,boxmul>(D.n_rows, D.n_cols, buff, state);
+            return fill_rmat<T,RNG,r123ext::boxmul>(D.n_rows, D.n_cols, buff, state);
         case DenseDistName::Uniform:
-            return fill_rmat<T,RNG,uneg11>(D.n_rows, D.n_cols, buff, state);
+            return fill_rmat<T,RNG,r123ext::uneg11>(D.n_rows, D.n_cols, buff, state);
         case DenseDistName::Rademacher:
             throw std::runtime_error(std::string("Not implemented."));
         case DenseDistName::Haar:

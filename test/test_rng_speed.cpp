@@ -47,7 +47,7 @@ int main(int argc, char **argv)
 
     using T = float;
     using RNG = r123::Philox4x32;
-    using OP = base::uneg11;
+    using OP = r123ext::uneg11;
 
     int64_t m = atoi(argv[1]);
     int64_t n = atoi(argv[2]);
