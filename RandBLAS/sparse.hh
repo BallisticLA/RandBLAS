@@ -74,7 +74,7 @@ struct SparseSkOp {
         int64_t *rows,
         int64_t *cols,
         T *vals 
-    ) : SparseSkOp(dist, {{{ctr_offset}}, {{key}}}, rows, cols, vals) {};
+    ) : SparseSkOp(dist, {ctr_offset, key}, rows, cols, vals) {};
     
     //  Convenience constructor (a wrapper)
     SparseSkOp(
