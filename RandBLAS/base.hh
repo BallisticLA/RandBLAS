@@ -1,131 +1,73 @@
 #ifndef randblas_base_hh
 #define randblas_base_hh
 
+/// @file
+
+#include "RandBLAS/config.h"
 #include "RandBLAS/random_gen.hh"
 
-#include <typeinfo>
-#include <typeindex>
+#include <tuple>
+#include <utility>
+#include <type_traits>
 #include <cstring>
+#include <cstdint>
+#include <iostream>
+
+#define RandBLAS_HAS_OpenMP
+#if defined(RandBLAS_HAS_OpenMP)
+#include <omp.h>
+#endif
 
 #include<iostream>
 
+/// code common across the project
 namespace RandBLAS::base {
 
+/// Enumerate the names of the Random123 CBRNGs
 enum class RNGName : char {None = '\0', Philox = 'P', Threefry = 'T'};
 
-struct RNGState {
 
-    int len_c = 0;
-    int len_k = 0;
-    uint32_t *ctr = nullptr;
-    uint32_t *key = nullptr;
-    RNGName rng_name = RNGName::Philox; // TODO -- use None here
-
-    RNGState() : len_c(0), len_k(0), ctr(nullptr), key(nullptr), rng_name(RNGName::None)  {};
-
-    ~RNGState();
-
-    RNGState(const RNGState &s);
-    RNGState(RNGState &&s);
-
-    RNGState(uint32_t c0, uint32_t k0);
-
-    template <typename T_state>
-    RNGState(const T_state &in_state);
-
-    RNGState &operator=(const RNGState &s);
-    RNGState &operator=(RNGState &&s);
-};
-
-std::ostream &operator<<(std::ostream &out, const RNGState &s);
-
-template <typename T_gen>
-struct Random123_RNGState {
-
-    typedef T_gen gen_type;
-    typedef typename T_gen::key_type key_type;
-    typedef typename T_gen::ctr_type ctr_type;
-
-    ctr_type ctr{};
-    key_type key{};
-
-    const int len_c = ctr_type::static_size;
-    const int len_k = key_type::static_size;
-
-    Random123_RNGState(const RNGState &s);
-};
-
-// Convert from Random123_RNGState to RNGState
-template <typename T_state>
-RNGState::RNGState(
-    const T_state &in_state
-) : len_c(in_state.len_c),
-    len_k(in_state.len_k)
+/** A CBRNG state consiting of a counter and a key.
+ * @tparam RNG One of Random123 CBRNG's e.g. Philox4x32
+ */
+template <typename RNG = r123::Philox4x32>
+struct RNGState
 {
-    typedef typename T_state::gen_type gen_type;
-    Philox ph;
-    Threefry tf;
-    gen_type gt;
-    auto gtid = ::std::type_index(typeid(gt));
-    if (gtid == ::std::type_index(typeid(ph))) {
-        this->rng_name = RNGName::Philox;
-    } else if (gtid == ::std::type_index(typeid(tf))) {
-        this->rng_name = RNGName::Threefry;
-    } else {
-        throw std::runtime_error(std::string("Unknown gen_type."));
-    }
+    using generator = RNG;
 
-    this->ctr = new uint32_t[this->len_c];
-    this->key = new uint32_t[this->len_k];
+    /// default construct both counter and key are zero'd
+    RNGState() : counter{{}}, key(typename RNG::ukey_type{{}}) {}
 
-    memcpy(this->ctr, in_state.ctr.v, this->len_c * sizeof(uint32_t));
-    memcpy(this->key, in_state.key.v, this->len_k * sizeof(uint32_t));
-}
+    /** construct with a seed. the seed is stored in the key.
+     * @param[in] k a key value to use as a seed
+     */
+    RNGState(typename RNG::ukey_type const& k) : counter{{}}, key(k) {}
 
-template <typename T_gen>
-bool generator_type_is_same(
-    const RNGState &s
+    /// construct from an initial counter and key
+    RNGState(typename RNG::ctr_type const& c, typename RNG::key_type const& k) : counter(c), key(k) {}
+
+    /// move construct from an initial counter and key
+    RNGState(typename RNG::ctr_type &&c, typename RNG::key_type &&k) : counter(std::move(c)), key(std::move(k)) {}
+
+    /// construct integer values
+    RNGState(typename RNG::ctr_type::value_type c, typename RNG::ukey_type::value_type k) : counter{{c}}, key{{k}} {}
+
+    typename RNG::ctr_type counter; ///< the counter
+    typename RNG::key_type key;     ///< the key
+};
+
+
+/// serialize the state to a stream
+template <typename RNG>
+std::ostream &operator<<(
+    std::ostream &out,
+    const RNGState<RNG> &s
 ) {
-    T_gen gt;
-    auto gtid = ::std::type_index(typeid(gt));
-    switch (s.rng_name) {
-        case RNGName::Philox: {
-              Philox ph;
-              auto phid = ::std::type_index(typeid(ph));
-              return (phid == gtid);  
-        }
-        case RNGName::Threefry: {
-            Threefry tf;
-            auto tfid = ::std::type_index(typeid(tf));
-            return (tfid == gtid);
-        }
-        default:
-            throw std::runtime_error(std::string("Unrecognized rng_name."));
-    }
+    out << "counter : {" << s.counter << "}" << std::endl
+        << "key     : {" << s.key << "}" << std::endl;
+    return out;
 }
 
-// convert from RNGState to Random123_RNGState
-template <typename T_gen>
-Random123_RNGState<T_gen>::Random123_RNGState(
-    const RNGState &s
-) : ctr{},
-    key{},
-    len_c(T_gen::ctr_type::static_size),
-    len_k(T_gen::key_type::static_size)
-{
-    bool res = generator_type_is_same<T_gen>(s);
-
-    if (!res) {
-        throw std::runtime_error(std::string("T_gen must match s.rng_name."));
-    }
-
-    int ctr_len = std::min(this->len_c, s.len_c);
-    memcpy(this->ctr.v, s.ctr, sizeof(uint32_t) * ctr_len);
-
-    int key_len = std::max(this->len_k, s.len_k);
-    memcpy(this->key.v, s.key, sizeof(uint32_t) * key_len);
-}
-
-}; // end namespace RandBLAS::base
+} // end namespace RandBLAS::base
 
 #endif

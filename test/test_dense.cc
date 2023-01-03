@@ -1,3 +1,6 @@
+#include "RandBLAS/config.h"
+#include "RandBLAS/base.hh"
+#include "RandBLAS/random_gen.hh"
 #include "RandBLAS/dense.hh"
 #include "RandBLAS/util.hh"
 #include "RandBLAS/test_util.hh"
@@ -6,7 +9,6 @@
 
 #include <cmath>
 #include <numeric>
-#include <Random123/philox.h>
 
 
 class TestDenseMoments : public ::testing::Test
@@ -36,7 +38,7 @@ class TestDenseMoments : public ::testing::Test
             .n_cols = n_cols
         };
         auto state = RandBLAS::base::RNGState{0, key};
-        auto next_state = RandBLAS::dense::fill_buff<T>(A.data(), D, state);
+        auto next_state = RandBLAS::dense::fill_buff(A.data(), D, state);
 
         // Compute the entrywise empirical mean and standard deviation.
         T mean = std::accumulate(A.data(), A.data() + size, 0.0) /size;
@@ -120,11 +122,11 @@ class TestLSKGE3 : public ::testing::Test
         std::vector<T> buff; // awkward.
         if (preallocate) {
             buff.resize(d * m, 0.0);
-            S0_ptr = new RandBLAS::dense::DenseSkOp<T>(
+            S0_ptr = new RandBLAS::dense::DenseSkOp(
                 D, seed, 0, buff.data(), false, true, layout
             );
         } else {
-            S0_ptr = new RandBLAS::dense::DenseSkOp<T>(
+            S0_ptr = new RandBLAS::dense::DenseSkOp(
                 D, seed, 0, buff.data(), false, true, layout
             );
         }

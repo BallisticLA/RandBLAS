@@ -7,7 +7,7 @@
 
 
 template <typename T>
-RandBLAS::sparse::SparseSkOp<T> make_wide_saso(
+auto make_wide_saso(
     int64_t n_rows,
     int64_t n_cols,
     int64_t vec_nnz,
@@ -19,7 +19,7 @@ RandBLAS::sparse::SparseSkOp<T> make_wide_saso(
         RandBLAS::sparse::SparseDistName::SASO,
         n_rows, n_cols, vec_nnz, key, ctr_offset
     );
-    RandBLAS::sparse::fill_sparse<T>(S0);
+    RandBLAS::sparse::fill_sparse(S0);
     return S0;
 }
 
@@ -66,7 +66,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
             RandBLAS::sparse::SparseDistName::SASO,
             d, m, vec_nnzs[nnz_index], keys[key_index], 0
         );
-        RandBLAS::sparse::fill_sparse<double>(S0);
+       RandBLAS::sparse::fill_sparse(S0);
        if (d < m) {
             check_fixed_nnz_per_col(S0);
        } else {
@@ -79,7 +79,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
             RandBLAS::sparse::SparseDistName::LASO,
             d, m, vec_nnzs[nnz_index], keys[key_index], 0
         );
-        RandBLAS::sparse::fill_sparse<double>(S0);
+        RandBLAS::sparse::fill_sparse(S0);
        if (d < m) {
             check_fixed_nnz_per_row(S0);
        } else {
@@ -221,7 +221,7 @@ class TestLSKGES : public ::testing::Test
             distname, d, m,
             vec_nnzs[nnz_index], keys[key_index], 0
         );
-        RandBLAS::sparse::fill_sparse<T>(S0);
+        RandBLAS::sparse::fill_sparse(S0);
         sparseskop_to_dense<T>(S0, S, layout);
         int64_t lda, ldahat, lds;
         if (layout == blas::Layout::RowMajor) {

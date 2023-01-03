@@ -34,11 +34,11 @@ struct SparseDist {
     const int64_t vec_nnz;
 };
 
-template <typename T>
+template <typename T, typename RNG = r123::Philox4x32>
 struct SparseSkOp {
     const SparseDist dist;
-    const base::RNGState seed_state; // maybe "self_seed"
-    base::RNGState next_state; // maybe "next_seed"
+    const base::RNGState<RNG> seed_state; // maybe "self_seed"
+    base::RNGState<RNG> next_state; // maybe "next_seed"
     const bool own_memory = true;
     
     /////////////////////////////////////////////////////////////////////
@@ -60,7 +60,7 @@ struct SparseSkOp {
     //  Elementary constructor: needs an implementation
     SparseSkOp(
         SparseDist dist_,
-        const base::RNGState &state_,
+        const base::RNGState<RNG> &state_,
         int64_t *rows_ = nullptr,
         int64_t *cols_ = nullptr,
         T *vals_ = nullptr 
@@ -74,7 +74,7 @@ struct SparseSkOp {
         int64_t *rows,
         int64_t *cols,
         T *vals 
-    ) : SparseSkOp(dist, base::RNGState{ctr_offset, key}, rows, cols, vals) {};
+    ) : SparseSkOp(dist, {ctr_offset, key}, rows, cols, vals) {};
     
     //  Convenience constructor (a wrapper)
     SparseSkOp(
@@ -87,7 +87,7 @@ struct SparseSkOp {
         int64_t *rows = nullptr,
         int64_t *cols = nullptr,
         T *vals = nullptr 
-    ) : SparseSkOp(SparseDist{family, n_rows, n_cols, vec_nnz},
+    ) : SparseSkOp({family, n_rows, n_cols, vec_nnz},
         key, ctr_offset, rows, cols, vals) {};
 
     //  Destructor
@@ -95,10 +95,10 @@ struct SparseSkOp {
 };
 
 // Implementation of elementary constructor
-template <typename T>
-SparseSkOp<T>::SparseSkOp(
+template <typename T, typename RNG>
+SparseSkOp<T,RNG>::SparseSkOp(
     SparseDist dist_,
-    const base::RNGState &state_,
+    const base::RNGState<RNG> &state_,
     int64_t *rows_,
     int64_t *cols_,
     T *vals_
@@ -136,8 +136,8 @@ SparseSkOp<T>::SparseSkOp(
     }
 };
 
-template <typename T>
-SparseSkOp<T>::~SparseSkOp() {
+template <typename T, typename RNG>
+SparseSkOp<T,RNG>::~SparseSkOp() {
     if (this->own_memory) {
         delete [] this->rows;
         delete [] this->cols;
@@ -145,9 +145,9 @@ SparseSkOp<T>::~SparseSkOp() {
     }
 };
 
-template <typename T>
+template <typename SKOP>
 static bool has_fixed_nnz_per_col(
-    SparseSkOp<T> &S0
+    SKOP const& S0
 ) {
     if (S0.dist.family == SparseDistName::SASO) {
         return S0.dist.n_rows < S0.dist.n_cols;
@@ -156,9 +156,10 @@ static bool has_fixed_nnz_per_col(
     }
 }
 
-template <typename T, typename T_gen>
-static RNGState repeated_fisher_yates(
-    RNGState init_state,
+template <typename T, typename RNG>
+static
+auto repeated_fisher_yates(
+    const RNGState<RNG> &state,
     int64_t num_vecs,
     int64_t vec_len,
     int64_t vec_nnz,
@@ -170,29 +171,26 @@ static RNGState repeated_fisher_yates(
     for (int64_t j = 0; j < vec_len; ++j)
         vec_work[j] = j;
     std::vector<int64_t> pivots(vec_nnz);
-    typedef typename T_gen::ctr_type ctr_type;
-    ctr_type rout;
-    T_gen g;
-    RNGState out_state(init_state);
+    RNG gen;
+    auto [ctr, key] = state;
     for (int64_t i = 0; i < num_vecs; ++i) {
-        // set the state of the Random123 RNG.
         int64_t offset = i * vec_nnz;
-        Random123_RNGState<T_gen> impl_state(init_state);
-        impl_state.ctr.incr(offset);
+        auto ctri = ctr;
+        ctri.incr(offset);
         for (int64_t j = 0; j < vec_nnz; ++j) {
             // one step of Fisher-Yates shuffling
-            rout = g(impl_state.ctr, impl_state.key);
-            int64_t ell = j + rout.v[0] % (vec_len - j);
+            auto rv = gen(ctri, key);
+            int64_t ell = j + rv[0] % (vec_len - j);
             pivots[j] = ell;
             int64_t swap = vec_work[ell];
             vec_work[ell] = vec_work[j];
             vec_work[j] = swap;
             // update (rows, cols, vals)
             vec_ax_idxs[j + offset] = swap;
-            vals[j + offset] = (rout.v[1] % 2 == 0) ? 1.0 : -1.0;
+            vals[j + offset] = (rv[1] % 2 == 0) ? 1.0 : -1.0;
             rep_ax_idxs[j + offset] = i;
             // increment counter
-            impl_state.ctr.incr(1);
+            ctri.incr();
         }
         // Restore vec_work for next iteration of Fisher-Yates.
         //      This isn't necessary from a statistical perspective,
@@ -205,14 +203,15 @@ static RNGState repeated_fisher_yates(
             vec_work[jj] = vec_work[ell];
             vec_work[ell] = swap;
         }
-        out_state = impl_state;
+        ctr = ctri;
     }
-    return out_state;
+    return RNGState<RNG> {ctr, key};
 }
 
-template <typename T, typename T_gen>
-static RNGState template_fill_sparse(
-    SparseSkOp<T>& S0
+template <typename SKOP>
+static
+auto fill_sparse(
+    SKOP & S0
 ) {
     int64_t long_ax_len = MAX(S0.dist.n_rows, S0.dist.n_cols);
     int64_t short_ax_len = MIN(S0.dist.n_rows, S0.dist.n_cols);
@@ -234,32 +233,15 @@ static RNGState template_fill_sparse(
         vec_ax_idxs = long_ax_idxs;
         rep_ax_idxs = short_ax_idxs;
     }
-    RNGState out_state = repeated_fisher_yates<T, T_gen>(
+    S0.next_state = repeated_fisher_yates(
         S0.seed_state, num_vecs, vec_len,
         S0.dist.vec_nnz, vec_ax_idxs, rep_ax_idxs, S0.vals
     );
-    S0.next_state = out_state;
-    return out_state;
+    return S0.next_state;
 }
 
-
-template <typename T>
-RNGState fill_sparse(
-    SparseSkOp<T> &S0
-) {
-    switch (S0.seed_state.rng_name) {
-        case RNGName::Philox:
-            return template_fill_sparse<T, Philox>(S0);
-        case RNGName::Threefry:
-            return template_fill_sparse<T, Threefry>(S0);
-        default:
-            throw std::runtime_error(std::string("Unrecognized generator."));
-    }
-}
-
-
-template <typename T>
-void print_saso(SparseSkOp<T>& S0) {
+template <typename SKOP>
+void print_saso(SKOP const& S0) {
     std::cout << "SparseSkOp information" << std::endl;
     std::cout << "\tn_rows = " << S0.dist.n_rows << std::endl;
     std::cout << "\tn_cols = " << S0.dist.n_cols << std::endl;
@@ -357,23 +339,21 @@ static int64_t filter_and_convert_regular_csroo_to_cscoo(
     //
     //  Neither S0 nor S need to be wide.  
     //
-    typedef std::tuple<int64_t, int64_t, T> tuple_type;
+    using tuple_type = std::tuple<int64_t, int64_t, T>;
     std::vector<tuple_type> nonzeros;
     nonzeros.reserve((row_end - row_start) * vec_nnz);
 
     for (int64_t i = row_start * vec_nnz; i < row_end * vec_nnz; ++i) {
         int64_t col = nonzeroidx2col[i];
         if (col_start <= col && col < col_end)  {
-            tuple_type tup{
+            nonzeros.emplace_back(
                 nonzeroidx2row[i] - row_start,
                 col - col_start,
-                nonzeroidx2val[i]
-            };
-            nonzeros.push_back(tup);
+                nonzeroidx2val[i]);
         }
     }
 
-    auto sort_func = [](tuple_type t1, tuple_type t2) {
+    auto sort_func = [](tuple_type const& t1, tuple_type const& t2) {
         if (std::get<1>(t1) < std::get<1>(t2)) {
             return true;
         } else if (std::get<1>(t1) > std::get<1>(t2)) {
@@ -445,14 +425,14 @@ static void apply_cscoo_submat_to_vector_from_left(
     }
 }
 
-template <typename T>
+template <typename T, typename SKOP>
 static void apply_cscoo_csroo_left(
     blas::Layout layout_A,
     blas::Layout layout_B,
     int64_t d,
     int64_t n,
     int64_t m,
-    SparseSkOp<T>& S0,
+    SKOP & S0,
     int64_t row_offset,
     int64_t col_offset,
     const T *A,
@@ -550,26 +530,27 @@ static void apply_cscoo_csroo_left(
     return;
 }
 
-template <typename T>
-static SparseSkOp<T> transpose(SparseSkOp<T> &S0) {
+template <typename SKOP>
+static
+auto transpose(SKOP const& S0) {
     SparseDist dist = {
         .family = S0.dist.family,
         .n_rows = S0.dist.n_cols,
         .n_cols = S0.dist.n_rows,
         .vec_nnz = S0.dist.vec_nnz
     };
-    SparseSkOp<T> S1(
+    SKOP S1(
         dist,
         S0.seed_state,
         S0.cols,
         S0.rows,
         S0.vals
     );
-    S1.next_state = RNGState(S0.next_state);
+    S1.next_state = S0.next_state;
     return S1;
 }
 
-template <typename T>
+template <typename T, typename SKOP>
 void lskges(
     blas::Layout layout,
     blas::Op transS,
@@ -578,7 +559,7 @@ void lskges(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(S) is d-by-m
     T alpha,
-    SparseSkOp<T> &S0,
+    SKOP &S0,
     int64_t row_offset,
     int64_t col_offset,
     const T *A,
@@ -593,8 +574,8 @@ void lskges(
 
     // handle applying a transposed sparse sketching operator.
     if (transS == blas::Op::Trans) {
-        SparseSkOp<T> S1 = transpose<T>(S0);
-        lskges<T>(
+        auto S1 = transpose(S0);
+        lskges(
             layout, blas::Op::NoTrans, transA,
             d, m, n, alpha, S1, col_offset, row_offset,
             A, lda, beta, B, ldb
@@ -629,7 +610,7 @@ void lskges(
     }
 
     // Perform the sketch
-    apply_cscoo_csroo_left<T>(layout_A, layout_B, d, n, m, S0, row_offset, col_offset, A, lda, B, ldb);
+    apply_cscoo_csroo_left(layout_A, layout_B, d, n, m, S0, row_offset, col_offset, A, lda, B, ldb);
     return;
 }
 
