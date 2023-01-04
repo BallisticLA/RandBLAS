@@ -19,7 +19,7 @@ The [RandBLAS Doxygen site](https://randblas.readthedocs.io/en/latest/doxygen/in
 
 ### CI
 ![Ubuntu Latest](https://github.com/BallisticLA/RandBLAS/actions/workflows/core-linux.yaml/badge.svg)
-![Macos Latest](https://github.com/BallisticLA/RandBLAS/actions/workflows/core-macos.yaml/badge.svg)
+![Macos Latest](https://github.com/BallisticLA/RandBLAS/actions/workflows/core-macos.yml/badge.svg)
 
 ### License
 
