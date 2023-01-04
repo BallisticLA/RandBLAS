@@ -13,7 +13,6 @@
 #include <cstdint>
 #include <iostream>
 
-#define RandBLAS_HAS_OpenMP
 #if defined(RandBLAS_HAS_OpenMP)
 #include <omp.h>
 #endif

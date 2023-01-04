@@ -212,7 +212,10 @@ auto fill_rmat(
     const RNGState<RNG> & seed
 ) {
     RNG rng;
-    auto [c, k] = seed;
+    // clang chokes on this w/ omp due to internal use of lambdas, fixed in C++20
+    //auto [c, k] = seed;
+    typename RNG::ctr_type c = seed.counter;
+    typename RNG::key_type k = seed.key;
 
     int64_t dim = n_rows * n_cols;
     int64_t nit = dim / RNG::ctr_type::static_size;
@@ -240,13 +243,13 @@ auto fill_rmat(
 #else
         int64_t i0 = 0;
         int64_t i1 = nit;
+        auto &cc = c;
 #endif
-        for (int64_t i = i0; i < i1; ++i)
-        {
+        for (int64_t i = i0; i < i1; ++i) {
+
             auto rv = OP::generate(rng, cc, k);
 
-            for (int j = 0; j < RNG::ctr_type::static_size; ++j)
-            {
+            for (int j = 0; j < RNG::ctr_type::static_size; ++j) {
                mat[RNG::ctr_type::static_size * i + j] = rv[j];
             }
 
@@ -258,12 +261,10 @@ auto fill_rmat(
     c.incr(nit);
 #endif
 
-    if (nlast)
-    {
+    if (nlast) {
         auto rv = OP::generate(rng, c, k);
 
-        for (int64_t j = 0; j < nlast; ++j)
-        {
+        for (int64_t j = 0; j < nlast; ++j) {
             mat[RNG::ctr_type::static_size * nit + j] = rv[j];
         }
 
