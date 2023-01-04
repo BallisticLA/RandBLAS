@@ -27,7 +27,7 @@ RandBLAS's [license](LICENSE) is a BSD license with an ADDED paragraph at the
 end that makes it easy for us to accept improvements. See [license](LICENSE)
 for more information.
 
-## Copyright Notice
+### Copyright Notice
 Copyright (c) 2023, The Regents of the University of California, through
 Lawrence Berkeley National Laboratory (subject to receipt of any
 required approvals from the U.S. Dept. of Energy). All rights reserved.
