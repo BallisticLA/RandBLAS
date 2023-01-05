@@ -341,7 +341,6 @@ void lskge3(
     T *B,
     int64_t ldb
 ){
-    randblas_require(d <= m);
     randblas_require(S0.layout == layout);
 
     auto S0_ptr = fill_skop_buff(S0);

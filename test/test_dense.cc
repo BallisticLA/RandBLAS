@@ -83,19 +83,6 @@ TEST_F(TestDenseMoments, Uniform)
 
 class TestLSKGE3 : public ::testing::Test
 {
-    /*
-    Things that need to be tested:
-        1. Sketching the identity matrix works as expected.
-        2. Transposing the sketching operator works as expected.
-        3. Using a submatrix of the sketching operator.
-        4. sketching a submatrix of a data matrix.
-        5. row-major sketching
-            5.1 An exception should be raised if S0.layout != 
-                declared layout.
-
-    Things that don't need to be tested:
-        ?
-    */
     protected:
     
     virtual void SetUp(){};
@@ -318,41 +305,92 @@ class TestLSKGE3 : public ::testing::Test
 
 };
 
-TEST_F(TestLSKGE3, eye_double_preallocate_colmajor)
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      Basic sketching (vary preallocation, row vs col major)
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+TEST_F(TestLSKGE3, sketch_eye_double_preallocate_colmajor)
 {
     for (uint32_t seed : {0})
         sketch_eye<double>(seed, 200, 30, true, blas::Layout::ColMajor);
 }
 
-TEST_F(TestLSKGE3, eye_double_preallocate_rowmajor)
+TEST_F(TestLSKGE3, sketch_eye_double_preallocate_rowmajor)
 {
     for (uint32_t seed : {0})
         sketch_eye<double>(seed, 200, 30, true, blas::Layout::RowMajor);
 }
 
-TEST_F(TestLSKGE3, eye_double_null_colmajor)
+TEST_F(TestLSKGE3, sketch_eye_double_null_colmajor)
 {
     for (uint32_t seed : {0})
         sketch_eye<double>(seed, 200, 30, false, blas::Layout::ColMajor);
 }
 
-TEST_F(TestLSKGE3, eye_double_null_rowmajor)
+TEST_F(TestLSKGE3, sketch_eye_double_null_rowmajor)
 {
     for (uint32_t seed : {0})
         sketch_eye<double>(seed, 200, 30, false, blas::Layout::RowMajor);
 }
 
-TEST_F(TestLSKGE3, eye_single_preallocate)
+TEST_F(TestLSKGE3, sketch_eye_single_preallocate)
 {
     for (uint32_t seed : {0})
         sketch_eye<float>(seed, 200, 30, true, blas::Layout::ColMajor);
 }
 
-TEST_F(TestLSKGE3, eye_single_null)
+TEST_F(TestLSKGE3, sketch_eye_single_null)
 {
     for (uint32_t seed : {0})
         sketch_eye<float>(seed, 200, 30, false, blas::Layout::ColMajor);
 }
+
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      Lifting
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+TEST_F(TestLSKGE3, lift_eye_double_preallocate_colmajor)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<double>(seed, 10, 51, true, blas::Layout::ColMajor);
+}
+
+TEST_F(TestLSKGE3, lift_eye_double_preallocate_rowmajor)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<double>(seed, 10, 51, true, blas::Layout::RowMajor);
+}
+
+TEST_F(TestLSKGE3, lift_eye_double_null_colmajor)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<double>(seed, 10, 51, false, blas::Layout::ColMajor);
+}
+
+TEST_F(TestLSKGE3, lift_eye_double_null_rowmajor)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<double>(seed, 10, 51, false, blas::Layout::RowMajor);
+}
+
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      transpose of S
+//
+//
+////////////////////////////////////////////////////////////////////////
 
 TEST_F(TestLSKGE3, transpose_double_colmajor)
 {
@@ -371,6 +409,14 @@ TEST_F(TestLSKGE3, transpose_single)
     for (uint32_t seed : {0})
         transpose_S<float>(seed, 200, 30, blas::Layout::ColMajor);
 }
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      Submatrices of S
+//
+//
+////////////////////////////////////////////////////////////////////////
 
 TEST_F(TestLSKGE3, submatrix_s_double_colmajor) 
 {
@@ -407,6 +453,14 @@ TEST_F(TestLSKGE3, submatrix_s_single)
             blas::Layout::ColMajor
         );
 }
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//     submatrix of A
+//
+//
+////////////////////////////////////////////////////////////////////////
 
 TEST_F(TestLSKGE3, submatrix_a_double_colmajor) 
 {

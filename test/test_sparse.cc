@@ -6,6 +6,20 @@
 #include <math.h>
 
 
+// TODO: ask Burlen what could cause the memory in S0.rows
+// to become deallocated / invalid after this function returns.
+//
+//      My guess is that C++ is returning a copy of S0
+//      but the copy is shallow, in that it copies the
+//      pointers S0.rows, S0.cols, S0.vals, but not the
+//      contents of those arrays.
+//
+//      If that guess is correct then I have another question:
+//      could this be avoided by using std::vector instead
+//      of plain arrays?
+//
+// Once I have an understanding of that, this function can be
+// removed (it's no longer used anywhere).
 template <typename T>
 auto make_wide_saso(
     int64_t n_rows,
@@ -20,6 +34,8 @@ auto make_wide_saso(
         n_rows, n_cols, vec_nnz, key, ctr_offset
     );
     RandBLAS::sparse::fill_sparse(S0);
+    for (int64_t i = 0; i < n_cols * vec_nnz; ++i)
+        assert(S0.rows[i] >= 0);
     return S0;
 }
 
@@ -203,9 +219,13 @@ class TestLSKGES : public ::testing::Test
     template <typename T>
     static void apply(
         RandBLAS::sparse::SparseDistName distname,
-        int64_t d, int64_t m, int64_t n,
-        blas::Layout layout, int64_t
-        key_index, int64_t nnz_index, int threads)
+        int64_t d,
+        int64_t m,
+        int64_t n,
+        blas::Layout layout,
+        int64_t key_index,
+        int64_t nnz_index,
+        int threads)
     {
 #if !defined (RandBLAS_HAS_OpenMP)
         UNUSED(threads);
@@ -294,7 +314,12 @@ class TestLSKGES : public ::testing::Test
         assert(d0 * m0 >= pos + d1 * m1);
 
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
-        auto S0 = make_wide_saso<T>(d0, m0, vec_nnz, 0, seed);
+        //auto S0 = make_wide_saso<T>(d0, m0, vec_nnz, 0, seed);
+        RandBLAS::sparse::SparseSkOp<T> S0(
+            RandBLAS::sparse::SparseDistName::SASO,
+            d0, m0, vec_nnz, seed, 0
+        );
+        RandBLAS::sparse::fill_sparse(S0);
         T *S0_dense = new T[d0 * m0];
         sparseskop_to_dense<T>(S0, S0_dense, layout);
         int64_t lda, ldb, lds0;
