@@ -429,6 +429,7 @@ static void apply_cscoo_submat_to_vector_from_left(
 
 template <typename T, typename SKOP>
 static void apply_cscoo_csroo_left(
+    T alpha,
     blas::Layout layout_A,
     blas::Layout layout_B,
     int64_t d,
@@ -447,14 +448,13 @@ static void apply_cscoo_csroo_left(
     int64_t *S_rows, *S_cols;
     T *S_vals;
 
-    bool use_existing_memory = false;
-    bool S0_fixed_nnz_per_col = has_fixed_nnz_per_col(S0);
-    if (S0_fixed_nnz_per_col) {
+    bool use_S0_memory = false;
+    if (has_fixed_nnz_per_col(S0)) {
         bool S_fixed_nnz_per_col = (row_offset == 0) && (d == S0.dist.n_rows);
-        use_existing_memory = (col_offset == 0) && S_fixed_nnz_per_col;
+        use_S0_memory = S_fixed_nnz_per_col && (col_offset == 0) && (alpha == 1.0);
         // ^ If col_offset is nonzero, then we need to make an altered 
         //   version of S0.cols that shifts all entries by -col_offset.
-        if (use_existing_memory) {
+        if (use_S0_memory) {
             S_rows = S0.rows;
             S_cols = S0.cols;
             S_vals = S0.vals;
@@ -469,7 +469,8 @@ static void apply_cscoo_csroo_left(
                 row_offset, row_offset + d,
                 S_rows, S_cols, S_vals
             );
-            // ^ we might overwrite that value of nnz.
+            if (alpha != 1.0)
+                blas::scal<T>(nnz, alpha, S_vals, 1);
         }
         if (S_fixed_nnz_per_col)
             nnz = -vec_nnz;
@@ -484,6 +485,7 @@ static void apply_cscoo_csroo_left(
             row_offset, row_offset + d,
             S_rows, S_cols, S_vals
         );
+        blas::scal(nnz, alpha, S_vals, 1);
     }
     // Once we have (S_rows, S_cols, S_vals) in the format ensured
     // by the functions above, we apply the resulting sparse matrix "S"
@@ -524,7 +526,7 @@ static void apply_cscoo_csroo_left(
         }
     }
 
-    if (!use_existing_memory) {
+    if (!use_S0_memory) {
         delete [] S_rows;
         delete [] S_cols;
         delete [] S_vals;
@@ -571,8 +573,6 @@ void lskges(
     int64_t ldb
 ) {
     randblas_require(S0.rows != NULL); // must be filled.
-    randblas_require(alpha == 1.0); // implementation limitation
-    randblas_require(beta == 0.0); // implementation limitation
 
     // handle applying a transposed sparse sketching operator.
     if (transS == blas::Op::Trans) {
@@ -601,18 +601,22 @@ void lskges(
         // ^ Lie.
     }
 
-    // Dimensionality sanity checks
-    //      Both A and B are checked based on "layout"; A is *not* checked on layout_A.
+    // Check dimensions and compute B = beta * B.
+    //      Note: both A and B are checked based on "layout"; A is *not* checked on layout_A.
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= d);
+        for (int64_t i = 0; i < n; ++i)
+            blas::scal(d, beta, &B[i*ldb], 1);
     } else {
         randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
+        for (int64_t i = 0; i < d; ++i)
+            blas::scal(n, beta, &B[i*ldb], 1);
     }
 
     // Perform the sketch
-    apply_cscoo_csroo_left(layout_A, layout_B, d, n, m, S0, row_offset, col_offset, A, lda, B, ldb);
+    apply_cscoo_csroo_left(alpha, layout_A, layout_B, d, n, m, S0, row_offset, col_offset, A, lda, B, ldb);
     return;
 }
 

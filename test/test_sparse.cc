@@ -368,6 +368,67 @@ class TestLSKGES : public ::testing::Test
     }
 
     template <typename T>
+    static void alpha_beta(
+        uint32_t key,
+        T alpha,
+        T beta,
+        int64_t m,
+        int64_t d,
+        blas::Layout layout
+    ) {
+        bool is_colmajor = (layout == blas::Layout::ColMajor);
+        randblas_require(m > d);
+        int64_t vec_nnz = d / 2;
+        RandBLAS::sparse::SparseDist DS = {RandBLAS::sparse::SparseDistName::SASO, d, m, vec_nnz};
+        RandBLAS::sparse::SparseSkOp<T> S(DS, key, 0, NULL, NULL, NULL);
+        RandBLAS::sparse::fill_sparse(S);
+    
+        // define a matrix to be sketched
+        std::vector<T> A(m * m, 0.0);
+        for (int i = 0; i < m; ++i)
+            A[i + m*i] = 1.0;
+
+        // create initialized workspace for the sketch
+        std::vector<T> B0(d * m);
+        RandBLAS::dense::DenseDist DB = {.n_rows = d, .n_cols = m};
+        RandBLAS::base::RNGState state(42, 42000);
+        RandBLAS::dense::fill_buff(B0.data(), DB, state);
+        int64_t ldb = (is_colmajor) ? d : m;
+
+        std::vector<T> B1(d * m);
+        blas::copy(d * m, B0.data(), 1, B1.data(), 1);
+
+        // perform the sketch
+        RandBLAS::sparse::lskges<T>(
+            layout,
+            blas::Op::NoTrans,
+            blas::Op::NoTrans,
+            d, m, m,
+            alpha, S, 0, 0,
+            A.data(), m,
+            beta, B0.data(), ldb
+        );
+
+        // compute the reference result
+        //std::vector<T> B1(d * m);
+        //RandBLAS::dense::fill_buff(B1.data(), DB, state);
+        std::vector<T> S_dense(d * m);
+        sparseskop_to_dense<T>(S, S_dense.data(), layout);
+        int64_t lds = (is_colmajor) ? d : m;
+        blas::gemm(
+            layout,
+            blas::Op::NoTrans,
+            blas::Op::NoTrans,
+            d, m, m, 
+            alpha, S_dense.data(), lds,
+            A.data(), m,
+            beta, B1.data(), ldb
+        );
+
+        RandBLAS_Testing::Util::buffs_approx_equal(B0.data(), B1.data(), d * m);
+    }
+
+    template <typename T>
     static void transpose_S(
         RandBLAS::sparse::SparseDistName distname,
         uint32_t key,
@@ -549,6 +610,7 @@ class TestLSKGES : public ::testing::Test
 //
 ////////////////////////////////////////////////////////////////////////
 
+
 TEST_F(TestLSKGES, sketch_saso_rowMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2})
@@ -572,7 +634,6 @@ TEST_F(TestLSKGES, sketch_laso_rowMajor_oneThread)
         }
     }
 }
-
 
 TEST_F(TestLSKGES, sketch_saso_rowMajor_FourThreads)
 {
@@ -622,6 +683,7 @@ TEST_F(TestLSKGES, sketch_saso_colMajor_fourThreads)
     }
 }
 
+
 ////////////////////////////////////////////////////////////////////////
 //
 //
@@ -629,6 +691,7 @@ TEST_F(TestLSKGES, sketch_saso_colMajor_fourThreads)
 //
 //
 ////////////////////////////////////////////////////////////////////////
+
 
 TEST_F(TestLSKGES, lift_saso_rowMajor_oneThread)
 {
@@ -687,6 +750,7 @@ TEST_F(TestLSKGES, lift_laso_colMajor_oneThread)
 //
 ////////////////////////////////////////////////////////////////////////
 
+
 TEST_F(TestLSKGES, subset_rows_s_colmajor1) 
 {
     for (uint32_t seed : {0})
@@ -698,7 +762,6 @@ TEST_F(TestLSKGES, subset_rows_s_colmajor1)
             blas::Layout::ColMajor
         );
 }
-
 
 TEST_F(TestLSKGES, subset_rows_s_colmajor2) 
 {
@@ -757,7 +820,6 @@ TEST_F(TestLSKGES, subset_rows_s_rowmajor1)
             blas::Layout::RowMajor
         );
 }
-
 
 TEST_F(TestLSKGES, subset_rows_s_rowmajor2) 
 {
@@ -828,6 +890,7 @@ TEST_F(TestLSKGES, transpose_laso_double_rowmajor)
     uint32_t seed = 0;
     transpose_S<double>(RandBLAS::sparse::SparseDistName::LASO, seed, 21, 4, blas::Layout::RowMajor);
 }
+
 
 ////////////////////////////////////////////////////////////////////////
 //
@@ -907,6 +970,7 @@ TEST_F(TestLSKGES, laso_submatrix_a_rowmajor)
 //
 ////////////////////////////////////////////////////////////////////////
 
+
 TEST_F(TestLSKGES, saso_times_trans_A_colmajor)
 {
     uint32_t seed = 0;
@@ -929,4 +993,41 @@ TEST_F(TestLSKGES, laso_times_trans_A_rowmajor)
 {
     uint32_t seed = 0;
     transpose_A<double>(RandBLAS::sparse::SparseDistName::LASO, seed, 7, 22, 5, blas::Layout::RowMajor);
+}
+
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//     (alpha, beta), where alpha != 1.0.
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+TEST_F(TestLSKGES, nontrivial_scales_colmajor1)
+{
+    double alpha = 5.5;
+    double beta = 0.0;
+    alpha_beta<double>(0, alpha, beta, 21, 4, blas::Layout::ColMajor);
+}
+
+TEST_F(TestLSKGES, nontrivial_scales_colmajor2)
+{
+    double alpha = 5.5;
+    double beta = -1.0;
+    alpha_beta<double>(0, alpha, beta, 21, 4, blas::Layout::ColMajor);
+}
+
+TEST_F(TestLSKGES, nontrivial_scales_rowmajor1)
+{
+    double alpha = 5.5;
+    double beta = 0.0;
+    alpha_beta<double>(0, alpha, beta, 21, 4, blas::Layout::RowMajor);
+}
+
+TEST_F(TestLSKGES, nontrivial_scales_rowmajor2)
+{
+    double alpha = 5.5;
+    double beta = -1.0;
+    alpha_beta<double>(0, alpha, beta, 21, 4, blas::Layout::RowMajor);
 }
