@@ -241,16 +241,18 @@ auto fill_sparse(
 }
 
 template <typename SKOP>
-void print_saso(SKOP const& S0) {
+void print_sparse(SKOP const& S0) {
     std::cout << "SparseSkOp information" << std::endl;
-    std::cout << "\tn_rows = " << S0.dist.n_rows << std::endl;
-    std::cout << "\tn_cols = " << S0.dist.n_cols << std::endl;
     int64_t nnz;
     if (S0.dist.family == SparseDistName::SASO) {
         nnz = S0.dist.vec_nnz * MAX(S0.dist.n_rows, S0.dist.n_cols);
+        std::cout << "\tSASO: short-axis-sparse operator" << std::endl;
     } else {
         nnz = S0.dist.vec_nnz * MIN(S0.dist.n_rows, S0.dist.n_cols);
+        std::cout << "\tLASO: long-axis-sparse operator" << std::endl;
     }
+    std::cout << "\tn_rows = " << S0.dist.n_rows << std::endl;
+    std::cout << "\tn_cols = " << S0.dist.n_cols << std::endl;
     std::cout << "\tvector of row indices\n\t\t";
     for (int64_t i = 0; i < nnz; ++i) {
         std::cout << S0.rows[i] << ", ";
