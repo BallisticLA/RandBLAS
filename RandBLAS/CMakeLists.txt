@@ -21,7 +21,14 @@ target_include_directories(RandBLAS PUBLIC
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/RandBLAS>)
 
 target_link_libraries(RandBLAS PUBLIC ${RandBLAS_libs})
-target_compile_options(RandBLAS PUBLIC -Wall -Wextra)
+
+set(RandBLAS_cxx_opts -Wall -Wextra)
+if (SANITIZE_ADDRESS)
+    list(APPEND RandBLAS_cxx_opts -fsanitize=address)
+    target_link_options(RandBLAS PUBLIC -fsanitize=address)
+endif()
+
+target_compile_options(RandBLAS PUBLIC ${RandBLAS_cxx_opts})
 
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   DESTINATION include FILES_MATCHING PATTERN "*.hh")
