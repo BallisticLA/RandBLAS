@@ -394,7 +394,6 @@ class TestLSKGES : public ::testing::Test
         RandBLAS::base::RNGState state(42, 42000);
         RandBLAS::dense::fill_buff(B0.data(), DB, state);
         int64_t ldb = (is_colmajor) ? d : m;
-
         std::vector<T> B1(d * m);
         blas::copy(d * m, B0.data(), 1, B1.data(), 1);
 
@@ -410,8 +409,6 @@ class TestLSKGES : public ::testing::Test
         );
 
         // compute the reference result
-        //std::vector<T> B1(d * m);
-        //RandBLAS::dense::fill_buff(B1.data(), DB, state);
         std::vector<T> S_dense(d * m);
         sparseskop_to_dense<T>(S, S_dense.data(), layout);
         int64_t lds = (is_colmajor) ? d : m;
@@ -513,7 +510,11 @@ class TestLSKGES : public ::testing::Test
         std::vector<T> A0(m0 * n0, 0.0);
         uint32_t ctr_A0 = 42;
         uint32_t seed_A0 = 42000;
-        RandBLAS::dense::DenseDist DA0 = {.n_rows = m0, .n_cols = n0};
+        RandBLAS::dense::DenseDist DA0 = {
+            .family=RandBLAS::dense::DenseDistName::Uniform,
+            .n_rows = m0,
+            .n_cols = n0
+        };
         RandBLAS::dense::fill_buff(A0.data(), DA0, RandBLAS::base::RNGState{ctr_A0, seed_A0});
         std::vector<T> B(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
@@ -572,7 +573,11 @@ class TestLSKGES : public ::testing::Test
         std::vector<T> At(m * n, 0.0);
         uint32_t ctr_A = 42;
         uint32_t seed_A = 42000;
-        RandBLAS::dense::DenseDist DAt = {.n_rows = n, .n_cols = m};
+        RandBLAS::dense::DenseDist DAt = {
+            .family=RandBLAS::dense::DenseDistName::Uniform,
+            .n_rows = n,
+            .n_cols = m
+        };
         RandBLAS::dense::fill_buff(At.data(), DAt, RandBLAS::base::RNGState{ctr_A, seed_A});
         std::vector<T> B(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DAt.n_rows : DAt.n_cols;
