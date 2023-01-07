@@ -1,8 +1,5 @@
-set(RandBLAS_cxx_srcs
-    base.cc)
 
 set(RandBLAS_libs blaspp Random123)
-
 if (RandBLAS_HAS_OpenMP)
     list(APPEND RandBLAS_libs OpenMP::OpenMP_CXX)
 endif()
@@ -11,9 +8,9 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in config.h)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/config.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/RandBLAS)
 
-add_library(RandBLAS ${RandBLAS_cxx_srcs})
+add_library(RandBLAS INTERFACE)
 
-target_include_directories(RandBLAS PUBLIC
+target_include_directories(RandBLAS INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/..>
