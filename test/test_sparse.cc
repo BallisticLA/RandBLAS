@@ -260,6 +260,11 @@ class TestLSKGES : public ::testing::Test
             a_hat, ldahat,
             a_hat_expect, ldahat
         );
+
+        delete [] a;
+        delete [] a_hat;
+        delete [] S;
+        delete [] a_hat_expect;
     }
 
     template <typename T>
@@ -330,6 +335,8 @@ class TestLSKGES : public ::testing::Test
             B.data(), ldb,
             S_ptr, lds0
         );
+
+        delete [] S0_dense;
     }
 
     template <typename T>

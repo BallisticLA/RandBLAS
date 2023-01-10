@@ -139,6 +139,9 @@ class TestLSKGE3 : public ::testing::Test
 
         // check the result
         RandBLAS_Testing::Util::buffs_approx_equal(B.data(), (*S0_ptr).buff, d*m);
+
+        // free up resources
+        delete S0_ptr;
     }
 
     template <typename T>

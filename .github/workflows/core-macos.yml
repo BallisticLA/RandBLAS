@@ -39,7 +39,7 @@ jobs:
           mkdir -p `pwd`/../Random123-install/include
           cp -rp include/Random123 `pwd`/../Random123-install/include/
 
-      - name: build RandBLAS
+      - name: build and test RandBLAS (release)
         run: |
           cd ..
           pwd
@@ -47,6 +47,23 @@ jobs:
           mkdir RandBLAS-build
           cd RandBLAS-build
           cmake -DCMAKE_BUILD_TYPE=Release \
+            -Dblaspp_DIR=`pwd`/../blaspp-install/lib/blaspp/ \
+            -DRandom123_DIR=`pwd`/../Random123-install/include/ \
+            -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
+            -DCMAKE_BINARY_DIR=`pwd` \
+            `pwd`/../RandBLAS
+          make -j2 install
+          ctest --output-on-failure
+
+      - name: build and test RandBLAS (Debug/asan)
+        run: |
+          cd ..
+          pwd
+          ls
+          mkdir RandBLAS-asan-build
+          cd RandBLAS-asan-build
+          cmake -DCMAKE_BUILD_TYPE=Debug \
+            -DSANITIZE_ADDRESS=ON \
             -Dblaspp_DIR=`pwd`/../blaspp-install/lib/blaspp/ \
             -DRandom123_DIR=`pwd`/../Random123-install/include/ \
             -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
