@@ -1,3 +1,6 @@
 [submodule "test/lib/googletest"]
 	path = test/lib/googletest
 	url = https://github.com/google/googletest.git
+[submodule "HAMR"]
+	path = HAMR
+	url = https://github.com/LBL-EESA/HAMR.git
