@@ -9,6 +9,7 @@
 
 #include <cmath>
 #include <numeric>
+#include <thread>
 
 
 class TestDenseMoments : public ::testing::Test
@@ -503,3 +504,65 @@ TEST_F(TestLSKGE3, submatrix_a_single)
             blas::Layout::ColMajor
         );
 }
+
+
+
+
+template <typename T>
+std::ostream &operator<<(std::ostream &os, std::vector<T> &v)
+{
+    size_t n = v.size();
+    os << "{";
+    if (n)
+    {
+        os << v[0];
+        for (size_t i = 1; i < n; ++i)
+            os << ", " << v[i];
+    }
+    os << "}";
+    return os;
+}
+
+#if defined(RandBLAS_HAS_OpenMP)
+template <typename T, typename RNG, typename OP>
+void DenseThreadTest()
+{
+    int64_t m = 32;
+    int64_t n = 8;
+    int64_t d = m*n;
+
+    std::vector<T> base(d);
+    std::vector<T> test(d);
+
+    // generate the base state with 1 thread.
+    omp_set_num_threads(1);
+    RandBLAS::dense::fill_rmat<T,RNG,OP>(m, n, base.data(), {});
+    std::cerr << "with 1 thread: " << base << std::endl;
+
+    // run with different numbers of threads, and check that the result is the same
+    int n_hyper = std::thread::hardware_concurrency();
+    int n_threads = std::max(n_hyper / 2, 3);
+
+    for (int i = 2; i <= n_threads; ++i) {
+
+        omp_set_num_threads(i);
+
+        RandBLAS::dense::fill_rmat<T,RNG,OP>(m, n, test.data(), {});
+
+        std::cerr << "with " << i << " threads: " << test << std::endl;
+
+        for (int64_t i = 0; i < d; ++i) {
+            EXPECT_FLOAT_EQ( base[i], test[i] );
+        }
+    }
+}
+
+TEST(TestDenseThreading, UniformPhilox) {
+    DenseThreadTest<float,r123::Philox4x32,r123ext::uneg11>();
+}
+
+TEST(TestDenseThreading, GaussianPhilox) {
+    DenseThreadTest<float,r123::Philox4x32,r123ext::boxmul>();
+}
+
+#endif
