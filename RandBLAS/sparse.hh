@@ -5,6 +5,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/random_gen.hh"
+#include "RandBLAS/util.hh"
 
 #include <blas.hh>
 #include <iostream>
@@ -156,6 +157,9 @@ static bool has_fixed_nnz_per_col(
     }
 }
 
+// =============================================================================
+/// WARNING: this function is not part of the public API.
+///
 template <typename T, typename RNG>
 static
 auto repeated_fisher_yates(
@@ -270,6 +274,9 @@ void print_sparse(SKOP const& S0) {
     std::cout << std::endl;
 }
 
+// =============================================================================
+/// WARNING: this function is not part of the public API.
+///
 template <typename T>
 static int64_t filter_regular_cscoo(
     const int64_t *nzidx2row,
@@ -312,6 +319,9 @@ static int64_t filter_regular_cscoo(
     return nnz;
 }
 
+// =============================================================================
+/// WARNING: this function is not part of the public API.
+///
 template <typename T>
 static int64_t filter_and_convert_regular_csroo_to_cscoo(
     const int64_t *nonzeroidx2row,
@@ -380,6 +390,9 @@ static int64_t filter_and_convert_regular_csroo_to_cscoo(
     return nnz;
 }
 
+// =============================================================================
+/// WARNING: this function is not part of the public API.
+///
 template <typename T>
 static void apply_cscoo_submat_to_vector_from_left(
     const T *v,
@@ -427,6 +440,9 @@ static void apply_cscoo_submat_to_vector_from_left(
     }
 }
 
+// =============================================================================
+/// WARNING: this function is not part of the public API.
+///
 template <typename T, typename SKOP>
 static void apply_cscoo_csroo_left(
     T alpha,
@@ -534,24 +550,27 @@ static void apply_cscoo_csroo_left(
     return;
 }
 
+// =============================================================================
+/// Return a SparseSkOp object representing the transpose of S.
+///
+/// @param[in] S
+///     SparseSkOp object.
+/// @return 
+///     A new SparseSkOp object that depends on the memory underlying S.
+///     (In particular, it depends on S.rows, S.cols, and S.vals.)
+///     
 template <typename SKOP>
 static
-auto transpose(SKOP const& S0) {
+auto transpose(SKOP const& S) {
     SparseDist dist = {
-        .family = S0.dist.family,
-        .n_rows = S0.dist.n_cols,
-        .n_cols = S0.dist.n_rows,
-        .vec_nnz = S0.dist.vec_nnz
+        .family = S.dist.family,
+        .n_rows = S.dist.n_cols,
+        .n_cols = S.dist.n_rows,
+        .vec_nnz = S.dist.vec_nnz
     };
-    SKOP S1(
-        dist,
-        S0.seed_state,
-        S0.cols,
-        S0.rows,
-        S0.vals
-    );
-    S1.next_state = S0.next_state;
-    return S1;
+    SKOP St(dist, S.seed_state, S.cols, S.rows, S.vals);
+    St.next_state = S.next_state;
+    return St;
 }
 
 
@@ -616,7 +635,7 @@ auto transpose(SKOP const& S0) {
 ///
 ///
 /// @param[in] layout
-///     Matrix storage, Layout::ColMajor or Layout::RowMajor.
+///     Matrix storage for mat(A) and mat(B), Layout::ColMajor or Layout::RowMajor.
 ///
 /// @param[in] transS
 ///     The operation $op(submat(S))$ to be used:
@@ -660,20 +679,23 @@ auto transpose(SKOP const& S0) {
 ///     If layout == RowMajor, then lda >= number of columns in mat(A).
 ///
 /// @param[in] beta
-///     Scalar beta. If beta is zero, B need not be set on input.
+///     Scalar beta. If beta is zero, then B need not be set on input.
 ///
 /// @param[in] B
-///     Points to the beginning of a 1D array that defines mat(B).
+///     Points to the beginning of a 1D array that defines mat(B),
+///     as it appears on the RIGHT-hand side of (*).
+///     In all situations, mat(B) is d-by-n.
+///
+/// @param[out] B
+///     Points to the beginning of a 1D array that defines mat(B),
+///     as it appears on the LEFT-hand side of (*).
 ///     In all situations, mat(B) is d-by-n.
 ///
 /// @param[in] ldb
 ///     Leading dimension of mat(B) when reading from "B" in "layout" order.
-///     If layout == ColMajor, then lda >= number of rows in mat(B).
-///     If layout == RowMajor, then lda >= number of columns in mat(B).
+///     If layout == ColMajor, then ldb >= number of rows in mat(B).
+///     If layout == RowMajor, then ldb >= number of columns in mat(B).
 ///
-/// @ingroup gemm
-
-
 template <typename T, typename SKOP>
 void lskges(
     blas::Layout layout,
@@ -683,7 +705,7 @@ void lskges(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(S) is d-by-m
     T alpha,
-    SKOP &S0,
+    SKOP &S,
     int64_t row_offset,
     int64_t col_offset,
     const T *A,
@@ -692,19 +714,20 @@ void lskges(
     T *B,
     int64_t ldb
 ) {
-    randblas_require(S0.rows != NULL); // must be filled.
+    if (S.rows == NULL || S.cols == NULL || S.vals == NULL)
+        fill_sparse(S);
 
     // handle applying a transposed sparse sketching operator.
     if (transS == blas::Op::Trans) {
-        auto S1 = transpose(S0);
+        auto St = transpose(S);
         lskges(
             layout, blas::Op::NoTrans, transA,
-            d, m, n, alpha, S1, col_offset, row_offset,
+            d, m, n, alpha, St, col_offset, row_offset,
             A, lda, beta, B, ldb
         );
         return; 
     }
-    // Below this point, we can assume S0 is not transposed.
+    // Below this point, we can assume S is not transposed.
 
     // Dimensions of A, rather than op(A)
     blas::Layout layout_B = layout;
@@ -737,7 +760,7 @@ void lskges(
 
     // Perform the sketch
     if (alpha != 0)
-        apply_cscoo_csroo_left(alpha, layout_A, layout_B, d, n, m, S0, row_offset, col_offset, A, lda, B, ldb);
+        apply_cscoo_csroo_left(alpha, layout_A, layout_B, d, n, m, S, row_offset, col_offset, A, lda, B, ldb);
     return;
 }
 
