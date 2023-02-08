@@ -554,6 +554,126 @@ auto transpose(SKOP const& S0) {
     return S1;
 }
 
+
+// =============================================================================
+/// Perform a GEMM-like operation
+/// \[
+///     mat(B) = \alpha op(submat(S)) \times op(mat(A)) + \beta mat(B),    (*)
+/// \]
+/// where alpha and beta are real scalars, and op(X) either returns a matrix X
+/// or its transpose (when transX==NoTrans and transX==Trans, respectively).
+///
+/// This operation includes three matrices: mat(B), mat(A), and submat(S).
+/// The definitions of these matrices depend on other arguments in a way
+/// that is similar to GEMM in BLAS.
+///
+///     Matrix shapes
+///     -------------
+///     The dimensions of submat(S), mat(A), and mat(B) are defined by
+///
+///         op(submat(S))   is d-by-m,
+///         op(mat(A))      is m-by-n, and
+///         mat(B)          is d-by-n.
+///
+///     Note that only mat(B) has its shape given explicitly. The shape of
+///     submat(S) can be (d, m) or (m, d), depending on the value of transS.
+///     Similarly, the shape of mat(A) can be (m, n) or (n, m), depending on
+///     the value of transA.
+///
+///     Dense matrix contents
+///     ---------------------
+///     The contents of mat(A) and mat(B) are determined by
+///
+///         (1) their shapes,
+///         (2) the 1D arrays pointed to by A and B,
+///         (3) the matrix storage specification "layout", and
+///         (4) the stride parameters (lda, ldb).
+///
+///     We interpret this information in the same way that BLAS would.
+///     For example, here is how we define (A, mat(A)):
+///
+///         If layout == ColMajor, then mat(A)[i, j] = A[i + j*lda].
+///         In this case, lda must be >= the length of a column in mat(A).
+///         
+///         If layout == RowMajor, then mat(A)[i, j] = A[i*lda + j].
+///         In this case, lda must be >= the length of a row in mat(A).
+///     
+///     Sparse matrix contents
+///     ----------------------
+///     The contents of submat(S) are determined by
+///
+///         (1) its shape,
+///         (2) the SparseSkOp object S,
+///         (3) a row offset parameter "i_os",
+///         (4) a column offset parameter "j_os"
+/// 
+///     If the number rows and columns in submat(S) are denoted by (r, c),
+///     then submat(S) is the r-by-c submatrix of S whose upper-left corner
+///     appears at index (i_os, j_os) of S.
+///
+///     Note: the ability to select submatrices of the form described above
+///     is *identical* to the ability to select submatrices in BLAS.
+///
+///
+/// @param[in] layout
+///     Matrix storage, Layout::ColMajor or Layout::RowMajor.
+///
+/// @param[in] transS
+///     The operation $op(submat(S))$ to be used:
+///     - Op::NoTrans:   $op(submat(S)) = submat(S)$.
+///     - Op::Trans:     $op(submat(S)) = submat(S)^T$.
+///
+/// @param[in] transA
+///     The operation $op(mat(A))$ to be used:
+///     - Op::NoTrans:   $op(mat(A)) = mat(A)$.
+///     - Op::Trans:     $op(mat(A)) = mat(A)^T$.
+///
+/// @param[in] d
+///     Number of rows of the matrix mat(B) and op(mat(A)). d >= 0.
+///
+/// @param[in] n
+///     Number of columns of the matrix mat(B) and op(mat(A)). n >= 0.
+///
+/// @param[in] m
+///     Number of columns of op(submat(S)) and rows of op(mat(A)). m >= 0.
+///
+/// @param[in] alpha
+///     Scalar alpha. If zero, then A is not accessed.
+///
+/// @param[in] S
+///     SparseSkOp object that defines submat(S).
+///
+/// @param[in] i_os
+///     The first row of submat(S) is contained in S[i_os, :].
+///
+/// @param[in] j_os
+///     The first column of submat(S) is contained in S[:, j_os]. 
+///
+/// @param[in] A
+///     Points to the beginning of a 1D array that defines mat(A).
+///     If transA == NoTrans, then mat(A) is m-by-n.
+///     If transA == Trans,   then mat(A) is n-by-m.
+///
+/// @param[in] lda
+///     Leading dimension of mat(A) when reading from "A" in "layout" order.
+///     If layout == ColMajor, then lda >= number of rows in mat(A).
+///     If layout == RowMajor, then lda >= number of columns in mat(A).
+///
+/// @param[in] beta
+///     Scalar beta. If beta is zero, B need not be set on input.
+///
+/// @param[in] B
+///     Points to the beginning of a 1D array that defines mat(B).
+///     In all situations, mat(B) is d-by-n.
+///
+/// @param[in] ldb
+///     Leading dimension of mat(B) when reading from "B" in "layout" order.
+///     If layout == ColMajor, then lda >= number of rows in mat(B).
+///     If layout == RowMajor, then lda >= number of columns in mat(B).
+///
+/// @ingroup gemm
+
+
 template <typename T, typename SKOP>
 void lskges(
     blas::Layout layout,
@@ -607,16 +727,17 @@ void lskges(
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= d);
         for (int64_t i = 0; i < n; ++i)
-            blas::scal(d, beta, &B[i*ldb], 1);
+            RandBLAS::util::safe_scal(d, beta, &B[i*ldb], 1);
     } else {
         randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
         for (int64_t i = 0; i < d; ++i)
-            blas::scal(n, beta, &B[i*ldb], 1);
+            RandBLAS::util::safe_scal(n, beta, &B[i*ldb], 1);
     }
 
     // Perform the sketch
-    apply_cscoo_csroo_left(alpha, layout_A, layout_B, d, n, m, S0, row_offset, col_offset, A, lda, B, ldb);
+    if (alpha != 0)
+        apply_cscoo_csroo_left(alpha, layout_A, layout_B, d, n, m, S0, row_offset, col_offset, A, lda, B, ldb);
     return;
 }
 
