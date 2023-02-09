@@ -612,6 +612,7 @@ TEST_F(TestLSKGES, sketch_laso_rowMajor_oneThread)
     }
 }
 
+#if defined (RandBLAS_HAS_OpenMP)
 TEST_F(TestLSKGES, sketch_saso_rowMajor_FourThreads)
 {
     for (int64_t k_idx : {0, 1, 2})
@@ -623,6 +624,7 @@ TEST_F(TestLSKGES, sketch_saso_rowMajor_FourThreads)
         }
     }
 }
+#endif
 
 TEST_F(TestLSKGES, sketch_saso_colMajor_oneThread)
 {
@@ -648,6 +650,7 @@ TEST_F(TestLSKGES, sketch_laso_colMajor_oneThread)
     }
 }
 
+#if defined (RandBLAS_HAS_OpenMP)
 TEST_F(TestLSKGES, sketch_saso_colMajor_fourThreads)
 {
     for (int64_t k_idx : {0, 1, 2})
@@ -659,6 +662,7 @@ TEST_F(TestLSKGES, sketch_saso_colMajor_fourThreads)
         }
     }
 }
+#endif
 
 
 ////////////////////////////////////////////////////////////////////////
