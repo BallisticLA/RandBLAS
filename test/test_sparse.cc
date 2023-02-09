@@ -191,8 +191,10 @@ class TestLSKGES : public ::testing::Test
         blas::Layout layout,
         int64_t key_index,
         int64_t nnz_index,
-        int threads)
-    {
+        int threads,
+        T atol = T(10)*std::numeric_limits<T>::epsilon(),
+        T rtol = std::numeric_limits<T>::epsilon()
+    ) {
 #if !defined (RandBLAS_HAS_OpenMP)
         UNUSED(threads);
 #endif
@@ -258,7 +260,9 @@ class TestLSKGES : public ::testing::Test
             layout, blas::Op::NoTrans,
             d, n,
             a_hat, ldahat,
-            a_hat_expect, ldahat
+            a_hat_expect, ldahat,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__,
+            atol, rtol
         );
 
         delete [] a;
@@ -333,7 +337,8 @@ class TestLSKGES : public ::testing::Test
             layout, blas::Op::NoTrans,
             d1, m1,
             B.data(), ldb,
-            S_ptr, lds0
+            S_ptr, lds0,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
 
         delete [] S0_dense;
@@ -394,7 +399,9 @@ class TestLSKGES : public ::testing::Test
             beta, B1.data(), ldb
         );
 
-        RandBLAS_Testing::Util::buffs_approx_equal(B0.data(), B1.data(), d * m);
+        RandBLAS_Testing::Util::buffs_approx_equal(B0.data(), B1.data(), d * m,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
     }
 
     template <typename T>
@@ -441,9 +448,10 @@ class TestLSKGES : public ::testing::Test
         );
 
         // check that B == S.T
-        RandBLAS_Testing::Util::matrices_approx_equal<T>(
+        RandBLAS_Testing::Util::matrices_approx_equal(
             layout, blas::Op::Trans, d, m,
-            B.data(), ldb, S0_dense.data(), lds      
+            B.data(), ldb, S0_dense.data(), lds,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
 
@@ -513,7 +521,9 @@ class TestLSKGES : public ::testing::Test
             1.0, S0_dense.data(), lds, A_ptr, lda,
             0.0, B_expect.data(), ldb
         );
-        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), B_expect.data(), d * n);
+        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), B_expect.data(), d * n,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
     }
 
     template <typename T>
@@ -574,7 +584,9 @@ class TestLSKGES : public ::testing::Test
             1.0, S0_dense.data(), lds, At.data(), lda,
             0.0, B_expect.data(), ldb
         );
-        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), B_expect.data(), d * n);
+        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), B_expect.data(), d * n,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
     }
 };
 

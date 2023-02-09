@@ -139,7 +139,9 @@ class TestLSKGE3 : public ::testing::Test
         );
 
         // check the result
-        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), (*S0_ptr).buff, d*m);
+        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), (*S0_ptr).buff, d*m,
+             __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
 
         // free up resources
         delete S0_ptr;
@@ -183,9 +185,10 @@ class TestLSKGE3 : public ::testing::Test
 
         // check that B == S.T
         int64_t lds = (is_colmajor) ? m : d;
-        RandBLAS_Testing::Util::matrices_approx_equal<T>(
+        RandBLAS_Testing::Util::matrices_approx_equal(
             S0.layout, blas::Op::Trans, d, m,
-            B.data(), ldb, S0.buff, lds      
+            B.data(), ldb, S0.buff, lds,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
 
@@ -242,7 +245,8 @@ class TestLSKGE3 : public ::testing::Test
             S0.layout, blas::Op::NoTrans,
             d, m,
             B.data(), ldb,
-            S_ptr, lds
+            S_ptr, lds,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
 
@@ -304,7 +308,9 @@ class TestLSKGE3 : public ::testing::Test
             1.0, S0.buff, lds, A_ptr, lda,
             0.0, B_expect.data(), ldb
         );
-        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), B_expect.data(), d * n);
+        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), B_expect.data(), d * n,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
     }
 
 };
