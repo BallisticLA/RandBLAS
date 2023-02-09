@@ -599,18 +599,32 @@ class TestLSKGES : public ::testing::Test
 //
 ////////////////////////////////////////////////////////////////////////
 
-
 TEST_F(TestLSKGES, sketch_saso_rowMajor_oneThread)
 {
+    // TODO: this test fails on MacOS w/ Apple Clang compiler but not with
+    // brew'd Clang ?? even w a relTol of 500*epsilon it fails
+
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            auto deps = std::numeric_limits<double>::epsilon();
+
+            apply<double>(RandBLAS::sparse::SparseDistName::SASO,
+                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1,
+                10*deps, 10*deps
+            );
+
+            auto feps = std::numeric_limits<float>::epsilon();
+
+            apply<float>(RandBLAS::sparse::SparseDistName::SASO,
+                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1,
+                10*feps, 10*feps
+            );
         }
     }
 }
+
 
 TEST_F(TestLSKGES, sketch_laso_rowMajor_oneThread)
 {
@@ -631,8 +645,19 @@ TEST_F(TestLSKGES, sketch_saso_rowMajor_FourThreads)
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4);
-            apply<float>(RandBLAS::sparse::SparseDistName::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4);
+            auto deps = std::numeric_limits<double>::epsilon();
+
+            apply<double>(RandBLAS::sparse::SparseDistName::SASO,
+                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4,
+                10*deps, 10*deps
+            );
+
+            auto feps = std::numeric_limits<float>::epsilon();
+
+            apply<float>(RandBLAS::sparse::SparseDistName::SASO,
+                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4,
+                10*feps, 10*feps
+            );
         }
     }
 }
