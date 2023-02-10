@@ -602,7 +602,7 @@ auto transpose(SKOP const& S) {
 ///   .. |transS| mathmacro:: \mathrm{transS}
 ///
 /// @endverbatim
-///  * @math \op(\submat(S)) @endmath is  @imath d \times n @endimath,
+///  * @math \op(\submat(S)) @endmath is  @math d \times n @endmath,
 ///  * @math \op(\mat(A))    @endmath    is  \f$ m \times n\f$, and
 ///  * \f$\mat(B)\f$         is  \f$ d \times n\f$.
 /// 
