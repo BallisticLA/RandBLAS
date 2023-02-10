@@ -589,131 +589,100 @@ auto transpose(SKOP const& S) {
 /// LSKGES: Perform a GEMM-like operation
 /// @verbatim embed:rst:leading-slashes
 /// .. math::
-///     \mat(B) = \alpha \op(\submat(S)) \times \op(\mat(A)) + \beta \mat(B),    \tag{*}
+///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(S))}_{d \times m} \cdot \underbrace{\op(\mat(A))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
 /// @endverbatim
 /// where \math{\alpha} and \math{\beta} are real scalars, \math{\op(X)} either returns a matrix \math{X}
 /// or its transpose, and \math{S} is a sparse sketching operator.
-///
-/// This operation involves three matrices: \math{\submat(S)}, \math{\mat(A)}, and \math{\mat(B)}.
-/// The definitions of these matrices depend on other arguments in a way
-/// that is similar to GEMM in BLAS.
-///
-/// **Matrix shapes**
-///
-/// The dimensions of \math{\submat(S)}, \math{\mat(A)}, and \math{\mat(B)} are defined by
 /// 
-///  * \math{\op(\submat(S))} is  \math{d \times n},
-///  * \math{\op(\mat(A))}    is  \math{m \times n}, and
-///  * \math{\mat(B)}         is  \math{d \times n}.
-/// 
-/// Note that only \math{\mat(B)} has its shape given explicitly. The shape of
-/// \math{\submat(S)} can be \math{(d, m)} or \math{(m, d)} depending on the value of transS.
-/// Similarly, the shape of \math{\mat(A)} can be \math{(m, n)} or \math{(n, m)} depending on
-/// the value of transA.
+/// @verbatim embed:rst:leading-slashes
+/// What are :math:`\mat(A)` and :math:`\mat(B)`?
+///     Their shapes are defined implicitly by :math:`(d, m, n, \transA)`.
+///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
+///     and "layout", following the same convention as BLAS.
 ///
-/// **Dense matrix contents**
-///
-/// The contents of \math{\mat(A)} and \math{\mat(B)} are determined by
-///
-///  1. the 1D arrays pointed to by \math{A} and \math{B}
-///  2. the matrix storage specification "layout", and
-///  3. the stride parameters \math{(\lda, \ldb)}.
-///
-/// We interpret this information in the same way that BLAS would.
-/// For example, here is how we define \math{(A, \mat(A))} :
-///
-///  * If layout == ColMajor, then
-///    @verbatim embed:rst:leading-slashes
-///     .. math::
-///          \mat(A)[i, j] = A[i + j \cdot \lda].
-///    @endverbatim
-///    In this case, \math{\lda} must be \math{\geq} the length of a column in \math{\mat(A)}.
-///     
-///  * If layout == RowMajor, then
-///    @verbatim embed:rst:leading-slashes
-///     .. math::
-///          \mat(A)[i, j] = A[i \cdot \lda + j].
-///    @endverbatim
-///    In this case, \math{\lda} must be \math{\geq} the length of a row in \math{\mat(A)}.
-/// 
-/// **Sparse matrix contents**
-/// 
-/// The contents of \math{\submat(S)} are determined by
-///
-///  1. the SparseSkOp object \math{S},
-///  2. a row offset parameter "i_os",
-///  3. a column offset parameter "j_os"
-/// 
-/// If the number rows and columns in \math{\submat(S)} are denoted by \math{(r, c)},
-/// then \math{\submat(S)} is the r-by-c submatrix of \math{S} whose upper-left corner
-/// appears at index (i_os, j_os) of \math{S}.
-///
-/// Note: the ability to select submatrices of the form described above
-/// is *identical* to the ability to select submatrices in BLAS.
-///
-///
+/// What is :math:`\submat(S)`?
+///     Its shape is defined implicitly by :math:`(\transS, d, m)`.
+///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
+///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
+///     appears at index :math:`(\texttt{i_os}, \texttt{j_os})` of :math:`{S}`.
+/// @endverbatim
 /// @param[in] layout
-///     Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
-///      - Layout::ColMajor or Layout::RowMajor.
+///     Layout::ColMajor or Layout::RowMajor
+///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
 ///
 /// @param[in] transS
-///     Whether or not \math{\submat{S}} is tranposed.
-///     - Op::NoTrans:   \math{\op(\submat(S)) = \submat(S)}.
-///     - Op::Trans:     \math{\op(\submat(S)) = \submat(S)^T}.
-///
+///      - If \math{\transS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
+///      - If \math{\transS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
 /// @param[in] transA
-///     Whether or not \math{\mat{A}} is transposed
-///     - Op::NoTrans:   \math{\op(\mat(A)) = \mat(A)}.
-///     - Op::Trans:     \math{\op(\mat(A)) = \mat(A)^T}.
-///
+///      - If \math{\transA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
+///      - If \math{\transA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
 /// @param[in] d
-///     Number of rows in \math{\mat(B)} and \math{\op(\mat(A))}.
-///      (\math{d \geq 0}.)
+///     A nonnegative integer.
+///     - The number of rows in \math{\mat(B)}
+///     - The number of rows in \math{\op(\mat(S))}.
 ///
 /// @param[in] n
-///     Number of columns in \math{\mat(B)} and \math{\op(\mat(A))}.
-///      (\math{n \geq 0}.)
+///     A nonnegative integer.
+///     - The number of columns in \math{\mat(B)}
+///     - The number of columns in \math{\op(\mat(A))}.
 ///
 /// @param[in] m
-///     Number of columns in \math{\op(\submat(S))} and rows in \math{\op(\mat(A))}.
-///      (\math{m \geq 0}.)
+///     A nonnegative integer.
+///     - The number of columns in \math{\op(\submat(S))}
+///     - The number of rows in \math{\op(\mat(A))}.
 ///
 /// @param[in] alpha
-///     Scalar \math{\alpha}. If zero, then \math{A} is not accessed.
+///     A real scalar.
+///     - If zero, then \math{A} is not accessed.
 ///
 /// @param[in] S
-///     SparseSkOp object that defines \math{\submat(S)}.
+///    A SparseSkOp object.
+///    - Defines \math{\submat(S)}.
 ///
 /// @param[in] i_os
-///     The first row of \math{\submat(S)} is contained in S[i_os, :].
+///     A nonnegative integer.
+///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_os}, :]}.
 ///
 /// @param[in] j_os
-///     The first column of \math{\submat(S)} is contained in S[:, j_os]. 
+///     A nonnnegative integer.
+///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_os}]}. 
 ///
 /// @param[in] A
-///     Points to the beginning of a 1D array that defines \math{\mat(A)}.
-///      - If \math{\transA} == NoTrans, then \math{\mat(A)} is m-by-n.
-///      - If \math{\transA} == Trans,   then \math{\mat(A)} is n-by-m.
+///     Pointer to a 1D array of real scalars.
+///     - Defines \math{\mat(A)}.
 ///
 /// @param[in] lda
-///     Leading dimension of \math{\mat(A)} when reading from \math{A} in "layout" order.
-///     - If layout == ColMajor, then \math{\lda \geq} number of rows in \math{\mat(A)}.
-///     - If layout == RowMajor, then \math{\lda \geq} number of columns in \math{\mat(A)}.
+///     A nonnegative integer.
+///     * Leading dimension of \math{\mat(A)} when reading from \math{A}.
+///     * If layout == ColMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i + j \cdot \lda].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a column in \math{\mat(A)}.
+///     * If layout == RowMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i \cdot \lda + j].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a row in \math{\mat(A)}.
 ///
 /// @param[in] beta
-///     Scalar \math{\beta}. If \math{\beta} is zero, then \math{B} need not be set on input.
+///     A real scalar.
+///     - If zero, then \math{B} need not be set on input.
 ///
 /// @param[in, out] B
-///    - On entry, points to the beginning of a 1D array that defines \math{\mat(B)},
-///      as it appears on the RIGHT-hand side of (*).
-///    - On exit, points to the beginning of a 1D array that defines \math{\mat(B)},
-///      as it appears on the LEFT-hand side of (*).
-///    - In all situations, \math{\mat(B)} is d-by-n.
+///    Pointer to 1D array of real scalars.
+///    - On entry, defines \math{\mat(B)}
+///      on the RIGHT-hand side of \math{(\star)}.
+///    - On exit, defines \math{\mat(B)}
+///      on the LEFT-hand side of \math{(\star)}.
 ///
 /// @param[in] ldb
-///     Leading dimension of \math{\mat(B)} when reading from \math{B} in "layout" order.
-///      - If layout == ColMajor, then \math{\ldb \geq} number of rows in \math{\mat(B)}.
-///      - If layout == RowMajor, then \math{\ldb \geq} number of columns in \math{\mat(B)}.
+///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
+///    - Refer to documentation for \math{\lda} for details. 
 ///
 template <typename T, typename SKOP>
 void lskges(
