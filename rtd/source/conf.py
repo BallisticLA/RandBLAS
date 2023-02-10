@@ -1,4 +1,4 @@
-import subprocess, os
+import subprocess, os, sys
 
 # Configuration file for the Sphinx documentation builder.
 #
@@ -15,7 +15,8 @@ import subprocess, os
 # import os
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
-
+# To import sphinx extensions we've put in the repository:
+sys.path.insert(0, os.path.abspath('../sphinxext'))
 
 # -- Project information -----------------------------------------------------
 
@@ -37,7 +38,26 @@ subprocess.call('doxygen', shell=True)
 # ones.
 
 # pip install sphinxcontrib-bibtex breathe
-extensions = ['sphinxcontrib.bibtex', 'breathe']
+extensions = [
+    'sphinxcontrib.bibtex',
+    'breathe',
+    'sphinx.ext.mathjax',
+    'mathmacros'
+]
+
+mathjax3_config = {
+    'tex' : {
+        'macros' : {
+            'mat' : '\\operatorname{mat}',
+            'submat' : '\\operatorname{submat}',
+            'op': '\\operatorname{op}',
+            'lda': '\\mathrm{lda}',
+            'ldb': '\\mathrm{ldb}',
+            'transA': '\\mathrm{transA}',
+            'transS': '\\mathrm{transS}'
+        }
+    }
+}
 
 bibtex_bibfiles = ['bibliography.bib']
 
@@ -45,6 +65,9 @@ bibtex_bibfiles = ['bibliography.bib']
 breathe_projects = {
     "RandBLAS": "../build/xml"
 }
+# breathe_doxygen_aliases = {
+#     'math{arg}': r'\verbatim embed:rst:inline :math:`arg` \endverbatim'
+# }
 breathe_default_project = "RandBLAS"
 
 # Add any paths that contain templates here, relative to this directory.
