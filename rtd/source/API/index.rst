@@ -1,7 +1,7 @@
 RandBLAS API Documentation
 ==========================
 
-RandBLAS's C++ sources are documented via Doxygen at the `RandBLAS Doxygen site <doxygen/index.html>`_.
+RandBLAS's C++ sources are documented via Doxygen at the `RandBLAS Doxygen site <../doxygen/index.html>`_.
 We provide some extra documentation below.
 
 

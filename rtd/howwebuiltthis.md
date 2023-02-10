@@ -128,6 +128,8 @@ Note: this file needs to be located in ``rtd/sphinxext``. This is because ``conf
     INPUT                  = ../../README.md \
                             ../../ \
                             ../../RandBLAS/
+    # ... more settings ...
+    HTML_OUTPUT            = doxygen
   ```
 * Define a succinct alias for using in-line reStructured Text math mode:
   ```
