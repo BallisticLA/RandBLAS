@@ -394,7 +394,7 @@ static int64_t filter_and_convert_regular_csroo_to_cscoo(
 /// WARNING: this function is not part of the public API.
 ///
 template <typename T>
-static void apply_cscoo_\submat_to_vector_from_left(
+static void apply_cscoo_submat_to_vector_from_left(
     const T *v,
     int64_t incv,   // stride between elements of v
     T *Sv,          // Sv += S * v.
@@ -534,7 +534,7 @@ static void apply_cscoo_csroo_left(
         for (int64_t k = 0; k < n; k++) {
             A_col = &A[A_inter_col_stride * k];
             B_col = &B[B_inter_col_stride * k];
-            apply_cscoo_\submat_to_vector_from_left<T>(
+            apply_cscoo_submat_to_vector_from_left<T>(
                 A_col, A_intra_col_stride,
                 B_col, B_intra_col_stride,
                 S_rows, S_cols, S_vals, m, nnz
