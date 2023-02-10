@@ -113,3 +113,35 @@ The import statement will always be needed. The argument of the import statement
 Sphinx and reStructuredText files do a great job of providing basic LaTeX support. However, these are not enough if you want to define custom LaTeX commands for use in your C++ source code documentation. Someone posted [a question on StackExchange](https://stackoverflow.com/questions/25729537/math-latex-macros-to-make-substitutions-in-restructuredtext-and-sphinx) about how to do this, and later followed up with [an answer](https://stackoverflow.com/a/25818305/2664946). We've adopted their answer into this file.
 
 Note: this file needs to be located in ``rtd/sphinxext``. This is because ``conf.py`` added ``../sphinxext`` to the system path, and that directory relatve to the ``rtd/source`` directory that contains ``conf.py``.
+
+### 4.5. Customizations in the Doxyfile
+
+``rtd/source/Doxyfile`` contains many settings. We customize the following settings:
+* Basic project information:
+  ```
+    PROJECT_NAME           = RandBLAS
+    # ... more settings ... 
+    PROJECT_BRIEF          = "RandBLAS, a C++ library for sketching in randomized linear algebra."
+    # ... more settings ... 
+    OUTPUT_DIRECTORY       = ../build
+    # ... more settings ... 
+    INPUT                  = ../../README.md \
+                            ../../ \
+                            ../../RandBLAS/
+  ```
+* Define a succinct alias for using in-line reStructured Text math mode:
+  ```
+    ALIASES = "math=@verbatim embed:rst:inline :math:`{"
+    ALIASES += "endmath=}` @endverbatim"
+  ```
+  This lets you define LaTeX macros in one part of a C++ source code docstring and then cleanly use the macros in another part of the same docstring. For example, in a long docstring that needs LaTeX math operator typesetting for functions called "op" and "mat", we can do
+  ```
+    /// @verbatim embed:rst:leading-slashes
+    ///
+    ///   .. |op| mathmacro:: \operatorname{op}
+    ///   .. |mat| mathmacro:: \operatorname{mat}
+    ///
+    /// @endverbatim
+    ///
+    /// The matrix @math \op(\mat(A)) @endmath is  @math m \times n @endmath
+  ```
