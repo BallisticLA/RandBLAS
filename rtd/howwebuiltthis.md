@@ -133,8 +133,7 @@ Note: this file needs to be located in ``rtd/sphinxext``. This is because ``conf
   ```
 * Define a succinct alias for using in-line reStructured Text math mode:
   ```
-    ALIASES = "math=@verbatim embed:rst:inline :math:`{"
-    ALIASES += "endmath=}` @endverbatim"
+    ALIASES = math{1}="@verbatim embed:rst:inline :math:`\{\1\}` @endverbatim "
   ```
   This lets you define LaTeX macros in one part of a C++ source code docstring and then cleanly use the macros in another part of the same docstring. For example, in a long docstring that needs LaTeX math operator typesetting for functions called "op" and "mat", we can do
   ```
@@ -144,6 +143,5 @@ Note: this file needs to be located in ``rtd/sphinxext``. This is because ``conf
     ///   .. |mat| mathmacro:: \operatorname{mat}
     ///
     /// @endverbatim
-    ///
-    /// The matrix @math \op(\mat(A)) @endmath is  @math m \times n @endmath
+    /// The matrix \math{\op(\mat(A))} is \math{m \times n}.
   ```

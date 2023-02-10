@@ -45,29 +45,12 @@ extensions = [
     'mathmacros'
 ]
 
-mathjax3_config = {
-    'tex' : {
-        'macros' : {
-            'mat' : '\\operatorname{mat}',
-            'submat' : '\\operatorname{submat}',
-            'op': '\\operatorname{op}',
-            'lda': '\\mathrm{lda}',
-            'ldb': '\\mathrm{ldb}',
-            'transA': '\\mathrm{transA}',
-            'transS': '\\mathrm{transS}'
-        }
-    }
-}
-
 bibtex_bibfiles = ['bibliography.bib']
 
 # Configuring Breathe
 breathe_projects = {
     "RandBLAS": "../build/xml"
 }
-# breathe_doxygen_aliases = {
-#     'math{arg}': r'\verbatim embed:rst:inline :math:`arg` \endverbatim'
-# }
 breathe_default_project = "RandBLAS"
 
 # Add any paths that contain templates here, relative to this directory.
