@@ -4,6 +4,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/random_gen.hh"
+#include "RandBLAS/error.hh"
 
 #include <blas.hh>
 
@@ -15,41 +16,10 @@
 #include <math.h>
 #include <typeinfo>
 
-
-/*
-Paradigm for APIs involving structs:
-    Free-functions when there's no memory to manage
-    Member functions when there IS memory to manage, or in initializing.
-        We want to make this library hard to misuse in C++.
-    We provide APIs that we require people use to ensure that structs are
-        in a valid state. If you want to initialize the struct yourself
-        we won't stop you, but we also take no responsibility for the 
-        inevitable segfaults.
-
-TODO: have a discussion around using smart pointers for memory safety.
-    Burlen thinks we should seriously consider using smart pointers.
-*/
-
-/*
-Currently have non-deterministic behavior (tests pass sometimes, fail sometimes).
-I suspect there's some memory management mistake leading to undefined behavior.
-
-      Start 18: TestDenseMoments.Gaussian
-    18/34 Test #18: TestDenseMoments.Gaussian ....................***Failed    0.11 sec
-    Running main() from /tmp/googletest-20220910-45435-1kz3pjx/googletest-release-1.12.1/googletest/src/gtest_main.cc
-    Note: Google Test filter = TestDenseMoments.Gaussian
-    [==========] Running 1 test from 1 test suite.
-    [----------] Global test environment set-up.
-    [----------] 1 test from TestDenseMoments
-    [ RUN      ] TestDenseMoments.Gaussian
-    /Users/riley/BALLISTIC_RNLA/randla/RandBLAS/test/src/test_dense.cc:48: Failure
-    The difference between mean and 0.0 is 0.01195285380042985, which exceeds 1e-2, where
-    mean evaluates to -0.01195285380042985,
-    0.0 evaluates to 0, and
-    1e-2 evaluates to 0.01.
-    [  FAILED  ] TestDenseMoments.Gaussian (112 ms)
-    [----------] 1 test from TestDenseMoments (112 ms total)
-*/
+#if defined(RandBLAS_HAS_CUDA)
+#include <cuda.h>
+#include <cuda_runtime.h>
+#endif
 
 namespace RandBLAS::dense {
 
@@ -179,7 +149,6 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
         delete [] this->buff;
     }
 }
-
 
 
 
@@ -379,7 +348,7 @@ void lskge3(
         randblas_require(ldb >= n);
     }
     // Perform the sketch.
-    blas::gemm<T>(
+    blas::gemm(
         layout, transS, transA,
         d, n, m,
         alpha,
@@ -390,6 +359,220 @@ void lskge3(
     );
     return;
 }
+
+
+#if defined(RandBLAS_HAS_CUDA)
+/** fills the column major storage order matrix with random values
+ *
+ * @tparam T the data type
+ * @tparam RNG a counter based random number generator
+ * @tparam OP an operator that transforms raw random values into matrix
+ *            elements. See r123ext::uneg11 and r123ext::boxmul.
+ *
+ * @param[in] n_rows the number of rows in the matrix
+ * @param[in] n_cols the number of columns in the matrix
+ * @param[in] ldim the number of conseecutive elements between columns
+ * @param[in] mat a contiguous section of memory with ldim \times n_cols elements
+ * @param[in] seed the counter state
+ */
+template <typename T, typename RNG, typename OP>
+__global__
+void fill_rmat_row_maj(
+    int64_t n_rows,
+    int64_t n_cols,
+    int64_t ldim,
+    T *mat,
+    RNGState<RNG> seed
+)  {
+    RNG rng;
+
+    typename RNG::ctr_type c = seed.counter;
+    typename RNG::key_type const & k = seed.key;
+
+    // work in static_size blocks of elements
+    int64_t n_elem = n_rows * n_cols;
+
+    int64_t n_elem_ss = n_elem / RNG::ctr_type::static_size +
+        (n_elem % RNG::ctr_type::static_size ? 1 : 0);
+
+    int64_t thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+
+    // add the start index to the counter in order to make the sequence
+    // deterministic independent of the number of threads.
+    c.incr(thread_id);
+    auto rv = OP::generate(rng, c, k);
+
+    for (int q = 0; q < RNG::ctr_type::static_size; ++q) {
+
+        // get the flat index
+        int64_t idx = thread_id + n_elem_ss * q;
+
+        // convert to 2D i,j indices
+        int64_t i = idx % n_cols;
+        int64_t j = idx / n_cols;
+
+        // bounds check
+        if ((idx > n_elem) || (j > n_cols))
+            continue;
+
+        // store the random value
+        mat[i*ldim + j] = rv[q];
+    }
+}
+
+/** fills the column major storage order matrix with random values
+ *
+ * @tparam T the data type
+ * @tparam RNG a counter based random number generator
+ * @tparam OP an operator that transforms raw random values into matrix
+ *            elements. See r123ext::uneg11 and r123ext::boxmul.
+ *
+ * @param[in] n_rows the number of rows in the matrix
+ * @param[in] n_cols the number of columns in the matrix
+ * @param[in] ldim the number of conseecutive elements between columns
+ * @param[in] mat a contiguous section of memory with ldim \times n_cols elements
+ * @param[in] seed the counter state
+ */
+template <typename T, typename RNG, typename OP>
+__global__
+void fill_rmat_col_maj(
+    int64_t n_rows,
+    int64_t n_cols,
+    int64_t ldim,
+    T *mat,
+    RNGState<RNG> seed
+)  {
+    RNG rng;
+
+    typename RNG::ctr_type c = seed.counter;
+    typename RNG::key_type const & k = seed.key;
+
+    // work in static_size blocks of elements
+    int64_t n_elem = n_rows * n_cols;
+
+    int64_t n_elem_ss = n_elem / RNG::ctr_type::static_size +
+        (n_elem % RNG::ctr_type::static_size ? 1 : 0);
+
+    int64_t thread_id = threadIdx.x + blockIdx.x * blockDim.x;
+
+    // add the start index to the counter in order to make the sequence
+    // deterministic independent of the number of threads.
+    c.incr(thread_id);
+    auto rv = OP::generate(rng, c, k);
+
+    for (int q = 0; q < RNG::ctr_type::static_size; ++q) {
+
+        // get the flat index
+        int64_t idx = thread_id + n_elem_ss * q;
+
+        // convert to 2D i,j indices
+        int64_t i = idx / n_rows;
+        int64_t j = idx % n_rows;
+
+        // bounds check
+        if ((idx > n_elem) || (i > n_rows))
+            continue;
+
+        // store the random value
+        mat[j*ldim + i] = rv[q];
+    }
+}
+
+/** partition CBRNG work for the GPU
+ *
+ * @param[in] n_elem the number of rows times the number of columns
+ * @param[in] ctr_size the number of values returned by a single call to the
+ *                     the CBRNG
+ * @param[in] block_size the number of CUDA threads per block
+ * @returns the number of blocks
+ */
+static
+auto partition_cbrng_threads(
+    int64_t n_elem,
+    int ctr_size,
+    int block_size = 256
+) {
+    // work in chunks of static size elements. random123 return this number of
+    // values per call.
+    int64_t n_elem_ss = n_elem / ctr_size + (n_elem % ctr_size ? 1 : 0);
+
+    // this is the number of thread blocks we will use
+    int64_t n_blocks = n_elem_ss / block_size + (n_elem_ss % block_size ? 1 : 0);
+
+    // check that we haven't exceeded device capabilities. we could
+    // go to a 2 or 3D decomp to recover, left for a future enhancement
+    if (n_blocks >= ((1l << 31) - 1)) {
+        RB_RUNTIME_ERROR("Exceeded max number of CUDA blocks")
+    }
+
+    return std::make_tuple(dim3(n_blocks), dim3(block_size));
+}
+
+/** Fill a n_rows \times n_cols matrix with random values.
+ *
+ * @tparam T the data type of the matrix
+ * @tparam RNG a random123 CBRNG type
+ * @tparm OP an operator that transforms raw random values into matrix
+ *           elements. See r123ext::uneg11 and r123ext::boxmul.
+ *
+ * @param[in] n_rows the number of rows in the matrix
+ * @param[in] n_cols the number of columns in the matrix
+ * @param[in] mat a pointer to a contiguous region of memory with space for
+ *                n_rows \times n_cols elements of type T. This memory will be
+ *                filled with random values.
+ * @param[in] seed A CBRNG state
+ *
+ * @returns the updated CBRNG state
+ */
+template <typename T, typename RNG, typename OP>
+auto fill_rmat(
+    blas::Layout layout,
+    int64_t n_rows,
+    int64_t n_cols,
+    int64_t ldim,
+    T* mat,
+    const RNGState<RNG> & seed,
+    cudaStream_t strm
+) {
+    using ctr_type = typename RNG::ctr_type;
+    using key_type = typename RNG::key_type;
+
+    ctr_type c = seed.counter;
+    const key_type &k = seed.key;
+
+    int64_t n_elem = n_rows*n_cols;
+
+    // determine kernel launch parameters
+    auto [blocks, threads] = partition_cbrng_threads(n_elem, ctr_type::static_size);
+
+    if (layout == blas::Layout::ColMajor) {
+        // generate the matrix column major layout
+        fill_rmat_col_maj<<<blocks, threads, 0, strm>>>(n_rows, n_cols, ldim, mat, seed);
+    }
+    else if (layout == blas::Layout::RowMajor) {
+        // generate the matrix row major layout
+        fill_rmat_row_maj<<<blocks, threads, 0, strm>>>(n_rows, n_cols, ldim, mat, seed);
+    }
+    else {
+        RB_RUNTIME_ERROR("Invalid layout " << (int)layout)
+        return seed;
+    }
+
+    // check for error in kernel launch
+    cudaError_t ierr = cudaGetLastError();
+    if (ierr != cudaSuccess)
+    {
+        RB_RUNTIME_ERROR("Kernel launch failed. " << cudaGetErrorString(ierr))
+        return seed;
+    }
+
+    // update the counter state
+    c.incr(n_elem);
+
+    return RNGState<RNG> {c, k};
+}
+#endif
+
 
 } // end namespace RandBLAS::dense
 

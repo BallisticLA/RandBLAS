@@ -7,5 +7,6 @@
 #define RandBLAS_VERSION_PATCH @RandBLAS_VERSION_PATCH@
 
 #cmakedefine RandBLAS_HAS_OpenMP
+#cmakedefine RandBLAS_HAS_CUDA
 
 #endif

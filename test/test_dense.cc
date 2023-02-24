@@ -277,7 +277,7 @@ class TestLSKGE3 : public ::testing::Test
         std::vector<T> A0(m0 * n0, 0.0);
         uint32_t ctr_A0 = 42;
         uint32_t seed_A0 = 42000;
-        RandBLAS::dense::DenseDist DA0 = {.n_rows = m0, .n_cols = n0};
+        RandBLAS::dense::DenseDist DA0 = {.family = RandBLAS::dense::DenseDistName::Gaussian, .n_rows = m0, .n_cols = n0};
         RandBLAS::dense::fill_buff(A0.data(), DA0, RandBLAS::base::RNGState{ctr_A0, seed_A0});
         std::vector<T> B(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;

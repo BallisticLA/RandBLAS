@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.20)
 
 project(RandBLAS)
 
@@ -6,6 +6,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake")
 
 # configure the build
 enable_testing()
+include(OpenMP)
 include(rb_build_options)
 include(rb_version)
 
@@ -13,7 +14,7 @@ include(rb_version)
 find_package(blaspp REQUIRED)
 find_package(Random123 REQUIRED)
 #include(Random123)
-include(OpenMP)
+include(rb_hamr)
 
 # compile sources
 add_subdirectory(RandBLAS)

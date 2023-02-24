@@ -1,9 +1,11 @@
+#include "RandBLAS/config.h"
 #include <RandBLAS/dense.hh>
 #include <RandBLAS/sparse.hh>
 #include <RandBLAS/util.hh>
 #include <RandBLAS/test_util.hh>
 #include <gtest/gtest.h>
 #include <math.h>
+
 
 
 class TestSparseSkOpConstruction : public ::testing::Test
@@ -362,7 +364,7 @@ class TestLSKGES : public ::testing::Test
 
         // create initialized workspace for the sketch
         std::vector<T> B0(d * m);
-        RandBLAS::dense::DenseDist DB = {.n_rows = d, .n_cols = m};
+        RandBLAS::dense::DenseDist DB = {.family = RandBLAS::dense::DenseDistName::Gaussian, .n_rows = d, .n_cols = m};
         RandBLAS::base::RNGState state(42, 42000);
         RandBLAS::dense::fill_buff(B0.data(), DB, state);
         int64_t ldb = (is_colmajor) ? d : m;
