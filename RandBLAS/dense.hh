@@ -55,20 +55,51 @@ namespace RandBLAS::dense {
 
 using namespace RandBLAS::base;
 
+// =============================================================================
+/// We call a sketching operator "dense" if it takes Level 3 BLAS work to 
+/// apply to a dense matrix. All such sketching operators supported by
+/// RandBLAS currently have i.i.d. entries. This enumeration specifies
+/// the distribution of the entries of such a sketching operator.
 enum class DenseDistName : char {
-    Gaussian = 'G',         ///< a Gaussian with mean 0 and standard deviation 1
-    Uniform = 'U',          ///< uniform over the interval [-1, 1].
-    Rademacher = 'R',       ///< uniform over {+1, -1}.
-    Haar = 'H',             ///< uniform over row-orthonormal or column-orthonormal matrices.
-    DisjointIntervals = 'I' ///< might require additional metadata.
+
+    // ---------------------------------------------------------------------------
+    ///  Gaussian distribution with mean 0 and standard deviation 1
+    Gaussian = 'G',
+    // ---------------------------------------------------------------------------
+    ///  uniform distribution over [-1, 1].
+    Uniform = 'U'
+    
+    //// ---------------------------------------------------------------------------
+    ///  uniform distribution over \math{\{-1, 1\}}.
+    // Rademacher = 'R',
+    //// ---------------------------------------------------------------------------
+    ///  A flag that a sketching operator's distribution should be 
+    ///  uniform over row-orthonormal or column-orthonormal matrices.
+    // Haar = 'H',
+    
+    //DisjointIntervals = 'I' // might require additional metadata.
 };
 
+// =============================================================================
+/// A distribution over dense sketching operators.
+///
 struct DenseDist {
+    // ---------------------------------------------------------------------------
+    ///  The distribution used for the entries of the sketching operator.
     const DenseDistName family = DenseDistName::Gaussian;
+
+    // ---------------------------------------------------------------------------
+    ///  Matrices drawn from this distribution have this many rows.
     const int64_t n_rows;
+
+    // ---------------------------------------------------------------------------
+    ///  Matrices drawn from this distribution have this many columns.
     const int64_t n_cols;
 };
 
+// =============================================================================
+/// A sample from a prescribed distribution over dense sketching operators.
+///
 template <typename T, typename RNG = r123::Philox4x32>
 struct DenseSkOp {
 
@@ -82,14 +113,32 @@ struct DenseSkOp {
     //
     /////////////////////////////////////////////////////////////////////
 
-    const DenseDist dist;            ///< the name of the distribution and matrix size
-    const RNGState<RNG> seed_state;  ///< the initial CBRNG state
-    RNGState<RNG> next_state;        ///< the current CBRNG state
-    const bool own_memory = true;    ///< a flag that indicates who owns the memory
+    // ---------------------------------------------------------------------------
+    ///  The distribution from which this sketching operator is sampled.
+    ///  This member specifies the number of rows and columns of the sketching
+    ///  operator.
+    const DenseDist dist;
 
-    T *buff = nullptr;               ///< memory
-    bool filled = false;             ///< a flag that indicates if the memory was initialized
-    bool persistent = true;          ///< ???
+    // ---------------------------------------------------------------------------
+    ///  The state that should be passed to the RNG when the full sketching 
+    ///  operator needs to be sampled from scratch. 
+    const base::RNGState<RNG> seed_state;
+
+    // ---------------------------------------------------------------------------
+    ///  The state that should be used by the next call to an RNG *after* the
+    ///  full sketching operator has been sampled.
+    base::RNGState<RNG> next_state;
+
+    // ---------------------------------------------------------------------------
+    /// We need workspace to store a representation of the sampled sketching
+    /// operator. This member indicates who is responsible for allocating and 
+    /// deallocating this workspace. If own_memory is true, then 
+    /// RandBLAS is responsible.
+    const bool own_memory = true;
+
+    T *buff = nullptr;       // memory
+    bool filled = false;     // a flag that indicates if the memory was initialized
+    bool persistent = true;  // explanation ...
 
     const blas::Layout layout = blas::Layout::ColMajor; ///< matrix storage order
 
@@ -112,27 +161,25 @@ struct DenseSkOp {
     //  Convenience constructor (a wrapper)
     DenseSkOp(
         DenseDist dist,
-        uint32_t ctr_offset,
         uint32_t key,
         T *buff,
         bool filled,
         bool persistent,
         blas::Layout layout
-    ) : DenseSkOp(dist, {ctr_offset, key}, buff, filled, persistent, layout) {};
+    ) : DenseSkOp(dist, RNGState<RNG>(key), buff, filled, persistent, layout) {};
 
     //  Convenience constructor (a wrapper)
     DenseSkOp(
         DenseDistName family,
         int64_t n_rows,
         int64_t n_cols,
-        uint32_t ctr_offset,
         uint32_t key,
         T *buff,
         bool filled,
         bool persistent,
         blas::Layout layout
-    ) : DenseSkOp(DenseDist{family, n_rows, n_cols}, ctr_offset,
-                  key, buff, filled, persistent, layout) {};
+    ) : DenseSkOp(DenseDist{family, n_rows, n_cols}, RNGState<RNG>(key),
+                  buff, filled, persistent, layout) {};
 
     // Destructor
     ~DenseSkOp();
@@ -286,14 +333,14 @@ auto fill_buff(
             return fill_rmat<T,RNG,r123ext::boxmul>(D.n_rows, D.n_cols, buff, state);
         case DenseDistName::Uniform:
             return fill_rmat<T,RNG,r123ext::uneg11>(D.n_rows, D.n_cols, buff, state);
-        case DenseDistName::Rademacher:
-            throw std::runtime_error(std::string("Not implemented."));
-        case DenseDistName::Haar:
+        //case DenseDistName::Rademacher:
+        //    throw std::runtime_error(std::string("Not implemented."));
+        //case DenseDistName::Haar:
             // This won't be filled IID, but a Householder representation
             // of a column-orthonormal matrix Q can be stored in the lower
             // triangle of Q (with "tau" on the diagonal). So the size of
             // buff will still be D.n_rows*D.n_cols.
-            throw std::runtime_error(std::string("Not implemented."));
+        //    throw std::runtime_error(std::string("Not implemented."));
         default:
             throw std::runtime_error(std::string("Unrecognized distribution."));
     }
@@ -323,6 +370,116 @@ auto fill_skop_buff(
     }
 }
 
+// =============================================================================
+/// @verbatim embed:rst:leading-slashes
+///
+///   .. |op| mathmacro:: \operatorname{op}
+///   .. |mat| mathmacro:: \operatorname{mat}
+///   .. |submat| mathmacro:: \operatorname{submat}
+///   .. |lda| mathmacro:: \mathrm{lda}
+///   .. |ldb| mathmacro:: \mathrm{ldb}
+///   .. |transA| mathmacro:: \mathrm{transA}
+///   .. |transS| mathmacro:: \mathrm{transS}
+///
+/// @endverbatim
+/// LSKGE3: Perform a GEMM-like operation
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(S))}_{d \times m} \cdot \underbrace{\op(\mat(A))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
+/// @endverbatim
+/// where \math{\alpha} and \math{\beta} are real scalars, \math{\op(X)} either returns a matrix \math{X}
+/// or its transpose, and \math{S} is a sketching operator that takes Level 3 BLAS effort to apply.
+/// 
+/// @verbatim embed:rst:leading-slashes
+/// What are :math:`\mat(A)` and :math:`\mat(B)`?
+///     Their shapes are defined implicitly by :math:`(d, m, n, \transA)`.
+///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
+///     and "layout", following the same convention as BLAS.
+///
+/// What is :math:`\submat(S)`?
+///     Its shape is defined implicitly by :math:`(\transS, d, m)`.
+///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
+///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
+///     appears at index :math:`(\texttt{i_os}, \texttt{j_os})` of :math:`{S}`.
+/// @endverbatim
+/// @param[in] layout
+///     Layout::ColMajor or Layout::RowMajor
+///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
+///
+/// @param[in] transS
+///      - If \math{\transS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
+///      - If \math{\transS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
+/// @param[in] transA
+///      - If \math{\transA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
+///      - If \math{\transA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+/// @param[in] d
+///     A nonnegative integer.
+///     - The number of rows in \math{\mat(B)}
+///     - The number of rows in \math{\op(\mat(S))}.
+///
+/// @param[in] n
+///     A nonnegative integer.
+///     - The number of columns in \math{\mat(B)}
+///     - The number of columns in \math{\op(\mat(A))}.
+///
+/// @param[in] m
+///     A nonnegative integer.
+///     - The number of columns in \math{\op(\submat(S))}
+///     - The number of rows in \math{\op(\mat(A))}.
+///
+/// @param[in] alpha
+///     A real scalar.
+///     - If zero, then \math{A} is not accessed.
+///
+/// @param[in] S
+///    A SparseSkOp object.
+///    - Defines \math{\submat(S)}.
+///
+/// @param[in] i_os
+///     A nonnegative integer.
+///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_os}, :]}.
+///
+/// @param[in] j_os
+///     A nonnnegative integer.
+///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_os}]}. 
+///
+/// @param[in] A
+///     Pointer to a 1D array of real scalars.
+///     - Defines \math{\mat(A)}.
+///
+/// @param[in] lda
+///     A nonnegative integer.
+///     * Leading dimension of \math{\mat(A)} when reading from \math{A}.
+///     * If layout == ColMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i + j \cdot \lda].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a column in \math{\mat(A)}.
+///     * If layout == RowMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i \cdot \lda + j].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a row in \math{\mat(A)}.
+///
+/// @param[in] beta
+///     A real scalar.
+///     - If zero, then \math{B} need not be set on input.
+///
+/// @param[in, out] B
+///    Pointer to 1D array of real scalars.
+///    - On entry, defines \math{\mat(B)}
+///      on the RIGHT-hand side of \math{(\star)}.
+///    - On exit, defines \math{\mat(B)}
+///      on the LEFT-hand side of \math{(\star)}.
+///
+/// @param[in] ldb
+///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
+///    - Refer to documentation for \math{\lda} for details. 
+///
 template <typename T, typename RNG>
 void lskge3(
     blas::Layout layout,

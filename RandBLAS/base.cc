@@ -4,14 +4,12 @@
 namespace RandBLAS::base {
 
 RNGState::RNGState(
-    uint32_t c0,
     uint32_t k0
 ) : len_c(4),
     len_k(4)
 {
     this->ctr = new uint32_t[this->len_c]{};
     this->key = new uint32_t[this->len_k]{};
-    this->ctr[0] = c0;
     this->key[0] = k0;
 }
 

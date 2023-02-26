@@ -37,7 +37,7 @@ class TestDenseMoments : public ::testing::Test
             .n_rows = n_rows,
             .n_cols = n_cols
         };
-        auto state = RandBLAS::base::RNGState{0, key};
+        auto state = RandBLAS::base::RNGState(key);
         auto next_state = RandBLAS::dense::fill_buff(A.data(), D, state);
 
         // Compute the entrywise empirical mean and standard deviation.
@@ -110,11 +110,11 @@ class TestLSKGE3 : public ::testing::Test
         if (preallocate) {
             buff.resize(d * m, 0.0);
             S0_ptr = new RandBLAS::dense::DenseSkOp(
-                D, seed, 0, buff.data(), false, true, layout
+                D, seed, buff.data(), false, true, layout
             );
         } else {
             S0_ptr = new RandBLAS::dense::DenseSkOp(
-                D, seed, 0, buff.data(), false, true, layout
+                D, seed, buff.data(), false, true, layout
             );
         }
 
@@ -158,7 +158,7 @@ class TestLSKGE3 : public ::testing::Test
             .n_cols = d
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0(Dt, seed, 0,
+        RandBLAS::dense::DenseSkOp<T> S0(Dt, seed,
             NULL, false, true, layout
         );
          bool is_colmajor = layout == blas::Layout::ColMajor;
@@ -212,7 +212,7 @@ class TestLSKGE3 : public ::testing::Test
             .n_cols = m0
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0(D, seed, 0,
+        RandBLAS::dense::DenseSkOp<T> S0(D, seed,
             NULL, false, true, layout
         );
         int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
@@ -267,17 +267,16 @@ class TestLSKGE3 : public ::testing::Test
             .n_cols = m
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0(D, seed_S0, 0,
+        RandBLAS::dense::DenseSkOp<T> S0(D, seed_S0,
             NULL, false, true, layout
         );
         bool is_colmajor = layout == blas::Layout::ColMajor;
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A0(m0 * n0, 0.0);
-        uint32_t ctr_A0 = 42;
         uint32_t seed_A0 = 42000;
         RandBLAS::dense::DenseDist DA0 = {.n_rows = m0, .n_cols = n0};
-        RandBLAS::dense::fill_buff(A0.data(), DA0, RandBLAS::base::RNGState{ctr_A0, seed_A0});
+        RandBLAS::dense::fill_buff(A0.data(), DA0, RandBLAS::base::RNGState(seed_A0));
         std::vector<T> B(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
         int64_t ldb = (is_colmajor) ? d : n;

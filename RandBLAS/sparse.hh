@@ -23,23 +23,82 @@ namespace RandBLAS::sparse {
 
 using namespace RandBLAS::base;
 
-enum class SparseDistName : char {
-    SASO = 'S',      // short-axis-sparse operator
-    LASO = 'L'       // long-axis-sparse operator
+// =============================================================================
+/// Specifies whether a distribution over sparse sketching operators has a fixed
+/// number of nonzeros per short-axis vector (SASO) or long-axis vector (LASO).
+///
+enum class SparsityPattern : char {
+    // ---------------------------------------------------------------------------
+    /// A SASO has a fixed number of nonzeros per column if it is wide,
+    /// or per row if it is tall.
+    SASO = 'S',
+    // ---------------------------------------------------------------------------
+    /// A LASO has a fixed number of nonzeros per row if it is wide,
+    /// or per column if it is tall.
+    LASO = 'L'
 };
 
+// =============================================================================
+/// A distribution over sparse matrices.
+///
 struct SparseDist {
-    const SparseDistName family = SparseDistName::SASO;
+
+    // ---------------------------------------------------------------------------
+    ///  Constrains the sparsity pattern of matrices drawn from this distribution. 
+    ///
+    ///  The default pattern is (SASO) chosen so that sketches are more likely to
+    ///  contain useful geometric information, without making assumptions about
+    ///  the data being sketched.
+    const SparsityPattern family = SparsityPattern::SASO;
+
+    // ---------------------------------------------------------------------------
+    ///  Matrices drawn from this distribution have this many rows.
     const int64_t n_rows;
+
+    // ---------------------------------------------------------------------------
+    ///  Matrices drawn from this distribution have this many columns.
     const int64_t n_cols;
+
+    // ---------------------------------------------------------------------------
+    ///  If this is a distribution over SASOs, then matrices sampled from this
+    ///  distribution will have exactly \math{\texttt{vec_nnz}} nonzeros per
+    ///  short-axis vector. One would be paranoid to set this higher than, say,
+    ///  eight, even when sketching *very* high-dimensional data.
+    ///
+    ///  If this is a distribution over LASOs, then matrices sampled from this
+    ///  distribution will have *at most* \math{\texttt{vec_nnz}} nonzeros per
+    ///  long-axis vector.
+    ///
     const int64_t vec_nnz;
 };
 
+// =============================================================================
+/// A sample from a prescribed distribution over sparse matrices.
+///
 template <typename T, typename RNG = r123::Philox4x32>
 struct SparseSkOp {
+
+    // ---------------------------------------------------------------------------
+    ///  The distribution from which this sketching operator is sampled.
+    ///  This member specifies the number of rows and columns of the sketching
+    ///  operator.
     const SparseDist dist;
-    const base::RNGState<RNG> seed_state; // maybe "self_seed"
-    base::RNGState<RNG> next_state; // maybe "next_seed"
+
+    // ---------------------------------------------------------------------------
+    ///  The state that should be passed to the RNG when the full sketching 
+    ///  operator needs to be sampled from scratch. 
+    const base::RNGState<RNG> seed_state;
+
+    // ---------------------------------------------------------------------------
+    ///  The state that should be used by the next call to an RNG *after* the
+    ///  full sketching operator has been sampled.
+    base::RNGState<RNG> next_state;
+
+    // ---------------------------------------------------------------------------
+    /// We need workspace to store a representation of the sampled sketching
+    /// operator. This member indicates who is responsible for allocating and 
+    /// deallocating this workspace. If own_memory is true, then 
+    /// RandBLAS is responsible.
     const bool own_memory = true;
     
     /////////////////////////////////////////////////////////////////////
@@ -58,44 +117,56 @@ struct SparseSkOp {
     //
     /////////////////////////////////////////////////////////////////////
 
-    //  Elementary constructor: needs an implementation
-    SparseSkOp(
-        SparseDist dist_,
-        const base::RNGState<RNG> &state_,
-        int64_t *rows_ = nullptr,
-        int64_t *cols_ = nullptr,
-        T *vals_ = nullptr 
-    );
-
-    //  Convenience constructor (a wrapper)
+    // ---------------------------------------------------------------------------
+    ///
+    /// @param[in] dist
+    ///     A SparseDist object.
+    ///     - Defines the number of rows and columns in this sketching operator.
+    ///     - Indirectly controls sparsity pattern.
+    ///     - Directly controls sparsity level.
+    ///
+    /// @param[in] state
+    ///     An RNGState object.
+    ///     - The RNG will use this as the starting point to generate all 
+    ///       random numbers needed for this sketching operator.
+    ///
+    /// @param[in] rows
+    ///     Pointer to int64_t array.
+    ///     - Optional. Can only be used if cols and vals are also provided.
+    ///     - When provided, this stores row indices as part of the COO format.
+    ///
+    /// @param[in] cols
+    ///     Pointer to int64_t array.
+    ///     - Optional. Can only be used if rows and vals are also provided.
+    ///     - When provided, this stores column indices as part of the COO format.
+    ///
+    /// @param[in] vals
+    ///     Pointer to array of real numerical type T.
+    ///     - Optional. Can only be used if rows and cols are also provided.
+    ///     - When provided, this stores nonzeros as part of the COO format.
+    ///
     SparseSkOp(
         SparseDist dist,
-        uint32_t key,
-        uint32_t ctr_offset,
-        int64_t *rows,
-        int64_t *cols,
-        T *vals 
-    ) : SparseSkOp(dist, {ctr_offset, key}, rows, cols, vals) {};
-    
-    //  Convenience constructor (a wrapper)
-    SparseSkOp(
-        SparseDistName family,
-        int64_t n_rows,
-        int64_t n_cols,
-        int64_t vec_nnz,
-        uint32_t key,
-        uint32_t ctr_offset,
+        const base::RNGState<RNG> &state,
         int64_t *rows = nullptr,
         int64_t *cols = nullptr,
         T *vals = nullptr 
-    ) : SparseSkOp({family, n_rows, n_cols, vec_nnz},
-        key, ctr_offset, rows, cols, vals) {};
+    );
+
+    SparseSkOp(
+        SparseDist dist,
+        uint32_t key,
+        int64_t *rows = nullptr,
+        int64_t *cols = nullptr,
+        T *vals = nullptr 
+    ) : SparseSkOp(dist, base::RNGState<RNG>(key), rows, cols, vals) {};
+
 
     //  Destructor
     ~SparseSkOp();
 };
 
-// Implementation of elementary constructor
+
 template <typename T, typename RNG>
 SparseSkOp<T,RNG>::SparseSkOp(
     SparseDist dist_,
@@ -117,7 +188,7 @@ SparseSkOp<T,RNG>::SparseSkOp(
     //      rows_, cols_, and vals_ pointers were all nullptr.
     //
     int64_t rep_ax_len;
-    if (this->dist.family == SparseDistName::SASO) {
+    if (this->dist.family == SparsityPattern::SASO) {
         rep_ax_len = MAX(this->dist.n_rows, this->dist.n_cols);
     } else { 
         rep_ax_len = MIN(this->dist.n_rows, this->dist.n_cols);
@@ -150,7 +221,7 @@ template <typename SKOP>
 static bool has_fixed_nnz_per_col(
     SKOP const& S0
 ) {
-    if (S0.dist.family == SparseDistName::SASO) {
+    if (S0.dist.family == SparsityPattern::SASO) {
         return S0.dist.n_rows < S0.dist.n_cols;
     } else {
         return S0.dist.n_cols < S0.dist.n_rows;
@@ -212,21 +283,35 @@ auto repeated_fisher_yates(
     return RNGState<RNG> {ctr, key};
 }
 
+// =============================================================================
+/// Populate the internal data structures of S with values that are 
+/// consistent with S.dist and S.seed_state. This step is needed before
+/// S can be applied to data matrices. LSKGES and RSKGES will automatically
+/// perform this step if needed.
+///
+/// @param[in] S
+///     SparseSkOp object.
+///
+/// @return
+///     An RNGState object. This is the state that should be used the next 
+///     time the program needs to generate random numbers for use in a randomized
+///     algorithm.
+///     
 template <typename SKOP>
 static
 auto fill_sparse(
-    SKOP & S0
+    SKOP & S
 ) {
-    int64_t long_ax_len = MAX(S0.dist.n_rows, S0.dist.n_cols);
-    int64_t short_ax_len = MIN(S0.dist.n_rows, S0.dist.n_cols);
+    int64_t long_ax_len = MAX(S.dist.n_rows, S.dist.n_cols);
+    int64_t short_ax_len = MIN(S.dist.n_rows, S.dist.n_cols);
 
-    bool is_wide = S0.dist.n_rows == short_ax_len;
-    int64_t *short_ax_idxs = (is_wide) ? S0.rows : S0.cols;
-    int64_t *long_ax_idxs = (is_wide) ? S0.cols : S0.rows;
+    bool is_wide = S.dist.n_rows == short_ax_len;
+    int64_t *short_ax_idxs = (is_wide) ? S.rows : S.cols;
+    int64_t *long_ax_idxs = (is_wide) ? S.cols : S.rows;
 
     int64_t *vec_ax_idxs, *rep_ax_idxs;
     int64_t vec_len, num_vecs;
-    if (S0.dist.family == SparseDistName::SASO) {
+    if (S.dist.family == SparsityPattern::SASO) {
         vec_len = short_ax_len;
         num_vecs = long_ax_len;
         vec_ax_idxs = short_ax_idxs;
@@ -237,18 +322,18 @@ auto fill_sparse(
         vec_ax_idxs = long_ax_idxs;
         rep_ax_idxs = short_ax_idxs;
     }
-    S0.next_state = repeated_fisher_yates(
-        S0.seed_state, num_vecs, vec_len,
-        S0.dist.vec_nnz, vec_ax_idxs, rep_ax_idxs, S0.vals
+    S.next_state = repeated_fisher_yates(
+        S.seed_state, num_vecs, vec_len,
+        S.dist.vec_nnz, vec_ax_idxs, rep_ax_idxs, S.vals
     );
-    return S0.next_state;
+    return S.next_state;
 }
 
 template <typename SKOP>
 void print_sparse(SKOP const& S0) {
     std::cout << "SparseSkOp information" << std::endl;
     int64_t nnz;
-    if (S0.dist.family == SparseDistName::SASO) {
+    if (S0.dist.family == SparsityPattern::SASO) {
         nnz = S0.dist.vec_nnz * MAX(S0.dist.n_rows, S0.dist.n_cols);
         std::cout << "\tSASO: short-axis-sparse operator" << std::endl;
     } else {
