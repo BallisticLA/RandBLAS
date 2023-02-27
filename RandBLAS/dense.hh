@@ -432,7 +432,7 @@ auto fill_skop_buff(
 ///     - If zero, then \math{A} is not accessed.
 ///
 /// @param[in] S
-///    A SparseSkOp object.
+///    A DenseSkOp object.
 ///    - Defines \math{\submat(S)}.
 ///
 /// @param[in] i_os
