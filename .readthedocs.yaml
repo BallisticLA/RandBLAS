@@ -10,7 +10,7 @@ build:
     python: "3"
 
 sphinx:
-  configuration: rtd/conf.py
+  configuration: rtd/source/conf.py
 
 python:
   install:
