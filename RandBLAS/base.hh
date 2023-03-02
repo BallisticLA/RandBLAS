@@ -48,8 +48,8 @@ struct RNGState
     /// move construct from an initial counter and key
     RNGState(typename RNG::ctr_type &&c, typename RNG::key_type &&k) : counter(std::move(c)), key(std::move(k)) {}
 
-    /// construct integer values
-    RNGState(typename RNG::ctr_type::value_type c, typename RNG::ukey_type::value_type k) : counter{{c}}, key{{k}} {}
+    /// construct from an integer key
+    RNGState(typename RNG::ukey_type::value_type k) : counter{{0}}, key{{k}} {}
 
     typename RNG::ctr_type counter; ///< the counter
     typename RNG::key_type key;     ///< the key
