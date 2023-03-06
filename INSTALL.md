@@ -28,7 +28,7 @@ that contains (or will contain) the ``RandBLAS`` project directory as a subdirec
 One can compile and install BLAS++ from
 [source](https://bitbucket.org/icl/blaspp/src/master/) using CMake by running
 ```shell
-git clone https://bitbucket.org/icl/blaspp.git
+git clone https://github.com/icl-utk-edu/blaspp.git
 mkdir blaspp-build
 cd blaspp-build
 cmake -DCMAKE_BUILD_TYPE=Release \
