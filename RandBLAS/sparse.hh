@@ -5,6 +5,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/random_gen.hh"
+#include "RandBLAS/util.hh"
 
 #include <blas.hh>
 #include <iostream>
@@ -22,23 +23,82 @@ namespace RandBLAS::sparse {
 
 using namespace RandBLAS::base;
 
-enum class SparseDistName : char {
-    SASO = 'S',      // short-axis-sparse operator
-    LASO = 'L'       // long-axis-sparse operator
+// =============================================================================
+/// Specifies whether a distribution over sparse sketching operators has a fixed
+/// number of nonzeros per short-axis vector (SASO) or long-axis vector (LASO).
+///
+enum class SparsityPattern : char {
+    // ---------------------------------------------------------------------------
+    /// A SASO has a fixed number of nonzeros per column if it is wide,
+    /// or per row if it is tall.
+    SASO = 'S',
+    // ---------------------------------------------------------------------------
+    /// A LASO has a fixed number of nonzeros per row if it is wide,
+    /// or per column if it is tall.
+    LASO = 'L'
 };
 
+// =============================================================================
+/// A distribution over sparse matrices.
+///
 struct SparseDist {
-    const SparseDistName family = SparseDistName::SASO;
+
+    // ---------------------------------------------------------------------------
+    ///  Constrains the sparsity pattern of matrices drawn from this distribution. 
+    ///
+    ///  The default pattern is (SASO) chosen so that sketches are more likely to
+    ///  contain useful geometric information, without making assumptions about
+    ///  the data being sketched.
+    const SparsityPattern family = SparsityPattern::SASO;
+
+    // ---------------------------------------------------------------------------
+    ///  Matrices drawn from this distribution have this many rows.
     const int64_t n_rows;
+
+    // ---------------------------------------------------------------------------
+    ///  Matrices drawn from this distribution have this many columns.
     const int64_t n_cols;
+
+    // ---------------------------------------------------------------------------
+    ///  If this is a distribution over SASOs, then matrices sampled from this
+    ///  distribution will have exactly \math{\texttt{vec_nnz}} nonzeros per
+    ///  short-axis vector. One would be paranoid to set this higher than, say,
+    ///  eight, even when sketching *very* high-dimensional data.
+    ///
+    ///  If this is a distribution over LASOs, then matrices sampled from this
+    ///  distribution will have *at most* \math{\texttt{vec_nnz}} nonzeros per
+    ///  long-axis vector.
+    ///
     const int64_t vec_nnz;
 };
 
+// =============================================================================
+/// A sample from a prescribed distribution over sparse matrices.
+///
 template <typename T, typename RNG = r123::Philox4x32>
 struct SparseSkOp {
+
+    // ---------------------------------------------------------------------------
+    ///  The distribution from which this sketching operator is sampled.
+    ///  This member specifies the number of rows and columns of the sketching
+    ///  operator.
     const SparseDist dist;
-    const base::RNGState<RNG> seed_state; // maybe "self_seed"
-    base::RNGState<RNG> next_state; // maybe "next_seed"
+
+    // ---------------------------------------------------------------------------
+    ///  The state that should be passed to the RNG when the full sketching 
+    ///  operator needs to be sampled from scratch. 
+    const base::RNGState<RNG> seed_state;
+
+    // ---------------------------------------------------------------------------
+    ///  The state that should be used by the next call to an RNG *after* the
+    ///  full sketching operator has been sampled.
+    base::RNGState<RNG> next_state;
+
+    // ---------------------------------------------------------------------------
+    /// We need workspace to store a representation of the sampled sketching
+    /// operator. This member indicates who is responsible for allocating and 
+    /// deallocating this workspace. If own_memory is true, then 
+    /// RandBLAS is responsible.
     const bool own_memory = true;
     
     /////////////////////////////////////////////////////////////////////
@@ -57,44 +117,56 @@ struct SparseSkOp {
     //
     /////////////////////////////////////////////////////////////////////
 
-    //  Elementary constructor: needs an implementation
-    SparseSkOp(
-        SparseDist dist_,
-        const base::RNGState<RNG> &state_,
-        int64_t *rows_ = nullptr,
-        int64_t *cols_ = nullptr,
-        T *vals_ = nullptr 
-    );
-
-    //  Convenience constructor (a wrapper)
+    // ---------------------------------------------------------------------------
+    ///
+    /// @param[in] dist
+    ///     A SparseDist object.
+    ///     - Defines the number of rows and columns in this sketching operator.
+    ///     - Indirectly controls sparsity pattern.
+    ///     - Directly controls sparsity level.
+    ///
+    /// @param[in] state
+    ///     An RNGState object.
+    ///     - The RNG will use this as the starting point to generate all 
+    ///       random numbers needed for this sketching operator.
+    ///
+    /// @param[in] rows
+    ///     Pointer to int64_t array.
+    ///     - Optional. Can only be used if cols and vals are also provided.
+    ///     - When provided, this stores row indices as part of the COO format.
+    ///
+    /// @param[in] cols
+    ///     Pointer to int64_t array.
+    ///     - Optional. Can only be used if rows and vals are also provided.
+    ///     - When provided, this stores column indices as part of the COO format.
+    ///
+    /// @param[in] vals
+    ///     Pointer to array of real numerical type T.
+    ///     - Optional. Can only be used if rows and cols are also provided.
+    ///     - When provided, this stores nonzeros as part of the COO format.
+    ///
     SparseSkOp(
         SparseDist dist,
-        uint32_t key,
-        uint32_t ctr_offset,
-        int64_t *rows,
-        int64_t *cols,
-        T *vals 
-    ) : SparseSkOp(dist, {ctr_offset, key}, rows, cols, vals) {};
-    
-    //  Convenience constructor (a wrapper)
-    SparseSkOp(
-        SparseDistName family,
-        int64_t n_rows,
-        int64_t n_cols,
-        int64_t vec_nnz,
-        uint32_t key,
-        uint32_t ctr_offset,
+        const base::RNGState<RNG> &state,
         int64_t *rows = nullptr,
         int64_t *cols = nullptr,
         T *vals = nullptr 
-    ) : SparseSkOp({family, n_rows, n_cols, vec_nnz},
-        key, ctr_offset, rows, cols, vals) {};
+    );
+
+    SparseSkOp(
+        SparseDist dist,
+        uint32_t key,
+        int64_t *rows = nullptr,
+        int64_t *cols = nullptr,
+        T *vals = nullptr 
+    ) : SparseSkOp(dist, base::RNGState<RNG>(key), rows, cols, vals) {};
+
 
     //  Destructor
     ~SparseSkOp();
 };
 
-// Implementation of elementary constructor
+
 template <typename T, typename RNG>
 SparseSkOp<T,RNG>::SparseSkOp(
     SparseDist dist_,
@@ -116,7 +188,7 @@ SparseSkOp<T,RNG>::SparseSkOp(
     //      rows_, cols_, and vals_ pointers were all nullptr.
     //
     int64_t rep_ax_len;
-    if (this->dist.family == SparseDistName::SASO) {
+    if (this->dist.family == SparsityPattern::SASO) {
         rep_ax_len = MAX(this->dist.n_rows, this->dist.n_cols);
     } else { 
         rep_ax_len = MIN(this->dist.n_rows, this->dist.n_cols);
@@ -149,13 +221,16 @@ template <typename SKOP>
 static bool has_fixed_nnz_per_col(
     SKOP const& S0
 ) {
-    if (S0.dist.family == SparseDistName::SASO) {
+    if (S0.dist.family == SparsityPattern::SASO) {
         return S0.dist.n_rows < S0.dist.n_cols;
     } else {
         return S0.dist.n_cols < S0.dist.n_rows;
     }
 }
 
+// =============================================================================
+/// WARNING: this function is not part of the public API.
+///
 template <typename T, typename RNG>
 static
 auto repeated_fisher_yates(
@@ -208,21 +283,35 @@ auto repeated_fisher_yates(
     return RNGState<RNG> {ctr, key};
 }
 
+// =============================================================================
+/// Populate the internal data structures of S with values that are 
+/// consistent with S.dist and S.seed_state. This step is needed before
+/// S can be applied to data matrices. LSKGES and RSKGES will automatically
+/// perform this step if needed.
+///
+/// @param[in] S
+///     SparseSkOp object.
+///
+/// @return
+///     An RNGState object. This is the state that should be used the next 
+///     time the program needs to generate random numbers for use in a randomized
+///     algorithm.
+///     
 template <typename SKOP>
 static
 auto fill_sparse(
-    SKOP & S0
+    SKOP & S
 ) {
-    int64_t long_ax_len = MAX(S0.dist.n_rows, S0.dist.n_cols);
-    int64_t short_ax_len = MIN(S0.dist.n_rows, S0.dist.n_cols);
+    int64_t long_ax_len = MAX(S.dist.n_rows, S.dist.n_cols);
+    int64_t short_ax_len = MIN(S.dist.n_rows, S.dist.n_cols);
 
-    bool is_wide = S0.dist.n_rows == short_ax_len;
-    int64_t *short_ax_idxs = (is_wide) ? S0.rows : S0.cols;
-    int64_t *long_ax_idxs = (is_wide) ? S0.cols : S0.rows;
+    bool is_wide = S.dist.n_rows == short_ax_len;
+    int64_t *short_ax_idxs = (is_wide) ? S.rows : S.cols;
+    int64_t *long_ax_idxs = (is_wide) ? S.cols : S.rows;
 
     int64_t *vec_ax_idxs, *rep_ax_idxs;
     int64_t vec_len, num_vecs;
-    if (S0.dist.family == SparseDistName::SASO) {
+    if (S.dist.family == SparsityPattern::SASO) {
         vec_len = short_ax_len;
         num_vecs = long_ax_len;
         vec_ax_idxs = short_ax_idxs;
@@ -233,18 +322,18 @@ auto fill_sparse(
         vec_ax_idxs = long_ax_idxs;
         rep_ax_idxs = short_ax_idxs;
     }
-    S0.next_state = repeated_fisher_yates(
-        S0.seed_state, num_vecs, vec_len,
-        S0.dist.vec_nnz, vec_ax_idxs, rep_ax_idxs, S0.vals
+    S.next_state = repeated_fisher_yates(
+        S.seed_state, num_vecs, vec_len,
+        S.dist.vec_nnz, vec_ax_idxs, rep_ax_idxs, S.vals
     );
-    return S0.next_state;
+    return S.next_state;
 }
 
 template <typename SKOP>
 void print_sparse(SKOP const& S0) {
     std::cout << "SparseSkOp information" << std::endl;
     int64_t nnz;
-    if (S0.dist.family == SparseDistName::SASO) {
+    if (S0.dist.family == SparsityPattern::SASO) {
         nnz = S0.dist.vec_nnz * MAX(S0.dist.n_rows, S0.dist.n_cols);
         std::cout << "\tSASO: short-axis-sparse operator" << std::endl;
     } else {
@@ -270,6 +359,9 @@ void print_sparse(SKOP const& S0) {
     std::cout << std::endl;
 }
 
+// =============================================================================
+/// WARNING: this function is not part of the public API.
+///
 template <typename T>
 static int64_t filter_regular_cscoo(
     const int64_t *nzidx2row,
@@ -312,6 +404,9 @@ static int64_t filter_regular_cscoo(
     return nnz;
 }
 
+// =============================================================================
+/// WARNING: this function is not part of the public API.
+///
 template <typename T>
 static int64_t filter_and_convert_regular_csroo_to_cscoo(
     const int64_t *nonzeroidx2row,
@@ -380,6 +475,9 @@ static int64_t filter_and_convert_regular_csroo_to_cscoo(
     return nnz;
 }
 
+// =============================================================================
+/// WARNING: this function is not part of the public API.
+///
 template <typename T>
 static void apply_cscoo_submat_to_vector_from_left(
     const T *v,
@@ -427,6 +525,9 @@ static void apply_cscoo_submat_to_vector_from_left(
     }
 }
 
+// =============================================================================
+/// WARNING: this function is not part of the public API.
+///
 template <typename T, typename SKOP>
 static void apply_cscoo_csroo_left(
     T alpha,
@@ -534,36 +635,150 @@ static void apply_cscoo_csroo_left(
     return;
 }
 
+// =============================================================================
+/// Return a SparseSkOp object representing the transpose of S.
+///
+/// @param[in] S
+///     SparseSkOp object.
+/// @return 
+///     A new SparseSkOp object that depends on the memory underlying S.
+///     (In particular, it depends on S.rows, S.cols, and S.vals.)
+///     
 template <typename SKOP>
 static
-auto transpose(SKOP const& S0) {
+auto transpose(SKOP const& S) {
     SparseDist dist = {
-        .family = S0.dist.family,
-        .n_rows = S0.dist.n_cols,
-        .n_cols = S0.dist.n_rows,
-        .vec_nnz = S0.dist.vec_nnz
+        .family = S.dist.family,
+        .n_rows = S.dist.n_cols,
+        .n_cols = S.dist.n_rows,
+        .vec_nnz = S.dist.vec_nnz
     };
-    SKOP S1(
-        dist,
-        S0.seed_state,
-        S0.cols,
-        S0.rows,
-        S0.vals
-    );
-    S1.next_state = S0.next_state;
-    return S1;
+    SKOP St(dist, S.seed_state, S.cols, S.rows, S.vals);
+    St.next_state = S.next_state;
+    return St;
 }
 
+
+// =============================================================================
+/// @verbatim embed:rst:leading-slashes
+///
+///   .. |op| mathmacro:: \operatorname{op}
+///   .. |mat| mathmacro:: \operatorname{mat}
+///   .. |submat| mathmacro:: \operatorname{submat}
+///   .. |lda| mathmacro:: \mathrm{lda}
+///   .. |ldb| mathmacro:: \mathrm{ldb}
+///   .. |transA| mathmacro:: \mathrm{transA}
+///   .. |transS| mathmacro:: \mathrm{transS}
+///
+/// @endverbatim
+/// LSKGES: Perform a GEMM-like operation
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(S))}_{d \times m} \cdot \underbrace{\op(\mat(A))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
+/// @endverbatim
+/// where \math{\alpha} and \math{\beta} are real scalars, \math{\op(X)} either returns a matrix \math{X}
+/// or its transpose, and \math{S} is a sparse sketching operator.
+/// 
+/// @verbatim embed:rst:leading-slashes
+/// What are :math:`\mat(A)` and :math:`\mat(B)`?
+///     Their shapes are defined implicitly by :math:`(d, m, n, \transA)`.
+///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
+///     and "layout", following the same convention as BLAS.
+///
+/// What is :math:`\submat(S)`?
+///     Its shape is defined implicitly by :math:`(\transS, d, m)`.
+///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
+///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
+///     appears at index :math:`(\texttt{i_os}, \texttt{j_os})` of :math:`{S}`.
+/// @endverbatim
+/// @param[in] layout
+///     Layout::ColMajor or Layout::RowMajor
+///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
+///
+/// @param[in] transS
+///      - If \math{\transS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
+///      - If \math{\transS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
+/// @param[in] transA
+///      - If \math{\transA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
+///      - If \math{\transA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+/// @param[in] d
+///     A nonnegative integer.
+///     - The number of rows in \math{\mat(B)}
+///     - The number of rows in \math{\op(\mat(S))}.
+///
+/// @param[in] n
+///     A nonnegative integer.
+///     - The number of columns in \math{\mat(B)}
+///     - The number of columns in \math{\op(\mat(A))}.
+///
+/// @param[in] m
+///     A nonnegative integer.
+///     - The number of columns in \math{\op(\submat(S))}
+///     - The number of rows in \math{\op(\mat(A))}.
+///
+/// @param[in] alpha
+///     A real scalar.
+///     - If zero, then \math{A} is not accessed.
+///
+/// @param[in] S
+///    A SparseSkOp object.
+///    - Defines \math{\submat(S)}.
+///
+/// @param[in] i_os
+///     A nonnegative integer.
+///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_os}, :]}.
+///
+/// @param[in] j_os
+///     A nonnnegative integer.
+///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_os}]}. 
+///
+/// @param[in] A
+///     Pointer to a 1D array of real scalars.
+///     - Defines \math{\mat(A)}.
+///
+/// @param[in] lda
+///     A nonnegative integer.
+///     * Leading dimension of \math{\mat(A)} when reading from \math{A}.
+///     * If layout == ColMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i + j \cdot \lda].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a column in \math{\mat(A)}.
+///     * If layout == RowMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i \cdot \lda + j].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a row in \math{\mat(A)}.
+///
+/// @param[in] beta
+///     A real scalar.
+///     - If zero, then \math{B} need not be set on input.
+///
+/// @param[in, out] B
+///    Pointer to 1D array of real scalars.
+///    - On entry, defines \math{\mat(B)}
+///      on the RIGHT-hand side of \math{(\star)}.
+///    - On exit, defines \math{\mat(B)}
+///      on the LEFT-hand side of \math{(\star)}.
+///
+/// @param[in] ldb
+///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
+///    - Refer to documentation for \math{\lda} for details. 
+///
 template <typename T, typename SKOP>
 void lskges(
     blas::Layout layout,
     blas::Op transS,
     blas::Op transA,
     int64_t d, // B is d-by-n
-    int64_t n, // op(A) is m-by-n
-    int64_t m, // op(S) is d-by-m
+    int64_t n, // \op(A) is m-by-n
+    int64_t m, // \op(S) is d-by-m
     T alpha,
-    SKOP &S0,
+    SKOP &S,
     int64_t row_offset,
     int64_t col_offset,
     const T *A,
@@ -572,21 +787,22 @@ void lskges(
     T *B,
     int64_t ldb
 ) {
-    randblas_require(S0.rows != NULL); // must be filled.
+    if (S.rows == NULL || S.cols == NULL || S.vals == NULL)
+        fill_sparse(S);
 
     // handle applying a transposed sparse sketching operator.
     if (transS == blas::Op::Trans) {
-        auto S1 = transpose(S0);
+        auto St = transpose(S);
         lskges(
             layout, blas::Op::NoTrans, transA,
-            d, m, n, alpha, S1, col_offset, row_offset,
+            d, m, n, alpha, St, col_offset, row_offset,
             A, lda, beta, B, ldb
         );
         return; 
     }
-    // Below this point, we can assume S0 is not transposed.
+    // Below this point, we can assume S is not transposed.
 
-    // Dimensions of A, rather than op(A)
+    // Dimensions of A, rather than \op(A)
     blas::Layout layout_B = layout;
     blas::Layout layout_A;
     int64_t rows_A, cols_A;
@@ -607,16 +823,17 @@ void lskges(
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= d);
         for (int64_t i = 0; i < n; ++i)
-            blas::scal(d, beta, &B[i*ldb], 1);
+            RandBLAS::util::safe_scal(d, beta, &B[i*ldb], 1);
     } else {
         randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
         for (int64_t i = 0; i < d; ++i)
-            blas::scal(n, beta, &B[i*ldb], 1);
+            RandBLAS::util::safe_scal(n, beta, &B[i*ldb], 1);
     }
 
     // Perform the sketch
-    apply_cscoo_csroo_left(alpha, layout_A, layout_B, d, n, m, S0, row_offset, col_offset, A, lda, B, ldb);
+    if (alpha != 0)
+        apply_cscoo_csroo_left(alpha, layout_A, layout_B, d, n, m, S, row_offset, col_offset, A, lda, B, ldb);
     return;
 }
 
