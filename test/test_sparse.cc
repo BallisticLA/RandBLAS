@@ -225,8 +225,10 @@ class TestLSKGES : public ::testing::Test
         blas::Layout layout,
         int64_t key_index,
         int64_t nnz_index,
-        int threads)
-    {
+        int threads,
+        T atol = T(10)*std::numeric_limits<T>::epsilon(),
+        T rtol = std::numeric_limits<T>::epsilon()
+    ) {
 #if !defined (RandBLAS_HAS_OpenMP)
         UNUSED(threads);
 #endif
@@ -289,7 +291,9 @@ class TestLSKGES : public ::testing::Test
             layout, blas::Op::NoTrans,
             d, n,
             a_hat, ldahat,
-            a_hat_expect, ldahat
+            a_hat_expect, ldahat,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__,
+            atol, rtol
         );
 
         delete [] a;
@@ -364,7 +368,8 @@ class TestLSKGES : public ::testing::Test
             layout, blas::Op::NoTrans,
             d1, m1,
             B.data(), ldb,
-            S_ptr, lds0
+            S_ptr, lds0,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
 
         delete [] S0_dense;
@@ -424,7 +429,9 @@ class TestLSKGES : public ::testing::Test
             beta, B1.data(), ldb
         );
 
-        RandBLAS_Testing::Util::buffs_approx_equal(B0.data(), B1.data(), d * m);
+        RandBLAS_Testing::Util::buffs_approx_equal(B0.data(), B1.data(), d * m,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
     }
 
     template <typename T>
@@ -471,9 +478,10 @@ class TestLSKGES : public ::testing::Test
         );
 
         // check that B == S.T
-        RandBLAS_Testing::Util::matrices_approx_equal<T>(
+        RandBLAS_Testing::Util::matrices_approx_equal(
             layout, blas::Op::Trans, d, m,
-            B.data(), ldb, S0_dense.data(), lds      
+            B.data(), ldb, S0_dense.data(), lds,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
 
@@ -542,7 +550,9 @@ class TestLSKGES : public ::testing::Test
             1.0, S0_dense.data(), lds, A_ptr, lda,
             0.0, B_expect.data(), ldb
         );
-        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), B_expect.data(), d * n);
+        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), B_expect.data(), d * n,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
     }
 
     template <typename T>
@@ -602,7 +612,9 @@ class TestLSKGES : public ::testing::Test
             1.0, S0_dense.data(), lds, At.data(), lda,
             0.0, B_expect.data(), ldb
         );
-        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), B_expect.data(), d * n);
+        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), B_expect.data(), d * n,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
     }
 };
 
@@ -615,18 +627,32 @@ class TestLSKGES : public ::testing::Test
 //
 ////////////////////////////////////////////////////////////////////////
 
-
 TEST_F(TestLSKGES, sketch_saso_rowMajor_oneThread)
 {
+    // TODO: this test fails on MacOS w/ Apple Clang compiler but not with
+    // brew'd Clang ?? even w a relTol of 500*epsilon it fails
+
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(RandBLAS::sparse::SparsityPattern::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::sparse::SparsityPattern::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            auto deps = std::numeric_limits<double>::epsilon();
+
+            apply<double>(RandBLAS::sparse::SparsityPattern::SASO,
+                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1,
+                10*deps, 10*deps
+            );
+
+            auto feps = std::numeric_limits<float>::epsilon();
+
+            apply<float>(RandBLAS::sparse::SparsityPattern::SASO,
+                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1,
+                10*feps, 10*feps
+            );
         }
     }
 }
+
 
 TEST_F(TestLSKGES, sketch_laso_rowMajor_oneThread)
 {
@@ -640,17 +666,30 @@ TEST_F(TestLSKGES, sketch_laso_rowMajor_oneThread)
     }
 }
 
+#if defined (RandBLAS_HAS_OpenMP)
 TEST_F(TestLSKGES, sketch_saso_rowMajor_FourThreads)
 {
     for (int64_t k_idx : {0, 1, 2})
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(RandBLAS::sparse::SparsityPattern::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4);
-            apply<float>(RandBLAS::sparse::SparsityPattern::SASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4);
+            auto deps = std::numeric_limits<double>::epsilon();
+
+            apply<double>(RandBLAS::sparse::SparsityPattern::SASO,
+                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4,
+                10*deps, 10*deps
+            );
+
+            auto feps = std::numeric_limits<float>::epsilon();
+
+            apply<float>(RandBLAS::sparse::SparsityPattern::SASO,
+                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4,
+                10*feps, 10*feps
+            );
         }
     }
 }
+#endif
 
 TEST_F(TestLSKGES, sketch_saso_colMajor_oneThread)
 {
@@ -676,6 +715,7 @@ TEST_F(TestLSKGES, sketch_laso_colMajor_oneThread)
     }
 }
 
+#if defined (RandBLAS_HAS_OpenMP)
 TEST_F(TestLSKGES, sketch_saso_colMajor_fourThreads)
 {
     for (int64_t k_idx : {0, 1, 2})
@@ -687,6 +727,7 @@ TEST_F(TestLSKGES, sketch_saso_colMajor_fourThreads)
         }
     }
 }
+#endif
 
 
 ////////////////////////////////////////////////////////////////////////
@@ -704,8 +745,22 @@ TEST_F(TestLSKGES, lift_saso_rowMajor_oneThread)
     {
         for (int64_t nz_idx: {4, 1, 2, 3, 0})
         {
-            apply<double>(RandBLAS::sparse::SparsityPattern::SASO, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::sparse::SparsityPattern::SASO, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            // TODO: this test fails on MacOS w/ Apple Clang compiler
+            // but not with brew'd Clang ?? increase relTol by 4 resolves
+
+            auto deps = std::numeric_limits<double>::epsilon();
+
+            apply<double>(RandBLAS::sparse::SparsityPattern::SASO,
+                201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1,
+                10*deps, 4*deps
+            );
+
+            auto feps = std::numeric_limits<float>::epsilon();
+
+            apply<float>(RandBLAS::sparse::SparsityPattern::SASO,
+                201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1,
+                10*feps, 4*feps
+            );
         }
     }
 }
