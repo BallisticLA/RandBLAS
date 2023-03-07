@@ -184,7 +184,8 @@ template <typename T>
 void sparseskop_to_dense(
     RandBLAS::sparse::SparseSkOp<T> &S0,
     T *mat,
-    blas::Layout layout
+    blas::Layout layout,
+    bool take_abs = false
 ) {
     RandBLAS::sparse::SparseDist D = S0.dist;
     for (int64_t i = 0; i < D.n_rows * D.n_cols; ++i)
@@ -202,9 +203,93 @@ void sparseskop_to_dense(
         int64_t row = S0.rows[i];
         int64_t col = S0.cols[i];
         T val = S0.vals[i];
+        if (take_abs)
+            val = abs(val);
         mat[idx(row, col)] = val;
     }
 }
+
+template <typename T, typename RNG>
+void reference_lskges(
+    blas::Layout layout,
+    blas::Op transS,
+    blas::Op transA,
+    int64_t d, // mat(B) is d-by-n
+    int64_t n, // op(mat(A)) is m-by-n
+    int64_t m, // op(submat(S)) is d-by-m
+    T alpha,
+    RandBLAS::sparse::SparseSkOp<T,RNG> &S,
+    int64_t i_os,
+    int64_t j_os,
+    const T *A,
+    int64_t lda,
+    T *B,
+    T *absB,
+    int64_t ldb
+){
+    std::vector<T> S_dense(S.dist.n_rows * S.dist.n_cols);
+    sparseskop_to_dense<T>(S, S_dense.data(), layout, false);
+    std::vector<T> absS_dense(S.dist.n_rows * S.dist.n_cols);
+    sparseskop_to_dense<T>(S, absS_dense.data(), layout, true);
+
+    // Dimensions of mat(A), rather than op(mat(A))
+    int64_t rows_mat_A, cols_mat_A, rows_submat_S, cols_submat_S;
+    if (transA == blas::Op::NoTrans) {
+        rows_mat_A = m;
+        cols_mat_A = n;
+    } else {
+        rows_mat_A = n;
+        cols_mat_A = m;
+    }
+    // Dimensions of submat(S), rather than op(submat(S))
+    if (transS == blas::Op::NoTrans) {
+        rows_submat_S = d;
+        cols_submat_S = m;
+    } else {
+        rows_submat_S = m;
+        cols_submat_S = d;
+    }
+    // Sanity checks on dimensions and strides
+    int64_t lds, pos, size_A, size_B;
+    if (layout == blas::Layout::ColMajor) {
+        lds = S.dist.n_rows;
+        pos = i_os + lds * j_os;
+        randblas_require(lds >= rows_submat_S);
+        randblas_require(lda >= rows_mat_A);
+        randblas_require(ldb >= d);
+        size_A = lda * cols_mat_A;
+        size_B = ldb * n;
+    } else {
+        lds = S.dist.n_cols;
+        pos = i_os * lds + j_os;
+        randblas_require(lds >= cols_submat_S);
+        randblas_require(lda >= cols_mat_A);
+        randblas_require(ldb >= n);
+        size_A = lda * rows_mat_A;
+        size_B = ldb * d;
+    }
+    std::vector<T> absA_vec(size_A);
+    T* absA = absA_vec.data();
+    for (int64_t i = 0; i < size_A; ++i)
+        absA[i] = abs(A[i]);
+
+    // Compute the reference value
+    T* S_ptr = S_dense.data();
+    blas::gemm(layout, transS, transA, d, n, m,
+        alpha, &S_ptr[pos], lds, A, lda, 0.0, B, ldb
+    );
+
+    // Compute the matrix needed for componentwise error bounds.
+    T* absS_ptr = absS_dense.data();
+    blas::gemm(layout, transS, transA, d, n, m,
+        alpha, &absS_ptr[pos], lds, absA, lda, 0.0, absB, ldb
+    );
+    T eps = std::numeric_limits<T>::epsilon();
+    eps *= 10*m;
+    blas::scal(size_B, eps, absB, 1);
+    return;
+}
+
 
 class TestLSKGES : public ::testing::Test
 {
@@ -237,11 +322,9 @@ class TestLSKGES : public ::testing::Test
         // construct test data: matrix A, SparseSkOp "S0", and dense representation S
         T *a = new T[m * n];
         T *a_hat = new T[d * n]{};
-        T *S = new T[d * m];
         RandBLAS::util::genmat(m, n, a, a_seed);  
         RandBLAS::sparse::SparseSkOp<T> S0({distname, d, m, vec_nnzs[nnz_index]}, keys[key_index]);
         RandBLAS::sparse::fill_sparse(S0);
-        sparseskop_to_dense<T>(S0, S, layout);
         int64_t lda, ldahat, lds;
         if (layout == blas::Layout::RowMajor) {
             lda = n; 
@@ -270,36 +353,41 @@ class TestLSKGES : public ::testing::Test
 
         // compute expected result
         T *a_hat_expect = new T[d * n]{};
-        // ^ zero-initialize.
-        //      This should not be necessary since it first appears
-        //      in a GEMM call with "beta = 0.0". However, tests run on GitHub Actions
-        //      show that NaNs can propagate if a_hat_expect is not initialized to all
-        //      zeros. See
-        //          https://github.com/BallisticLA/RandBLAS/actions/runs/3579737699/jobs/6021220392
-        //      for a successful run with the initialization, and
-        //          https://github.com/BallisticLA/RandBLAS/actions/runs/3579714658/jobs/6021178532
-        //      for an unsuccessful run without this initialization.
-        blas::gemm<T>(
+        T *a_hat_error_scale = new T[d * n]{};
+        reference_lskges<T>(
             layout, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
-            1.0, S, lds, a, lda,
-            0.0, a_hat_expect, ldahat
+            1.0, S0, 0, 0, a, lda,
+            a_hat_expect, a_hat_error_scale, ldahat
         );
+        // check the result
+
 
         // check the result
-        RandBLAS_Testing::Util::matrices_approx_equal(
-            layout, blas::Op::NoTrans,
-            d, n,
-            a_hat, ldahat,
-            a_hat_expect, ldahat,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__,
-            atol, rtol
-        );
+        // RandBLAS_Testing::Util::matrices_approx_equal(
+        //     layout, blas::Op::NoTrans,
+        //     d, n,
+        //     a_hat, ldahat,
+        //     a_hat_expect, ldahat,
+        //     __PRETTY_FUNCTION__, __FILE__, __LINE__,
+        //     atol, rtol
+        // );
+        std::ostringstream oss;
+        for (int64_t i = 0; i < d*n; ++i) {
+            T actual_err = abs(a_hat_expect[i] - a_hat[i]);
+            T allowed_err = a_hat_error_scale[i];
+            if (actual_err > allowed_err) {
+                FAIL() << std::endl << __FILE__ << ":" << __LINE__ << std::endl
+                        << __PRETTY_FUNCTION__ << std::endl << "Test failed at index "
+                        << i << oss.str() << std::endl;
+                oss.str("");
+            }
+        }
 
         delete [] a;
         delete [] a_hat;
-        delete [] S;
         delete [] a_hat_expect;
+        delete [] a_hat_error_scale;
     }
 
     template <typename T>
@@ -545,7 +633,7 @@ class TestLSKGES : public ::testing::Test
         // Check the result
         int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
         std::vector<T> B_expect(d * n, 0.0);
-        blas::gemm<T>(layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        blas::gemm(layout, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
             1.0, S0_dense.data(), lds, A_ptr, lda,
             0.0, B_expect.data(), ldb
@@ -607,7 +695,7 @@ class TestLSKGES : public ::testing::Test
         // Check the result
         int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
         std::vector<T> B_expect(d * n, 0.0);
-        blas::gemm<T>(layout, blas::Op::NoTrans, blas::Op::Trans,
+        blas::gemm(layout, blas::Op::NoTrans, blas::Op::Trans,
             d, n, m,
             1.0, S0_dense.data(), lds, At.data(), lda,
             0.0, B_expect.data(), ldb
