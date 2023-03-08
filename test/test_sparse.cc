@@ -269,7 +269,6 @@ void reference_lskges(
         randblas_require(lds >= cols_submat_S);
         randblas_require(lda >= cols_mat_A);
         randblas_require(ldb >= n);
-        // compute size_A.
         size_A = lda * (rows_mat_A - 1) + cols_mat_A;
         size_B = ldb * (d - 1) + n;
     }
