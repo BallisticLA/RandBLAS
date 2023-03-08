@@ -44,7 +44,6 @@ type_name()
 
 class TestSparseSkOpConstruction : public ::testing::Test
 {
-    // only tests column-sparse SASOs for now.
     protected:
         std::vector<uint32_t> keys{42, 0, 1};
         std::vector<int64_t> vec_nnzs{(int64_t) 1, (int64_t) 2, (int64_t) 3, (int64_t) 7};     
