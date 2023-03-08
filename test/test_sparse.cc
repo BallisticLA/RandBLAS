@@ -365,7 +365,7 @@ class TestLSKGES : public ::testing::Test
         // check the result
         RandBLAS_Testing::Util::buffs_approx_equal<T>(
             B0, B1, E, d * n,
-            __PRETTY_FUNCTION__, __FILE_NAME__, __LINE__
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
 
         delete [] a;
