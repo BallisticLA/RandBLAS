@@ -224,14 +224,14 @@ void reference_lskges(
     const T *A,
     int64_t lda,
     T beta,
-    T *B,
-    T *absB,
+    T *B,  // expected value produced by LSKGES; compute via GEMM.
+    T *E,  // allowable floating point error; apply theory + compute by GEMM.
     int64_t ldb
 ){
     std::vector<T> S_dense(S.dist.n_rows * S.dist.n_cols);
     sparseskop_to_dense<T>(S, S_dense.data(), layout, false);
-    std::vector<T> absS_dense(S.dist.n_rows * S.dist.n_cols);
-    sparseskop_to_dense<T>(S, absS_dense.data(), layout, true);
+    std::vector<T> S_dense_abs(S.dist.n_rows * S.dist.n_cols);
+    sparseskop_to_dense<T>(S, S_dense_abs.data(), layout, true);
 
     // Dimensions of mat(A), rather than op(mat(A))
     int64_t rows_mat_A, cols_mat_A, rows_submat_S, cols_submat_S;
@@ -277,20 +277,20 @@ void reference_lskges(
     );
 
     // Compute the matrix needed for componentwise error bounds.
-    std::vector<T> absA_vec(size_A);
-    T* absA = absA_vec.data();
+    std::vector<T> A_abs_vec(size_A);
+    T* A_abs = A_abs_vec.data();
     for (int64_t i = 0; i < size_A; ++i)
-        absA[i] = abs(A[i]);
+        A_abs[i] = abs(A[i]);
     if (beta != 0.0) {
         for (int64_t i = 0; i < size_B; ++i)
-            absB[i] = abs(B[i]);
+            E[i] = abs(B[i]);
     }
     T eps = std::numeric_limits<T>::epsilon();
-    T* absS_ptr = absS_dense.data();
-    T alpha_err = (abs(alpha) * m) * (2 * eps);
-    T beta_err = abs(beta) * eps;
+    T err_alpha = (abs(alpha) * m) * (2 * eps);
+    T err_beta = abs(beta) * eps;
+    T* S_abs_ptr = S_dense_abs.data();
     blas::gemm(layout, transS, transA, d, n, m,
-        alpha_err, &absS_ptr[pos], lds, absA, lda, beta_err, absB, ldb
+        err_alpha, &S_abs_ptr[pos], lds, A_abs, lda, err_beta, E, ldb
     );
     return;
 }
@@ -352,26 +352,26 @@ class TestLSKGES : public ::testing::Test
         omp_set_num_threads(orig_threads);
 #endif
 
-        // compute expected result
+        // compute expected result (B1) and allowable error (E)
         T *B1 = new T[d * n]{};
-        T *B2 = new T[d * n]{};
+        T *E = new T[d * n]{};
         reference_lskges<T>(
             layout, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
             1.0, S0, 0, 0, a, lda,
-            0.0, B1, B2, ldb
+            0.0, B1, E, ldb
         );
 
         // check the result
         RandBLAS_Testing::Util::buffs_approx_equal<T>(
-            B0, B1, B2, d * n,
+            B0, B1, E, d * n,
             __PRETTY_FUNCTION__, __FILE_NAME__, __LINE__
         );
 
         delete [] a;
         delete [] B0;
         delete [] B1;
-        delete [] B2;
+        delete [] E;
     }
 
     template <typename T>
@@ -486,8 +486,8 @@ class TestLSKGES : public ::testing::Test
             beta, B0.data(), ldb
         );
 
-        // compute the reference result
-        std::vector<T> B2(d * m, 0.0);
+        // compute the reference result (B1) and error bound (E).
+        std::vector<T> E(d * m, 0.0);
         reference_lskges<T>(
             layout,
             blas::Op::NoTrans,
@@ -495,11 +495,11 @@ class TestLSKGES : public ::testing::Test
             d, m, m,
             alpha, S, 0, 0,
             A.data(), m,
-            beta, B1.data(), B2.data(), ldb
+            beta, B1.data(), E.data(), ldb
         );
 
         RandBLAS_Testing::Util::buffs_approx_equal(
-            B0.data(), B1.data(), B2.data(), d * m,
+            B0.data(), B1.data(), E.data(), d * m,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -612,7 +612,7 @@ class TestLSKGES : public ::testing::Test
 
         // Check the result
         std::vector<T> B1(d * n, 0.0);
-        std::vector<T> B2(d * n, 0.0);
+        std::vector<T> E(d * n, 0.0);
         reference_lskges<T>(
             layout,
             blas::Op::NoTrans,
@@ -620,10 +620,10 @@ class TestLSKGES : public ::testing::Test
             d, n, m,
             1.0, S0, 0, 0,
             A_ptr, lda,
-            0.0, B1.data(), B2.data(), ldb
+            0.0, B1.data(), E.data(), ldb
         );
         RandBLAS_Testing::Util::buffs_approx_equal(
-            B0.data(), B1.data(), B2.data(), d * n,
+            B0.data(), B1.data(), E.data(), d * n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -677,16 +677,16 @@ class TestLSKGES : public ::testing::Test
 
         // Check the result
         std::vector<T> B1(d * n, 0.0);
-        std::vector<T> B2(d * n, 0.0);
+        std::vector<T> E(d * n, 0.0);
         reference_lskges<T>(
             layout, blas::Op::NoTrans, blas::Op::Trans,
             d, n, m,
             1.0, S0, 0, 0,
             At.data(), lda,
-            0.0, B1.data(), B2.data(), ldb
+            0.0, B1.data(), E.data(), ldb
         );
         RandBLAS_Testing::Util::buffs_approx_equal(
-            B0.data(), B1.data(), B2.data(), d * n,
+            B0.data(), B1.data(), E.data(), d * n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
