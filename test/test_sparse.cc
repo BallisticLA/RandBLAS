@@ -228,6 +228,9 @@ void reference_lskges(
     T *E,  // allowable floating point error; apply theory + compute by GEMM.
     int64_t ldb
 ){
+    randblas_require(d > 0);
+    randblas_require(m > 0);
+    randblas_require(n > 0);
     std::vector<T> S_dense(S.dist.n_rows * S.dist.n_cols);
     sparseskop_to_dense<T>(S, S_dense.data(), layout, false);
     std::vector<T> S_dense_abs(S.dist.n_rows * S.dist.n_cols);
@@ -258,16 +261,17 @@ void reference_lskges(
         randblas_require(lds >= rows_submat_S);
         randblas_require(lda >= rows_mat_A);
         randblas_require(ldb >= d);
-        size_A = lda * cols_mat_A;
-        size_B = ldb * n;
+        size_A = lda * (cols_mat_A - 1) + rows_mat_A;;
+        size_B = ldb * (n - 1) + d;
     } else {
         lds = S.dist.n_cols;
         pos = i_os * lds + j_os;
         randblas_require(lds >= cols_submat_S);
         randblas_require(lda >= cols_mat_A);
         randblas_require(ldb >= n);
-        size_A = lda * rows_mat_A;
-        size_B = ldb * d;
+        // compute size_A.
+        size_A = lda * (rows_mat_A - 1) + cols_mat_A;
+        size_B = ldb * (d - 1) + n;
     }
 
     // Compute the reference value
