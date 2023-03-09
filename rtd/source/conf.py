@@ -42,7 +42,8 @@ extensions = [
     'sphinxcontrib.bibtex',
     'breathe',
     'sphinx.ext.mathjax',
-    'mathmacros'
+    'mathmacros',
+    "sphinx.ext.graphviz"
 ]
 
 bibtex_bibfiles = ['bibliography.bib']
@@ -91,3 +92,10 @@ html_theme = 'randblas_rtd'
 # ]
 
 numfig = True
+
+
+
+
+subprocess.call('ls ../../_readthedocs/', shell=True)
+subprocess.call('ls ../../_readthedocs/html', shell=True)
+
