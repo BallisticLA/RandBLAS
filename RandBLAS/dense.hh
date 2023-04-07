@@ -85,16 +85,16 @@ enum class DenseDistName : char {
 ///
 struct DenseDist {
     // ---------------------------------------------------------------------------
-    ///  The distribution used for the entries of the sketching operator.
-    const DenseDistName family = DenseDistName::Gaussian;
-
-    // ---------------------------------------------------------------------------
     ///  Matrices drawn from this distribution have this many rows.
     const int64_t n_rows;
 
     // ---------------------------------------------------------------------------
     ///  Matrices drawn from this distribution have this many columns.
     const int64_t n_cols;
+
+    // ---------------------------------------------------------------------------
+    ///  The distribution used for the entries of the sketching operator.
+    const DenseDistName family = DenseDistName::Gaussian;
 };
 
 // =============================================================================
@@ -178,7 +178,7 @@ struct DenseSkOp {
         bool filled,
         bool persistent,
         blas::Layout layout
-    ) : DenseSkOp(DenseDist{family, n_rows, n_cols}, RNGState<RNG>(key),
+    ) : DenseSkOp(DenseDist{n_rows, n_cols, family}, RNGState<RNG>(key),
                   buff, filled, persistent, layout) {};
 
     // Destructor
