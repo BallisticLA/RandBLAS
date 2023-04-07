@@ -34,9 +34,9 @@ class TestDenseMoments : public ::testing::Test
 
         // Construct the sketching operator
         RandBLAS::dense::DenseDist D = {
-            .family = dn,
             .n_rows = n_rows,
-            .n_cols = n_cols
+            .n_cols = n_cols,
+            .family = dn
         };
         auto state = RandBLAS::base::RNGState(key);
         auto next_state = RandBLAS::dense::fill_buff(A.data(), D, state);
