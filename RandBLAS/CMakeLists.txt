@@ -27,6 +27,8 @@ endif()
 
 target_compile_options(RandBLAS INTERFACE ${RandBLAS_cxx_opts})
 
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../RandBLAS.hh"
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   DESTINATION include FILES_MATCHING PATTERN "*.hh")
 
