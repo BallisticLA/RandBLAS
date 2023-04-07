@@ -83,6 +83,29 @@ void buffs_approx_equal(
 }
 
 template <typename T>
+void buffs_approx_equal(
+    const T *actual_ptr,
+    const T *expect_ptr,
+    const T *bounds_ptr,
+    int64_t size,
+    const char *test_name,
+    const char *file_name,
+    int line_no
+) {
+    std::ostringstream oss;
+    for (int64_t i = 0; i < size; ++i) {
+        T actual_err = abs(actual_ptr[i] - expect_ptr[i]);
+        T allowed_err = bounds_ptr[i];
+        if (actual_err > allowed_err) {
+            FAIL() << std::endl << file_name << ":" << line_no << std::endl
+                    << test_name << std::endl << "Test failed at index "
+                    << i << oss.str() << std::endl;
+            oss.str("");
+        }
+    }
+}
+
+template <typename T>
 void matrices_approx_equal(
     blas::Layout layout,
     blas::Op transB,
