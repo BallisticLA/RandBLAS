@@ -589,9 +589,9 @@ class TestLSKGES : public ::testing::Test
         std::vector<T> A0(m0 * n0, 0.0);
         uint32_t seed_A0 = 42000;
         RandBLAS::dense::DenseDist DA0 = {
-            .family=RandBLAS::dense::DenseDistName::Uniform,
             .n_rows = m0,
-            .n_cols = n0
+            .n_cols = n0,
+            .family = RandBLAS::dense::DenseDistName::Uniform
         };
         RandBLAS::dense::fill_buff(A0.data(), DA0, RandBLAS::base::RNGState(seed_A0));
         std::vector<T> B0(d * n, 0.0);
@@ -656,9 +656,9 @@ class TestLSKGES : public ::testing::Test
         std::vector<T> At(m * n, 0.0);
         uint32_t seed_A = 42000;
         RandBLAS::dense::DenseDist DAt = {
-            .family=RandBLAS::dense::DenseDistName::Uniform,
             .n_rows = n,
-            .n_cols = m
+            .n_cols = m,
+            .family = RandBLAS::dense::DenseDistName::Uniform
         };
         RandBLAS::dense::fill_buff(At.data(), DAt, RandBLAS::base::RNGState(seed_A));
         std::vector<T> B0(d * n, 0.0);
