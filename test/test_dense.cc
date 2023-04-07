@@ -100,9 +100,9 @@ class TestLSKGE3 : public ::testing::Test
     ) {
         // Define the distribution for S0.
         RandBLAS::dense::DenseDist D = {
-            .family = RandBLAS::dense::DenseDistName::Gaussian,
             .n_rows = d,
-            .n_cols = m
+            .n_cols = m,
+            .family = RandBLAS::dense::DenseDistName::Gaussian
         };
 
         // Define the sketching operator struct, S0.
@@ -156,9 +156,9 @@ class TestLSKGE3 : public ::testing::Test
     ) {
         // Define the distribution for S0.
         RandBLAS::dense::DenseDist Dt = {
-            .family=RandBLAS::dense::DenseDistName::Gaussian,
             .n_rows = m,
-            .n_cols = d
+            .n_cols = d,
+            .family=RandBLAS::dense::DenseDistName::Gaussian
         };
         // Define the sketching operator struct, S0.
         RandBLAS::dense::DenseSkOp<T> S0(Dt, seed,
@@ -211,9 +211,9 @@ class TestLSKGE3 : public ::testing::Test
 
         // Define the distribution for S0.
         RandBLAS::dense::DenseDist D = {
-            .family = RandBLAS::dense::DenseDistName::Gaussian,
             .n_rows = d0,
-            .n_cols = m0
+            .n_cols = m0,
+            .family = RandBLAS::dense::DenseDistName::Gaussian
         };
         // Define the sketching operator struct, S0.
         RandBLAS::dense::DenseSkOp<T> S0(D, seed,
@@ -267,9 +267,9 @@ class TestLSKGE3 : public ::testing::Test
 
         // Define the distribution for S0.
         RandBLAS::dense::DenseDist D = {
-            .family = RandBLAS::dense::DenseDistName::Gaussian,
             .n_rows = d,
-            .n_cols = m
+            .n_cols = m,
+            .family = RandBLAS::dense::DenseDistName::Gaussian
         };
         // Define the sketching operator struct, S0.
         RandBLAS::dense::DenseSkOp<T> S0(D, seed_S0,

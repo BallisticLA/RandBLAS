@@ -80,7 +80,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
 
     virtual void proper_saso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
         RandBLAS::sparse::SparseSkOp<double> S0(
-            {RandBLAS::sparse::SparsityPattern::SASO, d, m, vec_nnzs[nnz_index]}, keys[key_index]
+            {d, m, RandBLAS::sparse::SparsityPattern::SASO, vec_nnzs[nnz_index]}, keys[key_index]
         );
        RandBLAS::sparse::fill_sparse(S0);
        if (d < m) {
@@ -92,7 +92,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
 
     virtual void proper_laso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
         RandBLAS::sparse::SparseSkOp<double> S0(
-            {RandBLAS::sparse::SparsityPattern::LASO, d, m, vec_nnzs[nnz_index]}, keys[key_index]
+            {d, m, RandBLAS::sparse::SparsityPattern::LASO, vec_nnzs[nnz_index]}, keys[key_index]
         );
         RandBLAS::sparse::fill_sparse(S0);
        if (d < m) {
@@ -328,7 +328,7 @@ class TestLSKGES : public ::testing::Test
         T *a = new T[m * n];
         T *B0 = new T[d * n]{};
         RandBLAS::util::genmat(m, n, a, a_seed);  
-        RandBLAS::sparse::SparseSkOp<T> S0({distname, d, m, vec_nnzs[nnz_index]}, keys[key_index]);
+        RandBLAS::sparse::SparseSkOp<T> S0({d, m, distname, vec_nnzs[nnz_index]}, keys[key_index]);
         RandBLAS::sparse::fill_sparse(S0);
         int64_t lda, ldb;
         if (layout == blas::Layout::RowMajor) {
@@ -395,8 +395,7 @@ class TestLSKGES : public ::testing::Test
 
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
         RandBLAS::sparse::SparseSkOp<T> S0(
-            {RandBLAS::sparse::SparsityPattern::SASO,
-            d0, m0, vec_nnz}, seed
+            {d0, m0, RandBLAS::sparse::SparsityPattern::SASO, vec_nnz}, seed
         );
         RandBLAS::sparse::fill_sparse(S0);
         T *S0_dense = new T[d0 * m0];
@@ -460,7 +459,7 @@ class TestLSKGES : public ::testing::Test
         bool is_colmajor = (layout == blas::Layout::ColMajor);
         randblas_require(m > d);
         int64_t vec_nnz = d / 2;
-        RandBLAS::sparse::SparseDist DS = {RandBLAS::sparse::SparsityPattern::SASO, d, m, vec_nnz};
+        RandBLAS::sparse::SparseDist DS = {d, m, RandBLAS::sparse::SparsityPattern::SASO, vec_nnz};
         RandBLAS::sparse::SparseSkOp<T> S(DS, key);
         RandBLAS::sparse::fill_sparse(S);
     
@@ -518,9 +517,9 @@ class TestLSKGES : public ::testing::Test
         bool is_saso = (distname == RandBLAS::sparse::SparsityPattern::SASO);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
         RandBLAS::sparse::SparseDist Dt = {
-            .family = distname,
             .n_rows = m,
             .n_cols = d,
+            .family = distname,
             .vec_nnz = vec_nnz
         };
         RandBLAS::sparse::SparseSkOp<T> S0(Dt, key);
@@ -578,9 +577,9 @@ class TestLSKGES : public ::testing::Test
         bool is_saso = (distname == RandBLAS::sparse::SparsityPattern::SASO);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
         RandBLAS::sparse::SparseDist D = {
-            .family = distname,
             .n_rows = d,
             .n_cols = m,
+            .family = distname,
             .vec_nnz = vec_nnz
         };
         RandBLAS::sparse::SparseSkOp<T> S0(D, seed_S0);
@@ -645,9 +644,9 @@ class TestLSKGES : public ::testing::Test
         bool is_saso = (distname == RandBLAS::sparse::SparsityPattern::SASO);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
         RandBLAS::sparse::SparseDist D = {
-            .family = distname,
             .n_rows = d,
             .n_cols = m,
+            .family = distname,
             .vec_nnz = vec_nnz
         };
         RandBLAS::sparse::SparseSkOp<T> S0(D, seed_S0);
