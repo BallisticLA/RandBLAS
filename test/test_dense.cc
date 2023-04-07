@@ -33,7 +33,7 @@ class TestDenseMoments : public ::testing::Test
         std::vector<T> A(size, 0.0);
 
         // Construct the sketching operator
-        RandBLAS::dense::DenseDist D {
+        RandBLAS::dense::DenseDist D = {
             .family = dn,
             .n_rows = n_rows,
             .n_cols = n_cols
