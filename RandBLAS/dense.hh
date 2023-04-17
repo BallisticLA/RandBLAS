@@ -471,7 +471,7 @@ void lskge3(
     T *S0_ptr = S0.buff;
 
     // Dimensions of A, rather than op(A)
-    int64_t rows_A, cols_A, rows_S, cols_S;
+    int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
     if (transA == blas::Op::NoTrans) {
         rows_A = m;
         cols_A = n;
@@ -481,11 +481,11 @@ void lskge3(
     }
     // Dimensions of S, rather than op(S)
     if (transS == blas::Op::NoTrans) {
-        rows_S = d;
-        cols_S = m;
+        rows_submat_S = d;
+        cols_submat_S = m;
     } else {
-        rows_S = m;
-        cols_S = d;
+        rows_submat_S = m;
+        cols_submat_S = d;
     }
 
     // Sanity checks on dimensions and strides
@@ -493,13 +493,13 @@ void lskge3(
     if (layout == blas::Layout::ColMajor) {
         lds = S0.dist.n_rows;
         pos = i_os + lds * j_os;
-        randblas_require(lds >= rows_S);
+        randblas_require(lds >= rows_submat_S);
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= d);
     } else {
         lds = S0.dist.n_cols;
         pos = i_os * lds + j_os;
-        randblas_require(lds >= cols_S);
+        randblas_require(lds >= cols_submat_S);
         randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
     }
@@ -510,6 +510,82 @@ void lskge3(
         alpha,
         &S0_ptr[pos], lds,
         A, lda,
+        beta,
+        B, ldb
+    );
+
+    if (we_manage_memory)
+        delete [] S0_ptr;
+
+    return;
+}
+
+template <typename T, typename RNG>
+void rskge3(
+    blas::Layout layout,
+    blas::Op transA,
+    blas::Op transS,
+    int64_t m, // B is m-by-d
+    int64_t d, // op(S) is n-by-d
+    int64_t n, // op(A) is m-by-n
+    T alpha,
+    const T *A,
+    int64_t lda,
+    DenseSkOp<T,RNG> &S0,
+    int64_t i_os,
+    int64_t j_os,
+    T beta,
+    T *B,
+    int64_t ldb
+){
+    randblas_require(S0.layout == layout);
+    bool we_manage_memory = !S0.buff;
+    if (we_manage_memory) {
+        realize_full(S0);
+        S0.del_buff_on_destruct = false;
+    }
+    T *S0_ptr = S0.buff;
+
+    // Dimensions of A, rather than op(A)
+    int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
+    if (transA == blas::Op::NoTrans) {
+        rows_A = m;
+        cols_A = n;
+    } else {
+        rows_A = n;
+        cols_A = m;
+    }
+    // Dimensions of S, rather than op(S)
+    if (transS == blas::Op::NoTrans) {
+        rows_submat_S = n;
+        cols_submat_S = d;
+    } else {
+        rows_submat_S = d;
+        cols_submat_S = n;
+    }
+
+    // Sanity checks on dimensions and strides
+    int64_t lds, pos;
+    if (layout == blas::Layout::ColMajor) {
+        lds = S0.dist.n_rows;
+        pos = i_os + lds * j_os;
+        randblas_require(lds >= rows_submat_S);
+        randblas_require(lda >= rows_A);
+        randblas_require(ldb >= m);
+    } else {
+        lds = S0.dist.n_cols;
+        pos = i_os * lds + j_os;
+        randblas_require(lds >= cols_submat_S);
+        randblas_require(lda >= cols_A);
+        randblas_require(ldb >= d);
+    }
+    // Perform the sketch.
+    blas::gemm<T>(
+        layout, transA, transS,
+        m, d, n,
+        alpha,
+        A, lda,
+        &S0_ptr[pos], lds,
         beta,
         B, ldb
     );
