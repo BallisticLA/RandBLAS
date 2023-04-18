@@ -242,6 +242,7 @@ auto repeated_fisher_yates(
     int64_t *rep_ax_idxs,
     T *vals
 ) {
+    randblas_error_if(vec_nnz > vec_len);
     std::vector<int64_t> vec_work(vec_len);
     for (int64_t j = 0; j < vec_len; ++j)
         vec_work[j] = j;
@@ -835,6 +836,50 @@ void lskges(
     if (alpha != 0)
         apply_cscoo_csroo_left(alpha, layout_A, layout_B, d, n, m, S, row_offset, col_offset, A, lda, B, ldb);
     return;
+}
+
+
+template <typename T, typename RNG>
+void rskges(
+    blas::Layout layout,
+    blas::Op transA,
+    blas::Op transS,
+    int64_t m, // B is m-by-d
+    int64_t d, // op(S) is n-by-d
+    int64_t n, // op(A) is m-by-n
+    T alpha,
+    const T *A,
+    int64_t lda,
+    SparseSkOp<T,RNG> &S0,
+    int64_t i_os,
+    int64_t j_os,
+    T beta,
+    T *B,
+    int64_t ldb
+) {    
+    blas::Layout L;
+    if (layout == blas::Layout::ColMajor) {
+        L = blas::Layout::RowMajor;
+    } else {
+        L = blas::Layout::ColMajor;
+    }
+
+    blas::Op opS;
+    if (transS == blas::Op::NoTrans) {
+        opS = blas::Op::Trans;
+    } else {
+        opS = blas::Op::NoTrans;
+    }
+    auto S0t = transpose(S0);
+
+    blas::Op opA;
+    if (transA == blas::Op::NoTrans) {
+        opA = blas::Op::Trans;
+    } else {
+        opA = blas::Op::NoTrans;
+    }
+    
+    lskges(L, opA, opS, d, m, n, alpha, S0t, j_os, i_os, A, lda, beta, B, ldb);
 }
 
 } // end namespace RandBLAS::sparse_ops
