@@ -267,6 +267,7 @@ auto fill_rmat(
     int64_t dim = n_rows * n_cols;
     int64_t nit = dim / RNG::ctr_type::static_size;
     int64_t nlast = dim % RNG::ctr_type::static_size;
+}
 
 #if defined(RandBLAS_HAS_OpenMP)
     #pragma omp parallel firstprivate(c, k)
