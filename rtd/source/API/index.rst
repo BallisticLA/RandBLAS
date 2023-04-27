@@ -88,7 +88,7 @@ Helper functions for dense sketching
 
 .. doxygenfunction:: RandBLAS::dense::fill_buff
 
-.. doxygenfunction:: RandBLAS::dense::fill_skop_buff
+.. doxygenfunction:: RandBLAS::dense::realize_full
 
 
 Sparse sketching

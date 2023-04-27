@@ -44,7 +44,6 @@ type_name()
 
 class TestSparseSkOpConstruction : public ::testing::Test
 {
-    // only tests column-sparse SASOs for now.
     protected:
         std::vector<uint32_t> keys{42, 0, 1};
         std::vector<int64_t> vec_nnzs{(int64_t) 1, (int64_t) 2, (int64_t) 3, (int64_t) 7};     
@@ -81,7 +80,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
 
     virtual void proper_saso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
         RandBLAS::sparse::SparseSkOp<double> S0(
-            {RandBLAS::sparse::SparsityPattern::SASO, d, m, vec_nnzs[nnz_index]}, keys[key_index]
+            {d, m, RandBLAS::sparse::SparsityPattern::SASO, vec_nnzs[nnz_index]}, keys[key_index]
         );
        RandBLAS::sparse::fill_sparse(S0);
        if (d < m) {
@@ -93,7 +92,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
 
     virtual void proper_laso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
         RandBLAS::sparse::SparseSkOp<double> S0(
-            {RandBLAS::sparse::SparsityPattern::LASO, d, m, vec_nnzs[nnz_index]}, keys[key_index]
+            {d, m, RandBLAS::sparse::SparsityPattern::LASO, vec_nnzs[nnz_index]}, keys[key_index]
         );
         RandBLAS::sparse::fill_sparse(S0);
        if (d < m) {
@@ -184,7 +183,8 @@ template <typename T>
 void sparseskop_to_dense(
     RandBLAS::sparse::SparseSkOp<T> &S0,
     T *mat,
-    blas::Layout layout
+    blas::Layout layout,
+    bool take_abs = false
 ) {
     RandBLAS::sparse::SparseDist D = S0.dist;
     for (int64_t i = 0; i < D.n_rows * D.n_cols; ++i)
@@ -202,9 +202,101 @@ void sparseskop_to_dense(
         int64_t row = S0.rows[i];
         int64_t col = S0.cols[i];
         T val = S0.vals[i];
+        if (take_abs)
+            val = abs(val);
         mat[idx(row, col)] = val;
     }
 }
+
+template <typename T, typename RNG>
+void reference_lskges(
+    blas::Layout layout,
+    blas::Op transS,
+    blas::Op transA,
+    int64_t d, // mat(B) is d-by-n
+    int64_t n, // op(mat(A)) is m-by-n
+    int64_t m, // op(submat(S)) is d-by-m
+    T alpha,
+    RandBLAS::sparse::SparseSkOp<T,RNG> &S,
+    int64_t i_os,
+    int64_t j_os,
+    const T *A,
+    int64_t lda,
+    T beta,
+    T *B,  // expected value produced by LSKGES; compute via GEMM.
+    T *E,  // allowable floating point error; apply theory + compute by GEMM.
+    int64_t ldb
+){
+    randblas_require(d > 0);
+    randblas_require(m > 0);
+    randblas_require(n > 0);
+    std::vector<T> S_dense(S.dist.n_rows * S.dist.n_cols);
+    sparseskop_to_dense<T>(S, S_dense.data(), layout, false);
+    std::vector<T> S_dense_abs(S.dist.n_rows * S.dist.n_cols);
+    sparseskop_to_dense<T>(S, S_dense_abs.data(), layout, true);
+
+    // Dimensions of mat(A), rather than op(mat(A))
+    int64_t rows_mat_A, cols_mat_A, rows_submat_S, cols_submat_S;
+    if (transA == blas::Op::NoTrans) {
+        rows_mat_A = m;
+        cols_mat_A = n;
+    } else {
+        rows_mat_A = n;
+        cols_mat_A = m;
+    }
+    // Dimensions of submat(S), rather than op(submat(S))
+    if (transS == blas::Op::NoTrans) {
+        rows_submat_S = d;
+        cols_submat_S = m;
+    } else {
+        rows_submat_S = m;
+        cols_submat_S = d;
+    }
+    // Sanity checks on dimensions and strides
+    int64_t lds, pos, size_A, size_B;
+    if (layout == blas::Layout::ColMajor) {
+        lds = S.dist.n_rows;
+        pos = i_os + lds * j_os;
+        randblas_require(lds >= rows_submat_S);
+        randblas_require(lda >= rows_mat_A);
+        randblas_require(ldb >= d);
+        size_A = lda * (cols_mat_A - 1) + rows_mat_A;;
+        size_B = ldb * (n - 1) + d;
+    } else {
+        lds = S.dist.n_cols;
+        pos = i_os * lds + j_os;
+        randblas_require(lds >= cols_submat_S);
+        randblas_require(lda >= cols_mat_A);
+        randblas_require(ldb >= n);
+        size_A = lda * (rows_mat_A - 1) + cols_mat_A;
+        size_B = ldb * (d - 1) + n;
+    }
+
+    // Compute the reference value
+    T* S_ptr = S_dense.data();
+    blas::gemm(layout, transS, transA, d, n, m,
+        alpha, &S_ptr[pos], lds, A, lda, beta, B, ldb
+    );
+
+    // Compute the matrix needed for componentwise error bounds.
+    std::vector<T> A_abs_vec(size_A);
+    T* A_abs = A_abs_vec.data();
+    for (int64_t i = 0; i < size_A; ++i)
+        A_abs[i] = abs(A[i]);
+    if (beta != 0.0) {
+        for (int64_t i = 0; i < size_B; ++i)
+            E[i] = abs(B[i]);
+    }
+    T eps = std::numeric_limits<T>::epsilon();
+    T err_alpha = (abs(alpha) * m) * (2 * eps);
+    T err_beta = abs(beta) * eps;
+    T* S_abs_ptr = S_dense_abs.data();
+    blas::gemm(layout, transS, transA, d, n, m,
+        err_alpha, &S_abs_ptr[pos], lds, A_abs, lda, err_beta, E, ldb
+    );
+    return;
+}
+
 
 class TestLSKGES : public ::testing::Test
 {
@@ -225,9 +317,7 @@ class TestLSKGES : public ::testing::Test
         blas::Layout layout,
         int64_t key_index,
         int64_t nnz_index,
-        int threads,
-        T atol = T(10)*std::numeric_limits<T>::epsilon(),
-        T rtol = std::numeric_limits<T>::epsilon()
+        int threads
     ) {
 #if !defined (RandBLAS_HAS_OpenMP)
         UNUSED(threads);
@@ -236,21 +326,17 @@ class TestLSKGES : public ::testing::Test
 
         // construct test data: matrix A, SparseSkOp "S0", and dense representation S
         T *a = new T[m * n];
-        T *a_hat = new T[d * n]{};
-        T *S = new T[d * m];
+        T *B0 = new T[d * n]{};
         RandBLAS::util::genmat(m, n, a, a_seed);  
-        RandBLAS::sparse::SparseSkOp<T> S0({distname, d, m, vec_nnzs[nnz_index]}, keys[key_index]);
+        RandBLAS::sparse::SparseSkOp<T> S0({d, m, distname, vec_nnzs[nnz_index]}, keys[key_index]);
         RandBLAS::sparse::fill_sparse(S0);
-        sparseskop_to_dense<T>(S0, S, layout);
-        int64_t lda, ldahat, lds;
+        int64_t lda, ldb;
         if (layout == blas::Layout::RowMajor) {
             lda = n; 
-            ldahat = n;
-            lds = m;
+            ldb = n;
         } else {
             lda = m;
-            ldahat = d;
-            lds = d;
+            ldb = d;
         }
 
         // compute S*A. 
@@ -262,44 +348,32 @@ class TestLSKGES : public ::testing::Test
             layout, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
             1.0, S0, 0, 0, a, lda,
-            0.0, a_hat, ldahat 
+            0.0, B0, ldb 
         );
 #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
 #endif
 
-        // compute expected result
-        T *a_hat_expect = new T[d * n]{};
-        // ^ zero-initialize.
-        //      This should not be necessary since it first appears
-        //      in a GEMM call with "beta = 0.0". However, tests run on GitHub Actions
-        //      show that NaNs can propagate if a_hat_expect is not initialized to all
-        //      zeros. See
-        //          https://github.com/BallisticLA/RandBLAS/actions/runs/3579737699/jobs/6021220392
-        //      for a successful run with the initialization, and
-        //          https://github.com/BallisticLA/RandBLAS/actions/runs/3579714658/jobs/6021178532
-        //      for an unsuccessful run without this initialization.
-        blas::gemm<T>(
+        // compute expected result (B1) and allowable error (E)
+        T *B1 = new T[d * n]{};
+        T *E = new T[d * n]{};
+        reference_lskges<T>(
             layout, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
-            1.0, S, lds, a, lda,
-            0.0, a_hat_expect, ldahat
+            1.0, S0, 0, 0, a, lda,
+            0.0, B1, E, ldb
         );
 
         // check the result
-        RandBLAS_Testing::Util::matrices_approx_equal(
-            layout, blas::Op::NoTrans,
-            d, n,
-            a_hat, ldahat,
-            a_hat_expect, ldahat,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__,
-            atol, rtol
+        RandBLAS_Testing::Util::buffs_approx_equal<T>(
+            B0, B1, E, d * n,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
 
         delete [] a;
-        delete [] a_hat;
-        delete [] S;
-        delete [] a_hat_expect;
+        delete [] B0;
+        delete [] B1;
+        delete [] E;
     }
 
     template <typename T>
@@ -321,8 +395,7 @@ class TestLSKGES : public ::testing::Test
 
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
         RandBLAS::sparse::SparseSkOp<T> S0(
-            {RandBLAS::sparse::SparsityPattern::SASO,
-            d0, m0, vec_nnz}, seed
+            {d0, m0, RandBLAS::sparse::SparsityPattern::SASO, vec_nnz}, seed
         );
         RandBLAS::sparse::fill_sparse(S0);
         T *S0_dense = new T[d0 * m0];
@@ -363,12 +436,11 @@ class TestLSKGES : public ::testing::Test
 #endif
 
         // Check the result
-        T *S_ptr = &S0_dense[pos];
         RandBLAS_Testing::Util::matrices_approx_equal(
             layout, blas::Op::NoTrans,
             d1, m1,
             B.data(), ldb,
-            S_ptr, lds0,
+            &S0_dense[pos], lds0,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
 
@@ -387,7 +459,7 @@ class TestLSKGES : public ::testing::Test
         bool is_colmajor = (layout == blas::Layout::ColMajor);
         randblas_require(m > d);
         int64_t vec_nnz = d / 2;
-        RandBLAS::sparse::SparseDist DS = {RandBLAS::sparse::SparsityPattern::SASO, d, m, vec_nnz};
+        RandBLAS::sparse::SparseDist DS = {d, m, RandBLAS::sparse::SparsityPattern::SASO, vec_nnz};
         RandBLAS::sparse::SparseSkOp<T> S(DS, key);
         RandBLAS::sparse::fill_sparse(S);
     
@@ -415,21 +487,20 @@ class TestLSKGES : public ::testing::Test
             beta, B0.data(), ldb
         );
 
-        // compute the reference result
-        std::vector<T> S_dense(d * m);
-        sparseskop_to_dense<T>(S, S_dense.data(), layout);
-        int64_t lds = (is_colmajor) ? d : m;
-        blas::gemm(
+        // compute the reference result (B1) and error bound (E).
+        std::vector<T> E(d * m, 0.0);
+        reference_lskges<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
-            d, m, m, 
-            alpha, S_dense.data(), lds,
+            d, m, m,
+            alpha, S, 0, 0,
             A.data(), m,
-            beta, B1.data(), ldb
+            beta, B1.data(), E.data(), ldb
         );
 
-        RandBLAS_Testing::Util::buffs_approx_equal(B0.data(), B1.data(), d * m,
+        RandBLAS_Testing::Util::buffs_approx_equal(
+            B0.data(), B1.data(), E.data(), d * m,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -446,15 +517,13 @@ class TestLSKGES : public ::testing::Test
         bool is_saso = (distname == RandBLAS::sparse::SparsityPattern::SASO);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
         RandBLAS::sparse::SparseDist Dt = {
-            .family = distname,
             .n_rows = m,
             .n_cols = d,
+            .family = distname,
             .vec_nnz = vec_nnz
         };
         RandBLAS::sparse::SparseSkOp<T> S0(Dt, key);
         RandBLAS::sparse::fill_sparse(S0);
-        std::vector<T> S0_dense(m * d);
-        sparseskop_to_dense<T>(S0, S0_dense.data(), layout);
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A(m * m, 0.0);
@@ -478,6 +547,8 @@ class TestLSKGES : public ::testing::Test
         );
 
         // check that B == S.T
+        std::vector<T> S0_dense(m * d);
+        sparseskop_to_dense<T>(S0, S0_dense.data(), layout);
         RandBLAS_Testing::Util::matrices_approx_equal(
             layout, blas::Op::Trans, d, m,
             B.data(), ldb, S0_dense.data(), lds,
@@ -506,26 +577,24 @@ class TestLSKGES : public ::testing::Test
         bool is_saso = (distname == RandBLAS::sparse::SparsityPattern::SASO);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
         RandBLAS::sparse::SparseDist D = {
-            .family = distname,
             .n_rows = d,
             .n_cols = m,
+            .family = distname,
             .vec_nnz = vec_nnz
         };
         RandBLAS::sparse::SparseSkOp<T> S0(D, seed_S0);
         RandBLAS::sparse::fill_sparse(S0);
-        std::vector<T> S0_dense(m * d);
-        sparseskop_to_dense<T>(S0, S0_dense.data(), layout);
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A0(m0 * n0, 0.0);
         uint32_t seed_A0 = 42000;
         RandBLAS::dense::DenseDist DA0 = {
-            .family=RandBLAS::dense::DenseDistName::Uniform,
             .n_rows = m0,
-            .n_cols = n0
+            .n_cols = n0,
+            .family = RandBLAS::dense::DenseDistName::Uniform
         };
         RandBLAS::dense::fill_buff(A0.data(), DA0, RandBLAS::base::RNGState(seed_A0));
-        std::vector<T> B(d * n, 0.0);
+        std::vector<T> B0(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
         int64_t ldb = (is_colmajor) ? d : n;
         
@@ -539,18 +608,23 @@ class TestLSKGES : public ::testing::Test
             d, n, m,
             1.0, S0, 0, 0,
             A_ptr, lda,
-            0.0, B.data(), ldb   
+            0.0, B0.data(), ldb   
         );
 
         // Check the result
-        int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
-        std::vector<T> B_expect(d * n, 0.0);
-        blas::gemm<T>(layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        std::vector<T> B1(d * n, 0.0);
+        std::vector<T> E(d * n, 0.0);
+        reference_lskges<T>(
+            layout,
+            blas::Op::NoTrans,
+            blas::Op::NoTrans,
             d, n, m,
-            1.0, S0_dense.data(), lds, A_ptr, lda,
-            0.0, B_expect.data(), ldb
+            1.0, S0, 0, 0,
+            A_ptr, lda,
+            0.0, B1.data(), E.data(), ldb
         );
-        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), B_expect.data(), d * n,
+        RandBLAS_Testing::Util::buffs_approx_equal(
+            B0.data(), B1.data(), E.data(), d * n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -570,26 +644,24 @@ class TestLSKGES : public ::testing::Test
         bool is_saso = (distname == RandBLAS::sparse::SparsityPattern::SASO);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
         RandBLAS::sparse::SparseDist D = {
-            .family = distname,
             .n_rows = d,
             .n_cols = m,
+            .family = distname,
             .vec_nnz = vec_nnz
         };
         RandBLAS::sparse::SparseSkOp<T> S0(D, seed_S0);
         RandBLAS::sparse::fill_sparse(S0);
-        std::vector<T> S0_dense(m * d);
-        sparseskop_to_dense<T>(S0, S0_dense.data(), layout);
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> At(m * n, 0.0);
         uint32_t seed_A = 42000;
         RandBLAS::dense::DenseDist DAt = {
-            .family=RandBLAS::dense::DenseDistName::Uniform,
             .n_rows = n,
-            .n_cols = m
+            .n_cols = m,
+            .family = RandBLAS::dense::DenseDistName::Uniform
         };
         RandBLAS::dense::fill_buff(At.data(), DAt, RandBLAS::base::RNGState(seed_A));
-        std::vector<T> B(d * n, 0.0);
+        std::vector<T> B0(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DAt.n_rows : DAt.n_cols;
         int64_t ldb = (is_colmajor) ? d : n;
         
@@ -601,18 +673,21 @@ class TestLSKGES : public ::testing::Test
             d, n, m,
             1.0, S0, 0, 0,
             At.data(), lda,
-            0.0, B.data(), ldb   
+            0.0, B0.data(), ldb   
         );
 
         // Check the result
-        int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
-        std::vector<T> B_expect(d * n, 0.0);
-        blas::gemm<T>(layout, blas::Op::NoTrans, blas::Op::Trans,
+        std::vector<T> B1(d * n, 0.0);
+        std::vector<T> E(d * n, 0.0);
+        reference_lskges<T>(
+            layout, blas::Op::NoTrans, blas::Op::Trans,
             d, n, m,
-            1.0, S0_dense.data(), lds, At.data(), lda,
-            0.0, B_expect.data(), ldb
+            1.0, S0, 0, 0,
+            At.data(), lda,
+            0.0, B1.data(), E.data(), ldb
         );
-        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), B_expect.data(), d * n,
+        RandBLAS_Testing::Util::buffs_approx_equal(
+            B0.data(), B1.data(), E.data(), d * n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -629,25 +704,13 @@ class TestLSKGES : public ::testing::Test
 
 TEST_F(TestLSKGES, sketch_saso_rowMajor_oneThread)
 {
-    // TODO: this test fails on MacOS w/ Apple Clang compiler but not with
-    // brew'd Clang ?? even w a relTol of 500*epsilon it fails
-
-    for (int64_t k_idx : {0, 1, 2})
-    {
-        for (int64_t nz_idx: {4, 1, 2, 3, 0})
-        {
-            auto deps = std::numeric_limits<double>::epsilon();
-
+    for (int64_t k_idx : {0, 1, 2}) {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
             apply<double>(RandBLAS::sparse::SparsityPattern::SASO,
-                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1,
-                10*deps, 10*deps
+                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1
             );
-
-            auto feps = std::numeric_limits<float>::epsilon();
-
             apply<float>(RandBLAS::sparse::SparsityPattern::SASO,
-                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1,
-                10*feps, 10*feps
+                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1
             );
         }
     }
@@ -656,10 +719,8 @@ TEST_F(TestLSKGES, sketch_saso_rowMajor_oneThread)
 
 TEST_F(TestLSKGES, sketch_laso_rowMajor_oneThread)
 {
-    for (int64_t k_idx : {0, 1, 2})
-    {
-        for (int64_t nz_idx: {4, 1, 2, 3, 0})
-        {
+    for (int64_t k_idx : {0, 1, 2}) {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
             apply<double>(RandBLAS::sparse::SparsityPattern::LASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
             apply<float>(RandBLAS::sparse::SparsityPattern::LASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
         }
@@ -669,22 +730,13 @@ TEST_F(TestLSKGES, sketch_laso_rowMajor_oneThread)
 #if defined (RandBLAS_HAS_OpenMP)
 TEST_F(TestLSKGES, sketch_saso_rowMajor_FourThreads)
 {
-    for (int64_t k_idx : {0, 1, 2})
-    {
-        for (int64_t nz_idx: {4, 1, 2, 3, 0})
-        {
-            auto deps = std::numeric_limits<double>::epsilon();
-
+    for (int64_t k_idx : {0, 1, 2}) {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
             apply<double>(RandBLAS::sparse::SparsityPattern::SASO,
-                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4,
-                10*deps, 10*deps
+                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4
             );
-
-            auto feps = std::numeric_limits<float>::epsilon();
-
             apply<float>(RandBLAS::sparse::SparsityPattern::SASO,
-                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4,
-                10*feps, 10*feps
+                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4
             );
         }
     }
@@ -693,10 +745,8 @@ TEST_F(TestLSKGES, sketch_saso_rowMajor_FourThreads)
 
 TEST_F(TestLSKGES, sketch_saso_colMajor_oneThread)
 {
-    for (int64_t k_idx : {0, 1, 2})
-    {
-        for (int64_t nz_idx: {4, 1, 2, 3, 0})
-        {
+    for (int64_t k_idx : {0, 1, 2}) {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
             apply<double>(RandBLAS::sparse::SparsityPattern::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
             apply<float>(RandBLAS::sparse::SparsityPattern::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
@@ -705,10 +755,8 @@ TEST_F(TestLSKGES, sketch_saso_colMajor_oneThread)
 
 TEST_F(TestLSKGES, sketch_laso_colMajor_oneThread)
 {
-    for (int64_t k_idx : {0, 1, 2})
-    {
-        for (int64_t nz_idx: {4, 1, 2, 3, 0})
-        {
+    for (int64_t k_idx : {0, 1, 2}) {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
             apply<double>(RandBLAS::sparse::SparsityPattern::LASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
             apply<float>(RandBLAS::sparse::SparsityPattern::LASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
@@ -718,10 +766,8 @@ TEST_F(TestLSKGES, sketch_laso_colMajor_oneThread)
 #if defined (RandBLAS_HAS_OpenMP)
 TEST_F(TestLSKGES, sketch_saso_colMajor_fourThreads)
 {
-    for (int64_t k_idx : {0, 1, 2})
-    {
-        for (int64_t nz_idx: {4, 1, 2, 3, 0})
-        {
+    for (int64_t k_idx : {0, 1, 2}) {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
             apply<double>(RandBLAS::sparse::SparsityPattern::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 4);
             apply<float>(RandBLAS::sparse::SparsityPattern::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 4);
         }
@@ -741,25 +787,13 @@ TEST_F(TestLSKGES, sketch_saso_colMajor_fourThreads)
 
 TEST_F(TestLSKGES, lift_saso_rowMajor_oneThread)
 {
-    for (int64_t k_idx : {0, 1, 2})
-    {
-        for (int64_t nz_idx: {4, 1, 2, 3, 0})
-        {
-            // TODO: this test fails on MacOS w/ Apple Clang compiler
-            // but not with brew'd Clang ?? increase relTol by 4 resolves
-
-            auto deps = std::numeric_limits<double>::epsilon();
-
+    for (int64_t k_idx : {0, 1, 2}) {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
             apply<double>(RandBLAS::sparse::SparsityPattern::SASO,
-                201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1,
-                10*deps, 4*deps
+                201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1
             );
-
-            auto feps = std::numeric_limits<float>::epsilon();
-
             apply<float>(RandBLAS::sparse::SparsityPattern::SASO,
-                201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1,
-                10*feps, 4*feps
+                201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1
             );
         }
     }
@@ -767,10 +801,8 @@ TEST_F(TestLSKGES, lift_saso_rowMajor_oneThread)
 
 TEST_F(TestLSKGES, lift_laso_rowMajor_oneThread)
 {
-    for (int64_t k_idx : {0, 1, 2})
-    {
-        for (int64_t nz_idx: {4, 1, 2, 3, 0})
-        {
+    for (int64_t k_idx : {0, 1, 2}) {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
             apply<double>(RandBLAS::sparse::SparsityPattern::LASO, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
             apply<float>(RandBLAS::sparse::SparsityPattern::LASO, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
         }
@@ -779,10 +811,8 @@ TEST_F(TestLSKGES, lift_laso_rowMajor_oneThread)
 
 TEST_F(TestLSKGES, lift_saso_colMajor_oneThread)
 {
-    for (int64_t k_idx : {0, 1, 2})
-    {
-        for (int64_t nz_idx: {4, 1, 2, 3, 0})
-        {
+    for (int64_t k_idx : {0, 1, 2}) {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
             apply<double>(RandBLAS::sparse::SparsityPattern::SASO, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
             apply<float>(RandBLAS::sparse::SparsityPattern::SASO, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
@@ -791,10 +821,8 @@ TEST_F(TestLSKGES, lift_saso_colMajor_oneThread)
 
 TEST_F(TestLSKGES, lift_laso_colMajor_oneThread)
 {
-    for (int64_t k_idx : {0, 1, 2})
-    {
-        for (int64_t nz_idx: {4, 1, 2, 3, 0})
-        {
+    for (int64_t k_idx : {0, 1, 2}) {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
             apply<double>(RandBLAS::sparse::SparsityPattern::LASO, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
             apply<float>(RandBLAS::sparse::SparsityPattern::LASO, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }

@@ -44,20 +44,20 @@ enum class SparsityPattern : char {
 struct SparseDist {
 
     // ---------------------------------------------------------------------------
-    ///  Constrains the sparsity pattern of matrices drawn from this distribution. 
-    ///
-    ///  The default pattern is (SASO) chosen so that sketches are more likely to
-    ///  contain useful geometric information, without making assumptions about
-    ///  the data being sketched.
-    const SparsityPattern family = SparsityPattern::SASO;
-
-    // ---------------------------------------------------------------------------
     ///  Matrices drawn from this distribution have this many rows.
     const int64_t n_rows;
 
     // ---------------------------------------------------------------------------
     ///  Matrices drawn from this distribution have this many columns.
     const int64_t n_cols;
+
+    // ---------------------------------------------------------------------------
+    ///  Constrains the sparsity pattern of matrices drawn from this distribution. 
+    ///
+    ///  The default pattern is (SASO) chosen so that sketches are more likely to
+    ///  contain useful geometric information, without making assumptions about
+    ///  the data being sketched.
+    const SparsityPattern family = SparsityPattern::SASO;
 
     // ---------------------------------------------------------------------------
     ///  If this is a distribution over SASOs, then matrices sampled from this
@@ -648,9 +648,9 @@ template <typename SKOP>
 static
 auto transpose(SKOP const& S) {
     SparseDist dist = {
-        .family = S.dist.family,
         .n_rows = S.dist.n_cols,
         .n_cols = S.dist.n_rows,
+        .family = S.dist.family,
         .vec_nnz = S.dist.vec_nnz
     };
     SKOP St(dist, S.seed_state, S.cols, S.rows, S.vals);

@@ -85,16 +85,16 @@ enum class DenseDistName : char {
 ///
 struct DenseDist {
     // ---------------------------------------------------------------------------
-    ///  The distribution used for the entries of the sketching operator.
-    const DenseDistName family = DenseDistName::Gaussian;
-
-    // ---------------------------------------------------------------------------
     ///  Matrices drawn from this distribution have this many rows.
     const int64_t n_rows;
 
     // ---------------------------------------------------------------------------
     ///  Matrices drawn from this distribution have this many columns.
     const int64_t n_cols;
+
+    // ---------------------------------------------------------------------------
+    ///  The distribution used for the entries of the sketching operator.
+    const DenseDistName family = DenseDistName::Gaussian;
 };
 
 // =============================================================================
@@ -129,16 +129,8 @@ struct DenseSkOp {
     ///  full sketching operator has been sampled.
     base::RNGState<RNG> next_state;
 
-    // ---------------------------------------------------------------------------
-    /// We need workspace to store a representation of the sampled sketching
-    /// operator. This member indicates who is responsible for allocating and 
-    /// deallocating this workspace. If own_memory is true, then 
-    /// RandBLAS is responsible.
-    const bool own_memory = true;
-
-    T *buff = nullptr;       // memory
-    bool filled = false;     // a flag that indicates if the memory was initialized
-    bool persistent = true;  // explanation ...
+    T *buff = nullptr;                         // memory
+    bool del_buff_on_destruct = false;         // only applies if realize_full has been called.
 
     const blas::Layout layout = blas::Layout::ColMajor; ///< matrix storage order
 
@@ -153,8 +145,6 @@ struct DenseSkOp {
         DenseDist dist_,
         RNGState<RNG> const& state_,
         T *buff_,
-        bool filled_,
-        bool persistent_,
         blas::Layout layout_
     );
 
@@ -163,10 +153,8 @@ struct DenseSkOp {
         DenseDist dist,
         uint32_t key,
         T *buff,
-        bool filled,
-        bool persistent,
         blas::Layout layout
-    ) : DenseSkOp(dist, RNGState<RNG>(key), buff, filled, persistent, layout) {};
+    ) : DenseSkOp(dist, RNGState<RNG>(key), buff, layout) {};
 
     //  Convenience constructor (a wrapper)
     DenseSkOp(
@@ -175,11 +163,8 @@ struct DenseSkOp {
         int64_t n_cols,
         uint32_t key,
         T *buff,
-        bool filled,
-        bool persistent,
         blas::Layout layout
-    ) : DenseSkOp(DenseDist{family, n_rows, n_cols}, RNGState<RNG>(key),
-                  buff, filled, persistent, layout) {};
+    ) : DenseSkOp(DenseDist{n_rows, n_cols, family}, RNGState<RNG>(key), buff, layout) {};
 
     // Destructor
     ~DenseSkOp();
@@ -189,40 +174,22 @@ template <typename T, typename RNG>
 DenseSkOp<T,RNG>::DenseSkOp(
     DenseDist dist_,
     RNGState<RNG> const& state_,
-    T *buff_,           
-    bool filled_,       
-    bool persistent_,   
+    T *buff_,            
     blas::Layout layout_ 
 ) : // variable definitions
     dist(dist_),
     seed_state(state_),
     next_state{},
-    own_memory(!buff_),
     buff(buff_),
-    filled(filled_),
-    persistent(persistent_),
     layout(layout_)
 {   // sanity checks
     randblas_require(this->dist.n_rows > 0);
     randblas_require(this->dist.n_cols > 0);
-    // Initialization logic
-    //
-    //      own_memory is a bool that's true iff buff_ is nullptr.
-    //
-    if (this->own_memory) {
-        randblas_require(!this->filled);
-        // We own the rights to the memory, and the memory
-        // hasn't been allocated, so there's no way that the memory exists yet.
-    } else {
-        randblas_require(this->persistent);
-        // If the user gives us any memory to work with, then we cannot take
-        // responsibility for deallocating on exit from LSKGE3 / RSKGE3.
-    }
 }
 
 template <typename T, typename RNG>
 DenseSkOp<T,RNG>::~DenseSkOp() {
-    if (this->own_memory) {
+    if (this->del_buff_on_destruct) {
         delete [] this->buff;
     }
 }
@@ -350,25 +317,13 @@ auto fill_buff(
 }
 
 template <typename SKOP>
-auto fill_skop_buff(
-    SKOP &S0
+void realize_full(
+    SKOP &S
 ) {
-    auto S0_ptr = S0.buff;
-    if (S0_ptr == nullptr) {
-        S0_ptr = new typename SKOP::buffer_type [S0.dist.n_rows * S0.dist.n_cols];
-        S0.next_state = fill_buff(S0_ptr, S0.dist, S0.seed_state);
-        if (S0.persistent) {
-            S0.buff = S0_ptr;
-            S0.filled = true;
-        }
-        return S0_ptr;
-    } else if (!S0.filled) {
-        S0.next_state = fill_buff(S0_ptr, S0.dist, S0.seed_state);
-        S0.filled = true;
-        return S0_ptr;
-    } else {
-        return S0_ptr;
-    }
+    randblas_require(!S.buff);
+    S.buff = new typename SKOP::buffer_type[S.dist.n_rows * S.dist.n_cols];
+    S.next_state = fill_buff(S.buff, S.dist, S.seed_state);
+    S.del_buff_on_destruct = true;
 }
 
 // =============================================================================
@@ -501,7 +456,20 @@ void lskge3(
 ){
     randblas_require(S0.layout == layout);
 
-    auto S0_ptr = fill_skop_buff(S0);
+    bool we_manage_memory = !S0.buff;
+    // If S0.buff hasn't been set yet, then this function bears all responsibility
+    // for memory management in representing S0. In particular, we need to allocate
+    // and delete memory.
+
+    if (we_manage_memory) {
+        // We use a naive implementation: generate the entire sketching
+        // operator like the user would with realize_full. But since 
+        // realize_full sets a flag to only delete the buffer on 
+        // destruction of the DenseSkOp, we need to override that flag.
+        realize_full(S0);
+        S0.del_buff_on_destruct = false;
+    }
+    T *S0_ptr = S0.buff;
 
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_S, cols_S;
@@ -546,6 +514,10 @@ void lskge3(
         beta,
         B, ldb
     );
+
+    if (we_manage_memory)
+        delete [] S0_ptr;
+
     return;
 }
 

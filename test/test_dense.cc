@@ -33,10 +33,10 @@ class TestDenseMoments : public ::testing::Test
         std::vector<T> A(size, 0.0);
 
         // Construct the sketching operator
-        RandBLAS::dense::DenseDist D {
-            .family = dn,
+        RandBLAS::dense::DenseDist D = {
             .n_rows = n_rows,
-            .n_cols = n_cols
+            .n_cols = n_cols,
+            .family = dn
         };
         auto state = RandBLAS::base::RNGState(key);
         auto next_state = RandBLAS::dense::fill_buff(A.data(), D, state);
@@ -100,24 +100,18 @@ class TestLSKGE3 : public ::testing::Test
     ) {
         // Define the distribution for S0.
         RandBLAS::dense::DenseDist D = {
-            .family = RandBLAS::dense::DenseDistName::Gaussian,
             .n_rows = d,
-            .n_cols = m
+            .n_cols = m,
+            .family = RandBLAS::dense::DenseDistName::Gaussian
         };
 
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> *S0_ptr;
-        std::vector<T> buff; // awkward.
-        if (preallocate) {
-            buff.resize(d * m, 0.0);
-            S0_ptr = new RandBLAS::dense::DenseSkOp(
-                D, seed, buff.data(), false, true, layout
-            );
-        } else {
-            S0_ptr = new RandBLAS::dense::DenseSkOp(
-                D, seed, buff.data(), false, true, layout
-            );
-        }
+        // Create a copy that we always realize explicitly.
+        RandBLAS::dense::DenseSkOp<T> S0(D, seed, NULL, layout);
+        if (preallocate)
+            RandBLAS::dense::realize_full(S0);
+        RandBLAS::dense::DenseSkOp<T> S0_ref(D, seed, NULL, layout);
+        RandBLAS::dense::realize_full(S0_ref);
 
         // define a matrix to be sketched, and create workspace for sketch.
         bool is_colmajor = layout == blas::Layout::ColMajor;
@@ -130,21 +124,18 @@ class TestLSKGE3 : public ::testing::Test
 
         // Perform the sketch
         RandBLAS::dense::lskge3<T>(
-            (*S0_ptr).layout,
+            S0.layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, m, m,
-            1.0, *S0_ptr, 0, 0, A.data(), lda,
+            1.0, S0, 0, 0, A.data(), lda,
             0.0, B.data(), ldb
         );
 
         // check the result
-        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), (*S0_ptr).buff, d*m,
+        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), S0_ref.buff, d*m,
              __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
-
-        // free up resources
-        delete S0_ptr;
     }
 
     template <typename T>
@@ -156,15 +147,14 @@ class TestLSKGE3 : public ::testing::Test
     ) {
         // Define the distribution for S0.
         RandBLAS::dense::DenseDist Dt = {
-            .family=RandBLAS::dense::DenseDistName::Gaussian,
             .n_rows = m,
-            .n_cols = d
+            .n_cols = d,
+            .family = RandBLAS::dense::DenseDistName::Gaussian
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0(Dt, seed,
-            NULL, false, true, layout
-        );
-         bool is_colmajor = layout == blas::Layout::ColMajor;
+        RandBLAS::dense::DenseSkOp<T> S0(Dt, seed, NULL, layout);
+        RandBLAS::dense::realize_full(S0);
+        bool is_colmajor = layout == blas::Layout::ColMajor;
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A(m * m, 0.0);
@@ -211,14 +201,13 @@ class TestLSKGE3 : public ::testing::Test
 
         // Define the distribution for S0.
         RandBLAS::dense::DenseDist D = {
-            .family = RandBLAS::dense::DenseDistName::Gaussian,
             .n_rows = d0,
-            .n_cols = m0
+            .n_cols = m0,
+            .family = RandBLAS::dense::DenseDistName::Gaussian
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0(D, seed,
-            NULL, false, true, layout
-        );
+        RandBLAS::dense::DenseSkOp<T> S0(D, seed, NULL,  layout);
+        RandBLAS::dense::realize_full(S0);
         int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
 
         // define a matrix to be sketched, and create workspace for sketch.
@@ -267,14 +256,13 @@ class TestLSKGE3 : public ::testing::Test
 
         // Define the distribution for S0.
         RandBLAS::dense::DenseDist D = {
-            .family = RandBLAS::dense::DenseDistName::Gaussian,
             .n_rows = d,
-            .n_cols = m
+            .n_cols = m,
+            .family = RandBLAS::dense::DenseDistName::Gaussian
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0(D, seed_S0,
-            NULL, false, true, layout
-        );
+        RandBLAS::dense::DenseSkOp<T> S0(D, seed_S0, NULL, layout);
+        RandBLAS::dense::realize_full(S0);
         bool is_colmajor = layout == blas::Layout::ColMajor;
 
         // define a matrix to be sketched, and create workspace for sketch.
