@@ -97,9 +97,10 @@ void buffs_approx_equal(
         T actual_err = abs(actual_ptr[i] - expect_ptr[i]);
         T allowed_err = bounds_ptr[i];
         if (actual_err > allowed_err) {
-            FAIL() << std::endl << file_name << ":" << line_no << std::endl
-                    << test_name << std::endl << "Test failed at index "
-                    << i << oss.str() << std::endl;
+            FAIL() << std::endl << "\t" <<  file_name << ":" << line_no << std::endl
+                    << "\t" << test_name << std::endl << "\tTest failed at index "
+                    << i << ".\n\t| (" << actual_ptr[i] << ") - (" << expect_ptr[i] << ") | "
+                    << " > " << allowed_err << oss.str() << std::endl;
             oss.str("");
         }
     }

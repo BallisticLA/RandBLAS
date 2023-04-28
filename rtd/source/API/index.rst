@@ -76,6 +76,9 @@ Essentials of dense sketching
 .. doxygenfunction:: RandBLAS::dense::lskge3
    :project: RandBLAS
 
+.. doxygenfunction:: RandBLAS::dense::rskge3
+   :project: RandBLAS
+
 Advanced aspects of dense sketching
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -94,9 +97,7 @@ Helper functions for dense sketching
 Sparse sketching
 ----------------
 
-So, you want to sketch a data matrix with a random sparse operator, do you?
-
-Well, you'll need to do four things.
+Sketching a dense data matrix with a random sparse sketching operator has four steps.
   0. Get your hands on an RNGState :math:`\texttt{state}`.
   1. Define a distribution :math:`\mathcal{D}` over sparse matrices.
   2. Using :math:`\texttt{state}`, sample a sketching operator :math:`S` from :math:`\mathcal{D}`.
@@ -118,6 +119,9 @@ Essentials of sparse sketching
    :members: 
 
 .. doxygenfunction:: RandBLAS::sparse::lskges
+   :project: RandBLAS
+
+.. doxygenfunction:: RandBLAS::sparse::rskges
    :project: RandBLAS
 
 Advanced aspects of sparse sketching

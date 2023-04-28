@@ -228,6 +228,24 @@ static bool has_fixed_nnz_per_col(
     }
 }
 
+template <typename SKOP>
+static int64_t nnz(
+    SKOP const& S0
+) {
+    bool saso = S0.dist.family == SparsityPattern::SASO;
+    bool wide = S0.dist.n_rows < S0.dist.n_cols;
+    if (saso & wide) {
+        return S0.dist.vec_nnz * S0.dist.n_cols;
+    } else if (saso & (!wide)) {
+        return S0.dist.vec_nnz * S0.dist.n_rows;
+    } else if (wide & (!saso)) {
+        return S0.dist.vec_nnz * S0.dist.n_rows;
+    } else {
+        // tall LASO
+        return S0.dist.vec_nnz * S0.dist.n_cols;
+    }
+}
+
 // =============================================================================
 /// WARNING: this function is not part of the public API.
 ///
@@ -242,6 +260,7 @@ auto repeated_fisher_yates(
     int64_t *rep_ax_idxs,
     T *vals
 ) {
+    randblas_error_if(vec_nnz > vec_len);
     std::vector<int64_t> vec_work(vec_len);
     for (int64_t j = 0; j < vec_len; ++j)
         vec_work[j] = j;
@@ -544,50 +563,32 @@ static void apply_cscoo_csroo_left(
     T *B,
     int64_t ldb
 ) {
-    int64_t vec_nnz = S0.dist.vec_nnz;
-    int64_t nnz;
-    int64_t *S_rows, *S_cols;
-    T *S_vals;
+    int64_t S_nnz;
+    int64_t S0_nnz = nnz(S0);
+    std::vector<int64_t> S_rows(S0_nnz, 0.0);
+    std::vector<int64_t> S_cols(S0_nnz, 0.0);
+    std::vector<T> S_vals(S0_nnz, 0.0);
 
-    bool use_S0_memory = false;
-    if (has_fixed_nnz_per_col(S0)) {
-        bool S_fixed_nnz_per_col = (row_offset == 0) && (d == S0.dist.n_rows);
-        use_S0_memory = S_fixed_nnz_per_col && (col_offset == 0) && (alpha == 1.0);
-        // ^ If col_offset is nonzero, then we need to make an altered 
-        //   version of S0.cols that shifts all entries by -col_offset.
-        if (use_S0_memory) {
-            S_rows = S0.rows;
-            S_cols = S0.cols;
-            S_vals = S0.vals;
-            // we set nnz in a moment.
-        } else {
-            S_rows = new int64_t[m * vec_nnz]{};
-            S_cols = new int64_t[m * vec_nnz]{};
-            S_vals = new       T[m * vec_nnz]{};
-            nnz = filter_regular_cscoo<T>(
-                S0.rows, S0.cols, S0.vals, vec_nnz,
-                col_offset, col_offset + m,
-                row_offset, row_offset + d,
-                S_rows, S_cols, S_vals
-            );
-            if (alpha != 1.0)
-                blas::scal<T>(nnz, alpha, S_vals, 1);
-        }
-        if (S_fixed_nnz_per_col)
-            nnz = -vec_nnz;
-    } else {
-        // We have to use new memory, because we need the CSCOO representation.
-        S_rows = new int64_t[d * vec_nnz]{};
-        S_cols = new int64_t[d * vec_nnz]{};
-        S_vals = new       T[d * vec_nnz]{};
-        nnz = filter_and_convert_regular_csroo_to_cscoo<T>(
-            S0.rows, S0.cols, S0.vals, vec_nnz,
+    bool S0_fixed_nnz_per_col = has_fixed_nnz_per_col(S0);
+    bool S_fixed_nnz_per_col = S0_fixed_nnz_per_col && (row_offset == 0) && (d == S0.dist.n_rows);
+
+    if (S0_fixed_nnz_per_col) {
+        S_nnz = filter_regular_cscoo<T>(
+            S0.rows, S0.cols, S0.vals, S0.dist.vec_nnz,
             col_offset, col_offset + m,
             row_offset, row_offset + d,
-            S_rows, S_cols, S_vals
+            S_rows.data(), S_cols.data(), S_vals.data()
         );
-        blas::scal(nnz, alpha, S_vals, 1);
+    } else {
+        S_nnz = filter_and_convert_regular_csroo_to_cscoo<T>(
+            S0.rows, S0.cols, S0.vals, S0.dist.vec_nnz,
+            col_offset, col_offset + m,
+            row_offset, row_offset + d,
+            S_rows.data(), S_cols.data(), S_vals.data()
+        );
     }
+    blas::scal<T>(S_nnz, alpha, S_vals.data(), 1);
+
     // Once we have (S_rows, S_cols, S_vals) in the format ensured
     // by the functions above, we apply the resulting sparse matrix "S"
     // to the left of A to get B = S*A.
@@ -611,6 +612,10 @@ static void apply_cscoo_csroo_left(
         B_intra_col_stride = ldb;
     }
 
+    if (S_fixed_nnz_per_col) {
+        S_nnz = -S0.dist.vec_nnz; // this value in interpreted differently when negative.
+    }
+
     #pragma omp parallel default(shared)
     {
         const T *A_col = nullptr;
@@ -622,15 +627,9 @@ static void apply_cscoo_csroo_left(
             apply_cscoo_submat_to_vector_from_left<T>(
                 A_col, A_intra_col_stride,
                 B_col, B_intra_col_stride,
-                S_rows, S_cols, S_vals, m, nnz
+                S_rows.data(), S_cols.data(), S_vals.data(), m, S_nnz
             );
         }
-    }
-
-    if (!use_S0_memory) {
-        delete [] S_rows;
-        delete [] S_cols;
-        delete [] S_vals;
     }
     return;
 }
@@ -795,46 +794,189 @@ void lskges(
         auto St = transpose(S);
         lskges(
             layout, blas::Op::NoTrans, transA,
-            d, m, n, alpha, St, col_offset, row_offset,
+            d, n, m, alpha, St, col_offset, row_offset,
             A, lda, beta, B, ldb
         );
         return; 
     }
     // Below this point, we can assume S is not transposed.
+    randblas_require(S.dist.n_rows >= d);
+    randblas_require(S.dist.n_cols >= m);
 
     // Dimensions of A, rather than \op(A)
     blas::Layout layout_B = layout;
-    blas::Layout layout_A;
+    blas::Layout pretend_layout_A;
     int64_t rows_A, cols_A;
     if (transA == blas::Op::NoTrans) {
         rows_A = m;
         cols_A = n;
-        layout_A = layout;
+        pretend_layout_A = layout;
     } else {
         rows_A = n;
         cols_A = m;
-        layout_A = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : blas::Layout::ColMajor;
-        // ^ Lie.
+        pretend_layout_A = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : blas::Layout::ColMajor;
     }
 
     // Check dimensions and compute B = beta * B.
-    //      Note: both A and B are checked based on "layout"; A is *not* checked on layout_A.
+    //      Note: both A and B are checked based on "layout"; A is *not* checked on pretend_layout_A.
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= d);
         for (int64_t i = 0; i < n; ++i)
             RandBLAS::util::safe_scal(d, beta, &B[i*ldb], 1);
     } else {
-        randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
+        randblas_require(lda >= cols_A);
         for (int64_t i = 0; i < d; ++i)
             RandBLAS::util::safe_scal(n, beta, &B[i*ldb], 1);
     }
 
     // Perform the sketch
     if (alpha != 0)
-        apply_cscoo_csroo_left(alpha, layout_A, layout_B, d, n, m, S, row_offset, col_offset, A, lda, B, ldb);
+        apply_cscoo_csroo_left(alpha, pretend_layout_A, layout_B, d, n, m, S, row_offset, col_offset, A, lda, B, ldb);
     return;
+}
+
+
+// =============================================================================
+/// RSKGES: Perform a GEMM-like operation
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     \mat(B) = \alpha \cdot \underbrace{\op(\mat(A))}_{m \times n} \cdot \underbrace{\op(\submat(S))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
+/// @endverbatim
+/// where \math{\alpha} and \math{\beta} are real scalars, \math{\op(X)} either returns a matrix \math{X}
+/// or its transpose, and \math{S} is a sparse sketching operator.
+/// 
+/// @verbatim embed:rst:leading-slashes
+/// What are :math:`\mat(A)` and :math:`\mat(B)`?
+///     Their shapes are defined implicitly by :math:`(m, d, n, \transA)`.
+///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
+///     and "layout", following the same convention as BLAS.
+///
+/// What is :math:`\submat(S)`?
+///     Its shape is defined implicitly by :math:`(\transS, n, d)`.
+///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
+///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
+///     appears at index :math:`(\texttt{i_os}, \texttt{j_os})` of :math:`{S}`.
+/// @endverbatim
+/// @param[in] layout
+///     Layout::ColMajor or Layout::RowMajor
+///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
+///
+/// @param[in] transA
+///      - If \math{\transA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
+///      - If \math{\transA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+///
+/// @param[in] transS
+///      - If \math{\transS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
+///      - If \math{\transS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
+///
+/// @param[in] m
+///     A nonnegative integer.
+///     - The number of rows in \math{\mat(B)}.
+///     - The number of rows in \math{\op(\mat(A))}.
+///
+/// @param[in] d
+///     A nonnegative integer.
+///     - The number of columns in \math{\mat(B)}
+///     - The number of columns in \math{\op(\mat(S))}.
+///
+/// @param[in] n
+///     A nonnegative integer.
+///     - The number of columns in \math{\op(\mat(A))}
+///     - The number of rows in \math{\op(\submat(S))}.
+///
+/// @param[in] alpha
+///     A real scalar.
+///     - If zero, then \math{A} is not accessed.
+///
+/// @param[in] A
+///     Pointer to a 1D array of real scalars.
+///     - Defines \math{\mat(A)}.
+///
+/// @param[in] lda
+///     A nonnegative integer.
+///     * Leading dimension of \math{\mat(A)} when reading from \math{A}.
+///     * If layout == ColMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i + j \cdot \lda].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a column in \math{\mat(A)}.
+///     * If layout == RowMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i \cdot \lda + j].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a row in \math{\mat(A)}.
+///
+/// @param[in] S
+///    A SparseSkOp object.
+///    - Defines \math{\submat(S)}.
+///
+/// @param[in] i_os
+///     A nonnegative integer.
+///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_os}, :]}.
+///
+/// @param[in] j_os
+///     A nonnnegative integer.
+///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_os}]}. 
+///
+/// @param[in] beta
+///     A real scalar.
+///     - If zero, then \math{B} need not be set on input.
+///
+/// @param[in, out] B
+///    Pointer to 1D array of real scalars.
+///    - On entry, defines \math{\mat(B)}
+///      on the RIGHT-hand side of \math{(\star)}.
+///    - On exit, defines \math{\mat(B)}
+///      on the LEFT-hand side of \math{(\star)}.
+///
+/// @param[in] ldb
+///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
+///    - Refer to documentation for \math{\lda} for details. 
+///
+template <typename T, typename RNG>
+void rskges(
+    blas::Layout layout,
+    blas::Op transA,
+    blas::Op transS,
+    int64_t m, // B is m-by-d
+    int64_t d, // op(S) is n-by-d
+    int64_t n, // op(A) is m-by-n
+    T alpha,
+    const T *A,
+    int64_t lda,
+    SparseSkOp<T,RNG> &S0,
+    int64_t i_os,
+    int64_t j_os,
+    T beta,
+    T *B,
+    int64_t ldb
+) { 
+    //
+    // Compute B = op(A) op(submat(S)) by reduction to LSKGES. We start with
+    //
+    //      B^T = op(submat(S))^T op(A)^T.
+    //
+    // Then we interchange the operator "op(*)" in op(A) and (*)^T:
+    //
+    //      B^T = op(submat(S))^T op(A^T).
+    //
+    // We tell LSKGES to process (B^T) and (A^T) in the opposite memory layout
+    // compared to the layout for (A, B).
+    // 
+    using blas::Layout;
+    using blas::Op;
+    auto trans_transS = (transS == Op::NoTrans) ? Op::Trans : Op::NoTrans;
+    auto trans_layout = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
+    lskges(
+        trans_layout, trans_transS, transA,
+        d, m, n, alpha, S0, i_os, j_os, A, lda, beta, B, ldb
+    );
 }
 
 } // end namespace RandBLAS::sparse_ops

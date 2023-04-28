@@ -471,7 +471,7 @@ void lskge3(
     T *S0_ptr = S0.buff;
 
     // Dimensions of A, rather than op(A)
-    int64_t rows_A, cols_A, rows_S, cols_S;
+    int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
     if (transA == blas::Op::NoTrans) {
         rows_A = m;
         cols_A = n;
@@ -481,11 +481,11 @@ void lskge3(
     }
     // Dimensions of S, rather than op(S)
     if (transS == blas::Op::NoTrans) {
-        rows_S = d;
-        cols_S = m;
+        rows_submat_S = d;
+        cols_submat_S = m;
     } else {
-        rows_S = m;
-        cols_S = d;
+        rows_submat_S = m;
+        cols_submat_S = d;
     }
 
     // Sanity checks on dimensions and strides
@@ -493,13 +493,13 @@ void lskge3(
     if (layout == blas::Layout::ColMajor) {
         lds = S0.dist.n_rows;
         pos = i_os + lds * j_os;
-        randblas_require(lds >= rows_S);
+        randblas_require(lds >= rows_submat_S);
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= d);
     } else {
         lds = S0.dist.n_cols;
         pos = i_os * lds + j_os;
-        randblas_require(lds >= cols_S);
+        randblas_require(lds >= cols_submat_S);
         randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
     }
@@ -510,6 +510,183 @@ void lskge3(
         alpha,
         &S0_ptr[pos], lds,
         A, lda,
+        beta,
+        B, ldb
+    );
+
+    if (we_manage_memory)
+        delete [] S0_ptr;
+
+    return;
+}
+
+// =============================================================================
+/// RSKGE3: Perform a GEMM-like operation
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     \mat(B) = \alpha \cdot \underbrace{\op(\mat(A))}_{m \times n} \cdot \underbrace{\op(\submat(S))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
+/// @endverbatim
+/// where \math{\alpha} and \math{\beta} are real scalars, \math{\op(X)} either returns a matrix \math{X}
+/// or its transpose, and \math{S} is a sketching operator that takes Level 3 BLAS effort to apply.
+/// 
+/// @verbatim embed:rst:leading-slashes
+/// What are :math:`\mat(A)` and :math:`\mat(B)`?
+///     Their shapes are defined implicitly by :math:`(m, d, n, \transA)`.
+///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
+///     and "layout", following the same convention as BLAS.
+///
+/// What is :math:`\submat(S)`?
+///     Its shape is defined implicitly by :math:`(\transS, n, d)`.
+///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
+///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
+///     appears at index :math:`(\texttt{i_os}, \texttt{j_os})` of :math:`{S}`.
+/// @endverbatim
+/// @param[in] layout
+///     Layout::ColMajor or Layout::RowMajor
+///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
+///
+/// @param[in] transA
+///      - If \math{\transA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
+///      - If \math{\transA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+///
+/// @param[in] transS
+///      - If \math{\transS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
+///      - If \math{\transS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
+///
+/// @param[in] m
+///     A nonnegative integer.
+///     - The number of rows in \math{\mat(B)}.
+///     - The number of rows in \math{\op(\mat(A))}.
+///
+/// @param[in] d
+///     A nonnegative integer.
+///     - The number of columns in \math{\mat(B)}
+///     - The number of columns in \math{\op(\mat(S))}.
+///
+/// @param[in] n
+///     A nonnegative integer.
+///     - The number of columns in \math{\op(\mat(A))}
+///     - The number of rows in \math{\op(\submat(S))}.
+///
+/// @param[in] alpha
+///     A real scalar.
+///     - If zero, then \math{A} is not accessed.
+///
+/// @param[in] A
+///     Pointer to a 1D array of real scalars.
+///     - Defines \math{\mat(A)}.
+///
+/// @param[in] lda
+///     A nonnegative integer.
+///     * Leading dimension of \math{\mat(A)} when reading from \math{A}.
+///     * If layout == ColMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i + j \cdot \lda].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a column in \math{\mat(A)}.
+///     * If layout == RowMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i \cdot \lda + j].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a row in \math{\mat(A)}.
+///
+/// @param[in] S
+///    A DenseSkOp object.
+///    - Defines \math{\submat(S)}.
+///
+/// @param[in] i_os
+///     A nonnegative integer.
+///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_os}, :]}.
+///
+/// @param[in] j_os
+///     A nonnnegative integer.
+///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_os}]}. 
+///
+/// @param[in] beta
+///     A real scalar.
+///     - If zero, then \math{B} need not be set on input.
+///
+/// @param[in, out] B
+///    Pointer to 1D array of real scalars.
+///    - On entry, defines \math{\mat(B)}
+///      on the RIGHT-hand side of \math{(\star)}.
+///    - On exit, defines \math{\mat(B)}
+///      on the LEFT-hand side of \math{(\star)}.
+///
+/// @param[in] ldb
+///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
+///    - Refer to documentation for \math{\lda} for details. 
+///
+template <typename T, typename RNG>
+void rskge3(
+    blas::Layout layout,
+    blas::Op transA,
+    blas::Op transS,
+    int64_t m, // B is m-by-d
+    int64_t d, // op(S) is n-by-d
+    int64_t n, // op(A) is m-by-n
+    T alpha,
+    const T *A,
+    int64_t lda,
+    DenseSkOp<T,RNG> &S0,
+    int64_t i_os,
+    int64_t j_os,
+    T beta,
+    T *B,
+    int64_t ldb
+){
+    randblas_require(S0.layout == layout);
+    bool we_manage_memory = !S0.buff;
+    if (we_manage_memory) {
+        realize_full(S0);
+        S0.del_buff_on_destruct = false;
+    }
+    T *S0_ptr = S0.buff;
+
+    // Dimensions of A, rather than op(A)
+    int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
+    if (transA == blas::Op::NoTrans) {
+        rows_A = m;
+        cols_A = n;
+    } else {
+        rows_A = n;
+        cols_A = m;
+    }
+    // Dimensions of S, rather than op(S)
+    if (transS == blas::Op::NoTrans) {
+        rows_submat_S = n;
+        cols_submat_S = d;
+    } else {
+        rows_submat_S = d;
+        cols_submat_S = n;
+    }
+
+    // Sanity checks on dimensions and strides
+    int64_t lds, pos;
+    if (layout == blas::Layout::ColMajor) {
+        lds = S0.dist.n_rows;
+        pos = i_os + lds * j_os;
+        randblas_require(lds >= rows_submat_S);
+        randblas_require(lda >= rows_A);
+        randblas_require(ldb >= m);
+    } else {
+        lds = S0.dist.n_cols;
+        pos = i_os * lds + j_os;
+        randblas_require(lds >= cols_submat_S);
+        randblas_require(lda >= cols_A);
+        randblas_require(ldb >= d);
+    }
+    // Perform the sketch.
+    blas::gemm<T>(
+        layout, transA, transS,
+        m, d, n,
+        alpha,
+        A, lda,
+        &S0_ptr[pos], lds,
         beta,
         B, ldb
     );
