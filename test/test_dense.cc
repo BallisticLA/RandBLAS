@@ -906,7 +906,7 @@ TEST_F(TestRSKGE3, submatrix_s_double_colmajor)
         submatrix_S<double>(seed,
             3, 10, // (cols, rows) in S.
             8, 12, // (cols, rows) in S0.
-            3, // The first row of S is in the forth row of S0
+            2, // The first row of S is in the third row of S0
             1, // The first col of S is in the second col of S0
             blas::Layout::ColMajor
         );
@@ -918,7 +918,7 @@ TEST_F(TestRSKGE3, submatrix_s_double_rowmajor)
         submatrix_S<double>(seed,
             3, 10, // (cols, rows) in S.
             8, 12, // (cols, rows) in S0.
-            3, // The first row of S is in the forth row of S0
+            2, // The first row of S is in the third row of S0
             1, // The first col of S is in the second col of S0
             blas::Layout::RowMajor
         );

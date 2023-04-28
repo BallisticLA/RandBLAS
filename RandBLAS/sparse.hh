@@ -551,6 +551,13 @@ static void apply_cscoo_csroo_left(
     T *S_vals;
 
     bool use_S0_memory = false;
+    int64_t extra_buff_size = vec_nnz * MAX(MAX(m, n), d);
+    // Note: the way that we allocate three vectors immediately below is a blunt solution
+    // for the problem at at comment (***).
+    //TODO: implement a better solution.
+    std::vector<int64_t> S_rows_vec(extra_buff_size, 0.0);
+    std::vector<int64_t> S_cols_vec(extra_buff_size, 0.0);
+    std::vector<T> S_vals_vec(extra_buff_size, 0.0);
     if (has_fixed_nnz_per_col(S0)) {
         bool S_fixed_nnz_per_col = (row_offset == 0) && (d == S0.dist.n_rows);
         use_S0_memory = S_fixed_nnz_per_col && (col_offset == 0) && (alpha == 1.0);
@@ -562,9 +569,13 @@ static void apply_cscoo_csroo_left(
             S_vals = S0.vals;
             // we set nnz in a moment.
         } else {
-            S_rows = new int64_t[m * vec_nnz]{};
-            S_cols = new int64_t[m * vec_nnz]{};
-            S_vals = new       T[m * vec_nnz]{};
+            // (***) The 3 lines below are problematic. We need new memory,
+            // but if we allocate it here (inside two if statements) then
+            // there's undefined behavior for what that memory looks like
+            // these if statements.
+            S_rows = S_rows_vec.data();
+            S_cols = S_cols_vec.data();
+            S_vals = S_vals_vec.data();
             nnz = filter_regular_cscoo<T>(
                 S0.rows, S0.cols, S0.vals, vec_nnz,
                 col_offset, col_offset + m,
@@ -578,9 +589,9 @@ static void apply_cscoo_csroo_left(
             nnz = -vec_nnz;
     } else {
         // We have to use new memory, because we need the CSCOO representation.
-        S_rows = new int64_t[d * vec_nnz]{};
-        S_cols = new int64_t[d * vec_nnz]{};
-        S_vals = new       T[d * vec_nnz]{};
+        S_rows = S_rows_vec.data();
+        S_cols = S_cols_vec.data();
+        S_vals = S_vals_vec.data();
         nnz = filter_and_convert_regular_csroo_to_cscoo<T>(
             S0.rows, S0.cols, S0.vals, vec_nnz,
             col_offset, col_offset + m,
@@ -626,12 +637,6 @@ static void apply_cscoo_csroo_left(
                 S_rows, S_cols, S_vals, m, nnz
             );
         }
-    }
-
-    if (!use_S0_memory) {
-        delete [] S_rows;
-        delete [] S_cols;
-        delete [] S_vals;
     }
     return;
 }
@@ -796,45 +801,46 @@ void lskges(
         auto St = transpose(S);
         lskges(
             layout, blas::Op::NoTrans, transA,
-            d, m, n, alpha, St, col_offset, row_offset,
+            d, n, m, alpha, St, col_offset, row_offset,
             A, lda, beta, B, ldb
         );
         return; 
     }
     // Below this point, we can assume S is not transposed.
+    randblas_require(S.dist.n_rows >= d);
+    randblas_require(S.dist.n_cols >= m);
 
     // Dimensions of A, rather than \op(A)
     blas::Layout layout_B = layout;
-    blas::Layout layout_A;
+    blas::Layout pretend_layout_A;
     int64_t rows_A, cols_A;
     if (transA == blas::Op::NoTrans) {
         rows_A = m;
         cols_A = n;
-        layout_A = layout;
+        pretend_layout_A = layout;
     } else {
         rows_A = n;
         cols_A = m;
-        layout_A = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : blas::Layout::ColMajor;
-        // ^ Lie.
+        pretend_layout_A = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : blas::Layout::ColMajor;
     }
 
     // Check dimensions and compute B = beta * B.
-    //      Note: both A and B are checked based on "layout"; A is *not* checked on layout_A.
+    //      Note: both A and B are checked based on "layout"; A is *not* checked on pretend_layout_A.
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= d);
         for (int64_t i = 0; i < n; ++i)
             RandBLAS::util::safe_scal(d, beta, &B[i*ldb], 1);
     } else {
-        randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
+        randblas_require(lda >= cols_A);
         for (int64_t i = 0; i < d; ++i)
             RandBLAS::util::safe_scal(n, beta, &B[i*ldb], 1);
     }
 
     // Perform the sketch
     if (alpha != 0)
-        apply_cscoo_csroo_left(alpha, layout_A, layout_B, d, n, m, S, row_offset, col_offset, A, lda, B, ldb);
+        apply_cscoo_csroo_left(alpha, pretend_layout_A, layout_B, d, n, m, S, row_offset, col_offset, A, lda, B, ldb);
     return;
 }
 
@@ -856,30 +862,27 @@ void rskges(
     T beta,
     T *B,
     int64_t ldb
-) {    
-    blas::Layout L;
-    if (layout == blas::Layout::ColMajor) {
-        L = blas::Layout::RowMajor;
-    } else {
-        L = blas::Layout::ColMajor;
-    }
-
-    blas::Op opS;
-    if (transS == blas::Op::NoTrans) {
-        opS = blas::Op::Trans;
-    } else {
-        opS = blas::Op::NoTrans;
-    }
-    auto S0t = transpose(S0);
-
-    blas::Op opA;
-    if (transA == blas::Op::NoTrans) {
-        opA = blas::Op::Trans;
-    } else {
-        opA = blas::Op::NoTrans;
-    }
-    
-    lskges(L, opA, opS, d, m, n, alpha, S0t, j_os, i_os, A, lda, beta, B, ldb);
+) { 
+    //
+    // Compute B = op(A) op(submat(S)) by reduction to LSKGES. We start with
+    //
+    //      B^T = op(submat(S))^T op(A)^T.
+    //
+    // Then we interchange the operator "op(*)" in op(A) and (*)^T:
+    //
+    //      B^T = op(submat(S))^T op(A^T).
+    //
+    // We tell LSKGES to process (B^T) and (A^T) in the opposite memory layout
+    // compared to the layout for (A, B).
+    // 
+    using blas::Layout;
+    using blas::Op;
+    auto trans_transS = (transS == Op::NoTrans) ? Op::Trans : Op::NoTrans;
+    auto trans_layout = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
+    lskges(
+        trans_layout, trans_transS, transA,
+        d, m, n, alpha, S0, i_os, j_os, A, lda, beta, B, ldb
+    );
 }
 
 } // end namespace RandBLAS::sparse_ops

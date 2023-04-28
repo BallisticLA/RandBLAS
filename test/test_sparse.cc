@@ -252,8 +252,8 @@ void reference_lskges(
         rows_submat_S = m;
         cols_submat_S = d;
     }
-    randblas_require(rows_submat_S <= S.dist.n_rows);
-    randblas_require(cols_submat_S <= S.dist.n_cols);
+    randblas_require(S.dist.n_rows >= rows_submat_S);
+    randblas_require(S.dist.n_cols >= cols_submat_S);
 
     // Sanity checks on dimensions and strides
     int64_t lds, pos, size_A, size_B;
@@ -295,6 +295,8 @@ void reference_lskges(
     blas::gemm(layout, transS, transA, d, n, m,
         err_alpha, &S_abs_ptr[pos], lds, A_abs, lda, err_beta, E, ldb
     );
+    for (int i = 0; i < d * n; ++i)
+        E[i] = MAX(E[i], eps);
     return;
 }
 
@@ -1142,11 +1144,53 @@ void reference_rskges(
 ) { 
     using blas::Layout;
     using blas::Op;
-    auto L = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
-    auto opS = (transS == Op::NoTrans) ? Op::Trans : Op::NoTrans;
-    auto opA = (transA == Op::NoTrans) ? Op::Trans : Op::NoTrans;
-    auto S0t = transpose(S0);    
-    reference_lskges(L, opS, opA, d, m, n, alpha, S0t, j_os, i_os, A, lda, beta, B, E, ldb);
+    //
+    // Check dimensions of submat(S).
+    //
+    int64_t submat_S_rows, submat_S_cols;
+    if (transS == Op::NoTrans) {
+        submat_S_rows = n;
+        submat_S_cols = d;
+    } else {
+        submat_S_rows = d;
+        submat_S_cols = n;
+    }
+    randblas_require(submat_S_rows <= S0.dist.n_rows);
+    randblas_require(submat_S_cols <= S0.dist.n_cols);
+    //
+    // Check dimensions of mat(A).
+    //
+    int64_t mat_A_rows, mat_A_cols;
+    if (transA == Op::NoTrans) {
+        mat_A_rows = m;
+        mat_A_cols = n;
+    } else {
+        mat_A_rows = n;
+        mat_A_cols = m;
+    }
+    if (layout == Layout::ColMajor) {
+        randblas_require(lda >= mat_A_rows);
+    } else {
+        randblas_require(lda >= mat_A_cols);
+    }
+    //
+    // Compute B = op(A) op(submat(S)) by LSKGES. We start with the identity
+    //
+    //      B^T = op(submat(S))^T op(A)^T
+    //
+    // Then we interchange the operator "op" for op(A) and the operator (*)^T.
+    //
+    //      B^T = op(submat(S))^T op(A^T)
+    //
+    // We tell LSKGES to process (B^T) and (A^T) in the opposite memory layout
+    // compared to the layout for (A, B).
+    // 
+    auto trans_transS = (transS == Op::NoTrans) ? Op::Trans : Op::NoTrans;
+    auto trans_layout = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
+    reference_lskges(
+        trans_layout, trans_transS, transA,
+        d, m, n, alpha, S0, i_os, j_os, A, lda, beta, B, E, ldb
+    );
 }
 
 
@@ -1162,12 +1206,50 @@ class TestRSKGES : public ::testing::Test
     virtual void TearDown() {};
 
     //
-    //
-    //  TODO: create a basic sketch_eye test for RSKGES, like that for RSKGE3 in test_dense.cc.
     //  TODO: make an apply function for LSKGE3 and RSKGE3, like this apply function like this in test_dense.cc.
-    //      Don't spent too much time on this. Maybe write it from scratch to avoid repeat bugs?
     //
-    //
+
+    template <typename T>
+    static void sketch_eye(
+        uint32_t seed,
+        int64_t m,
+        int64_t d,
+        RandBLAS::sparse::SparsityPattern pattern,
+        int64_t vec_nnz,
+        blas::Layout layout
+    ) {
+        RandBLAS::sparse::SparseDist D = {
+            .n_rows = m,
+            .n_cols = d,
+            .family = pattern,
+            .vec_nnz = vec_nnz
+        };
+        RandBLAS::sparse::SparseSkOp<T> S0(D, seed);
+        RandBLAS::sparse::fill_sparse(S0);
+        //RandBLAS::sparse::print_sparse(S0);
+        std::vector<T> S0_dense(m * d, 0.0);
+        sparseskop_to_dense<T>(S0, S0_dense.data(), layout);
+
+        std::vector<T> eye(m * m, 0.0);
+        for (int i = 0; i < m; ++i)
+            eye[i + i*m] = 1.0;
+        std::vector<T> B(m * d, 0.0);
+        int64_t ldb = (layout == blas::Layout::ColMajor) ? m : d;
+
+        RandBLAS::sparse::rskges<T>(
+            layout,
+            blas::Op::NoTrans,
+            blas::Op::NoTrans,
+            m, d, m,
+            1.0, eye.data(), m,
+            S0, 0, 0,
+            0.0, B.data(), ldb
+        );
+
+        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), S0_dense.data(), d*m,
+             __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
+    }
 
     template <typename T>
     static void apply(
@@ -1305,7 +1387,72 @@ class TestRSKGES : public ::testing::Test
 ////////////////////////////////////////////////////////////////////////
 //
 //
-//      RSKGES: Sketch with SASOs and LASOs.
+//      RSKGES: Basic sketching
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+TEST_F(TestRSKGES, right_sketch_eye_saso_colmajor)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<double>(seed, 10, 3, RandBLAS::sparse::SparsityPattern::SASO, 1, blas::Layout::ColMajor);
+}
+
+TEST_F(TestRSKGES, right_sketch_eye_saso_rowmajor)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<double>(seed, 10, 3, RandBLAS::sparse::SparsityPattern::SASO, 1,  blas::Layout::RowMajor);
+}
+
+TEST_F(TestRSKGES, right_sketch_eye_laso_colmajor)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<double>(seed, 10, 3, RandBLAS::sparse::SparsityPattern::LASO, 1,  blas::Layout::ColMajor);
+}
+
+TEST_F(TestRSKGES, right_sketch_eye_laso_rowmajor)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<double>(seed, 10, 3, RandBLAS::sparse::SparsityPattern::LASO, 1,  blas::Layout::RowMajor);
+}
+
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      RSKGES: Lifting
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+TEST_F(TestRSKGES, right_lift_eye_saso_colmajor)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<double>(seed, 22, 51, RandBLAS::sparse::SparsityPattern::SASO, 5, blas::Layout::ColMajor);
+}
+
+TEST_F(TestRSKGES, right_lift_eye_saso_rowmajor)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<double>(seed, 22, 51, RandBLAS::sparse::SparsityPattern::SASO, 5, blas::Layout::RowMajor);
+}
+
+TEST_F(TestRSKGES, right_lift_eye_laso_colmajor)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<double>(seed, 22, 51, RandBLAS::sparse::SparsityPattern::LASO, 13, blas::Layout::ColMajor);
+}
+
+TEST_F(TestRSKGES, right_lift_eye_laso_rowmajor)
+{
+    for (uint32_t seed : {0})
+        sketch_eye<double>(seed, 22, 51, RandBLAS::sparse::SparsityPattern::LASO, 13, blas::Layout::RowMajor);
+}
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      RSKGES: more sketching
 //
 //
 ////////////////////////////////////////////////////////////////////////
@@ -1315,10 +1462,10 @@ TEST_F(TestRSKGES, sketch_saso_rowMajor_oneThread)
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {1, 2, 3, 0}) {
             apply<double>(RandBLAS::sparse::SparsityPattern::SASO,
-                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1
+                12, 19, 201, blas::Layout::RowMajor, k_idx, nz_idx, 1
             );
             apply<float>(RandBLAS::sparse::SparsityPattern::SASO,
-                19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1
+                12, 19, 201, blas::Layout::RowMajor, k_idx, nz_idx, 1
             );
         }
     }
@@ -1329,8 +1476,8 @@ TEST_F(TestRSKGES, sketch_laso_rowMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {1, 2, 3, 0}) {
-            apply<double>(RandBLAS::sparse::SparsityPattern::LASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::sparse::SparsityPattern::LASO, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<double>(RandBLAS::sparse::SparsityPattern::LASO, 12, 19, 201, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::sparse::SparsityPattern::LASO, 12, 19, 201, blas::Layout::RowMajor, k_idx, nz_idx, 1);
         }
     }
 }
@@ -1339,8 +1486,8 @@ TEST_F(TestRSKGES, sketch_saso_colMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {1, 2, 3, 0}) {
-            apply<double>(RandBLAS::sparse::SparsityPattern::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::sparse::SparsityPattern::SASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<double>(RandBLAS::sparse::SparsityPattern::SASO, 12, 19, 201, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::sparse::SparsityPattern::SASO, 12, 19, 201, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
     }
 }
@@ -1349,8 +1496,8 @@ TEST_F(TestRSKGES, sketch_laso_colMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {1, 2, 3, 0}) {
-            apply<double>(RandBLAS::sparse::SparsityPattern::LASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::sparse::SparsityPattern::LASO, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<double>(RandBLAS::sparse::SparsityPattern::LASO, 12, 19, 201, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::sparse::SparsityPattern::LASO, 12, 19, 201, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
     }
 }
@@ -1359,7 +1506,7 @@ TEST_F(TestRSKGES, sketch_laso_colMajor_oneThread)
 ////////////////////////////////////////////////////////////////////////
 //
 //
-//      RSKGES: Lift with SASOs and LASOs.
+//      RSKGES: more lifting
 //
 //
 ////////////////////////////////////////////////////////////////////////
