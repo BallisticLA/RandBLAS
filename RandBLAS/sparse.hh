@@ -228,6 +228,24 @@ static bool has_fixed_nnz_per_col(
     }
 }
 
+template <typename SKOP>
+static int64_t nnz(
+    SKOP const& S0
+) {
+    bool saso = S0.dist.family == SparsityPattern::SASO;
+    bool wide = S0.dist.n_rows < S0.dist.n_cols;
+    if (saso & wide) {
+        return S0.dist.vec_nnz * S0.dist.n_cols;
+    } else if (saso & (!wide)) {
+        return S0.dist.vec_nnz * S0.dist.n_rows;
+    } else if (wide & (!saso)) {
+        return S0.dist.vec_nnz * S0.dist.n_rows;
+    } else {
+        // tall LASO
+        return S0.dist.vec_nnz * S0.dist.n_cols;
+    }
+}
+
 // =============================================================================
 /// WARNING: this function is not part of the public API.
 ///
@@ -545,61 +563,32 @@ static void apply_cscoo_csroo_left(
     T *B,
     int64_t ldb
 ) {
-    int64_t vec_nnz = S0.dist.vec_nnz;
-    int64_t nnz;
-    int64_t *S_rows, *S_cols;
-    T *S_vals;
+    int64_t S_nnz;
+    int64_t S0_nnz = nnz(S0);
+    std::vector<int64_t> S_rows(S0_nnz, 0.0);
+    std::vector<int64_t> S_cols(S0_nnz, 0.0);
+    std::vector<T> S_vals(S0_nnz, 0.0);
 
-    bool use_S0_memory = false;
-    int64_t extra_buff_size = vec_nnz * MAX(MAX(m, n), d);
-    // Note: the way that we allocate three vectors immediately below is a blunt solution
-    // for the problem at at comment (***).
-    //TODO: implement a better solution.
-    std::vector<int64_t> S_rows_vec(extra_buff_size, 0.0);
-    std::vector<int64_t> S_cols_vec(extra_buff_size, 0.0);
-    std::vector<T> S_vals_vec(extra_buff_size, 0.0);
-    if (has_fixed_nnz_per_col(S0)) {
-        bool S_fixed_nnz_per_col = (row_offset == 0) && (d == S0.dist.n_rows);
-        use_S0_memory = S_fixed_nnz_per_col && (col_offset == 0) && (alpha == 1.0);
-        // ^ If col_offset is nonzero, then we need to make an altered 
-        //   version of S0.cols that shifts all entries by -col_offset.
-        if (use_S0_memory) {
-            S_rows = S0.rows;
-            S_cols = S0.cols;
-            S_vals = S0.vals;
-            // we set nnz in a moment.
-        } else {
-            // (***) The 3 lines below are problematic. We need new memory,
-            // but if we allocate it here (inside two if statements) then
-            // there's undefined behavior for what that memory looks like
-            // these if statements.
-            S_rows = S_rows_vec.data();
-            S_cols = S_cols_vec.data();
-            S_vals = S_vals_vec.data();
-            nnz = filter_regular_cscoo<T>(
-                S0.rows, S0.cols, S0.vals, vec_nnz,
-                col_offset, col_offset + m,
-                row_offset, row_offset + d,
-                S_rows, S_cols, S_vals
-            );
-            if (alpha != 1.0)
-                blas::scal<T>(nnz, alpha, S_vals, 1);
-        }
-        if (S_fixed_nnz_per_col)
-            nnz = -vec_nnz;
-    } else {
-        // We have to use new memory, because we need the CSCOO representation.
-        S_rows = S_rows_vec.data();
-        S_cols = S_cols_vec.data();
-        S_vals = S_vals_vec.data();
-        nnz = filter_and_convert_regular_csroo_to_cscoo<T>(
-            S0.rows, S0.cols, S0.vals, vec_nnz,
+    bool S0_fixed_nnz_per_col = has_fixed_nnz_per_col(S0);
+    bool S_fixed_nnz_per_col = S0_fixed_nnz_per_col && (row_offset == 0) && (d == S0.dist.n_rows);
+
+    if (S0_fixed_nnz_per_col) {
+        S_nnz = filter_regular_cscoo<T>(
+            S0.rows, S0.cols, S0.vals, S0.dist.vec_nnz,
             col_offset, col_offset + m,
             row_offset, row_offset + d,
-            S_rows, S_cols, S_vals
+            S_rows.data(), S_cols.data(), S_vals.data()
         );
-        blas::scal(nnz, alpha, S_vals, 1);
+    } else {
+        S_nnz = filter_and_convert_regular_csroo_to_cscoo<T>(
+            S0.rows, S0.cols, S0.vals, S0.dist.vec_nnz,
+            col_offset, col_offset + m,
+            row_offset, row_offset + d,
+            S_rows.data(), S_cols.data(), S_vals.data()
+        );
     }
+    blas::scal<T>(S_nnz, alpha, S_vals.data(), 1);
+
     // Once we have (S_rows, S_cols, S_vals) in the format ensured
     // by the functions above, we apply the resulting sparse matrix "S"
     // to the left of A to get B = S*A.
@@ -623,6 +612,10 @@ static void apply_cscoo_csroo_left(
         B_intra_col_stride = ldb;
     }
 
+    if (S_fixed_nnz_per_col) {
+        S_nnz = -S0.dist.vec_nnz; // this value in interpreted differently when negative.
+    }
+
     #pragma omp parallel default(shared)
     {
         const T *A_col = nullptr;
@@ -634,7 +627,7 @@ static void apply_cscoo_csroo_left(
             apply_cscoo_submat_to_vector_from_left<T>(
                 A_col, A_intra_col_stride,
                 B_col, B_intra_col_stride,
-                S_rows, S_cols, S_vals, m, nnz
+                S_rows.data(), S_cols.data(), S_vals.data(), m, S_nnz
             );
         }
     }
