@@ -295,8 +295,6 @@ void reference_lskges(
     blas::gemm(layout, transS, transA, d, n, m,
         err_alpha, &S_abs_ptr[pos], lds, A_abs, lda, err_beta, E, ldb
     );
-    for (int i = 0; i < d * n; ++i)
-        E[i] = MAX(E[i], eps);
     return;
 }
 
