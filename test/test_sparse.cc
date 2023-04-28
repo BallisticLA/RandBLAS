@@ -252,14 +252,12 @@ void reference_lskges(
         rows_submat_S = m;
         cols_submat_S = d;
     }
-    randblas_require(S.dist.n_rows >= rows_submat_S);
-    randblas_require(S.dist.n_cols >= cols_submat_S);
-
     // Sanity checks on dimensions and strides
     int64_t lds, pos, size_A, size_B;
     if (layout == blas::Layout::ColMajor) {
         lds = S.dist.n_rows;
         pos = i_os + lds * j_os;
+        randblas_require(lds >= rows_submat_S);
         randblas_require(lda >= rows_mat_A);
         randblas_require(ldb >= d);
         size_A = lda * (cols_mat_A - 1) + rows_mat_A;;
@@ -267,6 +265,7 @@ void reference_lskges(
     } else {
         lds = S.dist.n_cols;
         pos = i_os * lds + j_os;
+        randblas_require(S.dist.n_cols >= cols_submat_S);
         randblas_require(lda >= cols_mat_A);
         randblas_require(ldb >= n);
         size_A = lda * (rows_mat_A - 1) + cols_mat_A;
