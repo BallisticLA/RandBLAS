@@ -265,7 +265,7 @@ void reference_lskges(
     } else {
         lds = S.dist.n_cols;
         pos = i_os * lds + j_os;
-        randblas_require(S.dist.n_cols >= cols_submat_S);
+        randblas_require(lds >= cols_submat_S);
         randblas_require(lda >= cols_mat_A);
         randblas_require(ldb >= n);
         size_A = lda * (rows_mat_A - 1) + cols_mat_A;
