@@ -26,7 +26,7 @@ using namespace RandBLAS::sparse;
 
 // =============================================================================
 /// \fn ramm_general_left(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d,
-///     int64_t n, int64_t m, T alpha, SKOP &S, int64_t row_offset, int64_t col_offset,
+///     int64_t n, int64_t m, T alpha, SKOP &S, int64_t i_os, int64_t j_os,
 ///     const T *A, int64_t lda, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
@@ -148,16 +148,14 @@ void ramm_general_left(
     int64_t m, // \op(\submat(S)) is d-by-m
     T alpha,
     SKOP &S,
-    int64_t row_offset,
-    int64_t col_offset,
+    int64_t i_os,
+    int64_t j_os,
     const T *A,
     int64_t lda,
     T beta,
     T *B,
     int64_t ldb
-) {
-    randblas_error_if(true);
-}
+);
 
 template <typename T, typename RNG>
 void ramm_general_left(
@@ -329,9 +327,7 @@ void ramm_general_right(
     T beta,
     T *B,
     int64_t ldb
-) {
-    randblas_error_if(true);
-}
+);
 
 template <typename T, typename RNG>
 void ramm_general_right(
