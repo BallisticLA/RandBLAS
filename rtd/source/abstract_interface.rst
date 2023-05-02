@@ -63,13 +63,13 @@ Applying a sketching operator : a GEMM-like interface
 Left-sketching
 ^^^^^^^^^^^^^^
 
-.. doxygenfunction:: RandBLAS::ramm::lskgex(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, T alpha, SKOP &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb)
+.. doxygenfunction:: RandBLAS::ramm::ramm_general_left(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, T alpha, SKOP &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb)
    :project: RandBLAS
 
 Right-sketching
 ^^^^^^^^^^^^^^^
 
-.. doxygenfunction:: RandBLAS::ramm::rskgex(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SKOP &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb)
+.. doxygenfunction:: RandBLAS::ramm::ramm_general_right(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SKOP &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb)
    :project: RandBLAS
 
 Choosing a sketching distribution

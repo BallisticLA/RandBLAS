@@ -345,7 +345,7 @@ class TestLSKGES : public ::testing::Test
         int orig_threads = omp_get_num_threads();
         omp_set_num_threads(threads);
 #endif
-        RandBLAS::ramm::lskgex<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             layout, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
             1.0, S0, 0, 0, a, lda,
@@ -423,7 +423,7 @@ class TestLSKGES : public ::testing::Test
         int orig_threads = omp_get_num_threads();
         omp_set_num_threads(1);
 #endif
-        RandBLAS::ramm::lskgex<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -478,7 +478,7 @@ class TestLSKGES : public ::testing::Test
         blas::copy(d * m, B0.data(), 1, B1.data(), 1);
 
         // perform the sketch
-        RandBLAS::ramm::lskgex<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -538,7 +538,7 @@ class TestLSKGES : public ::testing::Test
         // perform the sketch
         //  S0 is tall.
         //  We apply S0.T, which is wide.
-        RandBLAS::ramm::lskgex<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             layout,
             blas::Op::Trans,
             blas::Op::NoTrans,
@@ -602,7 +602,7 @@ class TestLSKGES : public ::testing::Test
         // Perform the sketch
         int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
         T *A_ptr = &A0.data()[a_offset]; 
-        RandBLAS::ramm::lskgex<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -667,7 +667,7 @@ class TestLSKGES : public ::testing::Test
         int64_t ldb = (is_colmajor) ? d : n;
         
         // Perform the sketch
-        RandBLAS::ramm::lskgex<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::Trans,

@@ -25,7 +25,7 @@ using namespace RandBLAS::sparse;
 
 
 // =============================================================================
-/// \fn lskgex(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d,
+/// \fn ramm_general_left(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d,
 ///     int64_t n, int64_t m, T alpha, SKOP &S, int64_t row_offset, int64_t col_offset,
 ///     const T *A, int64_t lda, T beta, T *B, int64_t ldb
 /// ) 
@@ -40,7 +40,7 @@ using namespace RandBLAS::sparse;
 ///   .. |transS| mathmacro:: \mathrm{transS}
 ///
 /// @endverbatim
-/// LSKGEX: Perform a GEMM-like operation
+/// ramm_general_left: Perform a GEMM-like operation
 /// @verbatim embed:rst:leading-slashes
 /// .. math::
 ///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(S))}_{d \times m} \cdot \underbrace{\op(\mat(A))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
@@ -139,7 +139,7 @@ using namespace RandBLAS::sparse;
 ///    - Refer to documentation for \math{\lda} for details. 
 ///
 template <typename T, typename SKOP>
-void lskgex(
+void ramm_general_left(
     blas::Layout layout,
     blas::Op transS,
     blas::Op transA,
@@ -160,7 +160,7 @@ void lskgex(
 }
 
 template <typename T, typename RNG>
-void lskgex(
+void ramm_general_left(
     blas::Layout layout,
     blas::Op transS,
     blas::Op transA,
@@ -184,7 +184,7 @@ void lskgex(
 }
 
 template <typename T, typename RNG>
-void lskgex(
+void ramm_general_left(
     blas::Layout layout,
     blas::Op transS,
     blas::Op transA,
@@ -208,11 +208,11 @@ void lskgex(
 }
 
 // =============================================================================
-/// \fn rskgex(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n,
+/// \fn ramm_general_right(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n,
 ///    T alpha, const T *A, int64_t lda, SKOP &S,
 ///    int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb
 /// )
-/// RSKGEX: Perform a GEMM-like operation
+/// ramm_general_right: Perform a GEMM-like operation
 /// @verbatim embed:rst:leading-slashes
 /// .. math::
 ///     \mat(B) = \alpha \cdot \underbrace{\op(\mat(A))}_{m \times n} \cdot \underbrace{\op(\submat(S))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
@@ -313,7 +313,7 @@ void lskgex(
 ///    - Refer to documentation for \math{\lda} for details. 
 ///
 template <typename T, typename SKOP>
-void rskgex(
+void ramm_general_right(
     blas::Layout layout,
     blas::Op transA,
     blas::Op transS,
@@ -334,7 +334,7 @@ void rskgex(
 }
 
 template <typename T, typename RNG>
-void rskgex(
+void ramm_general_right(
     blas::Layout layout,
     blas::Op transA,
     blas::Op transS,
@@ -362,7 +362,7 @@ void rskgex(
 ///    T alpha, const T *A, int64_t lda, SKOP &S,
 ///    T beta, T *B, int64_t ldb
 /// )
-/// RSKGEX: Perform a GEMM-like operation
+/// ramm_general_right: Perform a GEMM-like operation
 /// @verbatim embed:rst:leading-slashes
 /// .. math::
 ///     \mat(B) = \alpha \cdot \underbrace{\op(\mat(A))}_{m \times n} \cdot \underbrace{S}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
@@ -450,11 +450,11 @@ void right_sketch(
     // Not sure if we actually want this kind of function in the API.
     // Keeping it for now.
     // Will probably remove in the PR.
-    return rskgex(layout, transA, blas::Op::NoTrans, m, S.dist.n_cols, S.dist.n_rows, alpha, A, lda, S, 0, 0, beta, B, ldb);
+    return ramm_general_right(layout, transA, blas::Op::NoTrans, m, S.dist.n_cols, S.dist.n_rows, alpha, A, lda, S, 0, 0, beta, B, ldb);
 }
 
 template <typename T, typename RNG>
-void rskgex(
+void ramm_general_right(
     blas::Layout layout,
     blas::Op transA,
     blas::Op transS,
