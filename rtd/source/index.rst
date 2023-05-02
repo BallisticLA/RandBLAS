@@ -25,3 +25,4 @@ RandBLAS is configured with CMake. The following CMake variables influence the b
    :hidden:
 
    API Documentation <API/index>
+   Abstract interface <abstract_interface>

@@ -4,6 +4,7 @@
 #include "RandBLAS/dense.hh"
 #include "RandBLAS/util.hh"
 #include "RandBLAS/test_util.hh"
+#include "RandBLAS/ramm.hh"
 
 #include <gtest/gtest.h>
 
@@ -123,7 +124,7 @@ class TestLSKGE3 : public ::testing::Test
         int64_t ldb = (is_colmajor) ? d : m;
 
         // Perform the sketch
-        RandBLAS::dense::lskge3<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             S0.layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -164,7 +165,7 @@ class TestLSKGE3 : public ::testing::Test
         int64_t ldb = (is_colmajor) ? d : m;
 
         // perform the sketch
-        RandBLAS::dense::lskge3<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             S0.layout,
             blas::Op::Trans,
             blas::Op::NoTrans,
@@ -219,7 +220,7 @@ class TestLSKGE3 : public ::testing::Test
         int64_t ldb = (is_colmajor) ? d : m;
         
         // Perform the sketch
-        RandBLAS::dense::lskge3<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             S0.layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -277,7 +278,7 @@ class TestLSKGE3 : public ::testing::Test
         // Perform the sketch
         int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
         T *A_ptr = &A0.data()[a_offset]; 
-        RandBLAS::dense::lskge3<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             S0.layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -604,7 +605,7 @@ class TestRSKGE3 : public ::testing::Test
         int64_t ldb = (is_colmajor) ? m : d;
 
         // Perform the sketch
-        RandBLAS::dense::rskge3<T>(
+        RandBLAS::ramm::ramm_general_right<T>(
             S0.layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -646,7 +647,7 @@ class TestRSKGE3 : public ::testing::Test
         int64_t ldb = (is_colmajor) ? m : d;
 
         // perform the sketch
-        RandBLAS::dense::rskge3<T>(
+        RandBLAS::ramm::ramm_general_right<T>(
             S0.layout,
             blas::Op::NoTrans,
             blas::Op::Trans,
@@ -704,7 +705,7 @@ class TestRSKGE3 : public ::testing::Test
         int64_t ldb = (is_colmajor) ? m : d;
         
         // Perform the sketch
-        RandBLAS::dense::rskge3<T>(
+        RandBLAS::ramm::ramm_general_right<T>(
             S0.layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -762,7 +763,7 @@ class TestRSKGE3 : public ::testing::Test
         // Perform the sketch
         int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
         T *A_ptr = &A0.data()[a_offset]; 
-        RandBLAS::dense::rskge3<T>(
+        RandBLAS::ramm::ramm_general_right<T>(
             S0.layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
