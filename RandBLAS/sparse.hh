@@ -209,7 +209,6 @@ auto repeated_fisher_yates(
 }
 
 template <typename SKOP>
-static
 auto fill_sparse(
     SKOP & S0
 ) {
@@ -449,6 +448,9 @@ static void apply_cscoo_csroo_left(
     T *S_vals;
 
     bool use_S0_memory = false;
+    std::vector<int64_t> S_rows_new(1);
+    std::vector<int64_t> S_cols_new(1);
+    std::vector<T> S_vals_new(1);
     if (has_fixed_nnz_per_col(S0)) {
         bool S_fixed_nnz_per_col = (row_offset == 0) && (d == S0.dist.n_rows);
         use_S0_memory = S_fixed_nnz_per_col && (col_offset == 0) && (alpha == 1.0);
@@ -460,9 +462,12 @@ static void apply_cscoo_csroo_left(
             S_vals = S0.vals;
             // we set nnz in a moment.
         } else {
-            S_rows = new int64_t[m * vec_nnz]{};
-            S_cols = new int64_t[m * vec_nnz]{};
-            S_vals = new       T[m * vec_nnz]{};
+            S_rows_new.resize(m * vec_nnz, 0);
+            S_cols_new.resize(m * vec_nnz, 0);
+            S_vals_new.resize(m * vec_nnz, 0.0);
+            S_rows = S_rows_new.data();
+            S_cols = S_cols_new.data();
+            S_vals = S_vals_new.data();
             nnz = filter_regular_cscoo<T>(
                 S0.rows, S0.cols, S0.vals, vec_nnz,
                 col_offset, col_offset + m,
@@ -476,9 +481,12 @@ static void apply_cscoo_csroo_left(
             nnz = -vec_nnz;
     } else {
         // We have to use new memory, because we need the CSCOO representation.
-        S_rows = new int64_t[d * vec_nnz]{};
-        S_cols = new int64_t[d * vec_nnz]{};
-        S_vals = new       T[d * vec_nnz]{};
+        S_rows_new.resize(d * vec_nnz, 0);
+        S_cols_new.resize(d * vec_nnz, 0);
+        S_vals_new.resize(d * vec_nnz, 0.0);
+        S_rows = S_rows_new.data();
+        S_cols = S_cols_new.data();
+        S_vals = S_vals_new.data();
         nnz = filter_and_convert_regular_csroo_to_cscoo<T>(
             S0.rows, S0.cols, S0.vals, vec_nnz,
             col_offset, col_offset + m,
@@ -525,14 +533,9 @@ static void apply_cscoo_csroo_left(
             );
         }
     }
-
-    if (!use_S0_memory) {
-        delete [] S_rows;
-        delete [] S_cols;
-        delete [] S_vals;
-    }
     return;
 }
+
 
 template <typename SKOP>
 static
@@ -572,7 +575,7 @@ void lskges(
     T *B,
     int64_t ldb
 ) {
-    randblas_require(S0.rows != NULL); // must be filled.
+    randblas_require(S0.rows != nullptr); // must be filled.
 
     // handle applying a transposed sparse sketching operator.
     if (transS == blas::Op::Trans) {
