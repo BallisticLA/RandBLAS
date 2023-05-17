@@ -317,12 +317,13 @@ auto fill_buff(
 
 template <typename SKOP>
 void realize_full(
-    SKOP &S
+    SKOP &S,
+    bool del_buff_on_destruct=true
 ) {
     randblas_require(!S.buff);
     S.buff = new typename SKOP::buffer_type[S.dist.n_rows * S.dist.n_cols];
     S.next_state = fill_buff(S.buff, S.dist, S.seed_state);
-    S.del_buff_on_destruct = true;
+    S.del_buff_on_destruct = del_buff_on_destruct;
 }
 
 // =============================================================================
@@ -455,21 +456,20 @@ void lskge3(
 ){
     randblas_require(S0.layout == layout);
 
-    bool we_manage_memory = !S0.buff;
-    // If S0.buff hasn't been set yet, then this function bears all responsibility
-    // for memory management in representing S0. In particular, we need to allocate
-    // and delete memory.
-
-    if (we_manage_memory) {
-        // We use a naive implementation: generate the entire sketching
-        // operator like the user would with realize_full. But since 
-        // realize_full sets a flag to only delete the buffer on 
-        // destruction of the DenseSkOp, we need to override that flag.
-        realize_full(S0);
-        S0.del_buff_on_destruct = false;
-    }
+    DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff, S0.layout);
     T *S0_ptr = S0.buff;
-
+    if (!S0_ptr) {
+        // The tentative RandBLAS standard doesn't let us attach memory to S0 inside this function.
+        // It also requires that the results of this function are the same as if the user
+        // had previously called realize_full on the sketching operator. Since the exact behavior of
+        // realize_full is in flux, we call that function here as a black-box. The trouble is that
+        // realize_full attaches memory to its argument. We get around this by calling realize_full
+        // on a shallow copy and then getting a reference to its underlying buffer. When this function
+        // exits the destructor of the shallow copy will be called and its memory will be cleaned up.
+        realize_full(S0_shallow_copy);
+        S0.next_state = S0_shallow_copy.next_state;
+        S0_ptr = S0_shallow_copy.buff;
+    }
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
     if (transA == blas::Op::NoTrans) {
@@ -513,10 +513,6 @@ void lskge3(
         beta,
         B, ldb
     );
-
-    if (we_manage_memory)
-        delete [] S0_ptr;
-
     return;
 }
 
@@ -640,12 +636,20 @@ void rskge3(
     int64_t ldb
 ){
     randblas_require(S0.layout == layout);
-    bool we_manage_memory = !S0.buff;
-    if (we_manage_memory) {
-        realize_full(S0);
-        S0.del_buff_on_destruct = false;
-    }
+    
+    DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff, S0.layout);
     T *S0_ptr = S0.buff;
+    if (!S0_ptr) {
+        // The tentative RandBLAS standard doesn't let us attach memory to S0 inside this function.
+        // It also requires that the results of this function are the same as if the user
+        // had previously called realize_full on the sketching operator. Since the exact behavior of
+        // realize_full is in flux, we call that function here as a black-box. The trouble is that
+        // realize_full attaches memory to its argument. We get around this by calling realize_full
+        // on a shallow copy and then getting a reference to its underlying buffer. When this function
+        // exits the destructor of the shallow copy will be called and its memory will be cleaned up.
+        realize_full(S0_shallow_copy);
+        S0_ptr = S0_shallow_copy.buff;
+    }
 
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
@@ -690,10 +694,6 @@ void rskge3(
         beta,
         B, ldb
     );
-
-    if (we_manage_memory)
-        delete [] S0_ptr;
-
     return;
 }
 
