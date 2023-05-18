@@ -27,7 +27,7 @@ jobs:
           cd ..
           pwd
           ls
-          git clone https://bitbucket.org/icl/blaspp.git
+          git clone https://github.com/icl-utk-edu/blaspp.git
           mkdir blaspp-build
           cd blaspp-build
           pwd
