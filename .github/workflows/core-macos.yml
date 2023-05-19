@@ -8,20 +8,16 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
-      
+
       - name: configure OS
         run: |
           # os level stuff
-          pwd
-          ls
           set -x
           brew install googletest
-      
+
       - name: install BLAS++
         run: |
           cd ..
-          pwd
-          ls
           git clone https://github.com/icl-utk-edu/blaspp.git
           mkdir blaspp-build
           cd blaspp-build
@@ -29,11 +25,9 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=`pwd`/../blaspp-install -Dbuild_tests=OFF ../blaspp
           make -j2 install
 
-      - name: install Random123  
+      - name: install Random123
         run: |
           cd ..
-          pwd
-          ls
           git clone https://github.com/DEShawResearch/Random123.git
           cd Random123/
           mkdir -p `pwd`/../Random123-install/include
@@ -42,8 +36,6 @@ jobs:
       - name: build and test RandBLAS (release)
         run: |
           cd ..
-          pwd
-          ls
           mkdir RandBLAS-build
           cd RandBLAS-build
           cmake -DCMAKE_BUILD_TYPE=Release \
@@ -58,8 +50,6 @@ jobs:
       - name: build and test RandBLAS (Debug/asan)
         run: |
           cd ..
-          pwd
-          ls
           mkdir RandBLAS-asan-build
           cd RandBLAS-asan-build
           cmake -DCMAKE_BUILD_TYPE=Debug \
