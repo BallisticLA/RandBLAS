@@ -177,8 +177,8 @@ void matrices_approx_equal(
             for (int64_t j = 0; j < n; ++j) {
                 if (!approx_equal(A[idxa(i, j)], B[idxb(i, j)], oss, atol, rtol)) {
                     FAIL() << std::endl << fileName << ":" << lineNo << std::endl
-                        << testName << std::endl << "Test failed at index ("
-                        << i << ", " << j << ") " << oss.str() << std::endl;
+                        << testName << std::endl << "\tTest failed at index ("
+                        << i << ", " << j << ")\n\t" << oss.str() << std::endl;
                     oss.str("");
                 }
             }
@@ -188,8 +188,8 @@ void matrices_approx_equal(
             for (int64_t j = 0; j < n; ++j) {
                 if (!approx_equal(A[idxa(i, j)], B[idxb(j, i)], oss, atol, rtol)) {
                     FAIL() << std::endl << fileName << ":" << lineNo << std::endl
-                        << testName << std::endl << "Test failed at index ("
-                        << j << ", " << i << ") "  << oss.str() << std::endl;
+                        << testName << std::endl << "\tTest failed at index ("
+                        << j << ", " << i << ")\n\t"  << oss.str() << std::endl;
                     oss.str("");
                 }
             }
@@ -383,21 +383,6 @@ void reference_rskges(
         trans_layout, trans_transS, transA,
         d, m, n, alpha, S0, i_os, j_os, A, lda, beta, B, E, ldb
     );
-}
-
-
-template <typename T>
-std::ostream &operator<<(std::ostream &os, std::vector<T> &v) {
-    size_t n = v.size();
-    os << "{";
-    if (n)
-    {
-        os << v[0];
-        for (size_t i = 1; i < n; ++i)
-            os << ", " << v[i];
-    }
-    os << "}";
-    return os;
 }
 
 

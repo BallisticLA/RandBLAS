@@ -74,6 +74,30 @@ struct DenseDist {
     const FillAxis fill_axis = FillAxis::Long;
 };
 
+inline blas::Layout fillaxis_and_dims_to_layout(
+    FillAxis fa,
+    int64_t n_rows,
+    int64_t n_cols
+) {
+    bool is_wide = n_rows < n_cols;
+    bool fa_long = fa == FillAxis::Long;
+    if (is_wide && fa_long) {
+        return blas::Layout::RowMajor;
+    } else if (is_wide) {
+        return blas::Layout::ColMajor;
+    } else if (fa_long) {
+        return blas::Layout::RowMajor;
+    } else {
+        return blas::Layout::ColMajor;
+    }
+}
+
+inline blas::Layout dist_to_layout(
+    DenseDist D
+) {
+    return fillaxis_and_dims_to_layout(D.fill_axis, D.n_rows, D.n_cols);
+}
+
 // =============================================================================
 /// A sample from a prescribed distribution over dense sketching operators.
 ///
@@ -109,7 +133,7 @@ struct DenseSkOp {
     T *buff = nullptr;                         // memory
     bool del_buff_on_destruct = false;         // only applies if realize_full has been called.
 
-    const blas::Layout layout = blas::Layout::ColMajor; ///< matrix storage order
+    const blas::Layout layout; ///< matrix storage order
 
     /////////////////////////////////////////////////////////////////////
     //
@@ -124,6 +148,12 @@ struct DenseSkOp {
         T *buff_,
         blas::Layout layout_
     );
+
+    DenseSkOp(
+        DenseDist dist,
+        RNGState<RNG> const& state,
+        T* buff
+    ) : DenseSkOp(dist, state, buff, dist_to_layout(dist)) {};
 
     //  Convenience constructor (a wrapper)
     DenseSkOp(
@@ -435,14 +465,12 @@ void lskge3(
     T *B,
     int64_t ldb
 ){
-    randblas_require(S0.layout == layout);
-    if (S0.layout != layout) {
-        // I think it suffices to change this flag, and we can proceed with dimensions unchanged.
-        // we might need to change LDS though ...
+    //randblas_require(S0.layout == layout);
+    bool opposing_layouts = S0.layout != layout;
+    if (opposing_layouts) {
         transS = (transS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
         // what about computing ptr_offset? Do we compute that w.r.t S0.layout, or plain layout?
     }
-    
 
     DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff, S0.layout);
     T *S0_ptr = S0.buff;
@@ -480,11 +508,19 @@ void lskge3(
     int64_t lds, pos;
     if (S0.layout == blas::Layout::ColMajor) {
         lds = S0.dist.n_rows;
-        randblas_require(lds >= rows_submat_S);
+        if (opposing_layouts) {
+            randblas_require(lds >= cols_submat_S);
+        } else {
+            randblas_require(lds >= rows_submat_S);
+        }
         pos = i_os + lds * j_os;
     } else {
         lds = S0.dist.n_cols;
-        randblas_require(lds >= cols_submat_S);
+        if (opposing_layouts) {
+            randblas_require(lds >= rows_submat_S);
+        } else {
+            randblas_require(lds >= cols_submat_S);
+        }
         pos = i_os * lds + j_os;
     }
 
@@ -628,7 +664,6 @@ void rskge3(
     int64_t ldb
 ){
     randblas_require(S0.layout == layout);
-    
     DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff, S0.layout);
     T *S0_ptr = S0.buff;
     if (!S0_ptr) {

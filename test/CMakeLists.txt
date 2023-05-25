@@ -7,7 +7,7 @@ if (GTest_FOUND)
 
     add_executable(RandBLAS_tests
         # dense
-        test_dense/test_moments.cc
+        test_dense/test_construction.cc
         test_dense/test_sketch_gefl3.cc
         test_dense/test_sketch_gefr3.cc
         # sparse

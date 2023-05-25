@@ -38,10 +38,10 @@ class TestLSKGE3 : public ::testing::Test
 
         // Define the sketching operator struct, S0.
         // Create a copy that we always realize explicitly.
-        RandBLAS::dense::DenseSkOp<T> S0(D, seed, NULL, layout);
+        RandBLAS::dense::DenseSkOp<T> S0(D, seed, NULL);
         if (preallocate)
             RandBLAS::dense::realize_full(S0);
-        RandBLAS::dense::DenseSkOp<T> S0_ref(D, seed, NULL, layout);
+        RandBLAS::dense::DenseSkOp<T> S0_ref(D, seed, NULL);
         RandBLAS::dense::realize_full(S0_ref);
 
         // define a matrix to be sketched, and create workspace for sketch.
@@ -55,7 +55,7 @@ class TestLSKGE3 : public ::testing::Test
 
         // Perform the sketch
         RandBLAS::ramm::ramm_general_left<T>(
-            S0.layout,
+            layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, m, m,
@@ -64,9 +64,17 @@ class TestLSKGE3 : public ::testing::Test
         );
 
         // check the result
-        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), S0_ref.buff, d*m,
-             __PRETTY_FUNCTION__, __FILE__, __LINE__
-        );
+        if (layout == S0.layout) {
+            RandBLAS_Testing::Util::buffs_approx_equal(B.data(), S0_ref.buff, d*m,
+                __PRETTY_FUNCTION__, __FILE__, __LINE__
+            );
+        } else {
+            int64_t lds = (S0.layout == blas::Layout::ColMajor) ? S0.dist.n_rows : S0.dist.n_cols;
+            RandBLAS_Testing::Util::matrices_approx_equal(
+                layout, blas::Op::Trans, d, m, B.data(), ldb, S0_ref.buff, lds,
+                 __PRETTY_FUNCTION__, __FILE__, __LINE__
+            );
+        }
     }
 
     template <typename T>
@@ -83,20 +91,19 @@ class TestLSKGE3 : public ::testing::Test
             .family = RandBLAS::dense::DenseDistName::Gaussian
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0(Dt, seed, NULL, layout);
+        RandBLAS::dense::DenseSkOp<T> S0(Dt, seed, NULL);
         RandBLAS::dense::realize_full(S0);
-        bool is_colmajor = layout == blas::Layout::ColMajor;
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A(m * m, 0.0);
         for (int i = 0; i < m; ++i)
             A[i + m*i] = 1.0;
         std::vector<T> B(d * m, 0.0);
-        int64_t ldb = (is_colmajor) ? d : m;
+        int64_t ldb = (layout == blas::Layout::ColMajor) ? d : m;
 
         // perform the sketch
         RandBLAS::ramm::ramm_general_left<T>(
-            S0.layout,
+            layout,
             blas::Op::Trans,
             blas::Op::NoTrans,
             d, m, m,
@@ -105,12 +112,20 @@ class TestLSKGE3 : public ::testing::Test
         );
 
         // check that B == S.T
-        int64_t lds = (is_colmajor) ? m : d;
-        RandBLAS_Testing::Util::matrices_approx_equal(
-            S0.layout, blas::Op::Trans, d, m,
-            B.data(), ldb, S0.buff, lds,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
-        );
+        int64_t lds = (S0.layout == blas::Layout::ColMajor) ? S0.dist.n_rows : S0.dist.n_cols;
+        if (layout == S0.layout) {
+            RandBLAS_Testing::Util::matrices_approx_equal(
+                layout, blas::Op::Trans, d, m,
+                B.data(), ldb, S0.buff, lds,
+                __PRETTY_FUNCTION__, __FILE__, __LINE__
+            );
+        } else {
+            RandBLAS_Testing::Util::matrices_approx_equal(
+                layout, blas::Op::NoTrans, d, m,
+                B.data(), ldb, S0.buff, lds,
+                __PRETTY_FUNCTION__, __FILE__, __LINE__
+            );
+        }
     }
 
     template <typename T>
@@ -151,7 +166,7 @@ class TestLSKGE3 : public ::testing::Test
         
         // Perform the sketch
         RandBLAS::ramm::ramm_general_left<T>(
-            S0.layout,
+            layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, m, m,
@@ -162,7 +177,7 @@ class TestLSKGE3 : public ::testing::Test
         // Check the result
         T *S_ptr = &S0.buff[pos];
         RandBLAS_Testing::Util::matrices_approx_equal(
-            S0.layout, blas::Op::NoTrans,
+            layout, blas::Op::NoTrans,
             d, m,
             B.data(), ldb,
             S_ptr, lds,
@@ -209,7 +224,7 @@ class TestLSKGE3 : public ::testing::Test
         int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
         T *A_ptr = &A0.data()[a_offset]; 
         RandBLAS::ramm::ramm_general_left<T>(
-            S0.layout,
+            layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, n, m,
@@ -429,47 +444,3 @@ TEST_F(TestLSKGE3, submatrix_a_single)
         );
 }
 
-
-#if defined(RandBLAS_HAS_OpenMP)
-template <typename T, typename RNG, typename OP>
-void DenseThreadTest() {
-    int64_t m = 32;
-    int64_t n = 8;
-    int64_t d = m*n;
-
-    std::vector<T> base(d);
-    std::vector<T> test(d);
-
-    // generate the base state with 1 thread.
-    omp_set_num_threads(1);
-    RandBLAS::base::RNGState<RNG> state(0);
-    RandBLAS::dense::fill_rmat<T,RNG,OP>(m, n, base.data(), state);
-    std::cerr << "with 1 thread: " << base << std::endl;
-
-    // run with different numbers of threads, and check that the result is the same
-    int n_hyper = std::thread::hardware_concurrency();
-    int n_threads = std::max(n_hyper / 2, 3);
-
-    for (int i = 2; i <= n_threads; ++i) {
-
-        omp_set_num_threads(i);
-
-        RandBLAS::dense::fill_rmat<T,RNG,OP>(m, n, test.data(), {});
-
-        std::cerr << "with " << i << " threads: " << test << std::endl;
-
-        for (int64_t i = 0; i < d; ++i) {
-            EXPECT_FLOAT_EQ( base[i], test[i] );
-        }
-    }
-}
-
-TEST(TestDenseThreading, UniformPhilox) {
-    DenseThreadTest<float,r123::Philox4x32,r123ext::uneg11>();
-}
-
-TEST(TestDenseThreading, GaussianPhilox) {
-    DenseThreadTest<float,r123::Philox4x32,r123ext::boxmul>();
-}
-
-#endif
