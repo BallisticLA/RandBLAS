@@ -150,7 +150,8 @@ void buffs_approx_equal(
 
 template <typename T>
 void matrices_approx_equal(
-    blas::Layout layout,
+    blas::Layout layoutA,
+    blas::Layout layoutB,
     blas::Op transB,
     int64_t m,
     int64_t n,
@@ -166,11 +167,11 @@ void matrices_approx_equal(
 ) {
     std::ostringstream oss;
     // check that A == op(B), where A is m-by-n.
-    auto idxa = [lda, layout](int64_t i, int64_t j) {
-        return  (layout == blas::Layout::ColMajor) ? (i + j*lda) : (j + i*lda);
+    auto idxa = [lda, layoutA](int64_t i, int64_t j) {
+        return  (layoutA == blas::Layout::ColMajor) ? (i + j*lda) : (j + i*lda);
     };
-    auto idxb = [ldb, layout](int64_t i, int64_t j) {
-        return  (layout == blas::Layout::ColMajor) ? (i + j*ldb) : (j + i*ldb);
+    auto idxb = [ldb, layoutB](int64_t i, int64_t j) {
+        return  (layoutB == blas::Layout::ColMajor) ? (i + j*ldb) : (j + i*ldb);
     };
     if (transB == blas::Op::NoTrans) {
         for (int64_t i = 0; i < m; ++i) {
@@ -195,6 +196,26 @@ void matrices_approx_equal(
             }
         }
     }
+}
+
+
+template <typename T>
+void matrices_approx_equal(
+    blas::Layout layout,
+    blas::Op transB,
+    int64_t m,
+    int64_t n,
+    const T *A,
+    int64_t lda,
+    const T *B,
+    int64_t ldb,
+    const char *testName,
+    const char *fileName,
+    int lineNo,
+    T atol = T(10)*std::numeric_limits<T>::epsilon(),
+    T rtol = std::numeric_limits<T>::epsilon()
+) {
+    matrices_approx_equal(layout, layout, transB, m, n, A, lda, B, ldb, testName, fileName, lineNo, atol, rtol);
 }
 
 template <typename T>
