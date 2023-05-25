@@ -430,20 +430,6 @@ TEST_F(TestLSKGE3, submatrix_a_single)
 }
 
 
-template <typename T>
-std::ostream &operator<<(std::ostream &os, std::vector<T> &v) {
-    size_t n = v.size();
-    os << "{";
-    if (n)
-    {
-        os << v[0];
-        for (size_t i = 1; i < n; ++i)
-            os << ", " << v[i];
-    }
-    os << "}";
-    return os;
-}
-
 #if defined(RandBLAS_HAS_OpenMP)
 template <typename T, typename RNG, typename OP>
 void DenseThreadTest() {
