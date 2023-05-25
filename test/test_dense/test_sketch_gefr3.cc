@@ -115,8 +115,6 @@ class TestRSKGE3 : public ::testing::Test
         );
     }
 
-    // TODO: enable tests below for submatrix of S and submatrix of A.
-
     template <typename T>
     static void submatrix_S(
         uint32_t seed,
@@ -130,9 +128,6 @@ class TestRSKGE3 : public ::testing::Test
     ) {
         assert(d0 > d);
         assert(m0 > m);
-        // bool is_colmajor = layout == blas::Layout::ColMajor;
-        // int64_t pos = (is_colmajor) ? (S_ro + m0 * S_co) : (S_ro * d0 + S_co);
-        // assert(d0 * m0 >= pos + d * m);
 
         // Define the distribution for S0.
         RandBLAS::dense::DenseDist D = {
@@ -145,6 +140,7 @@ class TestRSKGE3 : public ::testing::Test
         RandBLAS::dense::realize_full(S0);
         int64_t lds = (S0.layout == blas::Layout::ColMajor) ? S0.dist.n_rows : S0.dist.n_cols;
         int64_t pos = (S0.layout == blas::Layout::ColMajor) ? (S_ro + lds * S_co) : (S_ro * lds + S_co);
+        assert(d0 * m0 >= pos + d * m);
         
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A(m * m, 0.0);
@@ -382,7 +378,7 @@ TEST_F(TestRSKGE3, submatrix_s_single)
         submatrix_S<float>(seed,
             3, 10, // (cols, rows) in S.
             8, 12, // (cols, rows) in S0.
-            3, // The first row of S is in the forth row of S0
+            2, // The first row of S is in the third row of S0
             1, // The first col of S is in the second col of S0
             blas::Layout::ColMajor
         );
