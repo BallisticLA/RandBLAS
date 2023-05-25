@@ -49,9 +49,6 @@ enum class FillAxis : char {
     Long = 'U'
 };
 
-// FillAxis swap_axis(FillAxis fa) {
-//     return (fa == FillAxis::Long) ? FillAxis::Short : FillAxis::Long;
-// }
 
 // =============================================================================
 /// A distribution over dense sketching operators.
@@ -74,13 +71,12 @@ struct DenseDist {
     const FillAxis fill_axis = FillAxis::Long;
 };
 
-inline blas::Layout fillaxis_and_dims_to_layout(
-    FillAxis fa,
-    int64_t n_rows,
-    int64_t n_cols
+
+inline blas::Layout dist_to_layout(
+    DenseDist D
 ) {
-    bool is_wide = n_rows < n_cols;
-    bool fa_long = fa == FillAxis::Long;
+    bool is_wide = D.n_rows < D.n_cols;
+    bool fa_long = D.fill_axis == FillAxis::Long;
     if (is_wide && fa_long) {
         return blas::Layout::RowMajor;
     } else if (is_wide) {
@@ -90,12 +86,6 @@ inline blas::Layout fillaxis_and_dims_to_layout(
     } else {
         return blas::Layout::ColMajor;
     }
-}
-
-inline blas::Layout dist_to_layout(
-    DenseDist D
-) {
-    return fillaxis_and_dims_to_layout(D.fill_axis, D.n_rows, D.n_cols);
 }
 
 // =============================================================================
@@ -131,9 +121,8 @@ struct DenseSkOp {
     base::RNGState<RNG> next_state;
 
     T *buff = nullptr;                         // memory
+    const blas::Layout layout;                 // matrix storage order
     bool del_buff_on_destruct = false;         // only applies if realize_full has been called.
-
-    const blas::Layout layout; ///< matrix storage order
 
     /////////////////////////////////////////////////////////////////////
     //
@@ -143,25 +132,17 @@ struct DenseSkOp {
 
     //  Elementary constructor: needs an implementation
     DenseSkOp(
-        DenseDist dist_,
-        RNGState<RNG> const& state_,
-        T *buff_,
-        blas::Layout layout_
-    );
-
-    DenseSkOp(
         DenseDist dist,
         RNGState<RNG> const& state,
-        T* buff
-    ) : DenseSkOp(dist, state, buff, dist_to_layout(dist)) {};
+        T *buff = nullptr
+    );
 
     //  Convenience constructor (a wrapper)
     DenseSkOp(
         DenseDist dist,
         uint32_t key,
-        T *buff,
-        blas::Layout layout
-    ) : DenseSkOp(dist, RNGState<RNG>(key), buff, layout) {};
+        T *buff = nullptr
+    ) : DenseSkOp(dist, RNGState<RNG>(key), buff) {};
 
     //  Convenience constructor (a wrapper)
     DenseSkOp(
@@ -169,9 +150,9 @@ struct DenseSkOp {
         int64_t n_rows,
         int64_t n_cols,
         uint32_t key,
-        T *buff,
-        blas::Layout layout
-    ) : DenseSkOp(DenseDist{n_rows, n_cols, family}, RNGState<RNG>(key), buff, layout) {};
+        T *buff = nullptr,
+        FillAxis fa = FillAxis::Long
+    ) : DenseSkOp(DenseDist{n_rows, n_cols, family, fa}, RNGState<RNG>(key), buff) {};
 
     // Destructor
     ~DenseSkOp();
@@ -179,20 +160,19 @@ struct DenseSkOp {
 
 template <typename T, typename RNG>
 DenseSkOp<T,RNG>::DenseSkOp(
-    DenseDist dist_,
-    RNGState<RNG> const& state_,
-    T *buff_,            
-    blas::Layout layout_ 
+    DenseDist dist,
+    RNGState<RNG> const& state,
+    T *buff
 ) : // variable definitions
-    dist(dist_),
-    seed_state(state_),
+    dist(dist),
+    seed_state(state),
     next_state{},
-    buff(buff_),
-    layout(layout_)
+    buff(buff),
+    layout(dist_to_layout(dist))
 {   // sanity checks
     randblas_require(this->dist.n_rows > 0);
     randblas_require(this->dist.n_cols > 0);
-    if (dist_.family == DenseDistName::BlackBox)
+    if (dist.family == DenseDistName::BlackBox)
         randblas_require(this->buff != nullptr);
 }
 
@@ -469,7 +449,7 @@ void lskge3(
     if (opposing_layouts)
         transS = (transS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
 
-    DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff, S0.layout);
+    DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff);
     T *S0_ptr = S0.buff;
     if (!S0_ptr) {
         // The tentative RandBLAS standard doesn't let us attach memory to S0 inside this function.
@@ -664,7 +644,7 @@ void rskge3(
     if (opposing_layouts)
         transS = (transS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
 
-    DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff, S0.layout);
+    DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff);
     T *S0_ptr = S0.buff;
     if (!S0_ptr) {
         // The tentative RandBLAS standard doesn't let us attach memory to S0 inside this function.
