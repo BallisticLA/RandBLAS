@@ -192,9 +192,9 @@ class TestLSKGE3 : public ::testing::Test
             .family = RandBLAS::dense::DenseDistName::Gaussian
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0(D, seed_S0, nullptr, layout);
+        RandBLAS::dense::DenseSkOp<T> S0(D, seed_S0, nullptr);
         RandBLAS::dense::realize_full(S0);
-        bool is_colmajor = layout == blas::Layout::ColMajor;
+        bool AB_colmajor = layout == blas::Layout::ColMajor;
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A0(m0 * n0, 0.0);
@@ -202,11 +202,11 @@ class TestLSKGE3 : public ::testing::Test
         RandBLAS::dense::DenseDist DA0 = {.n_rows = m0, .n_cols = n0};
         RandBLAS::dense::fill_buff(A0.data(), DA0, RandBLAS::base::RNGState(seed_A0));
         std::vector<T> B(d * n, 0.0);
-        int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
-        int64_t ldb = (is_colmajor) ? d : n;
+        int64_t lda = (AB_colmajor) ? DA0.n_rows : DA0.n_cols;
+        int64_t ldb = (AB_colmajor) ? d : n;
         
         // Perform the sketch
-        int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
+        int64_t a_offset = (AB_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
         T *A_ptr = &A0.data()[a_offset]; 
         RandBLAS::ramm::ramm_general_left<T>(
             layout,
@@ -219,9 +219,10 @@ class TestLSKGE3 : public ::testing::Test
         );
 
         // Check the result
-        int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
+        int64_t lds = (S0.layout == blas::Layout::ColMajor) ? S0.dist.n_rows : S0.dist.n_cols;
         std::vector<T> B_expect(d * n, 0.0);
-        blas::gemm<T>(S0.layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        blas::Op transS = (S0.layout == layout) ? blas::Op::NoTrans : blas::Op::Trans;
+        blas::gemm<T>(layout, transS, blas::Op::NoTrans,
             d, n, m,
             1.0, S0.buff, lds, A_ptr, lda,
             0.0, B_expect.data(), ldb
