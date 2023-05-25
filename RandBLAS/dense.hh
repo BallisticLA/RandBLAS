@@ -82,9 +82,9 @@ inline blas::Layout dist_to_layout(
     } else if (is_wide) {
         return blas::Layout::ColMajor;
     } else if (fa_long) {
-        return blas::Layout::RowMajor;
-    } else {
         return blas::Layout::ColMajor;
+    } else {
+        return blas::Layout::RowMajor;
     }
 }
 
