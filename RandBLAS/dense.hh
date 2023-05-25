@@ -465,12 +465,9 @@ void lskge3(
     T *B,
     int64_t ldb
 ){
-    //randblas_require(S0.layout == layout);
     bool opposing_layouts = S0.layout != layout;
-    if (opposing_layouts) {
+    if (opposing_layouts)
         transS = (transS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
-        // what about computing ptr_offset? Do we compute that w.r.t S0.layout, or plain layout?
-    }
 
     DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff, S0.layout);
     T *S0_ptr = S0.buff;
@@ -663,7 +660,10 @@ void rskge3(
     T *B,
     int64_t ldb
 ){
-    randblas_require(S0.layout == layout);
+    bool opposing_layouts = S0.layout != layout;
+    if (opposing_layouts)
+        transS = (transS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
+
     DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff, S0.layout);
     T *S0_ptr = S0.buff;
     if (!S0_ptr) {
@@ -698,16 +698,28 @@ void rskge3(
 
     // Sanity checks on dimensions and strides
     int64_t lds, pos;
-    if (layout == blas::Layout::ColMajor) {
+    if (S0.layout == blas::Layout::ColMajor) {
         lds = S0.dist.n_rows;
+        if (opposing_layouts) {
+            randblas_require(lds >= cols_submat_S);
+        } else {
+            randblas_require(lds >= rows_submat_S);
+        }
         pos = i_os + lds * j_os;
-        randblas_require(lds >= rows_submat_S);
+    } else {
+        lds = S0.dist.n_cols;
+        if (opposing_layouts) {
+            randblas_require(lds >= rows_submat_S);
+        } else {
+            randblas_require(lds >= cols_submat_S);
+        }
+        pos = i_os * lds + j_os;
+    }
+
+    if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= m);
     } else {
-        lds = S0.dist.n_cols;
-        pos = i_os * lds + j_os;
-        randblas_require(lds >= cols_submat_S);
         randblas_require(lda >= cols_A);
         randblas_require(ldb >= d);
     }

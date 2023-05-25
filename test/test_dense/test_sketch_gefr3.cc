@@ -38,24 +38,23 @@ class TestRSKGE3 : public ::testing::Test
 
         // Define the sketching operator struct, S0.
         // Create a copy that we always realize explicitly.
-        RandBLAS::dense::DenseSkOp<T> S0(D, seed, NULL, layout);
+        RandBLAS::dense::DenseSkOp<T> S0(D, seed, NULL);
         if (preallocate)
             RandBLAS::dense::realize_full(S0);
-        RandBLAS::dense::DenseSkOp<T> S0_ref(D, seed, NULL, layout);
+        RandBLAS::dense::DenseSkOp<T> S0_ref(D, seed, NULL);
         RandBLAS::dense::realize_full(S0_ref);
 
         // define a matrix to be sketched, and create workspace for sketch.
-        bool is_colmajor = layout == blas::Layout::ColMajor;
         std::vector<T> A(m * m, 0.0);
         for (int i = 0; i < m; ++i)
             A[i + m*i] = 1.0;
-        std::vector<T> B(d * m, 0.0);
+        std::vector<T> B(m * d, 0.0);
         int64_t lda = m;
-        int64_t ldb = (is_colmajor) ? m : d;
+        int64_t ldb = (layout == blas::Layout::ColMajor) ? m : d;
 
         // Perform the sketch
         RandBLAS::ramm::ramm_general_right<T>(
-            S0.layout,
+            layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             m, d, m,
@@ -65,8 +64,10 @@ class TestRSKGE3 : public ::testing::Test
         );
 
         // check the result
-        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), S0_ref.buff, d*m,
-             __PRETTY_FUNCTION__, __FILE__, __LINE__
+        int64_t lds = (S0.layout == blas::Layout::ColMajor) ? S0.dist.n_rows : S0.dist.n_cols;
+        RandBLAS_Testing::Util::matrices_approx_equal(
+            layout, S0.layout, blas::Op::NoTrans, m, d, B.data(), ldb, S0_ref.buff, lds,
+                __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
 
