@@ -144,16 +144,16 @@ class TestFillAxis : public::testing::Test
         static inline auto distname = RandBLAS::dense::DenseDistName::Uniform;
 
     template <typename T>
-    static void auto_transpose(int64_t short_dim, int64_t long_dim, RandBLAS::dense::FillAxis fa) {
+    static void auto_transpose(int64_t short_dim, int64_t long_dim, RandBLAS::dense::MajorAxis ma) {
         uint32_t seed = 99;
     
         // make the wide sketching operator
-        RandBLAS::dense::DenseDist D_wide {short_dim, long_dim, distname, fa};
+        RandBLAS::dense::DenseDist D_wide {short_dim, long_dim, distname, ma};
         RandBLAS::dense::DenseSkOp<T> S_wide(D_wide, seed);
         RandBLAS::dense::realize_full(S_wide);
 
         // make the tall sketching operator
-        RandBLAS::dense::DenseDist D_tall {long_dim, short_dim, distname, fa};
+        RandBLAS::dense::DenseDist D_tall {long_dim, short_dim, distname, ma};
         RandBLAS::dense::DenseSkOp<T> S_tall(D_tall, seed);
         RandBLAS::dense::realize_full(S_tall);
 
@@ -176,25 +176,25 @@ class TestFillAxis : public::testing::Test
 };
 
 TEST_F(TestFillAxis, long_axis_3x5) {
-    auto_transpose<float>(3, 5, RandBLAS::dense::FillAxis::Long);
+    auto_transpose<float>(3, 5, RandBLAS::dense::MajorAxis::Long);
 }
 
 TEST_F(TestFillAxis, short_axis_3x5) {
-    auto_transpose<float>(3, 5, RandBLAS::dense::FillAxis::Short);
+    auto_transpose<float>(3, 5, RandBLAS::dense::MajorAxis::Short);
 }
 
 TEST_F(TestFillAxis, long_axis_4x8) {
-    auto_transpose<float>(4, 8, RandBLAS::dense::FillAxis::Long);
+    auto_transpose<float>(4, 8, RandBLAS::dense::MajorAxis::Long);
 }
 
 TEST_F(TestFillAxis, short_axis_4x8) {
-    auto_transpose<float>(4, 8, RandBLAS::dense::FillAxis::Short);
+    auto_transpose<float>(4, 8, RandBLAS::dense::MajorAxis::Short);
 }
 
 TEST_F(TestFillAxis, long_axis_2x4) {
-    auto_transpose<float>(2, 4, RandBLAS::dense::FillAxis::Long);
+    auto_transpose<float>(2, 4, RandBLAS::dense::MajorAxis::Long);
 }
 
 TEST_F(TestFillAxis, short_axis_2x4) {
-    auto_transpose<float>(2, 4, RandBLAS::dense::FillAxis::Short);
+    auto_transpose<float>(2, 4, RandBLAS::dense::MajorAxis::Short);
 }

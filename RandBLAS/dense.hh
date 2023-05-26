@@ -39,7 +39,7 @@ enum class DenseDistName : char {
     BlackBox = 'B'
 };
 
-enum class FillAxis : char {
+enum class MajorAxis : char {
     // ---------------------------------------------------------------------------
     ///  short-axis vectors (cols of a wide matrix, rows of a tall matrix)
     Short = 'S',
@@ -68,7 +68,7 @@ struct DenseDist {
 
     // ---------------------------------------------------------------------------
     ///  The order in which the buffer should be populated, if sampling iid.
-    const FillAxis fill_axis = FillAxis::Long;
+    const MajorAxis major_axis = MajorAxis::Long;
 };
 
 
@@ -76,7 +76,7 @@ inline blas::Layout dist_to_layout(
     DenseDist D
 ) {
     bool is_wide = D.n_rows < D.n_cols;
-    bool fa_long = D.fill_axis == FillAxis::Long;
+    bool fa_long = D.major_axis == MajorAxis::Long;
     if (is_wide && fa_long) {
         return blas::Layout::RowMajor;
     } else if (is_wide) {
@@ -151,8 +151,8 @@ struct DenseSkOp {
         int64_t n_cols,
         uint32_t key,
         T *buff = nullptr,
-        FillAxis fa = FillAxis::Long
-    ) : DenseSkOp(DenseDist{n_rows, n_cols, family, fa}, RNGState<RNG>(key), buff) {};
+        MajorAxis ma = MajorAxis::Long
+    ) : DenseSkOp(DenseDist{n_rows, n_cols, family, ma}, RNGState<RNG>(key), buff) {};
 
     // Destructor
     ~DenseSkOp();
@@ -210,17 +210,17 @@ RNGState<RNG> fill_rmat(
     int64_t n_cols,
     T* mat,
     const RNGState<RNG> & seed,
-    FillAxis fa = FillAxis::Long
+    MajorAxis ma = MajorAxis::Long
 ) {
     //  Assume that this function fills column-major by default.
-    //      If this matrix is tall and fa==Long, then we continue as normal.
-    //      If this matrix is wide and fa==short, then we continue as normal.
-    //      If we're tall and fa=short, then we should fill the wide transpose.
-    //      If we're wide and fa=long, then we should fill the tall transpose.
-    if (fa == FillAxis::Long && n_cols > n_rows)
-        return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, fa);
-    if (fa == FillAxis::Short && n_rows > n_cols)
-        return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, fa);
+    //      If this matrix is tall and ma==Long, then we continue as normal.
+    //      If this matrix is wide and ma==short, then we continue as normal.
+    //      If we're tall and ma=short, then we should fill the wide transpose.
+    //      If we're wide and ma=long, then we should fill the tall transpose.
+    if (ma == MajorAxis::Long && n_cols > n_rows)
+        return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, ma);
+    if (ma == MajorAxis::Short && n_rows > n_cols)
+        return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, ma);
 
     RNG rng;
     // clang chokes on this w/ omp due to internal use of lambdas, fixed in C++20
@@ -294,9 +294,9 @@ auto fill_buff(
 ) {
     switch (D.family) {
         case DenseDistName::Gaussian:
-            return fill_rmat<T,RNG,r123ext::boxmul>(D.n_rows, D.n_cols, buff, state, D.fill_axis);
+            return fill_rmat<T,RNG,r123ext::boxmul>(D.n_rows, D.n_cols, buff, state, D.major_axis);
         case DenseDistName::Uniform:
-            return fill_rmat<T,RNG,r123ext::uneg11>(D.n_rows, D.n_cols, buff, state, D.fill_axis);
+            return fill_rmat<T,RNG,r123ext::uneg11>(D.n_rows, D.n_cols, buff, state, D.major_axis);
         case DenseDistName::BlackBox:
             throw std::invalid_argument(std::string("fill_buff cannot be called with the BlackBox distribution."));
         default:
