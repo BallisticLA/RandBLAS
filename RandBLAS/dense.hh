@@ -285,58 +285,6 @@ RNGState<RNG> fill_rmat(
     return RNGState<RNG> {c, k};
 }
 
-template<typename T, typename RNG, typename OP>
-auto fill_rsubmat_parallel(
-    int64_t n_cols,
-    T* smat,
-    int64_t n_srows,
-    int64_t n_scols,
-    int64_t ptr,
-    const RNGState<RNG> & seed
-) {
-    RNG rng;
-    // clang chokes on this w/ omp due to internal use of lambdas, fixed in C++20
-    //auto [c, k] = seed;
-    typename RNG::ctr_type c = seed.counter;
-    typename RNG::key_type k = seed.key;
-
-    #pragma omp parallel for shared(smat) firstprivate(c, k)
-    for (int row = 0; row < n_srows; row++) {
-        int r0_prev = 0;
-        int i, r;
-        int ind = 0;
-        int i0 = ptr + row*n_cols;
-        int i1 = ptr + row*n_cols + n_scols - 1;
-        int r0 = (int) i0 / RNG::ctr_type::static_size;
-        int r1 = (int) i1 / RNG::ctr_type::static_size;
-        int s0 = i0 % RNG::ctr_type::static_size;
-        int e1 = i1 % RNG::ctr_type::static_size;
-
-        c.incr(r0);
-        auto rv =  OP::generate(rng, c, k);
-        for (i = s0; i < RNG::ctr_type::static_size; i++) {
-            smat[ind + row*n_scols] = rv[i];
-            ind++;
-        }
-
-        for (r = r0+1; r < r1; r++) {
-            c.incr();
-            rv = OP::generate(rng, c, k);
-            for (i = 0; i < RNG::ctr_type::static_size; i++) {
-                smat[ind + row*n_scols] = rv[i];
-                ind++;
-            }
-        }
-
-        c.incr();
-        rv = OP::generate(rng, c, k);
-        for (i = 0; i < e1; i++) {
-            smat[ind + row*n_scols] = rv[i];
-        }
-
-        r0_prev = r0;
-    }
-}
 
 template<typename T, typename RNG, typename OP>
 auto fill_rsubmat_omp(
