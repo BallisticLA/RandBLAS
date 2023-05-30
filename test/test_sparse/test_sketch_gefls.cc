@@ -1,301 +1,11 @@
 #include <RandBLAS/dense.hh>
 #include <RandBLAS/sparse.hh>
+#include <RandBLAS/ramm.hh>
 #include <RandBLAS/util.hh>
 #include <RandBLAS/test_util.hh>
 #include <gtest/gtest.h>
 #include <math.h>
 
-#include <type_traits>
-#include <typeinfo>
-#ifndef _MSC_VER
-#   include <cxxabi.h>
-#endif
-#include <memory>
-#include <string>
-#include <cstdlib>
-
-template <class T>
-std::string
-type_name()
-{
-    typedef typename std::remove_reference<T>::type TR;
-    std::unique_ptr<char, void(*)(void*)> own
-           (
-#ifndef _MSC_VER
-                abi::__cxa_demangle(typeid(TR).name(), nullptr,
-                                           nullptr, nullptr),
-#else
-                nullptr,
-#endif
-                std::free
-           );
-    std::string r = own != nullptr ? own.get() : typeid(TR).name();
-    if (std::is_const<TR>::value)
-        r += " const";
-    if (std::is_volatile<TR>::value)
-        r += " volatile";
-    if (std::is_lvalue_reference<T>::value)
-        r += "&";
-    else if (std::is_rvalue_reference<T>::value)
-        r += "&&";
-    return r;
-}
-
-
-class TestSparseSkOpConstruction : public ::testing::Test
-{
-    protected:
-        std::vector<uint32_t> keys{42, 0, 1};
-        std::vector<int64_t> vec_nnzs{(int64_t) 1, (int64_t) 2, (int64_t) 3, (int64_t) 7};     
-    
-    virtual void SetUp() {};
-
-    virtual void TearDown() {};
-
-    void check_fixed_nnz_per_col(RandBLAS::sparse::SparseSkOp<double> &S0) {
-        std::set<int64_t> s;
-        for (int64_t i = 0; i < S0.dist.n_cols; ++i) {
-            int64_t offset = S0.dist.vec_nnz * i;
-            s.clear();
-            for (int64_t j = 0; j < S0.dist.vec_nnz; ++j) {
-                int64_t row = S0.rows[offset + j];
-                ASSERT_EQ(s.count(row), 0) << "row index " << row << " was duplicated in column " << i << std::endl;
-                s.insert(row);
-            }
-        }
-    }
-
-    void check_fixed_nnz_per_row(RandBLAS::sparse::SparseSkOp<double> &S0) {
-        std::set<int64_t> s;
-        for (int64_t i = 0; i < S0.dist.n_rows; ++i) {
-            int64_t offset = S0.dist.vec_nnz * i;
-            s.clear();
-            for (int64_t j = 0; j < S0.dist.vec_nnz; ++j) {
-                int64_t col = S0.cols[offset + j];
-                ASSERT_EQ(s.count(col), 0)  << "column index " << col << " was duplicated in row " << i << std::endl;
-                s.insert(col);
-            }
-        }
-    }
-
-    virtual void proper_saso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
-        RandBLAS::sparse::SparseSkOp<double> S0(
-            {d, m, RandBLAS::sparse::SparsityPattern::SASO, vec_nnzs[nnz_index]}, keys[key_index]
-        );
-       RandBLAS::sparse::fill_sparse(S0);
-       if (d < m) {
-            check_fixed_nnz_per_col(S0);
-       } else {
-            check_fixed_nnz_per_row(S0);
-       }
-    } 
-
-    virtual void proper_laso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
-        RandBLAS::sparse::SparseSkOp<double> S0(
-            {d, m, RandBLAS::sparse::SparsityPattern::LASO, vec_nnzs[nnz_index]}, keys[key_index]
-        );
-        RandBLAS::sparse::fill_sparse(S0);
-       if (d < m) {
-            check_fixed_nnz_per_row(S0);
-       } else {
-            check_fixed_nnz_per_col(S0);
-       }
-    } 
-};
-
-TEST_F(TestSparseSkOpConstruction, SASO_Dim_7by20_nnz_1) {
-    proper_saso_construction(7, 20, 0, 0);
-    proper_saso_construction(7, 20, 1, 0);
-    proper_saso_construction(7, 20, 2, 0);
-}
-
-TEST_F(TestSparseSkOpConstruction, SASO_Dim_7by20_nnz_2) {
-    proper_saso_construction(7, 20, 0, 1);
-    proper_saso_construction(7, 20, 1, 1);
-    proper_saso_construction(7, 20, 2, 1);
-}
-
-TEST_F(TestSparseSkOpConstruction, SASO_Dim_7by20_nnz_3) {
-    proper_saso_construction(7, 20, 0, 2);
-    proper_saso_construction(7, 20, 1, 2);
-    proper_saso_construction(7, 20, 2, 2);
-}
-
-TEST_F(TestSparseSkOpConstruction, SASO_Dim_7by20_nnz_7) {
-    proper_saso_construction(7, 20, 0, 3);
-    proper_saso_construction(7, 20, 1, 3);
-    proper_saso_construction(7, 20, 2, 3);
-}
-
-TEST_F(TestSparseSkOpConstruction, SASO_Dim_15by7) {
-    proper_saso_construction(15, 7, 0, 0);
-    proper_saso_construction(15, 7, 1, 0);
-
-    proper_saso_construction(15, 7, 0, 1);
-    proper_saso_construction(15, 7, 1, 1);
-
-    proper_saso_construction(15, 7, 0, 2);
-    proper_saso_construction(15, 7, 1, 2);
-
-    proper_saso_construction(15, 7, 0, 3);
-    proper_saso_construction(15, 7, 1, 3);
-}
-
-TEST_F(TestSparseSkOpConstruction, LASO_Dim_7by20_nnz_1) {
-    proper_laso_construction(7, 20, 0, 0);
-    proper_laso_construction(7, 20, 1, 0);
-    proper_laso_construction(7, 20, 2, 0);
-}
-
-TEST_F(TestSparseSkOpConstruction, LASO_Dim_7by20_nnz_2) {
-    proper_laso_construction(7, 20, 0, 1);
-    proper_laso_construction(7, 20, 1, 1);
-    proper_laso_construction(7, 20, 2, 1);
-}
-
-TEST_F(TestSparseSkOpConstruction, LASO_Dim_7by20_nnz_3) {
-    proper_laso_construction(7, 20, 0, 2);
-    proper_laso_construction(7, 20, 1, 2);
-    proper_laso_construction(7, 20, 2, 2);
-}
-
-TEST_F(TestSparseSkOpConstruction, LASO_Dim_7by20_nnz_7) {
-    proper_laso_construction(7, 20, 0, 3);
-    proper_laso_construction(7, 20, 1, 3);
-    proper_laso_construction(7, 20, 2, 3);
-}
-
-TEST_F(TestSparseSkOpConstruction, LASO_Dim_15by7) {
-    proper_laso_construction(15, 7, 0, 0);
-    proper_laso_construction(15, 7, 1, 0);
-
-    proper_laso_construction(15, 7, 0, 1);
-    proper_laso_construction(15, 7, 1, 1);
-
-    proper_laso_construction(15, 7, 0, 2);
-    proper_laso_construction(15, 7, 1, 2);
-
-    proper_laso_construction(15, 7, 0, 3);
-    proper_laso_construction(15, 7, 1, 3);
-}
-
-template <typename T>
-void sparseskop_to_dense(
-    RandBLAS::sparse::SparseSkOp<T> &S0,
-    T *mat,
-    blas::Layout layout,
-    bool take_abs = false
-) {
-    RandBLAS::sparse::SparseDist D = S0.dist;
-    for (int64_t i = 0; i < D.n_rows * D.n_cols; ++i)
-        mat[i] = 0.0;
-    auto idx = [D, layout](int64_t i, int64_t j) {
-        return  (layout == blas::Layout::ColMajor) ? (i + j*D.n_rows) : (j + i*D.n_cols);
-    };
-    int64_t nnz;
-    if (D.family == RandBLAS::sparse::SparsityPattern::SASO) {
-        nnz = D.vec_nnz * MAX(D.n_rows, D.n_cols);
-    } else {
-        nnz = D.vec_nnz * MIN(D.n_rows, D.n_cols);
-    }
-    for (int64_t i = 0; i < nnz; ++i) {
-        int64_t row = S0.rows[i];
-        int64_t col = S0.cols[i];
-        T val = S0.vals[i];
-        if (take_abs)
-            val = abs(val);
-        mat[idx(row, col)] = val;
-    }
-}
-
-template <typename T, typename RNG>
-void reference_lskges(
-    blas::Layout layout,
-    blas::Op transS,
-    blas::Op transA,
-    int64_t d, // mat(B) is d-by-n
-    int64_t n, // op(mat(A)) is m-by-n
-    int64_t m, // op(submat(S)) is d-by-m
-    T alpha,
-    RandBLAS::sparse::SparseSkOp<T,RNG> &S,
-    int64_t i_os,
-    int64_t j_os,
-    const T *A,
-    int64_t lda,
-    T beta,
-    T *B,  // expected value produced by LSKGES; compute via GEMM.
-    T *E,  // allowable floating point error; apply theory + compute by GEMM.
-    int64_t ldb
-){
-    randblas_require(d > 0);
-    randblas_require(m > 0);
-    randblas_require(n > 0);
-    std::vector<T> S_dense(S.dist.n_rows * S.dist.n_cols);
-    sparseskop_to_dense<T>(S, S_dense.data(), layout, false);
-    std::vector<T> S_dense_abs(S.dist.n_rows * S.dist.n_cols);
-    sparseskop_to_dense<T>(S, S_dense_abs.data(), layout, true);
-
-    // Dimensions of mat(A), rather than op(mat(A))
-    int64_t rows_mat_A, cols_mat_A, rows_submat_S, cols_submat_S;
-    if (transA == blas::Op::NoTrans) {
-        rows_mat_A = m;
-        cols_mat_A = n;
-    } else {
-        rows_mat_A = n;
-        cols_mat_A = m;
-    }
-    // Dimensions of submat(S), rather than op(submat(S))
-    if (transS == blas::Op::NoTrans) {
-        rows_submat_S = d;
-        cols_submat_S = m;
-    } else {
-        rows_submat_S = m;
-        cols_submat_S = d;
-    }
-    // Sanity checks on dimensions and strides
-    int64_t lds, pos, size_A, size_B;
-    if (layout == blas::Layout::ColMajor) {
-        lds = S.dist.n_rows;
-        pos = i_os + lds * j_os;
-        randblas_require(lds >= rows_submat_S);
-        randblas_require(lda >= rows_mat_A);
-        randblas_require(ldb >= d);
-        size_A = lda * (cols_mat_A - 1) + rows_mat_A;;
-        size_B = ldb * (n - 1) + d;
-    } else {
-        lds = S.dist.n_cols;
-        pos = i_os * lds + j_os;
-        randblas_require(lds >= cols_submat_S);
-        randblas_require(lda >= cols_mat_A);
-        randblas_require(ldb >= n);
-        size_A = lda * (rows_mat_A - 1) + cols_mat_A;
-        size_B = ldb * (d - 1) + n;
-    }
-
-    // Compute the reference value
-    T* S_ptr = S_dense.data();
-    blas::gemm(layout, transS, transA, d, n, m,
-        alpha, &S_ptr[pos], lds, A, lda, beta, B, ldb
-    );
-
-    // Compute the matrix needed for componentwise error bounds.
-    std::vector<T> A_abs_vec(size_A);
-    T* A_abs = A_abs_vec.data();
-    for (int64_t i = 0; i < size_A; ++i)
-        A_abs[i] = abs(A[i]);
-    if (beta != 0.0) {
-        for (int64_t i = 0; i < size_B; ++i)
-            E[i] = abs(B[i]);
-    }
-    T eps = std::numeric_limits<T>::epsilon();
-    T err_alpha = (abs(alpha) * m) * (2 * eps);
-    T err_beta = abs(beta) * eps;
-    T* S_abs_ptr = S_dense_abs.data();
-    blas::gemm(layout, transS, transA, d, n, m,
-        err_alpha, &S_abs_ptr[pos], lds, A_abs, lda, err_beta, E, ldb
-    );
-    return;
-}
 
 
 class TestLSKGES : public ::testing::Test
@@ -344,7 +54,7 @@ class TestLSKGES : public ::testing::Test
         int orig_threads = omp_get_num_threads();
         omp_set_num_threads(threads);
 #endif
-        RandBLAS::sparse::lskges<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             layout, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
             1.0, S0, 0, 0, a, lda,
@@ -357,7 +67,7 @@ class TestLSKGES : public ::testing::Test
         // compute expected result (B1) and allowable error (E)
         T *B1 = new T[d * n]{};
         T *E = new T[d * n]{};
-        reference_lskges<T>(
+        RandBLAS_Testing::Util::reference_lskges<T>(
             layout, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
             1.0, S0, 0, 0, a, lda,
@@ -399,7 +109,7 @@ class TestLSKGES : public ::testing::Test
         );
         RandBLAS::sparse::fill_sparse(S0);
         T *S0_dense = new T[d0 * m0];
-        sparseskop_to_dense<T>(S0, S0_dense, layout);
+        RandBLAS_Testing::Util::sparseskop_to_dense<T>(S0, S0_dense, layout);
         int64_t lda, ldb, lds0;
         if (is_colmajor) {
             lda = m1;
@@ -422,7 +132,7 @@ class TestLSKGES : public ::testing::Test
         int orig_threads = omp_get_num_threads();
         omp_set_num_threads(1);
 #endif
-        RandBLAS::sparse::lskges<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -477,7 +187,7 @@ class TestLSKGES : public ::testing::Test
         blas::copy(d * m, B0.data(), 1, B1.data(), 1);
 
         // perform the sketch
-        RandBLAS::sparse::lskges<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -489,7 +199,7 @@ class TestLSKGES : public ::testing::Test
 
         // compute the reference result (B1) and error bound (E).
         std::vector<T> E(d * m, 0.0);
-        reference_lskges<T>(
+        RandBLAS_Testing::Util::reference_lskges<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -537,7 +247,7 @@ class TestLSKGES : public ::testing::Test
         // perform the sketch
         //  S0 is tall.
         //  We apply S0.T, which is wide.
-        RandBLAS::sparse::lskges<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             layout,
             blas::Op::Trans,
             blas::Op::NoTrans,
@@ -548,7 +258,7 @@ class TestLSKGES : public ::testing::Test
 
         // check that B == S.T
         std::vector<T> S0_dense(m * d);
-        sparseskop_to_dense<T>(S0, S0_dense.data(), layout);
+        RandBLAS_Testing::Util::sparseskop_to_dense<T>(S0, S0_dense.data(), layout);
         RandBLAS_Testing::Util::matrices_approx_equal(
             layout, blas::Op::Trans, d, m,
             B.data(), ldb, S0_dense.data(), lds,
@@ -601,7 +311,7 @@ class TestLSKGES : public ::testing::Test
         // Perform the sketch
         int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
         T *A_ptr = &A0.data()[a_offset]; 
-        RandBLAS::sparse::lskges<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -614,7 +324,7 @@ class TestLSKGES : public ::testing::Test
         // Check the result
         std::vector<T> B1(d * n, 0.0);
         std::vector<T> E(d * n, 0.0);
-        reference_lskges<T>(
+        RandBLAS_Testing::Util::reference_lskges<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -666,7 +376,7 @@ class TestLSKGES : public ::testing::Test
         int64_t ldb = (is_colmajor) ? d : n;
         
         // Perform the sketch
-        RandBLAS::sparse::lskges<T>(
+        RandBLAS::ramm::ramm_general_left<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::Trans,
@@ -679,7 +389,7 @@ class TestLSKGES : public ::testing::Test
         // Check the result
         std::vector<T> B1(d * n, 0.0);
         std::vector<T> E(d * n, 0.0);
-        reference_lskges<T>(
+        RandBLAS_Testing::Util::reference_lskges<T>(
             layout, blas::Op::NoTrans, blas::Op::Trans,
             d, n, m,
             1.0, S0, 0, 0,

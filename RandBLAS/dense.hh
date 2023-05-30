@@ -16,41 +16,6 @@
 #include <typeinfo>
 
 
-/*
-Paradigm for APIs involving structs:
-    Free-functions when there's no memory to manage
-    Member functions when there IS memory to manage, or in initializing.
-        We want to make this library hard to misuse in C++.
-    We provide APIs that we require people use to ensure that structs are
-        in a valid state. If you want to initialize the struct yourself
-        we won't stop you, but we also take no responsibility for the 
-        inevitable segfaults.
-
-TODO: have a discussion around using smart pointers for memory safety.
-    Burlen thinks we should seriously consider using smart pointers.
-*/
-
-/*
-Currently have non-deterministic behavior (tests pass sometimes, fail sometimes).
-I suspect there's some memory management mistake leading to undefined behavior.
-
-      Start 18: TestDenseMoments.Gaussian
-    18/34 Test #18: TestDenseMoments.Gaussian ....................***Failed    0.11 sec
-    Running main() from /tmp/googletest-20220910-45435-1kz3pjx/googletest-release-1.12.1/googletest/src/gtest_main.cc
-    Note: Google Test filter = TestDenseMoments.Gaussian
-    [==========] Running 1 test from 1 test suite.
-    [----------] Global test environment set-up.
-    [----------] 1 test from TestDenseMoments
-    [ RUN      ] TestDenseMoments.Gaussian
-    /Users/riley/BALLISTIC_RNLA/randla/RandBLAS/test/src/test_dense.cc:48: Failure
-    The difference between mean and 0.0 is 0.01195285380042985, which exceeds 1e-2, where
-    mean evaluates to -0.01195285380042985,
-    0.0 evaluates to 0, and
-    1e-2 evaluates to 0.01.
-    [  FAILED  ] TestDenseMoments.Gaussian (112 ms)
-    [----------] 1 test from TestDenseMoments (112 ms total)
-*/
-
 namespace RandBLAS::dense {
 
 using namespace RandBLAS::base;
@@ -61,24 +26,29 @@ using namespace RandBLAS::base;
 /// RandBLAS currently have i.i.d. entries. This enumeration specifies
 /// the distribution of the entries of such a sketching operator.
 enum class DenseDistName : char {
-
     // ---------------------------------------------------------------------------
     ///  Gaussian distribution with mean 0 and standard deviation 1
     Gaussian = 'G',
+
     // ---------------------------------------------------------------------------
     ///  uniform distribution over [-1, 1].
-    Uniform = 'U'
-    
-    //// ---------------------------------------------------------------------------
-    ///  uniform distribution over \math{\{-1, 1\}}.
-    // Rademacher = 'R',
-    //// ---------------------------------------------------------------------------
-    ///  A flag that a sketching operator's distribution should be 
-    ///  uniform over row-orthonormal or column-orthonormal matrices.
-    // Haar = 'H',
-    
-    //DisjointIntervals = 'I' // might require additional metadata.
+    Uniform = 'U',
+
+    // ---------------------------------------------------------------------------
+    ///  entries are defined only by a user-provided buffer
+    BlackBox = 'B'
 };
+
+enum class MajorAxis : char {
+    // ---------------------------------------------------------------------------
+    ///  short-axis vectors (cols of a wide matrix, rows of a tall matrix)
+    Short = 'S',
+
+    // ---------------------------------------------------------------------------
+    ///  long-axis vectors (rows of a wide matrix, cols of a tall matrix)
+    Long = 'U'
+};
+
 
 // =============================================================================
 /// A distribution over dense sketching operators.
@@ -95,7 +65,28 @@ struct DenseDist {
     // ---------------------------------------------------------------------------
     ///  The distribution used for the entries of the sketching operator.
     const DenseDistName family = DenseDistName::Gaussian;
+
+    // ---------------------------------------------------------------------------
+    ///  The order in which the buffer should be populated, if sampling iid.
+    const MajorAxis major_axis = MajorAxis::Long;
 };
+
+
+inline blas::Layout dist_to_layout(
+    DenseDist D
+) {
+    bool is_wide = D.n_rows < D.n_cols;
+    bool fa_long = D.major_axis == MajorAxis::Long;
+    if (is_wide && fa_long) {
+        return blas::Layout::RowMajor;
+    } else if (is_wide) {
+        return blas::Layout::ColMajor;
+    } else if (fa_long) {
+        return blas::Layout::ColMajor;
+    } else {
+        return blas::Layout::RowMajor;
+    }
+}
 
 // =============================================================================
 /// A sample from a prescribed distribution over dense sketching operators.
@@ -130,9 +121,8 @@ struct DenseSkOp {
     base::RNGState<RNG> next_state;
 
     T *buff = nullptr;                         // memory
+    const blas::Layout layout;                 // matrix storage order
     bool del_buff_on_destruct = false;         // only applies if realize_full has been called.
-
-    const blas::Layout layout = blas::Layout::ColMajor; ///< matrix storage order
 
     /////////////////////////////////////////////////////////////////////
     //
@@ -142,19 +132,17 @@ struct DenseSkOp {
 
     //  Elementary constructor: needs an implementation
     DenseSkOp(
-        DenseDist dist_,
-        RNGState<RNG> const& state_,
-        T *buff_,
-        blas::Layout layout_
+        DenseDist dist,
+        RNGState<RNG> const& state,
+        T *buff = nullptr
     );
 
     //  Convenience constructor (a wrapper)
     DenseSkOp(
         DenseDist dist,
         uint32_t key,
-        T *buff,
-        blas::Layout layout
-    ) : DenseSkOp(dist, RNGState<RNG>(key), buff, layout) {};
+        T *buff = nullptr
+    ) : DenseSkOp(dist, RNGState<RNG>(key), buff) {};
 
     //  Convenience constructor (a wrapper)
     DenseSkOp(
@@ -162,9 +150,9 @@ struct DenseSkOp {
         int64_t n_rows,
         int64_t n_cols,
         uint32_t key,
-        T *buff,
-        blas::Layout layout
-    ) : DenseSkOp(DenseDist{n_rows, n_cols, family}, RNGState<RNG>(key), buff, layout) {};
+        T *buff = nullptr,
+        MajorAxis ma = MajorAxis::Long
+    ) : DenseSkOp(DenseDist{n_rows, n_cols, family, ma}, RNGState<RNG>(key), buff) {};
 
     // Destructor
     ~DenseSkOp();
@@ -172,19 +160,20 @@ struct DenseSkOp {
 
 template <typename T, typename RNG>
 DenseSkOp<T,RNG>::DenseSkOp(
-    DenseDist dist_,
-    RNGState<RNG> const& state_,
-    T *buff_,            
-    blas::Layout layout_ 
+    DenseDist dist,
+    RNGState<RNG> const& state,
+    T *buff
 ) : // variable definitions
-    dist(dist_),
-    seed_state(state_),
+    dist(dist),
+    seed_state(state),
     next_state{},
-    buff(buff_),
-    layout(layout_)
+    buff(buff),
+    layout(dist_to_layout(dist))
 {   // sanity checks
     randblas_require(this->dist.n_rows > 0);
     randblas_require(this->dist.n_cols > 0);
+    if (dist.family == DenseDistName::BlackBox)
+        randblas_require(this->buff != nullptr);
 }
 
 template <typename T, typename RNG>
@@ -193,9 +182,6 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
         delete [] this->buff;
     }
 }
-
-
-
 
 
 
@@ -219,12 +205,23 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
  * @returns the updated CBRNG state
  */
 template <typename T, typename RNG, typename OP>
-auto fill_rmat(
+RNGState<RNG> fill_rmat(
     int64_t n_rows,
     int64_t n_cols,
     T* mat,
-    const RNGState<RNG> & seed
+    const RNGState<RNG> & seed,
+    MajorAxis ma = MajorAxis::Long
 ) {
+    //  Assume that this function fills column-major by default.
+    //      If this matrix is tall and ma==Long, then we continue as normal.
+    //      If this matrix is wide and ma==short, then we continue as normal.
+    //      If we're tall and ma=short, then we should fill the wide transpose.
+    //      If we're wide and ma=long, then we should fill the tall transpose.
+    if (ma == MajorAxis::Long && n_cols > n_rows)
+        return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, ma);
+    if (ma == MajorAxis::Short && n_rows > n_cols)
+        return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, ma);
+
     RNG rng;
     // clang chokes on this w/ omp due to internal use of lambdas, fixed in C++20
     //auto [c, k] = seed;
@@ -476,17 +473,11 @@ auto fill_buff(
 ) {
     switch (D.family) {
         case DenseDistName::Gaussian:
-            return fill_rmat<T,RNG,r123ext::boxmul>(D.n_rows, D.n_cols, buff, state);
+            return fill_rmat<T,RNG,r123ext::boxmul>(D.n_rows, D.n_cols, buff, state, D.major_axis);
         case DenseDistName::Uniform:
-            return fill_rmat<T,RNG,r123ext::uneg11>(D.n_rows, D.n_cols, buff, state);
-        //case DenseDistName::Rademacher:
-        //    throw std::runtime_error(std::string("Not implemented."));
-        //case DenseDistName::Haar:
-            // This won't be filled IID, but a Householder representation
-            // of a column-orthonormal matrix Q can be stored in the lower
-            // triangle of Q (with "tau" on the diagonal). So the size of
-            // buff will still be D.n_rows*D.n_cols.
-        //    throw std::runtime_error(std::string("Not implemented."));
+            return fill_rmat<T,RNG,r123ext::uneg11>(D.n_rows, D.n_cols, buff, state, D.major_axis);
+        case DenseDistName::BlackBox:
+            throw std::invalid_argument(std::string("fill_buff cannot be called with the BlackBox distribution."));
         default:
             throw std::runtime_error(std::string("Unrecognized distribution."));
     }
@@ -496,12 +487,13 @@ auto fill_buff(
 
 template <typename SKOP>
 void realize_full(
-    SKOP &S
+    SKOP &S,
+    bool del_buff_on_destruct=true
 ) {
     randblas_require(!S.buff);
     S.buff = new typename SKOP::buffer_type[S.dist.n_rows * S.dist.n_cols];
     S.next_state = fill_buff(S.buff, S.dist, S.seed_state);
-    S.del_buff_on_destruct = true;
+    S.del_buff_on_destruct = del_buff_on_destruct;
 }
 
 // =============================================================================
@@ -632,25 +624,26 @@ void lskge3(
     T *B,
     int64_t ldb
 ){
-    randblas_require(S0.layout == layout);
+    bool opposing_layouts = S0.layout != layout;
+    if (opposing_layouts)
+        transS = (transS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
 
-    bool we_manage_memory = !S0.buff;
-    // If S0.buff hasn't been set yet, then this function bears all responsibility
-    // for memory management in representing S0. In particular, we need to allocate
-    // and delete memory.
-
-    if (we_manage_memory) {
-        // We use a naive implementation: generate the entire sketching
-        // operator like the user would with realize_full. But since 
-        // realize_full sets a flag to only delete the buffer on 
-        // destruction of the DenseSkOp, we need to override that flag.
-        realize_full(S0);
-        S0.del_buff_on_destruct = false;
-    }
+    DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff);
     T *S0_ptr = S0.buff;
-
+    if (!S0_ptr) {
+        // The tentative RandBLAS standard doesn't let us attach memory to S0 inside this function.
+        // It also requires that the results of this function are the same as if the user
+        // had previously called realize_full on the sketching operator. Since the exact behavior of
+        // realize_full is in flux, we call that function here as a black-box. The trouble is that
+        // realize_full attaches memory to its argument. We get around this by calling realize_full
+        // on a shallow copy and then getting a reference to its underlying buffer. When this function
+        // exits the destructor of the shallow copy will be called and its memory will be cleaned up.
+        realize_full(S0_shallow_copy);
+        S0.next_state = S0_shallow_copy.next_state;
+        S0_ptr = S0_shallow_copy.buff;
+    }
     // Dimensions of A, rather than op(A)
-    int64_t rows_A, cols_A, rows_S, cols_S;
+    int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
     if (transA == blas::Op::NoTrans) {
         rows_A = m;
         cols_A = n;
@@ -660,25 +653,37 @@ void lskge3(
     }
     // Dimensions of S, rather than op(S)
     if (transS == blas::Op::NoTrans) {
-        rows_S = d;
-        cols_S = m;
+        rows_submat_S = d;
+        cols_submat_S = m;
     } else {
-        rows_S = m;
-        cols_S = d;
+        rows_submat_S = m;
+        cols_submat_S = d;
     }
 
     // Sanity checks on dimensions and strides
     int64_t lds, pos;
-    if (layout == blas::Layout::ColMajor) {
+    if (S0.layout == blas::Layout::ColMajor) {
         lds = S0.dist.n_rows;
+        if (opposing_layouts) {
+            randblas_require(lds >= cols_submat_S);
+        } else {
+            randblas_require(lds >= rows_submat_S);
+        }
         pos = i_os + lds * j_os;
-        randblas_require(lds >= rows_S);
+    } else {
+        lds = S0.dist.n_cols;
+        if (opposing_layouts) {
+            randblas_require(lds >= rows_submat_S);
+        } else {
+            randblas_require(lds >= cols_submat_S);
+        }
+        pos = i_os * lds + j_os;
+    }
+
+    if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= d);
     } else {
-        lds = S0.dist.n_cols;
-        pos = i_os * lds + j_os;
-        randblas_require(lds >= cols_S);
         randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
     }
@@ -692,10 +697,199 @@ void lskge3(
         beta,
         B, ldb
     );
+    return;
+}
 
-    if (we_manage_memory)
-        delete [] S0_ptr;
+// =============================================================================
+/// RSKGE3: Perform a GEMM-like operation
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     \mat(B) = \alpha \cdot \underbrace{\op(\mat(A))}_{m \times n} \cdot \underbrace{\op(\submat(S))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
+/// @endverbatim
+/// where \math{\alpha} and \math{\beta} are real scalars, \math{\op(X)} either returns a matrix \math{X}
+/// or its transpose, and \math{S} is a sketching operator that takes Level 3 BLAS effort to apply.
+/// 
+/// @verbatim embed:rst:leading-slashes
+/// What are :math:`\mat(A)` and :math:`\mat(B)`?
+///     Their shapes are defined implicitly by :math:`(m, d, n, \transA)`.
+///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
+///     and "layout", following the same convention as BLAS.
+///
+/// What is :math:`\submat(S)`?
+///     Its shape is defined implicitly by :math:`(\transS, n, d)`.
+///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
+///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
+///     appears at index :math:`(\texttt{i_os}, \texttt{j_os})` of :math:`{S}`.
+/// @endverbatim
+/// @param[in] layout
+///     Layout::ColMajor or Layout::RowMajor
+///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
+///
+/// @param[in] transA
+///      - If \math{\transA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
+///      - If \math{\transA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+///
+/// @param[in] transS
+///      - If \math{\transS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
+///      - If \math{\transS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
+///
+/// @param[in] m
+///     A nonnegative integer.
+///     - The number of rows in \math{\mat(B)}.
+///     - The number of rows in \math{\op(\mat(A))}.
+///
+/// @param[in] d
+///     A nonnegative integer.
+///     - The number of columns in \math{\mat(B)}
+///     - The number of columns in \math{\op(\mat(S))}.
+///
+/// @param[in] n
+///     A nonnegative integer.
+///     - The number of columns in \math{\op(\mat(A))}
+///     - The number of rows in \math{\op(\submat(S))}.
+///
+/// @param[in] alpha
+///     A real scalar.
+///     - If zero, then \math{A} is not accessed.
+///
+/// @param[in] A
+///     Pointer to a 1D array of real scalars.
+///     - Defines \math{\mat(A)}.
+///
+/// @param[in] lda
+///     A nonnegative integer.
+///     * Leading dimension of \math{\mat(A)} when reading from \math{A}.
+///     * If layout == ColMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i + j \cdot \lda].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a column in \math{\mat(A)}.
+///     * If layout == RowMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i \cdot \lda + j].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a row in \math{\mat(A)}.
+///
+/// @param[in] S
+///    A DenseSkOp object.
+///    - Defines \math{\submat(S)}.
+///
+/// @param[in] i_os
+///     A nonnegative integer.
+///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_os}, :]}.
+///
+/// @param[in] j_os
+///     A nonnnegative integer.
+///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_os}]}. 
+///
+/// @param[in] beta
+///     A real scalar.
+///     - If zero, then \math{B} need not be set on input.
+///
+/// @param[in, out] B
+///    Pointer to 1D array of real scalars.
+///    - On entry, defines \math{\mat(B)}
+///      on the RIGHT-hand side of \math{(\star)}.
+///    - On exit, defines \math{\mat(B)}
+///      on the LEFT-hand side of \math{(\star)}.
+///
+/// @param[in] ldb
+///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
+///    - Refer to documentation for \math{\lda} for details. 
+///
+template <typename T, typename RNG>
+void rskge3(
+    blas::Layout layout,
+    blas::Op transA,
+    blas::Op transS,
+    int64_t m, // B is m-by-d
+    int64_t d, // op(S) is n-by-d
+    int64_t n, // op(A) is m-by-n
+    T alpha,
+    const T *A,
+    int64_t lda,
+    DenseSkOp<T,RNG> &S0,
+    int64_t i_os,
+    int64_t j_os,
+    T beta,
+    T *B,
+    int64_t ldb
+){
+    bool opposing_layouts = S0.layout != layout;
+    if (opposing_layouts)
+        transS = (transS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
 
+    DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff);
+    T *S0_ptr = S0.buff;
+    if (!S0_ptr) {
+        // The tentative RandBLAS standard doesn't let us attach memory to S0 inside this function.
+        // It also requires that the results of this function are the same as if the user
+        // had previously called realize_full on the sketching operator. Since the exact behavior of
+        // realize_full is in flux, we call that function here as a black-box. The trouble is that
+        // realize_full attaches memory to its argument. We get around this by calling realize_full
+        // on a shallow copy and then getting a reference to its underlying buffer. When this function
+        // exits the destructor of the shallow copy will be called and its memory will be cleaned up.
+        realize_full(S0_shallow_copy);
+        S0_ptr = S0_shallow_copy.buff;
+    }
+
+    // Dimensions of A, rather than op(A)
+    int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
+    if (transA == blas::Op::NoTrans) {
+        rows_A = m;
+        cols_A = n;
+    } else {
+        rows_A = n;
+        cols_A = m;
+    }
+    // Dimensions of S, rather than op(S)
+    if (transS == blas::Op::NoTrans) {
+        rows_submat_S = n;
+        cols_submat_S = d;
+    } else {
+        rows_submat_S = d;
+        cols_submat_S = n;
+    }
+
+    // Sanity checks on dimensions and strides
+    if (opposing_layouts) {
+        randblas_require(S0.dist.n_rows >= cols_submat_S + i_os);
+        randblas_require(S0.dist.n_cols >= rows_submat_S + j_os);
+    } else {
+        randblas_require(S0.dist.n_rows >= rows_submat_S + i_os);
+        randblas_require(S0.dist.n_cols >= cols_submat_S + j_os);
+    }
+
+    int64_t lds, pos;
+    if (S0.layout == blas::Layout::ColMajor) {
+        lds = S0.dist.n_rows;
+        pos = i_os + lds * j_os;
+    } else {
+        lds = S0.dist.n_cols;
+        pos = i_os * lds + j_os;
+    }
+
+    if (layout == blas::Layout::ColMajor) {
+        randblas_require(lda >= rows_A);
+        randblas_require(ldb >= m);
+    } else {
+        randblas_require(lda >= cols_A);
+        randblas_require(ldb >= d);
+    }
+    // Perform the sketch.
+    blas::gemm<T>(
+        layout, transA, transS,
+        m, d, n,
+        alpha,
+        A, lda,
+        &S0_ptr[pos], lds,
+        beta,
+        B, ldb
+    );
     return;
 }
 

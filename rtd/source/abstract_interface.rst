@@ -1,5 +1,5 @@
-RandBLAS API Documentation
-==========================
+RandBLAS Overview
+=================
 
 
 
@@ -45,26 +45,38 @@ The default value of the RNG template parameter is :math:`\texttt{Philox4x32}`.
 An RNG template parameter with name :math:`\texttt{GeneratorNxW}` will represent
 the counter and key by an array of (at most) :math:`\texttt{N}` unsiged :math:`\texttt{W}`-bit integers.
 
+The general workflow for sketching
+----------------------------------
 
-
-Dense sketching
----------------
-
-Do you want to use a Gaussian sketching operator?
-What about a sketching operator whose entries are an drawn i.i.d. uniformly from :math:`[-1, 1]`?
-
-In either case, you'll need to do four things.
+Computing a sketch with RandBLAS has four steps. 
   0. Get your hands on an RNGState :math:`\texttt{state}`.
-  1. Define a distribution :math:`\mathcal{D}` over dense matrices.
+  1. Define a distribution :math:`\mathcal{D}` over matrices.
   2. Using :math:`\texttt{state}`, sample a sketching operator :math:`S` from :math:`\mathcal{D}`.
   3. Use :math:`S` with a function that is *almost* identical to GEMM.
 
 Each of these things can be done in one line of code.
-The relevant structs and functions needed for the three later steps are described under "Essentials of dense sketching," below.
+The relevant structs and functions needed for the three later steps are described below.
 
-Essentials of dense sketching
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Applying a sketching operator : a GEMM-like interface
+-----------------------------------------------------
 
+Left-sketching
+^^^^^^^^^^^^^^
+
+.. doxygenfunction:: RandBLAS::ramm::ramm_general_left(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, T alpha, SKOP &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb)
+   :project: RandBLAS
+
+Right-sketching
+^^^^^^^^^^^^^^^
+
+.. doxygenfunction:: RandBLAS::ramm::ramm_general_right(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SKOP &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb)
+   :project: RandBLAS
+
+Choosing a sketching distribution
+---------------------------------
+
+Dense sketching operators
+^^^^^^^^^^^^^^^^^^^^^^^^^
 .. doxygenstruct:: RandBLAS::dense::DenseDist
    :project: RandBLAS
    :members:
@@ -73,43 +85,8 @@ Essentials of dense sketching
    :project: RandBLAS
    :members: 
 
-.. doxygenfunction:: RandBLAS::dense::lskge3
-   :project: RandBLAS
-
-.. doxygenfunction:: RandBLAS::dense::rskge3
-   :project: RandBLAS
-
-Advanced aspects of dense sketching
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. doxygenenum:: RandBLAS::dense::DenseDistName
-   :project: RandBLAS
-
-
-Helper functions for dense sketching
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. doxygenfunction:: RandBLAS::dense::fill_buff
-
-.. doxygenfunction:: RandBLAS::dense::realize_full
-
-
-Sparse sketching
-----------------
-
-Sketching a dense data matrix with a random sparse sketching operator has four steps.
-  0. Get your hands on an RNGState :math:`\texttt{state}`.
-  1. Define a distribution :math:`\mathcal{D}` over sparse matrices.
-  2. Using :math:`\texttt{state}`, sample a sketching operator :math:`S` from :math:`\mathcal{D}`.
-  3. Use :math:`S` with a function that is *almost* identical to GEMM.
-
-Each of these things can be done in one line of code.
-The relevant structs and functions needed for the three later steps are described under "Essentials of sparse sketching," below.
-
-
-Essentials of sparse sketching
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
+Sparse sketching operators
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. doxygenstruct:: RandBLAS::sparse::SparseDist
    :project: RandBLAS
    :members:
@@ -117,23 +94,3 @@ Essentials of sparse sketching
 .. doxygenstruct:: RandBLAS::sparse::SparseSkOp
    :project: RandBLAS
    :members: 
-
-.. doxygenfunction:: RandBLAS::sparse::lskges
-   :project: RandBLAS
-
-.. doxygenfunction:: RandBLAS::sparse::rskges
-   :project: RandBLAS
-
-Advanced aspects of sparse sketching
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. doxygenenum:: RandBLAS::sparse::SparsityPattern
-   :project: RandBLAS
-
-
-Helper functions for sparse sketching
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. doxygenfunction:: RandBLAS::sparse::transpose
-
-.. doxygenfunction:: RandBLAS::sparse::fill_sparse

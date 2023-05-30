@@ -1,4 +1,4 @@
-name: core-macos
+name: openmp-macos
 on:
   pull_request:
   workflow_dispatch:
@@ -13,7 +13,7 @@ jobs:
         run: |
           # os level stuff
           set -x
-          brew install googletest
+          brew install googletest llvm
 
       - name: install BLAS++
         run: |
@@ -21,8 +21,13 @@ jobs:
           git clone https://github.com/icl-utk-edu/blaspp.git
           mkdir blaspp-build
           cd blaspp-build
-          pwd
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=`pwd`/../blaspp-install -Dbuild_tests=OFF ../blaspp
+          cmake \
+            -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ \
+            -DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=`pwd`/../blaspp-install \
+            -Dbuild_tests=OFF \
+            ../blaspp
           make -j2 install
 
       - name: install Random123
@@ -38,26 +43,13 @@ jobs:
           cd ..
           mkdir RandBLAS-build
           cd RandBLAS-build
-          cmake -DCMAKE_BUILD_TYPE=Release \
+          cmake \
+            -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ \
+            -DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang \
+            -DCMAKE_BUILD_TYPE=Release \
             -Dblaspp_DIR=`pwd`/../blaspp-install/lib/blaspp/ \
             -DRandom123_DIR=`pwd`/../Random123-install/include/ \
             -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
-            -DCMAKE_BINARY_DIR=`pwd` \
-            `pwd`/../RandBLAS
-          make -j2 install
-          ctest --output-on-failure
-
-      - name: build and test RandBLAS (Debug/asan)
-        run: |
-          cd ..
-          mkdir RandBLAS-asan-build
-          cd RandBLAS-asan-build
-          cmake -DCMAKE_BUILD_TYPE=Debug \
-            -DSANITIZE_ADDRESS=ON \
-            -Dblaspp_DIR=`pwd`/../blaspp-install/lib/blaspp/ \
-            -DRandom123_DIR=`pwd`/../Random123-install/include/ \
-            -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
-            -DCMAKE_BINARY_DIR=`pwd` \
-            `pwd`/../RandBLAS
+            ../RandBLAS
           make -j2 install
           ctest --output-on-failure

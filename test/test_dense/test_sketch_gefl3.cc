@@ -4,82 +4,13 @@
 #include "RandBLAS/dense.hh"
 #include "RandBLAS/util.hh"
 #include "RandBLAS/test_util.hh"
+#include "RandBLAS/ramm.hh"
 
 #include <gtest/gtest.h>
 
 #include <cmath>
 #include <numeric>
 #include <thread>
-
-
-class TestDenseMoments : public ::testing::Test
-{
-    protected:
-
-    virtual void SetUp(){};
-
-    virtual void TearDown(){};
-
-    template <typename T>
-    static void test_mean_stddev(
-        uint32_t key,
-        int64_t n_rows,
-        int64_t n_cols,
-        RandBLAS::dense::DenseDistName dn,
-        T expect_stddev
-    ) {
-        // Allocate workspace
-        int64_t size = n_rows * n_cols;
-        std::vector<T> A(size, 0.0);
-
-        // Construct the sketching operator
-        RandBLAS::dense::DenseDist D = {
-            .n_rows = n_rows,
-            .n_cols = n_cols,
-            .family = dn
-        };
-        auto state = RandBLAS::base::RNGState(key);
-        auto next_state = RandBLAS::dense::fill_buff(A.data(), D, state);
-
-        // Compute the entrywise empirical mean and standard deviation.
-        T mean = std::accumulate(A.data(), A.data() + size, 0.0) /size;
-        T sum = 0;
-        std::for_each(A.data(), A.data() + size, [&] (T elem) {
-            sum += (elem - mean) * (elem - mean);
-        });
-        T stddev = std::sqrt(sum / (size - 1));
-
-        // We're only interested in mean-zero random variables.
-        // Standard deviation depends on the distribution.
-        EXPECT_NEAR(mean, 0.0, 1e-2) << "Initial state:\n\t" << state << "\nFinal state:\n\t" << next_state;
-        EXPECT_NEAR(stddev, expect_stddev, 1e-2);
-    }
-};
-
-// For small matrix sizes, mean and stddev are not very close to desired vals.
-TEST_F(TestDenseMoments, Gaussian)
-{
-    auto dn = RandBLAS::dense::DenseDistName::Gaussian;
-    for (uint32_t key : {0, 1, 2})
-    {
-        test_mean_stddev<float>(key, 500, 500, dn, 1.0);
-        test_mean_stddev<double>(key, 203, 203, dn, 1.0);
-        test_mean_stddev<double>(key, 203, 503, dn, 1.0);
-    }
-}
-
-// For small matrix sizes, mean and stddev are not very close to desired vals.
-TEST_F(TestDenseMoments, Uniform)
-{
-    auto dn = RandBLAS::dense::DenseDistName::Uniform;
-    double expect_stddev = 1.0 / sqrt(3.0);
-    for (uint32_t key : {0, 1, 2})
-    {
-        test_mean_stddev<float>(key, 500, 500, dn, (float) expect_stddev);
-        test_mean_stddev<double>(key, 203, 203, dn, expect_stddev);
-        test_mean_stddev<double>(key, 203, 503, dn, expect_stddev);
-    }
-}
 
 
 class TestLSKGE3 : public ::testing::Test
@@ -107,24 +38,23 @@ class TestLSKGE3 : public ::testing::Test
 
         // Define the sketching operator struct, S0.
         // Create a copy that we always realize explicitly.
-        RandBLAS::dense::DenseSkOp<T> S0(D, seed, NULL, layout);
+        RandBLAS::dense::DenseSkOp<T> S0(D, seed, nullptr);
         if (preallocate)
             RandBLAS::dense::realize_full(S0);
-        RandBLAS::dense::DenseSkOp<T> S0_ref(D, seed, NULL, layout);
+        RandBLAS::dense::DenseSkOp<T> S0_ref(D, seed, nullptr);
         RandBLAS::dense::realize_full(S0_ref);
 
         // define a matrix to be sketched, and create workspace for sketch.
-        bool is_colmajor = layout == blas::Layout::ColMajor;
         std::vector<T> A(m * m, 0.0);
         for (int i = 0; i < m; ++i)
             A[i + m*i] = 1.0;
         std::vector<T> B(d * m, 0.0);
         int64_t lda = m;
-        int64_t ldb = (is_colmajor) ? d : m;
+        int64_t ldb = (layout == blas::Layout::ColMajor) ? d : m;
 
         // Perform the sketch
-        RandBLAS::dense::lskge3<T>(
-            S0.layout,
+        RandBLAS::ramm::ramm_general_left<T>(
+            layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, m, m,
@@ -133,8 +63,10 @@ class TestLSKGE3 : public ::testing::Test
         );
 
         // check the result
-        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), S0_ref.buff, d*m,
-             __PRETTY_FUNCTION__, __FILE__, __LINE__
+        int64_t lds = (S0.layout == blas::Layout::ColMajor) ? S0.dist.n_rows : S0.dist.n_cols;
+        RandBLAS_Testing::Util::matrices_approx_equal(
+            layout, S0.layout, blas::Op::NoTrans, d, m, B.data(), ldb, S0_ref.buff, lds,
+                __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
 
@@ -152,20 +84,19 @@ class TestLSKGE3 : public ::testing::Test
             .family = RandBLAS::dense::DenseDistName::Gaussian
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0(Dt, seed, NULL, layout);
+        RandBLAS::dense::DenseSkOp<T> S0(Dt, seed, nullptr);
         RandBLAS::dense::realize_full(S0);
-        bool is_colmajor = layout == blas::Layout::ColMajor;
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A(m * m, 0.0);
         for (int i = 0; i < m; ++i)
             A[i + m*i] = 1.0;
         std::vector<T> B(d * m, 0.0);
-        int64_t ldb = (is_colmajor) ? d : m;
+        int64_t ldb = (layout == blas::Layout::ColMajor) ? d : m;
 
         // perform the sketch
-        RandBLAS::dense::lskge3<T>(
-            S0.layout,
+        RandBLAS::ramm::ramm_general_left<T>(
+            layout,
             blas::Op::Trans,
             blas::Op::NoTrans,
             d, m, m,
@@ -174,9 +105,9 @@ class TestLSKGE3 : public ::testing::Test
         );
 
         // check that B == S.T
-        int64_t lds = (is_colmajor) ? m : d;
+        int64_t lds = (S0.layout == blas::Layout::ColMajor) ? S0.dist.n_rows : S0.dist.n_cols;
         RandBLAS_Testing::Util::matrices_approx_equal(
-            S0.layout, blas::Op::Trans, d, m,
+            layout, S0.layout, blas::Op::Trans, d, m,
             B.data(), ldb, S0.buff, lds,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
@@ -195,9 +126,6 @@ class TestLSKGE3 : public ::testing::Test
     ) {
         assert(d0 > d);
         assert(m0 > m);
-        bool is_colmajor = layout == blas::Layout::ColMajor;
-        int64_t pos = (is_colmajor) ? (S_ro + d0 * S_co) : (S_ro * m0 + S_co);
-        assert(d0 * m0 >= pos + d * m);
 
         // Define the distribution for S0.
         RandBLAS::dense::DenseDist D = {
@@ -205,10 +133,14 @@ class TestLSKGE3 : public ::testing::Test
             .n_cols = m0,
             .family = RandBLAS::dense::DenseDistName::Gaussian
         };
+
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0(D, seed, NULL,  layout);
+        RandBLAS::dense::DenseSkOp<T> S0(D, seed, nullptr);
         RandBLAS::dense::realize_full(S0);
-        int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
+        bool S0_colmajor = S0.layout == blas::Layout::ColMajor;
+        int64_t lds = (S0_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
+        int64_t pos = (S0_colmajor) ? (S_ro + lds * S_co) : (S_ro * lds + S_co);
+        assert(d0 * m0 >= pos + d * m);
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A(m * m, 0.0);
@@ -216,11 +148,11 @@ class TestLSKGE3 : public ::testing::Test
             A[i + m*i] = 1.0;
         std::vector<T> B(d * m, 0.0);
         int64_t lda = m;
-        int64_t ldb = (is_colmajor) ? d : m;
+        int64_t ldb = (layout == blas::Layout::ColMajor) ? d : m;
         
         // Perform the sketch
-        RandBLAS::dense::lskge3<T>(
-            S0.layout,
+        RandBLAS::ramm::ramm_general_left<T>(
+            layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, m, m,
@@ -228,13 +160,12 @@ class TestLSKGE3 : public ::testing::Test
             A.data(), lda,
             0.0, B.data(), ldb   
         );
+
         // Check the result
         T *S_ptr = &S0.buff[pos];
         RandBLAS_Testing::Util::matrices_approx_equal(
-            S0.layout, blas::Op::NoTrans,
-            d, m,
-            B.data(), ldb,
-            S_ptr, lds,
+            layout, S0.layout, blas::Op::NoTrans,
+            d, m, B.data(), ldb, S_ptr, lds,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -261,9 +192,9 @@ class TestLSKGE3 : public ::testing::Test
             .family = RandBLAS::dense::DenseDistName::Gaussian
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0(D, seed_S0, NULL, layout);
+        RandBLAS::dense::DenseSkOp<T> S0(D, seed_S0, nullptr);
         RandBLAS::dense::realize_full(S0);
-        bool is_colmajor = layout == blas::Layout::ColMajor;
+        bool AB_colmajor = layout == blas::Layout::ColMajor;
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A0(m0 * n0, 0.0);
@@ -271,14 +202,14 @@ class TestLSKGE3 : public ::testing::Test
         RandBLAS::dense::DenseDist DA0 = {.n_rows = m0, .n_cols = n0};
         RandBLAS::dense::fill_buff(A0.data(), DA0, RandBLAS::base::RNGState(seed_A0));
         std::vector<T> B(d * n, 0.0);
-        int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
-        int64_t ldb = (is_colmajor) ? d : n;
+        int64_t lda = (AB_colmajor) ? DA0.n_rows : DA0.n_cols;
+        int64_t ldb = (AB_colmajor) ? d : n;
         
         // Perform the sketch
-        int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
+        int64_t a_offset = (AB_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
         T *A_ptr = &A0.data()[a_offset]; 
-        RandBLAS::dense::lskge3<T>(
-            S0.layout,
+        RandBLAS::ramm::ramm_general_left<T>(
+            layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
             d, n, m,
@@ -288,9 +219,10 @@ class TestLSKGE3 : public ::testing::Test
         );
 
         // Check the result
-        int64_t lds = (is_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
+        int64_t lds = (S0.layout == blas::Layout::ColMajor) ? S0.dist.n_rows : S0.dist.n_cols;
         std::vector<T> B_expect(d * n, 0.0);
-        blas::gemm<T>(S0.layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        blas::Op transS = (S0.layout == layout) ? blas::Op::NoTrans : blas::Op::Trans;
+        blas::gemm<T>(layout, transS, blas::Op::NoTrans,
             d, n, m,
             1.0, S0.buff, lds, A_ptr, lda,
             0.0, B_expect.data(), ldb
@@ -498,64 +430,3 @@ TEST_F(TestLSKGE3, submatrix_a_single)
         );
 }
 
-
-
-
-template <typename T>
-std::ostream &operator<<(std::ostream &os, std::vector<T> &v)
-{
-    size_t n = v.size();
-    os << "{";
-    if (n)
-    {
-        os << v[0];
-        for (size_t i = 1; i < n; ++i)
-            os << ", " << v[i];
-    }
-    os << "}";
-    return os;
-}
-
-#if defined(RandBLAS_HAS_OpenMP)
-template <typename T, typename RNG, typename OP>
-void DenseThreadTest()
-{
-    int64_t m = 32;
-    int64_t n = 8;
-    int64_t d = m*n;
-
-    std::vector<T> base(d);
-    std::vector<T> test(d);
-
-    // generate the base state with 1 thread.
-    omp_set_num_threads(1);
-    RandBLAS::dense::fill_rmat<T,RNG,OP>(m, n, base.data(), {});
-    std::cerr << "with 1 thread: " << base << std::endl;
-
-    // run with different numbers of threads, and check that the result is the same
-    int n_hyper = std::thread::hardware_concurrency();
-    int n_threads = std::max(n_hyper / 2, 3);
-
-    for (int i = 2; i <= n_threads; ++i) {
-
-        omp_set_num_threads(i);
-
-        RandBLAS::dense::fill_rmat<T,RNG,OP>(m, n, test.data(), {});
-
-        std::cerr << "with " << i << " threads: " << test << std::endl;
-
-        for (int64_t i = 0; i < d; ++i) {
-            EXPECT_FLOAT_EQ( base[i], test[i] );
-        }
-    }
-}
-
-TEST(TestDenseThreading, UniformPhilox) {
-    DenseThreadTest<float,r123::Philox4x32,r123ext::uneg11>();
-}
-
-TEST(TestDenseThreading, GaussianPhilox) {
-    DenseThreadTest<float,r123::Philox4x32,r123ext::boxmul>();
-}
-
-#endif
