@@ -183,7 +183,99 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
     }
 }
 
+/** Fill a n_srows \times n_scols submatrix with random values starting at a pointer, from a n_rows \times n_cols random matrix. 
+ * Assumes that the random matrix and the submatrix are row major.
+ * If RandBLAS is compiled with OpenMP threading support enabled, the operation is
+ * parallelized using OMP_NUM_THREADS. The sequence of values genrated is not
+ * dependent on the number of OpenMP threads.
+ *
+ * @tparam T the data type of the matrix
+ * @tparam RNG a random123 CBRNG type
+ * @tparm OP an operator that transforms raw random values into matrix
+ *           elements. See r123ext::uneg11 and r123ext::boxmul.
+ *
+ * @param[in] n_cols the number of columns in the matrix.
+ * @param[in] smat a pointer to a contiguous region of memory with space for
+ *                n_rows \times n_cols elements of type T. This memory will be
+ *                filled with random values.
+ * @param[in] n_srows the number of rows in the submatrix.
+ * @param[in] n_scols the number of colomns in the submatrix.
+ * @param[in] ptr the starting locaiton within the random matrix, for which 
+ *                the submatrix is to be generated
+ * @param[in] seed A CBRNG state
+ *
+ * @returns the updated CBRNG state
+ */
 
+template<typename T, typename RNG, typename OP>
+auto fill_rsubmat_omp(
+    int64_t n_cols,
+    T* smat,
+    int64_t n_srows,
+    int64_t n_scols,
+    int64_t ptr,
+    const RNGState<RNG> & seed
+) {
+    RNG rng;
+    typename RNG::ctr_type c = seed.counter;
+    typename RNG::key_type k = seed.key;
+
+    int64_t i0, i1, r0, r1, s0, e1;
+    int64_t prev = 0;
+    int64_t i, r;
+
+    #pragma omp parallel firstprivate(c, k) private(i0, i1, r0, r1, s0, e1, prev, i, r)
+    {
+    auto cc = c;
+    prev = 0;
+    #pragma omp for
+    for (int row = 0; row < n_srows; row++) {
+        int64_t ind = 0;
+        i0 = ptr + row * n_cols; // start index in each row
+        i1 = ptr + row * n_cols + n_scols - 1; // end index in each row
+        r0 = (int64_t) i0 / RNG::ctr_type::static_size; // start counter
+        r1 = (int64_t) i1 / RNG::ctr_type::static_size; // end counter
+        s0 = i0 % RNG::ctr_type::static_size;
+        e1 = i1 % RNG::ctr_type::static_size;
+
+        cc.incr(r0 - prev);
+        prev = r0;
+        auto rv =  OP::generate(rng, cc, k);
+        int64_t range = (r1 > r0)? RNG::ctr_type::static_size-1 : e1;
+        for (i = s0; i <= range; i++) {
+            smat[ind + row*n_scols] = rv[i];
+            ind++;
+        }
+
+        // middle 
+        int64_t tmp = r0;
+        while( tmp < r1 - 1) {
+            cc.incr();
+            prev++;
+            rv = OP::generate(rng, cc, k);
+            for (i = 0; i < RNG::ctr_type::static_size; i++) {
+                smat[ind + row*n_scols] = rv[i];
+                ind++;
+            }
+            tmp++;
+        }
+
+        // end
+        if ( r1 > r0 ){
+            cc.incr();
+            prev++;
+            rv = OP::generate(rng, cc, k);
+            for (i = 0; i <= e1; i++) {
+                smat[ind + row*n_scols] = rv[i];
+                ind++;
+            }
+        }
+    }
+
+    }
+
+    return RNGState<RNG> {c, k};
+}  
 
 /** Fill a n_rows \times n_cols matrix with random values. If RandBLAS is
  * compiled with OpenMP threading support enabled, the operation is
@@ -204,6 +296,7 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
  *
  * @returns the updated CBRNG state
  */
+
 template <typename T, typename RNG, typename OP>
 RNGState<RNG> fill_rmat(
     int64_t n_rows,
@@ -212,80 +305,17 @@ RNGState<RNG> fill_rmat(
     const RNGState<RNG> & seed,
     MajorAxis ma = MajorAxis::Long
 ) {
-    //  Assume that this function fills column-major by default.
-    //      If this matrix is tall and ma==Long, then we continue as normal.
-    //      If this matrix is wide and ma==short, then we continue as normal.
-    //      If we're tall and ma=short, then we should fill the wide transpose.
-    //      If we're wide and ma=long, then we should fill the tall transpose.
+
     if (ma == MajorAxis::Long && n_cols > n_rows)
         return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, ma);
     if (ma == MajorAxis::Short && n_rows > n_cols)
         return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, ma);
 
-    RNG rng;
-    // clang chokes on this w/ omp due to internal use of lambdas, fixed in C++20
-    //auto [c, k] = seed;
-    typename RNG::ctr_type c = seed.counter;
-    typename RNG::key_type k = seed.key;
+    return fill_rsubmat_omp<T, RNG, OP>(n_cols, mat, n_rows, n_cols, 0, seed);
 
-    int64_t dim = n_rows * n_cols;
-    int64_t nit = dim / RNG::ctr_type::static_size;
-    int64_t nlast = dim % RNG::ctr_type::static_size;
 
-#if defined(RandBLAS_HAS_OpenMP)
-    #pragma omp parallel firstprivate(c, k)
-    {
-        // decompose the work into a set of approximately equal size chunks.
-        // if the number of iterations is not evenly divisible by the number
-        // of threads, the left over itertions are distributed one each among
-        // the first threads.
-        int ti = omp_get_thread_num();
-        int nt = omp_get_num_threads();
-
-        int64_t chs = nit / nt; // chunk size
-        int64_t nlg = nit % nt; // number of large chunks
-        int64_t i0 = chs * ti + (ti < nlg ? ti : nlg); // this threads start
-        int64_t i1 = i0 + chs + (ti < nlg ? 1 : 0);    // this threads end
-
-        // add the start index to the counter in order to make the sequence
-        // deterministic independent of the number of threads.
-        auto cc = c;
-        cc.incr(i0);
-#else
-        int64_t i0 = 0;
-        int64_t i1 = nit;
-        auto &cc = c;
-#endif
-        for (int64_t i = i0; i < i1; ++i) {
-
-            auto rv = OP::generate(rng, cc, k);
-
-            for (int j = 0; j < RNG::ctr_type::static_size; ++j) {
-               mat[RNG::ctr_type::static_size * i + j] = rv[j];
-            }
-
-            cc.incr();
-        }
-#if defined(RandBLAS_HAS_OpenMP)
-    }
-    // puts the counter in the correct state when threads are used.
-    c.incr(nit);
-#endif
-
-    if (nlast) {
-        auto rv = OP::generate(rng, c, k);
-
-        for (int64_t j = 0; j < nlast; ++j) {
-            mat[RNG::ctr_type::static_size * nit + j] = rv[j];
-        }
-
-        c.incr();
-    }
-
-    return RNGState<RNG> {c, k};
 }
-
-
+ 
 template <typename T, typename RNG>
 auto fill_buff(
     T *buff,
