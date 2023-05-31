@@ -184,6 +184,7 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
 }
 
 /** Fill a n_srows \times n_scols submatrix with random values starting at a pointer, from a n_rows \times n_cols random matrix. 
+ * Assumes that the random matrix and the submatrix are row major.
  * If RandBLAS is compiled with OpenMP threading support enabled, the operation is
  * parallelized using OMP_NUM_THREADS. The sequence of values genrated is not
  * dependent on the number of OpenMP threads.
