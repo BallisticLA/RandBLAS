@@ -306,11 +306,12 @@ RNGState<RNG> fill_rmat(
     MajorAxis ma = MajorAxis::Long
 ) {
 
-    if (ma == MajorAxis::Long && n_cols > n_rows)
+    if (ma == MajorAxis::Long && n_cols < n_rows)
         return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, ma);
-    if (ma == MajorAxis::Short && n_rows > n_cols)
+    if (ma == MajorAxis::Short && n_rows < n_cols)
         return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, ma);
 
+    // fill_rsubmat_omp is written from a row-major perspective.
     return fill_rsubmat_omp<T, RNG, OP>(n_cols, mat, n_rows, n_cols, 0, seed);
 
 

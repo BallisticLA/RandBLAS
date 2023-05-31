@@ -86,7 +86,8 @@ class TestRSKGE3 : public ::testing::Test
         };
         // Define the sketching operator struct, S0.
         RandBLAS::dense::DenseSkOp<T> S0(Dt, seed, nullptr);
-        RandBLAS::dense::realize_full(S0);
+        RandBLAS::dense::DenseSkOp<T> S0_ref(Dt, seed, nullptr);
+        RandBLAS::dense::realize_full(S0_ref);
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A(m * m, 0.0);
@@ -109,8 +110,7 @@ class TestRSKGE3 : public ::testing::Test
         // check that B == S.T
         int64_t lds = (S0.layout == blas::Layout::ColMajor) ? S0.dist.n_rows : S0.dist.n_cols;
         RandBLAS_Testing::Util::matrices_approx_equal(
-            layout, S0.layout, blas::Op::Trans, m, d,
-            B.data(), ldb, S0.buff, lds,
+            layout, S0.layout, blas::Op::Trans, m, d, B.data(), ldb, S0_ref.buff, lds,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -137,7 +137,8 @@ class TestRSKGE3 : public ::testing::Test
         };
         // Define the sketching operator struct, S0.
         RandBLAS::dense::DenseSkOp<T> S0(D, seed, nullptr);
-        RandBLAS::dense::realize_full(S0);
+        RandBLAS::dense::DenseSkOp<T> S0_ref(D, seed, nullptr);
+        RandBLAS::dense::realize_full(S0_ref);
         int64_t lds = (S0.layout == blas::Layout::ColMajor) ? S0.dist.n_rows : S0.dist.n_cols;
         int64_t pos = (S0.layout == blas::Layout::ColMajor) ? (S_ro + lds * S_co) : (S_ro * lds + S_co);
         assert(d0 * m0 >= pos + d * m);
@@ -161,7 +162,7 @@ class TestRSKGE3 : public ::testing::Test
             0.0, B.data(), ldb   
         );
         // Check the result
-        T *S_ptr = &S0.buff[pos];
+        T *S_ptr = &S0_ref.buff[pos];
         RandBLAS_Testing::Util::matrices_approx_equal(
             layout, S0.layout, blas::Op::NoTrans,
             m, d,
