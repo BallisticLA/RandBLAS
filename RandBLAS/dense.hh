@@ -183,10 +183,8 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
     }
 }
 
-
-
-/** Fill a n_rows \times n_cols matrix with random values. If RandBLAS is
- * compiled with OpenMP threading support enabled, the operation is
+/** Fill a n_srows \times n_scols submatrix with random values starting at a pointer, from a n_rows \times n_cols random matrix. 
+ * If RandBLAS is compiled with OpenMP threading support enabled, the operation is
  * parallelized using OMP_NUM_THREADS. The sequence of values genrated is not
  * dependent on the number of OpenMP threads.
  *
@@ -195,16 +193,18 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
  * @tparm OP an operator that transforms raw random values into matrix
  *           elements. See r123ext::uneg11 and r123ext::boxmul.
  *
- * @param[in] n_rows the number of rows in the matrix
- * @param[in] n_cols the number of columns in the matrix
- * @param[in] mat a pointer to a contiguous region of memory with space for
+ * @param[in] n_cols the number of columns in the matrix.
+ * @param[in] smat a pointer to a contiguous region of memory with space for
  *                n_rows \times n_cols elements of type T. This memory will be
  *                filled with random values.
+ * @param[in] n_srows the number of rows in the submatrix.
+ * @param[in] n_scols the number of colomns in the submatrix.
+ * @param[in] ptr the starting locaiton within the random matrix, for which 
+ *                the submatrix is to be generated
  * @param[in] seed A CBRNG state
  *
  * @returns the updated CBRNG state
  */
-   
 
 template<typename T, typename RNG, typename OP>
 auto fill_rsubmat_omp(
@@ -275,6 +275,26 @@ auto fill_rsubmat_omp(
 
     return RNGState<RNG> {c, k};
 }  
+
+/** Fill a n_rows \times n_cols matrix with random values. If RandBLAS is
+ * compiled with OpenMP threading support enabled, the operation is
+ * parallelized using OMP_NUM_THREADS. The sequence of values genrated is not
+ * dependent on the number of OpenMP threads.
+ *
+ * @tparam T the data type of the matrix
+ * @tparam RNG a random123 CBRNG type
+ * @tparm OP an operator that transforms raw random values into matrix
+ *           elements. See r123ext::uneg11 and r123ext::boxmul.
+ *
+ * @param[in] n_rows the number of rows in the matrix
+ * @param[in] n_cols the number of columns in the matrix
+ * @param[in] mat a pointer to a contiguous region of memory with space for
+ *                n_rows \times n_cols elements of type T. This memory will be
+ *                filled with random values.
+ * @param[in] seed A CBRNG state
+ *
+ * @returns the updated CBRNG state
+ */
 
 template <typename T, typename RNG, typename OP>
 RNGState<RNG> fill_rmat(
