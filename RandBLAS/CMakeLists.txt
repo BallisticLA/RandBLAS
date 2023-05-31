@@ -1,5 +1,4 @@
 
-set(CMAKE_CXX_STANDARD 20)
 set(RandBLAS_libs blaspp Random123)
 if (RandBLAS_HAS_OpenMP)
     list(APPEND RandBLAS_libs OpenMP::OpenMP_CXX)
