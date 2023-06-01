@@ -255,7 +255,7 @@ void DenseThreadTest() {
 
     for (int i = 2; i <= n_threads; ++i) {
         omp_set_num_threads(i);
-        RandBLAS::dense::fill_rsubmat_omp<T,RNG,OP>(n, base.data(), m, n, 0, state);
+        RandBLAS::dense::fill_rsubmat_omp<T,RNG,OP>(n, test.data(), m, n, 0, state);
         std::cerr << "with " << i << " threads: " << test << std::endl;
         for (int64_t i = 0; i < d; ++i) {
             EXPECT_FLOAT_EQ( base[i], test[i] );
