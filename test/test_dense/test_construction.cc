@@ -69,6 +69,31 @@ class TestDenseMoments : public ::testing::Test
     }
 };
 
+// For small matrix sizes, mean and stddev are not very close to desired vals.
+TEST_F(TestDenseMoments, Gaussian)
+{
+    auto dn = RandBLAS::dense::DenseDistName::Gaussian;
+    for (uint32_t key : {0, 1, 2})
+    {
+        test_mean_stddev<float>(key, 500, 500, dn, 1.0);
+        test_mean_stddev<double>(key, 203, 203, dn, 1.0);
+        test_mean_stddev<double>(key, 203, 503, dn, 1.0);
+    }
+}
+
+// For small matrix sizes, mean and stddev are not very close to desired vals.
+TEST_F(TestDenseMoments, Uniform)
+{
+    auto dn = RandBLAS::dense::DenseDistName::Uniform;
+    double expect_stddev = 1.0 / sqrt(3.0);
+    for (uint32_t key : {0, 1, 2})
+    {
+        test_mean_stddev<float>(key, 500, 500, dn, (float) expect_stddev);
+        test_mean_stddev<double>(key, 203, 203, dn, expect_stddev);
+        test_mean_stddev<double>(key, 203, 503, dn, expect_stddev);
+    }
+}
+
 class TestSubmatGeneration : public ::testing::Test
 {
 
@@ -207,31 +232,6 @@ TEST_F(TestSubmatGeneration, diag)
     }
 }
 
-
-// For small matrix sizes, mean and stddev are not very close to desired vals.
-TEST_F(TestDenseMoments, Gaussian)
-{
-    auto dn = RandBLAS::dense::DenseDistName::Gaussian;
-    for (uint32_t key : {0, 1, 2})
-    {
-        test_mean_stddev<float>(key, 500, 500, dn, 1.0);
-        test_mean_stddev<double>(key, 203, 203, dn, 1.0);
-        test_mean_stddev<double>(key, 203, 503, dn, 1.0);
-    }
-}
-
-// For small matrix sizes, mean and stddev are not very close to desired vals.
-TEST_F(TestDenseMoments, Uniform)
-{
-    auto dn = RandBLAS::dense::DenseDistName::Uniform;
-    double expect_stddev = 1.0 / sqrt(3.0);
-    for (uint32_t key : {0, 1, 2})
-    {
-        test_mean_stddev<float>(key, 500, 500, dn, (float) expect_stddev);
-        test_mean_stddev<double>(key, 203, 203, dn, expect_stddev);
-        test_mean_stddev<double>(key, 203, 503, dn, expect_stddev);
-    }
-}
 
 #if defined(RandBLAS_HAS_OpenMP)
 template <typename T, typename RNG, typename OP>

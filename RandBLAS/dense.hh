@@ -294,18 +294,23 @@ RandBLAS::base::RNGState<RNG> fill_rsubmat(
     const RNGState<RNG> & seed
 ) {
     blas::Layout layout = dist_to_layout(D);
+    int64_t ma_len = major_axis_length(D);
+    int64_t n_srows_, n_scols_, ptr;
     if (layout == blas::Layout::ColMajor) {
         // operate on the transpose in row-major
-        DenseDist Dt{D.n_cols, D.n_rows, D.family, D.major_axis}; 
-        return fill_rsubmat<T,RNG>(Dt, smat, n_scols, n_srows, j_off, i_off, seed);
+        n_srows_ = n_scols;
+        n_scols_ = n_srows;
+        ptr = i_off + j_off * ma_len;
+    } else {
+        n_srows_ = n_srows;
+        n_scols_ = n_scols;
+        ptr = i_off * ma_len + j_off;
     }
-    int64_t ma_len = major_axis_length(D);
-    int64_t ptr = i_off * ma_len + j_off;
     switch (D.family) {
         case DenseDistName::Gaussian:
-            return fill_rsubmat_omp<T,RNG,r123ext::boxmul>(ma_len, smat, n_srows, n_scols, ptr, seed);
+            return fill_rsubmat_omp<T,RNG,r123ext::boxmul>(ma_len, smat, n_srows_, n_scols_, ptr, seed);
         case DenseDistName::Uniform:
-            return fill_rsubmat_omp<T,RNG,r123ext::uneg11>(ma_len, smat, n_srows, n_scols, ptr, seed);
+            return fill_rsubmat_omp<T,RNG,r123ext::uneg11>(ma_len, smat, n_srows_, n_scols_, ptr, seed);
         case DenseDistName::BlackBox:
             throw std::invalid_argument(std::string("fill_buff cannot be called with the BlackBox distribution."));
         default:
@@ -319,24 +324,7 @@ RNGState<RNG> fill_buff(
     const DenseDist &D,
     RNGState<RNG> const& state
 ) {
-    MajorAxis ma = D.major_axis;
-    int64_t n_rows = D.n_rows;
-    int64_t n_cols = D.n_cols;
-    if (ma == MajorAxis::Long && n_cols < n_rows)
-        return fill_buff<T,RNG>(buff, {n_cols, n_rows, D.family, ma}, state);
-    if (ma == MajorAxis::Short && n_rows < n_cols)
-        return fill_buff<T,RNG>(buff, {n_cols, n_rows, D.family, ma}, state);
-    
-    switch (D.family) {
-        case DenseDistName::Gaussian:
-            return fill_rsubmat_omp<T,RNG,r123ext::boxmul>(D.n_cols, buff, D.n_rows, D.n_cols, 0, state);
-        case DenseDistName::Uniform:
-            return fill_rsubmat_omp<T,RNG,r123ext::uneg11>(D.n_cols, buff, D.n_rows, D.n_cols, 0, state);
-        case DenseDistName::BlackBox:
-            throw std::invalid_argument(std::string("fill_buff cannot be called with the BlackBox distribution."));
-        default:
-            throw std::runtime_error(std::string("Unrecognized distribution."));
-    }
+    return fill_rsubmat(D, buff, D.n_rows, D.n_cols, 0, 0, state);
 }
 
 template <typename SKOP>
