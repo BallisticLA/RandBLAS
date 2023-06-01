@@ -702,23 +702,22 @@ void rskge3(
     T *B,
     int64_t ldb
 ){
+    if (!S0.buff) {
+        // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
+        // of that sketching operator, and then call RSKGE3 with that new object.
+        int64_t n_srows = (transS == blas::Op::NoTrans) ? n : d;
+        int64_t n_scols = (transS == blas::Op::NoTrans) ? d : n;
+        T *buff = new T[n_srows * n_scols];
+        fill_rsubmat(S0.dist, buff, n_srows, n_scols, i_os, j_os, S0.seed_state);
+        DenseDist D{n_srows, n_scols, DenseDistName::BlackBox, S0.dist.major_axis};
+        DenseSkOp S(D, S0.seed_state, buff);
+        rskge3(layout, transA, transS, m, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);
+        delete [] buff;
+        return;
+    }
     bool opposing_layouts = S0.layout != layout;
     if (opposing_layouts)
         transS = (transS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
-
-    DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff);
-    T *S0_ptr = S0.buff;
-    if (!S0_ptr) {
-        // The tentative RandBLAS standard doesn't let us attach memory to S0 inside this function.
-        // It also requires that the results of this function are the same as if the user
-        // had previously called realize_full on the sketching operator. Since the exact behavior of
-        // realize_full is in flux, we call that function here as a black-box. The trouble is that
-        // realize_full attaches memory to its argument. We get around this by calling realize_full
-        // on a shallow copy and then getting a reference to its underlying buffer. When this function
-        // exits the destructor of the shallow copy will be called and its memory will be cleaned up.
-        realize_full(S0_shallow_copy);
-        S0_ptr = S0_shallow_copy.buff;
-    }
 
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
@@ -769,7 +768,7 @@ void rskge3(
         m, d, n,
         alpha,
         A, lda,
-        &S0_ptr[pos], lds,
+        &S0.buff[pos], lds,
         beta,
         B, ldb
     );
