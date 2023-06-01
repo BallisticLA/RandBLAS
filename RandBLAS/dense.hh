@@ -305,7 +305,6 @@ RNGState<RNG> fill_rmat(
     const RNGState<RNG> & seed,
     MajorAxis ma = MajorAxis::Long
 ) {
-
     if (ma == MajorAxis::Long && n_cols < n_rows)
         return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, ma);
     if (ma == MajorAxis::Short && n_rows < n_cols)
@@ -313,8 +312,6 @@ RNGState<RNG> fill_rmat(
 
     // fill_rsubmat_omp is written from a row-major perspective.
     return fill_rsubmat_omp<T, RNG, OP>(n_cols, mat, n_rows, n_cols, 0, seed);
-
-
 }
  
 template <typename T, typename RNG>
@@ -476,24 +473,23 @@ void lskge3(
     T *B,
     int64_t ldb
 ){
+    if (!S0.buff) {
+        // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
+        // of that sketching operator, and then call LSKGE3 with that new object.
+        DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff);
+        realize_full(S0_shallow_copy);
+        lskge3(layout, transS, transA, d, n, m, alpha, S0_shallow_copy, i_os, j_os, A, lda, beta, B, ldb);
+        return;
+        // ^ That code can be wasteful. If we're applying a submatrix of A, then we should generate
+        // only that submatrix with fill_rsubmat. We'd use that memory for a new sketching operator "S"
+        // that has S.dist.family == DenseDistName::BlackBox, so that we can call
+        //      lskge3(layout, transS, transA, d, n, m, alpha, S, 0, 0, A, lda, beta, B, ldb).
+        // and return.
+    }
     bool opposing_layouts = S0.layout != layout;
     if (opposing_layouts)
         transS = (transS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
 
-    DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff);
-    T *S0_ptr = S0.buff;
-    if (!S0_ptr) {
-        // The tentative RandBLAS standard doesn't let us attach memory to S0 inside this function.
-        // It also requires that the results of this function are the same as if the user
-        // had previously called realize_full on the sketching operator. Since the exact behavior of
-        // realize_full is in flux, we call that function here as a black-box. The trouble is that
-        // realize_full attaches memory to its argument. We get around this by calling realize_full
-        // on a shallow copy and then getting a reference to its underlying buffer. When this function
-        // exits the destructor of the shallow copy will be called and its memory will be cleaned up.
-        realize_full(S0_shallow_copy);
-        S0.next_state = S0_shallow_copy.next_state;
-        S0_ptr = S0_shallow_copy.buff;
-    }
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
     if (transA == blas::Op::NoTrans) {
@@ -544,7 +540,7 @@ void lskge3(
         layout, transS, transA,
         d, n, m,
         alpha,
-        &S0_ptr[pos], lds,
+        &S0.buff[pos], lds,
         A, lda,
         beta,
         B, ldb
