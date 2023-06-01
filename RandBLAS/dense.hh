@@ -88,6 +88,13 @@ inline blas::Layout dist_to_layout(
     }
 }
 
+inline int64_t major_axis_length(
+    DenseDist D
+) {
+    return (D.major_axis == MajorAxis::Long) ? 
+        std::max(D.n_rows, D.n_cols) : std::min(D.n_rows, D.n_cols);
+}
+
 // =============================================================================
 /// A sample from a prescribed distribution over dense sketching operators.
 ///
@@ -206,7 +213,6 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
  *
  * @returns the updated CBRNG state
  */
-
 template<typename T, typename RNG, typename OP>
 auto fill_rsubmat_omp(
     int64_t n_cols,
@@ -222,9 +228,9 @@ auto fill_rsubmat_omp(
 
     int64_t i0, i1, r0, r1, s0, e1;
     int64_t prev = 0;
-    int64_t i, r;
+    int64_t i;
 
-    #pragma omp parallel firstprivate(c, k) private(i0, i1, r0, r1, s0, e1, prev, i, r)
+    #pragma omp parallel firstprivate(c, k) private(i0, i1, r0, r1, s0, e1, prev, i)
     {
     auto cc = c;
     prev = 0;
@@ -273,9 +279,39 @@ auto fill_rsubmat_omp(
     }
 
     }
-
     return RNGState<RNG> {c, k};
-}  
+} 
+
+
+template<typename T, typename RNG>
+RandBLAS::base::RNGState<RNG> fill_rsubmat(
+    DenseDist D,
+    T* smat,
+    int64_t n_srows,
+    int64_t n_scols,
+    int64_t i_off,
+    int64_t j_off,
+    const RNGState<RNG> & seed
+) {
+    blas::Layout layout = dist_to_layout(D);
+    if (layout == blas::Layout::ColMajor) {
+        // operate on the transpose in row-major
+        DenseDist Dt{D.n_cols, D.n_rows, D.family, D.major_axis}; 
+        return fill_rsubmat<T,RNG>(Dt, smat, n_scols, n_srows, j_off, i_off, seed);
+    }
+    int64_t ma_len = major_axis_length(D);
+    int64_t ptr = i_off * ma_len + j_off;
+    switch (D.family) {
+        case DenseDistName::Gaussian:
+            return fill_rsubmat_omp<T,RNG,r123ext::boxmul>(ma_len, smat, n_srows, n_scols, ptr, seed);
+        case DenseDistName::Uniform:
+            return fill_rsubmat_omp<T,RNG,r123ext::uneg11>(ma_len, smat, n_srows, n_scols, ptr, seed);
+        case DenseDistName::BlackBox:
+            throw std::invalid_argument(std::string("fill_buff cannot be called with the BlackBox distribution."));
+        default:
+            throw std::runtime_error(std::string("Unrecognized distribution."));
+    }
+}
 
 /** Fill a n_rows \times n_cols matrix with random values. If RandBLAS is
  * compiled with OpenMP threading support enabled, the operation is
@@ -330,8 +366,7 @@ auto fill_buff(
         default:
             throw std::runtime_error(std::string("Unrecognized distribution."));
     }
-
-    return state;
+    //return state;
 }
 
 template <typename SKOP>
@@ -476,15 +511,15 @@ void lskge3(
     if (!S0.buff) {
         // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
         // of that sketching operator, and then call LSKGE3 with that new object.
-        DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff);
-        realize_full(S0_shallow_copy);
-        lskge3(layout, transS, transA, d, n, m, alpha, S0_shallow_copy, i_os, j_os, A, lda, beta, B, ldb);
+        int64_t n_srows = (transS == blas::Op::NoTrans) ? d : m;
+        int64_t n_scols = (transS == blas::Op::NoTrans) ? m : d;
+        T *buff = new T[n_srows * n_scols];
+        fill_rsubmat(S0.dist, buff, n_srows, n_scols, i_os, j_os, S0.seed_state);
+        DenseDist D{n_srows, n_scols, DenseDistName::BlackBox, S0.dist.major_axis};
+        DenseSkOp S(D, S0.seed_state, buff);
+        lskge3(layout, transS, transA, d, n, m, alpha, S, 0, 0, A, lda, beta, B, ldb);
+        delete [] buff;
         return;
-        // ^ That code can be wasteful. If we're applying a submatrix of A, then we should generate
-        // only that submatrix with fill_rsubmat. We'd use that memory for a new sketching operator "S"
-        // that has S.dist.family == DenseDistName::BlackBox, so that we can call
-        //      lskge3(layout, transS, transA, d, n, m, alpha, S, 0, 0, A, lda, beta, B, ldb).
-        // and return.
     }
     bool opposing_layouts = S0.layout != layout;
     if (opposing_layouts)
