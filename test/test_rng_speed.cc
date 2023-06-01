@@ -31,11 +31,11 @@ std::ostream &operator<<(std::ostream &os, std::vector<T> &v)
 
 
 template <typename T, typename RNG, typename OP>
-auto run_test(int64_t m, int64_t n, T *mat)
+auto run_test(RandBLAS::dense::DenseDist D, T *mat)
 {
     auto t0 = std::chrono::high_resolution_clock::now();
     base::RNGState<RNG> seed;
-    dense::fill_rmat<T,RNG,OP>(m, n, mat, seed);
+    RandBLAS::dense::fill_rsubmat_omp<T,RNG,OP>(D.n_cols, mat, D.n_rows, D.n_cols, 0, seed);
     auto t1 = std::chrono::high_resolution_clock::now();
     return (t1 - t0).count();
 }
@@ -52,10 +52,11 @@ int main(int argc, char **argv)
     int64_t m = atoi(argv[1]);
     int64_t n = atoi(argv[2]);
     int64_t d = m*n;
+    RandBLAS::dense::DenseDist dist{m, n, RandBLAS::dense::DenseDistName::Uniform};
 
     std::vector<T> mat(d);
 
-    auto dt = run_test<T,RNG,OP>(m, n, mat.data());
+    auto dt = run_test<T,RNG,OP>(dist, mat.data());
 
     std::cerr << "[" << typeid(RNG).name() << ", "
         << typeid(OP).name() << "] dt = " << dt << std::endl;

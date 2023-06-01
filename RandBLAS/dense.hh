@@ -312,61 +312,31 @@ RandBLAS::base::RNGState<RNG> fill_rsubmat(
             throw std::runtime_error(std::string("Unrecognized distribution."));
     }
 }
-
-/** Fill a n_rows \times n_cols matrix with random values. If RandBLAS is
- * compiled with OpenMP threading support enabled, the operation is
- * parallelized using OMP_NUM_THREADS. The sequence of values genrated is not
- * dependent on the number of OpenMP threads.
- *
- * @tparam T the data type of the matrix
- * @tparam RNG a random123 CBRNG type
- * @tparm OP an operator that transforms raw random values into matrix
- *           elements. See r123ext::uneg11 and r123ext::boxmul.
- *
- * @param[in] n_rows the number of rows in the matrix
- * @param[in] n_cols the number of columns in the matrix
- * @param[in] mat a pointer to a contiguous region of memory with space for
- *                n_rows \times n_cols elements of type T. This memory will be
- *                filled with random values.
- * @param[in] seed A CBRNG state
- *
- * @returns the updated CBRNG state
- */
-
-template <typename T, typename RNG, typename OP>
-RNGState<RNG> fill_rmat(
-    int64_t n_rows,
-    int64_t n_cols,
-    T* mat,
-    const RNGState<RNG> & seed,
-    MajorAxis ma = MajorAxis::Long
-) {
-    if (ma == MajorAxis::Long && n_cols < n_rows)
-        return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, ma);
-    if (ma == MajorAxis::Short && n_rows < n_cols)
-        return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, ma);
-
-    // fill_rsubmat_omp is written from a row-major perspective.
-    return fill_rsubmat_omp<T, RNG, OP>(n_cols, mat, n_rows, n_cols, 0, seed);
-}
  
 template <typename T, typename RNG>
-auto fill_buff(
+RNGState<RNG> fill_buff(
     T *buff,
     const DenseDist &D,
     RNGState<RNG> const& state
 ) {
+    MajorAxis ma = D.major_axis;
+    int64_t n_rows = D.n_rows;
+    int64_t n_cols = D.n_cols;
+    if (ma == MajorAxis::Long && n_cols < n_rows)
+        return fill_buff<T,RNG>(buff, {n_cols, n_rows, D.family, ma}, state);
+    if (ma == MajorAxis::Short && n_rows < n_cols)
+        return fill_buff<T,RNG>(buff, {n_cols, n_rows, D.family, ma}, state);
+    
     switch (D.family) {
         case DenseDistName::Gaussian:
-            return fill_rmat<T,RNG,r123ext::boxmul>(D.n_rows, D.n_cols, buff, state, D.major_axis);
+            return fill_rsubmat_omp<T,RNG,r123ext::boxmul>(D.n_cols, buff, D.n_rows, D.n_cols, 0, state);
         case DenseDistName::Uniform:
-            return fill_rmat<T,RNG,r123ext::uneg11>(D.n_rows, D.n_cols, buff, state, D.major_axis);
+            return fill_rsubmat_omp<T,RNG,r123ext::uneg11>(D.n_cols, buff, D.n_rows, D.n_cols, 0, state);
         case DenseDistName::BlackBox:
             throw std::invalid_argument(std::string("fill_buff cannot be called with the BlackBox distribution."));
         default:
             throw std::runtime_error(std::string("Unrecognized distribution."));
     }
-    //return state;
 }
 
 template <typename SKOP>
