@@ -214,7 +214,7 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
  * @returns the updated CBRNG state
  */
 template<typename T, typename RNG, typename OP>
-auto fill_rsubmat_omp(
+auto fill_dense_submat_impl(
     int64_t n_cols,
     T* smat,
     int64_t n_srows,
@@ -284,7 +284,7 @@ auto fill_rsubmat_omp(
 
 
 template<typename T, typename RNG>
-RandBLAS::base::RNGState<RNG> fill_rsubmat(
+RandBLAS::base::RNGState<RNG> fill_dense_submat(
     DenseDist D,
     T* smat,
     int64_t n_srows,
@@ -308,9 +308,9 @@ RandBLAS::base::RNGState<RNG> fill_rsubmat(
     }
     switch (D.family) {
         case DenseDistName::Gaussian:
-            return fill_rsubmat_omp<T,RNG,r123ext::boxmul>(ma_len, smat, n_srows_, n_scols_, ptr, seed);
+            return fill_dense_submat_impl<T,RNG,r123ext::boxmul>(ma_len, smat, n_srows_, n_scols_, ptr, seed);
         case DenseDistName::Uniform:
-            return fill_rsubmat_omp<T,RNG,r123ext::uneg11>(ma_len, smat, n_srows_, n_scols_, ptr, seed);
+            return fill_dense_submat_impl<T,RNG,r123ext::uneg11>(ma_len, smat, n_srows_, n_scols_, ptr, seed);
         case DenseDistName::BlackBox:
             throw std::invalid_argument(std::string("fill_buff cannot be called with the BlackBox distribution."));
         default:
@@ -319,23 +319,23 @@ RandBLAS::base::RNGState<RNG> fill_rsubmat(
 }
  
 template <typename T, typename RNG>
-RNGState<RNG> fill_buff(
-    T *buff,
+RNGState<RNG> fill_dense(
     const DenseDist &D,
+    T *buff,
     RNGState<RNG> const& state
 ) {
-    return fill_rsubmat(D, buff, D.n_rows, D.n_cols, 0, 0, state);
+    return fill_dense_submat(D, buff, D.n_rows, D.n_cols, 0, 0, state);
 }
 
 template <typename SKOP>
-void realize_full(
-    SKOP &S,
-    bool del_buff_on_destruct=true
+auto fill_dense(
+    SKOP &S
 ) {
     randblas_require(!S.buff);
     S.buff = new typename SKOP::buffer_type[S.dist.n_rows * S.dist.n_cols];
-    S.next_state = fill_buff(S.buff, S.dist, S.seed_state);
-    S.del_buff_on_destruct = del_buff_on_destruct;
+    S.next_state = fill_dense(S.dist, S.buff, S.seed_state);
+    S.del_buff_on_destruct = true;
+    return S.next_state;
 }
 
 // =============================================================================
@@ -472,7 +472,7 @@ void lskge3(
         int64_t n_srows = (transS == blas::Op::NoTrans) ? d : m;
         int64_t n_scols = (transS == blas::Op::NoTrans) ? m : d;
         T *buff = new T[n_srows * n_scols];
-        fill_rsubmat(S0.dist, buff, n_srows, n_scols, i_os, j_os, S0.seed_state);
+        fill_dense_submat(S0.dist, buff, n_srows, n_scols, i_os, j_os, S0.seed_state);
         DenseDist D{n_srows, n_scols, DenseDistName::BlackBox, S0.dist.major_axis};
         DenseSkOp S(D, S0.seed_state, buff);
         lskge3(layout, transS, transA, d, n, m, alpha, S, 0, 0, A, lda, beta, B, ldb);
@@ -666,7 +666,7 @@ void rskge3(
         int64_t n_srows = (transS == blas::Op::NoTrans) ? n : d;
         int64_t n_scols = (transS == blas::Op::NoTrans) ? d : n;
         T *buff = new T[n_srows * n_scols];
-        fill_rsubmat(S0.dist, buff, n_srows, n_scols, i_os, j_os, S0.seed_state);
+        fill_dense_submat(S0.dist, buff, n_srows, n_scols, i_os, j_os, S0.seed_state);
         DenseDist D{n_srows, n_scols, DenseDistName::BlackBox, S0.dist.major_axis};
         DenseSkOp S(D, S0.seed_state, buff);
         rskge3(layout, transA, transS, m, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);

@@ -40,9 +40,9 @@ class TestRSKGE3 : public ::testing::Test
         // Create a copy that we always realize explicitly.
         RandBLAS::dense::DenseSkOp<T> S0(D, seed, nullptr);
         if (preallocate)
-            RandBLAS::dense::realize_full(S0);
+            RandBLAS::dense::fill_dense(S0);
         RandBLAS::dense::DenseSkOp<T> S0_ref(D, seed, nullptr);
-        RandBLAS::dense::realize_full(S0_ref);
+        RandBLAS::dense::fill_dense(S0_ref);
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A(m * m, 0.0);
@@ -87,7 +87,7 @@ class TestRSKGE3 : public ::testing::Test
         // Define the sketching operator struct, S0.
         RandBLAS::dense::DenseSkOp<T> S0(Dt, seed, nullptr);
         RandBLAS::dense::DenseSkOp<T> S0_ref(Dt, seed, nullptr);
-        RandBLAS::dense::realize_full(S0_ref);
+        RandBLAS::dense::fill_dense(S0_ref);
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A(m * m, 0.0);
@@ -138,7 +138,7 @@ class TestRSKGE3 : public ::testing::Test
         // Define the sketching operator struct, S0.
         RandBLAS::dense::DenseSkOp<T> S0(D, seed, nullptr);
         RandBLAS::dense::DenseSkOp<T> S0_ref(D, seed, nullptr);
-        RandBLAS::dense::realize_full(S0_ref);
+        RandBLAS::dense::fill_dense(S0_ref);
         int64_t lds = (S0.layout == blas::Layout::ColMajor) ? S0.dist.n_rows : S0.dist.n_cols;
         int64_t pos = (S0.layout == blas::Layout::ColMajor) ? (S_ro + lds * S_co) : (S_ro * lds + S_co);
         assert(d0 * m0 >= pos + d * m);
@@ -195,14 +195,14 @@ class TestRSKGE3 : public ::testing::Test
         };
         // Define the sketching operator struct, S0.
         RandBLAS::dense::DenseSkOp<T> S0(D, seed_S0, nullptr);
-        RandBLAS::dense::realize_full(S0);
+        RandBLAS::dense::fill_dense(S0);
         bool AB_colmajor = layout == blas::Layout::ColMajor;
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A0(m0 * n0, 0.0);
         uint32_t seed_A0 = 42000;
         RandBLAS::dense::DenseDist DA0 = {.n_rows = m0, .n_cols = n0};
-        RandBLAS::dense::fill_buff(A0.data(), DA0, RandBLAS::base::RNGState(seed_A0));
+        RandBLAS::dense::fill_dense(DA0, A0.data(), RandBLAS::base::RNGState(seed_A0));
         std::vector<T> B(m * d, 0.0);
         int64_t lda = (AB_colmajor) ? DA0.n_rows : DA0.n_cols;
         int64_t ldb = (AB_colmajor) ? m : d;

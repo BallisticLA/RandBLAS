@@ -35,7 +35,7 @@ auto run_test(RandBLAS::dense::DenseDist D, T *mat)
 {
     auto t0 = std::chrono::high_resolution_clock::now();
     base::RNGState<RNG> seed;
-    RandBLAS::dense::fill_rsubmat_omp<T,RNG,OP>(D.n_cols, mat, D.n_rows, D.n_cols, 0, seed);
+    RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(D.n_cols, mat, D.n_rows, D.n_cols, 0, seed);
     auto t1 = std::chrono::high_resolution_clock::now();
     return (t1 - t0).count();
 }

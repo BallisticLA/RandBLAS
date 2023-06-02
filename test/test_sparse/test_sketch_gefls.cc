@@ -181,7 +181,7 @@ class TestLSKGES : public ::testing::Test
         // create initialized workspace for the sketch
         std::vector<T> B0(d * m);
         RandBLAS::dense::DenseDist DB = {.n_rows = d, .n_cols = m};
-        RandBLAS::dense::fill_buff(B0.data(), DB,  RandBLAS::base::RNGState(42));
+        RandBLAS::dense::fill_dense(DB, B0.data(), RandBLAS::base::RNGState(42));
         int64_t ldb = (is_colmajor) ? d : m;
         std::vector<T> B1(d * m);
         blas::copy(d * m, B0.data(), 1, B1.data(), 1);
@@ -303,7 +303,7 @@ class TestLSKGES : public ::testing::Test
             .n_cols = n0,
             .family = RandBLAS::dense::DenseDistName::Uniform
         };
-        RandBLAS::dense::fill_buff(A0.data(), DA0, RandBLAS::base::RNGState(seed_A0));
+        RandBLAS::dense::fill_dense(DA0, A0.data(), RandBLAS::base::RNGState(seed_A0));
         std::vector<T> B0(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
         int64_t ldb = (is_colmajor) ? d : n;
@@ -370,7 +370,7 @@ class TestLSKGES : public ::testing::Test
             .n_cols = m,
             .family = RandBLAS::dense::DenseDistName::Uniform
         };
-        RandBLAS::dense::fill_buff(At.data(), DAt, RandBLAS::base::RNGState(seed_A));
+        RandBLAS::dense::fill_dense(DAt, At.data(), RandBLAS::base::RNGState(seed_A));
         std::vector<T> B0(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DAt.n_rows : DAt.n_cols;
         int64_t ldb = (is_colmajor) ? d : n;
