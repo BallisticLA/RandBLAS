@@ -214,7 +214,7 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
  * @returns the updated CBRNG state
  */
 template<typename T, typename RNG, typename OP>
-auto fill_dense_submat_impl(
+static auto fill_dense_submat_impl(
     int64_t n_cols,
     T* smat,
     int64_t n_srows,
