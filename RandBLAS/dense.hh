@@ -88,6 +88,13 @@ inline blas::Layout dist_to_layout(
     }
 }
 
+inline int64_t major_axis_length(
+    DenseDist D
+) {
+    return (D.major_axis == MajorAxis::Long) ? 
+        std::max(D.n_rows, D.n_cols) : std::min(D.n_rows, D.n_cols);
+}
+
 // =============================================================================
 /// A sample from a prescribed distribution over dense sketching operators.
 ///
@@ -206,9 +213,8 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
  *
  * @returns the updated CBRNG state
  */
-
 template<typename T, typename RNG, typename OP>
-auto fill_rsubmat_omp(
+static auto fill_dense_submat_impl(
     int64_t n_cols,
     T* smat,
     int64_t n_srows,
@@ -222,9 +228,9 @@ auto fill_rsubmat_omp(
 
     int64_t i0, i1, r0, r1, s0, e1;
     int64_t prev = 0;
-    int64_t i, r;
+    int64_t i;
 
-    #pragma omp parallel firstprivate(c, k) private(i0, i1, r0, r1, s0, e1, prev, i, r)
+    #pragma omp parallel firstprivate(c, k) private(i0, i1, r0, r1, s0, e1, prev, i)
     {
     auto cc = c;
     prev = 0;
@@ -273,78 +279,63 @@ auto fill_rsubmat_omp(
     }
 
     }
-
     return RNGState<RNG> {c, k};
-}  
+} 
 
-/** Fill a n_rows \times n_cols matrix with random values. If RandBLAS is
- * compiled with OpenMP threading support enabled, the operation is
- * parallelized using OMP_NUM_THREADS. The sequence of values genrated is not
- * dependent on the number of OpenMP threads.
- *
- * @tparam T the data type of the matrix
- * @tparam RNG a random123 CBRNG type
- * @tparm OP an operator that transforms raw random values into matrix
- *           elements. See r123ext::uneg11 and r123ext::boxmul.
- *
- * @param[in] n_rows the number of rows in the matrix
- * @param[in] n_cols the number of columns in the matrix
- * @param[in] mat a pointer to a contiguous region of memory with space for
- *                n_rows \times n_cols elements of type T. This memory will be
- *                filled with random values.
- * @param[in] seed A CBRNG state
- *
- * @returns the updated CBRNG state
- */
 
-template <typename T, typename RNG, typename OP>
-RNGState<RNG> fill_rmat(
-    int64_t n_rows,
-    int64_t n_cols,
-    T* mat,
-    const RNGState<RNG> & seed,
-    MajorAxis ma = MajorAxis::Long
+template<typename T, typename RNG>
+RandBLAS::base::RNGState<RNG> fill_dense_submat(
+    DenseDist D,
+    T* smat,
+    int64_t n_srows,
+    int64_t n_scols,
+    int64_t i_off,
+    int64_t j_off,
+    const RNGState<RNG> & seed
 ) {
-
-    if (ma == MajorAxis::Long && n_cols > n_rows)
-        return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, ma);
-    if (ma == MajorAxis::Short && n_rows > n_cols)
-        return fill_rmat<T,RNG,OP>(n_cols, n_rows, mat, seed, ma);
-
-    return fill_rsubmat_omp<T, RNG, OP>(n_cols, mat, n_rows, n_cols, 0, seed);
-
-
-}
- 
-template <typename T, typename RNG>
-auto fill_buff(
-    T *buff,
-    const DenseDist &D,
-    RNGState<RNG> const& state
-) {
+    blas::Layout layout = dist_to_layout(D);
+    int64_t ma_len = major_axis_length(D);
+    int64_t n_srows_, n_scols_, ptr;
+    if (layout == blas::Layout::ColMajor) {
+        // operate on the transpose in row-major
+        n_srows_ = n_scols;
+        n_scols_ = n_srows;
+        ptr = i_off + j_off * ma_len;
+    } else {
+        n_srows_ = n_srows;
+        n_scols_ = n_scols;
+        ptr = i_off * ma_len + j_off;
+    }
     switch (D.family) {
         case DenseDistName::Gaussian:
-            return fill_rmat<T,RNG,r123ext::boxmul>(D.n_rows, D.n_cols, buff, state, D.major_axis);
+            return fill_dense_submat_impl<T,RNG,r123ext::boxmul>(ma_len, smat, n_srows_, n_scols_, ptr, seed);
         case DenseDistName::Uniform:
-            return fill_rmat<T,RNG,r123ext::uneg11>(D.n_rows, D.n_cols, buff, state, D.major_axis);
+            return fill_dense_submat_impl<T,RNG,r123ext::uneg11>(ma_len, smat, n_srows_, n_scols_, ptr, seed);
         case DenseDistName::BlackBox:
             throw std::invalid_argument(std::string("fill_buff cannot be called with the BlackBox distribution."));
         default:
             throw std::runtime_error(std::string("Unrecognized distribution."));
     }
-
-    return state;
+}
+ 
+template <typename T, typename RNG>
+RNGState<RNG> fill_dense(
+    const DenseDist &D,
+    T *buff,
+    RNGState<RNG> const& state
+) {
+    return fill_dense_submat(D, buff, D.n_rows, D.n_cols, 0, 0, state);
 }
 
 template <typename SKOP>
-void realize_full(
-    SKOP &S,
-    bool del_buff_on_destruct=true
+auto fill_dense(
+    SKOP &S
 ) {
     randblas_require(!S.buff);
     S.buff = new typename SKOP::buffer_type[S.dist.n_rows * S.dist.n_cols];
-    S.next_state = fill_buff(S.buff, S.dist, S.seed_state);
-    S.del_buff_on_destruct = del_buff_on_destruct;
+    S.next_state = fill_dense(S.dist, S.buff, S.seed_state);
+    S.del_buff_on_destruct = true;
+    return S.next_state;
 }
 
 // =============================================================================
@@ -475,24 +466,23 @@ void lskge3(
     T *B,
     int64_t ldb
 ){
+    if (!S0.buff) {
+        // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
+        // of that sketching operator, and then call LSKGE3 with that new object.
+        int64_t n_srows = (transS == blas::Op::NoTrans) ? d : m;
+        int64_t n_scols = (transS == blas::Op::NoTrans) ? m : d;
+        T *buff = new T[n_srows * n_scols];
+        fill_dense_submat(S0.dist, buff, n_srows, n_scols, i_os, j_os, S0.seed_state);
+        DenseDist D{n_srows, n_scols, DenseDistName::BlackBox, S0.dist.major_axis};
+        DenseSkOp S(D, S0.seed_state, buff);
+        lskge3(layout, transS, transA, d, n, m, alpha, S, 0, 0, A, lda, beta, B, ldb);
+        delete [] buff;
+        return;
+    }
     bool opposing_layouts = S0.layout != layout;
     if (opposing_layouts)
         transS = (transS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
 
-    DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff);
-    T *S0_ptr = S0.buff;
-    if (!S0_ptr) {
-        // The tentative RandBLAS standard doesn't let us attach memory to S0 inside this function.
-        // It also requires that the results of this function are the same as if the user
-        // had previously called realize_full on the sketching operator. Since the exact behavior of
-        // realize_full is in flux, we call that function here as a black-box. The trouble is that
-        // realize_full attaches memory to its argument. We get around this by calling realize_full
-        // on a shallow copy and then getting a reference to its underlying buffer. When this function
-        // exits the destructor of the shallow copy will be called and its memory will be cleaned up.
-        realize_full(S0_shallow_copy);
-        S0.next_state = S0_shallow_copy.next_state;
-        S0_ptr = S0_shallow_copy.buff;
-    }
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
     if (transA == blas::Op::NoTrans) {
@@ -543,7 +533,7 @@ void lskge3(
         layout, transS, transA,
         d, n, m,
         alpha,
-        &S0_ptr[pos], lds,
+        &S0.buff[pos], lds,
         A, lda,
         beta,
         B, ldb
@@ -670,23 +660,22 @@ void rskge3(
     T *B,
     int64_t ldb
 ){
+    if (!S0.buff) {
+        // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
+        // of that sketching operator, and then call RSKGE3 with that new object.
+        int64_t n_srows = (transS == blas::Op::NoTrans) ? n : d;
+        int64_t n_scols = (transS == blas::Op::NoTrans) ? d : n;
+        T *buff = new T[n_srows * n_scols];
+        fill_dense_submat(S0.dist, buff, n_srows, n_scols, i_os, j_os, S0.seed_state);
+        DenseDist D{n_srows, n_scols, DenseDistName::BlackBox, S0.dist.major_axis};
+        DenseSkOp S(D, S0.seed_state, buff);
+        rskge3(layout, transA, transS, m, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);
+        delete [] buff;
+        return;
+    }
     bool opposing_layouts = S0.layout != layout;
     if (opposing_layouts)
         transS = (transS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
-
-    DenseSkOp<T,RNG> S0_shallow_copy(S0.dist, S0.seed_state, S0.buff);
-    T *S0_ptr = S0.buff;
-    if (!S0_ptr) {
-        // The tentative RandBLAS standard doesn't let us attach memory to S0 inside this function.
-        // It also requires that the results of this function are the same as if the user
-        // had previously called realize_full on the sketching operator. Since the exact behavior of
-        // realize_full is in flux, we call that function here as a black-box. The trouble is that
-        // realize_full attaches memory to its argument. We get around this by calling realize_full
-        // on a shallow copy and then getting a reference to its underlying buffer. When this function
-        // exits the destructor of the shallow copy will be called and its memory will be cleaned up.
-        realize_full(S0_shallow_copy);
-        S0_ptr = S0_shallow_copy.buff;
-    }
 
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
@@ -737,7 +726,7 @@ void rskge3(
         m, d, n,
         alpha,
         A, lda,
-        &S0_ptr[pos], lds,
+        &S0.buff[pos], lds,
         beta,
         B, ldb
     );
