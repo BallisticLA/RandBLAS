@@ -1,5 +1,5 @@
-#ifndef randblas_ramm_hh
-#define randblas_ramm_hh
+#ifndef randblas_skge_hh
+#define randblas_skge_hh
 
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
@@ -17,7 +17,7 @@
 #include <math.h>
 #include <typeinfo>
 
-namespace RandBLAS::ramm {
+namespace RandBLAS {
 
 using namespace RandBLAS::base;
 using namespace RandBLAS::dense;
@@ -25,7 +25,7 @@ using namespace RandBLAS::sparse;
 
 
 // =============================================================================
-/// \fn ramm_general_left(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d,
+/// \fn sketch_general(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d,
 ///     int64_t n, int64_t m, T alpha, SKOP &S, int64_t i_os, int64_t j_os,
 ///     const T *A, int64_t lda, T beta, T *B, int64_t ldb
 /// ) 
@@ -40,7 +40,7 @@ using namespace RandBLAS::sparse;
 ///   .. |transS| mathmacro:: \mathrm{transS}
 ///
 /// @endverbatim
-/// ramm_general_left: Perform a GEMM-like operation
+/// Perform a GEMM-like operation
 /// @verbatim embed:rst:leading-slashes
 /// .. math::
 ///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(S))}_{d \times m} \cdot \underbrace{\op(\mat(A))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
@@ -139,7 +139,7 @@ using namespace RandBLAS::sparse;
 ///    - Refer to documentation for \math{\lda} for details. 
 ///
 template <typename T, typename SKOP>
-void ramm_general_left(
+void sketch_general(
     blas::Layout layout,
     blas::Op transS,
     blas::Op transA,
@@ -158,7 +158,7 @@ void ramm_general_left(
 );
 
 template <typename T, typename RNG>
-void ramm_general_left(
+void sketch_general(
     blas::Layout layout,
     blas::Op transS,
     blas::Op transA,
@@ -182,7 +182,7 @@ void ramm_general_left(
 }
 
 template <typename T, typename RNG>
-void ramm_general_left(
+void sketch_general(
     blas::Layout layout,
     blas::Op transS,
     blas::Op transA,
@@ -206,11 +206,11 @@ void ramm_general_left(
 }
 
 // =============================================================================
-/// \fn ramm_general_right(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n,
+/// \fn sketch_general(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n,
 ///    T alpha, const T *A, int64_t lda, SKOP &S,
 ///    int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb
 /// )
-/// ramm_general_right: Perform a GEMM-like operation
+/// Perform a GEMM-like operation
 /// @verbatim embed:rst:leading-slashes
 /// .. math::
 ///     \mat(B) = \alpha \cdot \underbrace{\op(\mat(A))}_{m \times n} \cdot \underbrace{\op(\submat(S))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
@@ -311,7 +311,7 @@ void ramm_general_left(
 ///    - Refer to documentation for \math{\lda} for details. 
 ///
 template <typename T, typename SKOP>
-void ramm_general_right(
+void sketch_general(
     blas::Layout layout,
     blas::Op transA,
     blas::Op transS,
@@ -330,7 +330,7 @@ void ramm_general_right(
 );
 
 template <typename T, typename RNG>
-void ramm_general_right(
+void sketch_general(
     blas::Layout layout,
     blas::Op transA,
     blas::Op transS,
@@ -354,7 +354,7 @@ void ramm_general_right(
 
 
 template <typename T, typename RNG>
-void ramm_general_right(
+void sketch_general(
     blas::Layout layout,
     blas::Op transA,
     blas::Op transS,
@@ -376,5 +376,5 @@ void ramm_general_right(
     );
 }
 
-}  // end namespace RandBLAS::ramm
-#endif 
+}  // end namespace RandBLAS
+#endif

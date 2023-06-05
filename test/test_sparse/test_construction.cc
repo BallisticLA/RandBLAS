@@ -1,6 +1,5 @@
 #include <RandBLAS/dense.hh>
 #include <RandBLAS/sparse.hh>
-#include <RandBLAS/ramm.hh>
 #include <RandBLAS/util.hh>
 #include <RandBLAS/test_util.hh>
 #include <gtest/gtest.h>

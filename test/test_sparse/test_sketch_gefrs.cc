@@ -1,6 +1,6 @@
 #include <RandBLAS/dense.hh>
 #include <RandBLAS/sparse.hh>
-#include <RandBLAS/ramm.hh>
+#include <RandBLAS/skge.hh>
 #include <RandBLAS/util.hh>
 #include <RandBLAS/test_util.hh>
 #include <gtest/gtest.h>
@@ -34,7 +34,6 @@ class TestRSKGES : public ::testing::Test
         };
         RandBLAS::sparse::SparseSkOp<T> S0(D, seed);
         RandBLAS::sparse::fill_sparse(S0);
-        //RandBLAS::sparse::print_sparse(S0);
         std::vector<T> S0_dense(m * d, 0.0);
         RandBLAS_Testing::Util::sparseskop_to_dense<T>(S0, S0_dense.data(), layout);
 
@@ -44,7 +43,7 @@ class TestRSKGES : public ::testing::Test
         std::vector<T> B(m * d, 0.0);
         int64_t ldb = (layout == blas::Layout::ColMajor) ? m : d;
 
-        RandBLAS::sparse::rskges<T>(
+        RandBLAS::sketch_general<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -93,7 +92,7 @@ class TestRSKGES : public ::testing::Test
         int orig_threads = omp_get_num_threads();
         omp_set_num_threads(threads);
 #endif
-        RandBLAS::sparse::rskges<T>(
+        RandBLAS::sketch_general<T>(
             layout, blas::Op::NoTrans, blas::Op::NoTrans,
             m, d, n,
             1.0, a, lda,
@@ -166,7 +165,7 @@ class TestRSKGES : public ::testing::Test
         int orig_threads = omp_get_num_threads();
         omp_set_num_threads(1);
 #endif
-        RandBLAS::sparse::rskges<T>(
+        RandBLAS::sketch_general<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,

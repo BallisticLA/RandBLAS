@@ -4,7 +4,7 @@
 #include "RandBLAS/dense.hh"
 #include "RandBLAS/util.hh"
 #include "RandBLAS/test_util.hh"
-#include "RandBLAS/ramm.hh"
+#include "RandBLAS/skge.hh"
 
 #include <gtest/gtest.h>
 
@@ -53,7 +53,7 @@ class TestLSKGE3 : public ::testing::Test
         int64_t ldb = (layout == blas::Layout::ColMajor) ? d : m;
 
         // Perform the sketch
-        RandBLAS::ramm::ramm_general_left<T>(
+        RandBLAS::sketch_general<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -96,7 +96,7 @@ class TestLSKGE3 : public ::testing::Test
         int64_t ldb = (layout == blas::Layout::ColMajor) ? d : m;
 
         // perform the sketch
-        RandBLAS::ramm::ramm_general_left<T>(
+        RandBLAS::sketch_general<T>(
             layout,
             blas::Op::Trans,
             blas::Op::NoTrans,
@@ -152,7 +152,7 @@ class TestLSKGE3 : public ::testing::Test
         int64_t ldb = (layout == blas::Layout::ColMajor) ? d : m;
         
         // Perform the sketch
-        RandBLAS::ramm::ramm_general_left<T>(
+        RandBLAS::sketch_general<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -208,7 +208,7 @@ class TestLSKGE3 : public ::testing::Test
         // Perform the sketch
         int64_t a_offset = (AB_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
         T *A_ptr = &A0.data()[a_offset]; 
-        RandBLAS::ramm::ramm_general_left<T>(
+        RandBLAS::sketch_general<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,

@@ -17,7 +17,6 @@
 
 #include <RandBLAS/dense.hh>
 #include <RandBLAS/sparse.hh>
-#include <RandBLAS/ramm.hh>
 #include <RandBLAS/util.hh>
 #include <math.h>
 
