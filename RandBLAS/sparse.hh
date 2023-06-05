@@ -132,34 +132,41 @@ struct SparseSkOp {
     ///
     /// @param[in] rows
     ///     Pointer to int64_t array.
-    ///     - Optional. Can only be used if cols and vals are also provided.
-    ///     - When provided, this stores row indices as part of the COO format.
+    ///     - stores row indices as part of the COO format.
     ///
     /// @param[in] cols
     ///     Pointer to int64_t array.
-    ///     - Optional. Can only be used if rows and vals are also provided.
-    ///     - When provided, this stores column indices as part of the COO format.
+    ///     - stores column indices as part of the COO format.
     ///
     /// @param[in] vals
     ///     Pointer to array of real numerical type T.
-    ///     - Optional. Can only be used if rows and cols are also provided.
-    ///     - When provided, this stores nonzeros as part of the COO format.
+    ///     - stores nonzeros as part of the COO format.
     ///
     SparseSkOp(
         SparseDist dist,
         const base::RNGState<RNG> &state,
-        int64_t *rows = nullptr,
-        int64_t *cols = nullptr,
-        T *vals = nullptr 
+        int64_t *rows,
+        int64_t *cols,
+        T *vals 
     );
 
     SparseSkOp(
         SparseDist dist,
         uint32_t key,
-        int64_t *rows = nullptr,
-        int64_t *cols = nullptr,
-        T *vals = nullptr 
+        int64_t *rows,
+        int64_t *cols,
+        T *vals 
     ) : SparseSkOp(dist, base::RNGState<RNG>(key), rows, cols, vals) {};
+
+    SparseSkOp(
+        SparseDist dist,
+        const base::RNGState<RNG> &state
+    );
+
+    SparseSkOp(
+        SparseDist dist,
+        uint32_t key
+    ) : SparseSkOp(dist, base::RNGState<RNG>(key)) {};
 
 
     //  Destructor
@@ -169,43 +176,48 @@ struct SparseSkOp {
 
 template <typename T, typename RNG>
 SparseSkOp<T,RNG>::SparseSkOp(
-    SparseDist dist_,
-    const base::RNGState<RNG> &state_,
-    int64_t *rows_,
-    int64_t *cols_,
-    T *vals_
+    SparseDist dist,
+    const base::RNGState<RNG> &state
 ) :  // variable definitions
-    dist(dist_),
-    seed_state(state_),
-    own_memory(!rows_ && !cols_ && !vals_)
+    dist(dist),
+    seed_state(state),
+    own_memory(true)
 {   // sanity checks
     randblas_require(this->dist.n_rows > 0);
     randblas_require(this->dist.n_cols > 0);
     randblas_require(this->dist.vec_nnz > 0);
-    // Initialization logic
-    //
-    //      own_memory is a bool that's true iff the
-    //      rows_, cols_, and vals_ pointers were all nullptr.
-    //
+    // actual work
     int64_t rep_ax_len;
     if (this->dist.family == SparsityPattern::SASO) {
         rep_ax_len = MAX(this->dist.n_rows, this->dist.n_cols);
     } else { 
         rep_ax_len = MIN(this->dist.n_rows, this->dist.n_cols);
     }
-    if (this->own_memory) {
-        int64_t nnz = this->dist.vec_nnz * rep_ax_len;
-        this->rows = new int64_t[nnz];
-        this->cols = new int64_t[nnz];
-        this->vals = new T[nnz];
-    } else {
-        randblas_require(rows_ && cols_ && vals_);
-        //  If any of rows_, cols_, and vals_ are not nullptr,
-        //  then none of them are nullptr.
-        this->rows = rows_;
-        this->cols = cols_;
-        this->vals = vals_;
-    }
+    int64_t nnz = this->dist.vec_nnz * rep_ax_len;
+    this->rows = new int64_t[nnz];
+    this->cols = new int64_t[nnz];
+    this->vals = new T[nnz];
+};
+
+template <typename T, typename RNG>
+SparseSkOp<T,RNG>::SparseSkOp(
+    SparseDist dist,
+    const base::RNGState<RNG> &state,
+    int64_t *rows,
+    int64_t *cols,
+    T *vals
+) :  // variable definitions
+    dist(dist),
+    seed_state(state),
+    own_memory(false)
+{   // sanity checks
+    randblas_require(this->dist.n_rows > 0);
+    randblas_require(this->dist.n_cols > 0);
+    randblas_require(this->dist.vec_nnz > 0);
+    // actual work
+    this->rows = rows;
+    this->cols = cols;
+    this->vals = vals;
 };
 
 template <typename T, typename RNG>
