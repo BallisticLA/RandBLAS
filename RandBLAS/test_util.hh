@@ -231,7 +231,7 @@ void sparseskop_to_dense(
         return  (layout == blas::Layout::ColMajor) ? (i + j*D.n_rows) : (j + i*D.n_cols);
     };
     int64_t nnz;
-    if (D.family == RandBLAS::sparse::SparsityPattern::SASO) {
+    if (D.major_axis == RandBLAS::base::MajorAxis::Short) {
         nnz = D.vec_nnz * MAX(D.n_rows, D.n_cols);
     } else {
         nnz = D.vec_nnz * MIN(D.n_rows, D.n_cols);

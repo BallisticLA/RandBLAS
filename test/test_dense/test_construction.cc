@@ -279,7 +279,7 @@ class TestFillAxis : public::testing::Test
         static inline auto distname = RandBLAS::dense::DenseDistName::Uniform;
 
     template <typename T>
-    static void auto_transpose(int64_t short_dim, int64_t long_dim, RandBLAS::dense::MajorAxis ma) {
+    static void auto_transpose(int64_t short_dim, int64_t long_dim, RandBLAS::base::MajorAxis ma) {
         uint32_t seed = 99;
     
         // make the wide sketching operator
@@ -311,25 +311,25 @@ class TestFillAxis : public::testing::Test
 };
 
 TEST_F(TestFillAxis, long_axis_3x5) {
-    auto_transpose<float>(3, 5, RandBLAS::dense::MajorAxis::Long);
+    auto_transpose<float>(3, 5, RandBLAS::base::MajorAxis::Long);
 }
 
 TEST_F(TestFillAxis, short_axis_3x5) {
-    auto_transpose<float>(3, 5, RandBLAS::dense::MajorAxis::Short);
+    auto_transpose<float>(3, 5, RandBLAS::base::MajorAxis::Short);
 }
 
 TEST_F(TestFillAxis, long_axis_4x8) {
-    auto_transpose<float>(4, 8, RandBLAS::dense::MajorAxis::Long);
+    auto_transpose<float>(4, 8, RandBLAS::base::MajorAxis::Long);
 }
 
 TEST_F(TestFillAxis, short_axis_4x8) {
-    auto_transpose<float>(4, 8, RandBLAS::dense::MajorAxis::Short);
+    auto_transpose<float>(4, 8, RandBLAS::base::MajorAxis::Short);
 }
 
 TEST_F(TestFillAxis, long_axis_2x4) {
-    auto_transpose<float>(2, 4, RandBLAS::dense::MajorAxis::Long);
+    auto_transpose<float>(2, 4, RandBLAS::base::MajorAxis::Long);
 }
 
 TEST_F(TestFillAxis, short_axis_2x4) {
-    auto_transpose<float>(2, 4, RandBLAS::dense::MajorAxis::Short);
+    auto_transpose<float>(2, 4, RandBLAS::base::MajorAxis::Short);
 }

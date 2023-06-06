@@ -23,20 +23,20 @@ namespace RandBLAS::sparse {
 
 using namespace RandBLAS::base;
 
-// =============================================================================
-/// Specifies whether a distribution over sparse sketching operators has a fixed
-/// number of nonzeros per short-axis vector (SASO) or long-axis vector (LASO).
-///
-enum class SparsityPattern : char {
-    // ---------------------------------------------------------------------------
-    /// A SASO has a fixed number of nonzeros per column if it is wide,
-    /// or per row if it is tall.
-    SASO = 'S',
-    // ---------------------------------------------------------------------------
-    /// A LASO has a fixed number of nonzeros per row if it is wide,
-    /// or per column if it is tall.
-    LASO = 'L'
-};
+// // =============================================================================
+// /// Specifies whether a distribution over sparse sketching operators has a fixed
+// /// number of nonzeros per short-axis vector (SASO) or long-axis vector (LASO).
+// ///
+// enum class SparsityPattern : char {
+//     // ---------------------------------------------------------------------------
+//     /// A SASO has a fixed number of nonzeros per column if it is wide,
+//     /// or per row if it is tall.
+//     SASO = 'S',
+//     // ---------------------------------------------------------------------------
+//     /// A LASO has a fixed number of nonzeros per row if it is wide,
+//     /// or per column if it is tall.
+//     LASO = 'L'
+// };
 
 // =============================================================================
 /// A distribution over sparse matrices.
@@ -57,7 +57,8 @@ struct SparseDist {
     ///  The default pattern is (SASO) chosen so that sketches are more likely to
     ///  contain useful geometric information, without making assumptions about
     ///  the data being sketched.
-    const SparsityPattern family = SparsityPattern::SASO;
+    // const SparsityPattern family = SparsityPattern::SASO;
+    const MajorAxis major_axis = MajorAxis::Short;
 
     // ---------------------------------------------------------------------------
     ///  If this is a distribution over SASOs, then matrices sampled from this
@@ -187,13 +188,13 @@ SparseSkOp<T,RNG>::SparseSkOp(
     randblas_require(this->dist.n_cols > 0);
     randblas_require(this->dist.vec_nnz > 0);
     // actual work
-    int64_t rep_ax_len;
-    if (this->dist.family == SparsityPattern::SASO) {
-        rep_ax_len = MAX(this->dist.n_rows, this->dist.n_cols);
+    int64_t minor_ax_len;
+    if (this->dist.major_axis == MajorAxis::Short) {
+        minor_ax_len = MAX(this->dist.n_rows, this->dist.n_cols);
     } else { 
-        rep_ax_len = MIN(this->dist.n_rows, this->dist.n_cols);
+        minor_ax_len = MIN(this->dist.n_rows, this->dist.n_cols);
     }
-    int64_t nnz = this->dist.vec_nnz * rep_ax_len;
+    int64_t nnz = this->dist.vec_nnz * minor_ax_len;
     this->rows = new int64_t[nnz];
     this->cols = new int64_t[nnz];
     this->vals = new T[nnz];
@@ -233,7 +234,7 @@ template <typename SKOP>
 static bool has_fixed_nnz_per_col(
     SKOP const& S0
 ) {
-    if (S0.dist.family == SparsityPattern::SASO) {
+    if (S0.dist.major_axis == MajorAxis::Short) {
         return S0.dist.n_rows < S0.dist.n_cols;
     } else {
         return S0.dist.n_cols < S0.dist.n_rows;
@@ -244,7 +245,7 @@ template <typename SKOP>
 static int64_t nnz(
     SKOP const& S0
 ) {
-    bool saso = S0.dist.family == SparsityPattern::SASO;
+    bool saso = S0.dist.major_axis == MajorAxis::Short;
     bool wide = S0.dist.n_rows < S0.dist.n_cols;
     if (saso & wide) {
         return S0.dist.vec_nnz * S0.dist.n_cols;
@@ -265,36 +266,36 @@ template <typename T, typename RNG>
 static
 auto repeated_fisher_yates(
     const RNGState<RNG> &state,
-    int64_t num_vecs,
-    int64_t vec_len,
     int64_t vec_nnz,
-    int64_t *vec_ax_idxs,
-    int64_t *rep_ax_idxs,
+    int64_t dim_major,
+    int64_t dim_minor,
+    int64_t *idxs_major,
+    int64_t *idxs_minor,
     T *vals
 ) {
-    randblas_error_if(vec_nnz > vec_len);
-    std::vector<int64_t> vec_work(vec_len);
-    for (int64_t j = 0; j < vec_len; ++j)
+    randblas_error_if(vec_nnz > dim_major);
+    std::vector<int64_t> vec_work(dim_major);
+    for (int64_t j = 0; j < dim_major; ++j)
         vec_work[j] = j;
     std::vector<int64_t> pivots(vec_nnz);
     RNG gen;
     auto [ctr, key] = state;
-    for (int64_t i = 0; i < num_vecs; ++i) {
+    for (int64_t i = 0; i < dim_minor; ++i) {
         int64_t offset = i * vec_nnz;
         auto ctri = ctr;
         ctri.incr(offset);
         for (int64_t j = 0; j < vec_nnz; ++j) {
             // one step of Fisher-Yates shuffling
             auto rv = gen(ctri, key);
-            int64_t ell = j + rv[0] % (vec_len - j);
+            int64_t ell = j + rv[0] % (dim_major - j);
             pivots[j] = ell;
             int64_t swap = vec_work[ell];
             vec_work[ell] = vec_work[j];
             vec_work[j] = swap;
             // update (rows, cols, vals)
-            vec_ax_idxs[j + offset] = swap;
+            idxs_major[j + offset] = swap;
             vals[j + offset] = (rv[1] % 2 == 0) ? 1.0 : -1.0;
-            rep_ax_idxs[j + offset] = i;
+            idxs_minor[j + offset] = i;
             // increment counter
             ctri.incr();
         }
@@ -304,7 +305,7 @@ auto repeated_fisher_yates(
         //      a given SparseSkOp.
         for (int64_t j = 1; j <= vec_nnz; ++j) {
             int64_t jj = vec_nnz - j;
-            int64_t swap = vec_ax_idxs[jj + offset];
+            int64_t swap = idxs_major[jj + offset];
             int64_t ell = pivots[jj];
             vec_work[jj] = vec_work[ell];
             vec_work[ell] = swap;
@@ -340,23 +341,17 @@ auto fill_sparse(
     int64_t *short_ax_idxs = (is_wide) ? S.rows : S.cols;
     int64_t *long_ax_idxs = (is_wide) ? S.cols : S.rows;
 
-    int64_t *vec_ax_idxs, *rep_ax_idxs;
-    int64_t vec_len, num_vecs;
-    if (S.dist.family == SparsityPattern::SASO) {
-        vec_len = short_ax_len;
-        num_vecs = long_ax_len;
-        vec_ax_idxs = short_ax_idxs;
-        rep_ax_idxs = long_ax_idxs;
+    if (S.dist.major_axis == MajorAxis::Short) {
+        S.next_state = repeated_fisher_yates(
+            S.seed_state, S.dist.vec_nnz, short_ax_len, long_ax_len,
+            short_ax_idxs, long_ax_idxs, S.vals
+        );
     } else {
-        vec_len = long_ax_len;
-        num_vecs = short_ax_len;
-        vec_ax_idxs = long_ax_idxs;
-        rep_ax_idxs = short_ax_idxs;
+        S.next_state = repeated_fisher_yates(
+            S.seed_state, S.dist.vec_nnz, long_ax_len, short_ax_len,
+            long_ax_idxs, short_ax_idxs, S.vals
+        );
     }
-    S.next_state = repeated_fisher_yates(
-        S.seed_state, num_vecs, vec_len,
-        S.dist.vec_nnz, vec_ax_idxs, rep_ax_idxs, S.vals
-    );
     return S.next_state;
 }
 
@@ -364,7 +359,7 @@ template <typename SKOP>
 void print_sparse(SKOP const& S0) {
     std::cout << "SparseSkOp information" << std::endl;
     int64_t nnz;
-    if (S0.dist.family == SparsityPattern::SASO) {
+    if (S0.dist.major_axis == MajorAxis::Short) {
         nnz = S0.dist.vec_nnz * MAX(S0.dist.n_rows, S0.dist.n_cols);
         std::cout << "\tSASO: short-axis-sparse operator" << std::endl;
     } else {
@@ -464,8 +459,6 @@ static int64_t filter_and_convert_regular_csroo_to_cscoo(
     //  Mathematically, we have S = S0[row_start:row_end, col_start:col_end].
     //  The sparse matrix S does not necessarily have a fixed number of
     //  nonzeros in each column.
-    //
-    //  Neither S0 nor S need to be wide.  
     //
     using tuple_type = std::tuple<int64_t, int64_t, T>;
     std::vector<tuple_type> nonzeros;
@@ -661,7 +654,7 @@ auto transpose(SKOP const& S) {
     SparseDist dist = {
         .n_rows = S.dist.n_cols,
         .n_cols = S.dist.n_rows,
-        .family = S.dist.family,
+        .major_axis = S.dist.major_axis,
         .vec_nnz = S.dist.vec_nnz
     };
     SKOP St(dist, S.seed_state, S.cols, S.rows, S.vals);

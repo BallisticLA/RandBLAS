@@ -22,14 +22,14 @@ class TestRSKGES : public ::testing::Test
         uint32_t seed,
         int64_t m,
         int64_t d,
-        RandBLAS::sparse::SparsityPattern pattern,
+        RandBLAS::base::MajorAxis major_axis,
         int64_t vec_nnz,
         blas::Layout layout
     ) {
         RandBLAS::sparse::SparseDist D = {
             .n_rows = m,
             .n_cols = d,
-            .family = pattern,
+            .major_axis = major_axis,
             .vec_nnz = vec_nnz
         };
         RandBLAS::sparse::SparseSkOp<T> S0(D, seed);
@@ -60,7 +60,7 @@ class TestRSKGES : public ::testing::Test
 
     template <typename T>
     static void apply(
-        RandBLAS::sparse::SparsityPattern distname,
+        RandBLAS::base::MajorAxis major_axis,
         int64_t d,
         int64_t m,
         int64_t n,
@@ -80,7 +80,7 @@ class TestRSKGES : public ::testing::Test
         T *B0 = new T[m * d]{};
         RandBLAS::util::genmat(m, n, a, a_seed);  
         RandBLAS::sparse::SparseDist D = {
-            .n_rows=n, .n_cols=d, .family=distname, .vec_nnz=vec_nnzs[nnz_index]
+            .n_rows=n, .n_cols=d, .major_axis=major_axis, .vec_nnz=vec_nnzs[nnz_index]
         };
         RandBLAS::sparse::SparseSkOp<T> S0(D, keys[key_index]);
         RandBLAS::sparse::fill_sparse(S0);
@@ -145,7 +145,7 @@ class TestRSKGES : public ::testing::Test
 
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
         RandBLAS::sparse::SparseSkOp<T> S0(
-            {n0, d0, RandBLAS::sparse::SparsityPattern::SASO, vec_nnz}, seed
+            {n0, d0, RandBLAS::base::MajorAxis::Short, vec_nnz}, seed
         );
         RandBLAS::sparse::fill_sparse(S0);
         T *S0_dense = new T[n0 * d0];
@@ -202,25 +202,25 @@ class TestRSKGES : public ::testing::Test
 TEST_F(TestRSKGES, right_sketch_eye_saso_colmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 10, 3, RandBLAS::sparse::SparsityPattern::SASO, 1, blas::Layout::ColMajor);
+        sketch_eye<double>(seed, 10, 3, RandBLAS::base::MajorAxis::Short, 1, blas::Layout::ColMajor);
 }
 
 TEST_F(TestRSKGES, right_sketch_eye_saso_rowmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 10, 3, RandBLAS::sparse::SparsityPattern::SASO, 1,  blas::Layout::RowMajor);
+        sketch_eye<double>(seed, 10, 3, RandBLAS::base::MajorAxis::Short, 1,  blas::Layout::RowMajor);
 }
 
 TEST_F(TestRSKGES, right_sketch_eye_laso_colmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 10, 3, RandBLAS::sparse::SparsityPattern::LASO, 1,  blas::Layout::ColMajor);
+        sketch_eye<double>(seed, 10, 3, RandBLAS::base::MajorAxis::Long, 1,  blas::Layout::ColMajor);
 }
 
 TEST_F(TestRSKGES, right_sketch_eye_laso_rowmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 10, 3, RandBLAS::sparse::SparsityPattern::LASO, 1,  blas::Layout::RowMajor);
+        sketch_eye<double>(seed, 10, 3, RandBLAS::base::MajorAxis::Long, 1,  blas::Layout::RowMajor);
 }
 
 
@@ -235,25 +235,25 @@ TEST_F(TestRSKGES, right_sketch_eye_laso_rowmajor)
 TEST_F(TestRSKGES, right_lift_eye_saso_colmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 22, 51, RandBLAS::sparse::SparsityPattern::SASO, 5, blas::Layout::ColMajor);
+        sketch_eye<double>(seed, 22, 51, RandBLAS::base::MajorAxis::Short, 5, blas::Layout::ColMajor);
 }
 
 TEST_F(TestRSKGES, right_lift_eye_saso_rowmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 22, 51, RandBLAS::sparse::SparsityPattern::SASO, 5, blas::Layout::RowMajor);
+        sketch_eye<double>(seed, 22, 51, RandBLAS::base::MajorAxis::Short, 5, blas::Layout::RowMajor);
 }
 
 TEST_F(TestRSKGES, right_lift_eye_laso_colmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 22, 51, RandBLAS::sparse::SparsityPattern::LASO, 13, blas::Layout::ColMajor);
+        sketch_eye<double>(seed, 22, 51, RandBLAS::base::MajorAxis::Long, 13, blas::Layout::ColMajor);
 }
 
 TEST_F(TestRSKGES, right_lift_eye_laso_rowmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 22, 51, RandBLAS::sparse::SparsityPattern::LASO, 13, blas::Layout::RowMajor);
+        sketch_eye<double>(seed, 22, 51, RandBLAS::base::MajorAxis::Long, 13, blas::Layout::RowMajor);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -268,10 +268,10 @@ TEST_F(TestRSKGES, sketch_saso_rowMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {1, 2, 3, 0}) {
-            apply<double>(RandBLAS::sparse::SparsityPattern::SASO,
+            apply<double>(RandBLAS::base::MajorAxis::Short,
                 12, 19, 201, blas::Layout::RowMajor, k_idx, nz_idx, 1
             );
-            apply<float>(RandBLAS::sparse::SparsityPattern::SASO,
+            apply<float>(RandBLAS::base::MajorAxis::Short,
                 12, 19, 201, blas::Layout::RowMajor, k_idx, nz_idx, 1
             );
         }
@@ -283,8 +283,8 @@ TEST_F(TestRSKGES, sketch_laso_rowMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {1, 2, 3, 0}) {
-            apply<double>(RandBLAS::sparse::SparsityPattern::LASO, 12, 19, 201, blas::Layout::RowMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::sparse::SparsityPattern::LASO, 12, 19, 201, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<double>(RandBLAS::base::MajorAxis::Long, 12, 19, 201, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::base::MajorAxis::Long, 12, 19, 201, blas::Layout::RowMajor, k_idx, nz_idx, 1);
         }
     }
 }
@@ -293,8 +293,8 @@ TEST_F(TestRSKGES, sketch_saso_colMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {1, 2, 3, 0}) {
-            apply<double>(RandBLAS::sparse::SparsityPattern::SASO, 12, 19, 201, blas::Layout::ColMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::sparse::SparsityPattern::SASO, 12, 19, 201, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<double>(RandBLAS::base::MajorAxis::Short, 12, 19, 201, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::base::MajorAxis::Short, 12, 19, 201, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
     }
 }
@@ -303,8 +303,8 @@ TEST_F(TestRSKGES, sketch_laso_colMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {1, 2, 3, 0}) {
-            apply<double>(RandBLAS::sparse::SparsityPattern::LASO, 12, 19, 201, blas::Layout::ColMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::sparse::SparsityPattern::LASO, 12, 19, 201, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<double>(RandBLAS::base::MajorAxis::Long, 12, 19, 201, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::base::MajorAxis::Long, 12, 19, 201, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
     }
 }
@@ -323,10 +323,10 @@ TEST_F(TestRSKGES, lift_saso_rowMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {1, 2, 3, 0}) {
-            apply<double>(RandBLAS::sparse::SparsityPattern::SASO,
+            apply<double>(RandBLAS::base::MajorAxis::Short,
                 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1
             );
-            apply<float>(RandBLAS::sparse::SparsityPattern::SASO,
+            apply<float>(RandBLAS::base::MajorAxis::Short,
                 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1
             );
         }
@@ -337,8 +337,8 @@ TEST_F(TestRSKGES, lift_laso_rowMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {1, 2, 3, 0}) {
-            apply<double>(RandBLAS::sparse::SparsityPattern::LASO, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::sparse::SparsityPattern::LASO, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<double>(RandBLAS::base::MajorAxis::Long, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::base::MajorAxis::Long, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
         }
     }
 }
@@ -347,8 +347,8 @@ TEST_F(TestRSKGES, lift_saso_colMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {1, 2, 3, 0}) {
-            apply<double>(RandBLAS::sparse::SparsityPattern::SASO, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::sparse::SparsityPattern::SASO, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<double>(RandBLAS::base::MajorAxis::Short, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::base::MajorAxis::Short, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
     }
 }
@@ -357,8 +357,8 @@ TEST_F(TestRSKGES, lift_laso_colMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {1, 2, 3, 0}) {
-            apply<double>(RandBLAS::sparse::SparsityPattern::LASO, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::sparse::SparsityPattern::LASO, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<double>(RandBLAS::base::MajorAxis::Long, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(RandBLAS::base::MajorAxis::Long, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
     }
 }
