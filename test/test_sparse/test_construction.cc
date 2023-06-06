@@ -1,6 +1,5 @@
 #include <RandBLAS/dense.hh>
 #include <RandBLAS/sparse.hh>
-#include <RandBLAS/ramm.hh>
 #include <RandBLAS/util.hh>
 #include <RandBLAS/test_util.hh>
 #include <gtest/gtest.h>
@@ -17,7 +16,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
 
     virtual void TearDown() {};
 
-    void check_fixed_nnz_per_col(RandBLAS::sparse::SparseSkOp<double> &S0) {
+    void check_fixed_nnz_per_col(RandBLAS::SparseSkOp<double> &S0) {
         std::set<int64_t> s;
         for (int64_t i = 0; i < S0.dist.n_cols; ++i) {
             int64_t offset = S0.dist.vec_nnz * i;
@@ -30,7 +29,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
         }
     }
 
-    void check_fixed_nnz_per_row(RandBLAS::sparse::SparseSkOp<double> &S0) {
+    void check_fixed_nnz_per_row(RandBLAS::SparseSkOp<double> &S0) {
         std::set<int64_t> s;
         for (int64_t i = 0; i < S0.dist.n_rows; ++i) {
             int64_t offset = S0.dist.vec_nnz * i;
@@ -44,10 +43,10 @@ class TestSparseSkOpConstruction : public ::testing::Test
     }
 
     virtual void proper_saso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
-        RandBLAS::sparse::SparseSkOp<double> S0(
-            {d, m, RandBLAS::sparse::SparsityPattern::SASO, vec_nnzs[nnz_index]}, keys[key_index]
+        RandBLAS::SparseSkOp<double> S0(
+            {d, m, vec_nnzs[nnz_index], RandBLAS::MajorAxis::Short}, keys[key_index]
         );
-       RandBLAS::sparse::fill_sparse(S0);
+       RandBLAS::fill_sparse(S0);
        if (d < m) {
             check_fixed_nnz_per_col(S0);
        } else {
@@ -56,10 +55,10 @@ class TestSparseSkOpConstruction : public ::testing::Test
     } 
 
     virtual void proper_laso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
-        RandBLAS::sparse::SparseSkOp<double> S0(
-            {d, m, RandBLAS::sparse::SparsityPattern::LASO, vec_nnzs[nnz_index]}, keys[key_index]
+        RandBLAS::SparseSkOp<double> S0(
+            {d, m, vec_nnzs[nnz_index], RandBLAS::MajorAxis::Long}, keys[key_index]
         );
-        RandBLAS::sparse::fill_sparse(S0);
+        RandBLAS::fill_sparse(S0);
        if (d < m) {
             check_fixed_nnz_per_row(S0);
        } else {

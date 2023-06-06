@@ -20,7 +20,17 @@
 #include<iostream>
 
 /// code common across the project
-namespace RandBLAS::base {
+namespace RandBLAS {
+
+enum class MajorAxis : char {
+    // ---------------------------------------------------------------------------
+    ///  short-axis vectors (cols of a wide matrix, rows of a tall matrix)
+    Short = 'S',
+
+    // ---------------------------------------------------------------------------
+    ///  long-axis vectors (rows of a wide matrix, cols of a tall matrix)
+    Long = 'L'
+};
 
 /// Enumerate the names of the Random123 CBRNGs
 enum class RNGName : char {None = '\0', Philox = 'P', Threefry = 'T'};

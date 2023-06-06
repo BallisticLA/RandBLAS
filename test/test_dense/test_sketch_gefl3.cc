@@ -4,7 +4,7 @@
 #include "RandBLAS/dense.hh"
 #include "RandBLAS/util.hh"
 #include "RandBLAS/test_util.hh"
-#include "RandBLAS/ramm.hh"
+#include "RandBLAS/skge.hh"
 
 #include <gtest/gtest.h>
 
@@ -30,19 +30,19 @@ class TestLSKGE3 : public ::testing::Test
         blas::Layout layout
     ) {
         // Define the distribution for S0.
-        RandBLAS::dense::DenseDist D = {
+        RandBLAS::DenseDist D = {
             .n_rows = d,
             .n_cols = m,
-            .family = RandBLAS::dense::DenseDistName::Gaussian
+            .family = RandBLAS::DenseDistName::Gaussian
         };
 
         // Define the sketching operator struct, S0.
         // Create a copy that we always realize explicitly.
-        RandBLAS::dense::DenseSkOp<T> S0(D, seed, nullptr);
+        RandBLAS::DenseSkOp<T> S0(D, seed, nullptr);
         if (preallocate)
-            RandBLAS::dense::fill_dense(S0);
-        RandBLAS::dense::DenseSkOp<T> S0_ref(D, seed, nullptr);
-        RandBLAS::dense::fill_dense(S0_ref);
+            RandBLAS::fill_dense(S0);
+        RandBLAS::DenseSkOp<T> S0_ref(D, seed, nullptr);
+        RandBLAS::fill_dense(S0_ref);
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A(m * m, 0.0);
@@ -53,7 +53,7 @@ class TestLSKGE3 : public ::testing::Test
         int64_t ldb = (layout == blas::Layout::ColMajor) ? d : m;
 
         // Perform the sketch
-        RandBLAS::ramm::ramm_general_left<T>(
+        RandBLAS::sketch_general<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -78,15 +78,15 @@ class TestLSKGE3 : public ::testing::Test
         blas::Layout layout
     ) {
         // Define the distribution for S0.
-        RandBLAS::dense::DenseDist Dt = {
+        RandBLAS::DenseDist Dt = {
             .n_rows = m,
             .n_cols = d,
-            .family = RandBLAS::dense::DenseDistName::Gaussian
+            .family = RandBLAS::DenseDistName::Gaussian
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0(Dt, seed, nullptr);
-        RandBLAS::dense::DenseSkOp<T> S0_ref(Dt, seed, nullptr);
-        RandBLAS::dense::fill_dense(S0_ref);
+        RandBLAS::DenseSkOp<T> S0(Dt, seed, nullptr);
+        RandBLAS::DenseSkOp<T> S0_ref(Dt, seed, nullptr);
+        RandBLAS::fill_dense(S0_ref);
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A(m * m, 0.0);
@@ -96,7 +96,7 @@ class TestLSKGE3 : public ::testing::Test
         int64_t ldb = (layout == blas::Layout::ColMajor) ? d : m;
 
         // perform the sketch
-        RandBLAS::ramm::ramm_general_left<T>(
+        RandBLAS::sketch_general<T>(
             layout,
             blas::Op::Trans,
             blas::Op::NoTrans,
@@ -128,16 +128,16 @@ class TestLSKGE3 : public ::testing::Test
         assert(m0 > m);
 
         // Define the distribution for S0.
-        RandBLAS::dense::DenseDist D = {
+        RandBLAS::DenseDist D = {
             .n_rows = d0,
             .n_cols = m0,
-            .family = RandBLAS::dense::DenseDistName::Gaussian
+            .family = RandBLAS::DenseDistName::Gaussian
         };
 
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0(D, seed, nullptr);
-        RandBLAS::dense::DenseSkOp<T> S0_ref(D, seed, nullptr);
-        RandBLAS::dense::fill_dense(S0_ref);
+        RandBLAS::DenseSkOp<T> S0(D, seed, nullptr);
+        RandBLAS::DenseSkOp<T> S0_ref(D, seed, nullptr);
+        RandBLAS::fill_dense(S0_ref);
         bool S0_colmajor = S0.layout == blas::Layout::ColMajor;
         int64_t lds = (S0_colmajor) ? S0.dist.n_rows : S0.dist.n_cols;
         int64_t pos = (S0_colmajor) ? (S_ro + lds * S_co) : (S_ro * lds + S_co);
@@ -152,7 +152,7 @@ class TestLSKGE3 : public ::testing::Test
         int64_t ldb = (layout == blas::Layout::ColMajor) ? d : m;
         
         // Perform the sketch
-        RandBLAS::ramm::ramm_general_left<T>(
+        RandBLAS::sketch_general<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -186,21 +186,21 @@ class TestLSKGE3 : public ::testing::Test
         assert(n0 > n);
 
         // Define the distribution for S0.
-        RandBLAS::dense::DenseDist D = {
+        RandBLAS::DenseDist D = {
             .n_rows = d,
             .n_cols = m,
-            .family = RandBLAS::dense::DenseDistName::Gaussian
+            .family = RandBLAS::DenseDistName::Gaussian
         };
         // Define the sketching operator struct, S0.
-        RandBLAS::dense::DenseSkOp<T> S0(D, seed_S0, nullptr);
-        RandBLAS::dense::fill_dense(S0);
+        RandBLAS::DenseSkOp<T> S0(D, seed_S0, nullptr);
+        RandBLAS::fill_dense(S0);
         bool AB_colmajor = layout == blas::Layout::ColMajor;
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A0(m0 * n0, 0.0);
         uint32_t seed_A0 = 42000;
-        RandBLAS::dense::DenseDist DA0 = {.n_rows = m0, .n_cols = n0};
-        RandBLAS::dense::fill_dense(DA0, A0.data(), RandBLAS::base::RNGState(seed_A0));
+        RandBLAS::DenseDist DA0 = {.n_rows = m0, .n_cols = n0};
+        RandBLAS::fill_dense(DA0, A0.data(), RandBLAS::RNGState(seed_A0));
         std::vector<T> B(d * n, 0.0);
         int64_t lda = (AB_colmajor) ? DA0.n_rows : DA0.n_cols;
         int64_t ldb = (AB_colmajor) ? d : n;
@@ -208,7 +208,7 @@ class TestLSKGE3 : public ::testing::Test
         // Perform the sketch
         int64_t a_offset = (AB_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
         T *A_ptr = &A0.data()[a_offset]; 
-        RandBLAS::ramm::ramm_general_left<T>(
+        RandBLAS::sketch_general<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -221,8 +221,8 @@ class TestLSKGE3 : public ::testing::Test
         // Check the result
         int64_t lds = (S0.layout == blas::Layout::ColMajor) ? S0.dist.n_rows : S0.dist.n_cols;
         std::vector<T> B_expect(d * n, 0.0);
-        blas::Op transS = (S0.layout == layout) ? blas::Op::NoTrans : blas::Op::Trans;
-        blas::gemm<T>(layout, transS, blas::Op::NoTrans,
+        blas::Op opS = (S0.layout == layout) ? blas::Op::NoTrans : blas::Op::Trans;
+        blas::gemm<T>(layout, opS, blas::Op::NoTrans,
             d, n, m,
             1.0, S0.buff, lds, A_ptr, lda,
             0.0, B_expect.data(), ldb
