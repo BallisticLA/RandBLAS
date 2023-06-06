@@ -26,14 +26,14 @@ class TestRSKGES : public ::testing::Test
         int64_t vec_nnz,
         blas::Layout layout
     ) {
-        RandBLAS::sparse::SparseDist D = {
+        RandBLAS::SparseDist D = {
             .n_rows = m,
             .n_cols = d,
             .vec_nnz = vec_nnz,
             .major_axis = major_axis
         };
-        RandBLAS::sparse::SparseSkOp<T> S0(D, seed);
-        RandBLAS::sparse::fill_sparse(S0);
+        RandBLAS::SparseSkOp<T> S0(D, seed);
+        RandBLAS::fill_sparse(S0);
         std::vector<T> S0_dense(m * d, 0.0);
         RandBLAS_Testing::Util::sparseskop_to_dense<T>(S0, S0_dense.data(), layout);
 
@@ -79,11 +79,11 @@ class TestRSKGES : public ::testing::Test
         T *a = new T[m * n];
         T *B0 = new T[m * d]{};
         RandBLAS::util::genmat(m, n, a, a_seed);  
-        RandBLAS::sparse::SparseDist D = {
+        RandBLAS::SparseDist D = {
             .n_rows=n, .n_cols=d, .vec_nnz=vec_nnzs[nnz_index], .major_axis=major_axis
         };
-        RandBLAS::sparse::SparseSkOp<T> S0(D, keys[key_index]);
-        RandBLAS::sparse::fill_sparse(S0);
+        RandBLAS::SparseSkOp<T> S0(D, keys[key_index]);
+        RandBLAS::fill_sparse(S0);
         int64_t lda = (is_colmajor) ? m : n;
         int64_t ldb = (is_colmajor) ? m : d;
 
@@ -144,10 +144,10 @@ class TestRSKGES : public ::testing::Test
         assert(d0 * n0 >= pos + d1 * n1);
 
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
-        RandBLAS::sparse::SparseSkOp<T> S0(
+        RandBLAS::SparseSkOp<T> S0(
             {n0, d0, vec_nnz, RandBLAS::MajorAxis::Short}, seed
         );
-        RandBLAS::sparse::fill_sparse(S0);
+        RandBLAS::fill_sparse(S0);
         T *S0_dense = new T[n0 * d0];
         RandBLAS_Testing::Util::sparseskop_to_dense<T>(S0, S0_dense, layout);
         int64_t ldb = (is_colmajor) ? n1 : d1;

@@ -38,8 +38,8 @@ class TestLSKGES : public ::testing::Test
         T *a = new T[m * n];
         T *B0 = new T[d * n]{};
         RandBLAS::util::genmat(m, n, a, a_seed);  
-        RandBLAS::sparse::SparseSkOp<T> S0({d, m, vec_nnzs[nnz_index], major_axis}, keys[key_index]);
-        RandBLAS::sparse::fill_sparse(S0);
+        RandBLAS::SparseSkOp<T> S0({d, m, vec_nnzs[nnz_index], major_axis}, keys[key_index]);
+        RandBLAS::fill_sparse(S0);
         int64_t lda, ldb;
         if (layout == blas::Layout::RowMajor) {
             lda = n; 
@@ -104,10 +104,10 @@ class TestLSKGES : public ::testing::Test
         assert(d0 * m0 >= pos + d1 * m1);
 
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
-        RandBLAS::sparse::SparseSkOp<T> S0(
+        RandBLAS::SparseSkOp<T> S0(
             {d0, m0, vec_nnz, RandBLAS::MajorAxis::Short}, seed
         );
-        RandBLAS::sparse::fill_sparse(S0);
+        RandBLAS::fill_sparse(S0);
         T *S0_dense = new T[d0 * m0];
         RandBLAS_Testing::Util::sparseskop_to_dense<T>(S0, S0_dense, layout);
         int64_t lda, ldb, lds0;
@@ -169,9 +169,9 @@ class TestLSKGES : public ::testing::Test
         bool is_colmajor = (layout == blas::Layout::ColMajor);
         randblas_require(m > d);
         int64_t vec_nnz = d / 2;
-        RandBLAS::sparse::SparseDist DS = {d, m, vec_nnz, RandBLAS::MajorAxis::Short};
-        RandBLAS::sparse::SparseSkOp<T> S(DS, key);
-        RandBLAS::sparse::fill_sparse(S);
+        RandBLAS::SparseDist DS = {d, m, vec_nnz, RandBLAS::MajorAxis::Short};
+        RandBLAS::SparseSkOp<T> S(DS, key);
+        RandBLAS::fill_sparse(S);
     
         // define a matrix to be sketched
         std::vector<T> A(m * m, 0.0);
@@ -226,14 +226,14 @@ class TestLSKGES : public ::testing::Test
         randblas_require(m > d);
         bool is_saso = (major_axis == RandBLAS::MajorAxis::Short);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
-        RandBLAS::sparse::SparseDist Dt = {
+        RandBLAS::SparseDist Dt = {
             .n_rows = m,
             .n_cols = d,
             .vec_nnz = vec_nnz,
             .major_axis = major_axis
         };
-        RandBLAS::sparse::SparseSkOp<T> S0(Dt, key);
-        RandBLAS::sparse::fill_sparse(S0);
+        RandBLAS::SparseSkOp<T> S0(Dt, key);
+        RandBLAS::fill_sparse(S0);
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A(m * m, 0.0);
@@ -286,14 +286,14 @@ class TestLSKGES : public ::testing::Test
         // Define the distribution for S0.
         bool is_saso = (major_axis == RandBLAS::MajorAxis::Short);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
-        RandBLAS::sparse::SparseDist D = {
+        RandBLAS::SparseDist D = {
             .n_rows = d,
             .n_cols = m,
             .vec_nnz = vec_nnz,
             .major_axis = major_axis
         };
-        RandBLAS::sparse::SparseSkOp<T> S0(D, seed_S0);
-        RandBLAS::sparse::fill_sparse(S0);
+        RandBLAS::SparseSkOp<T> S0(D, seed_S0);
+        RandBLAS::fill_sparse(S0);
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A0(m0 * n0, 0.0);
@@ -353,14 +353,14 @@ class TestLSKGES : public ::testing::Test
         // Define the distribution for S0.
         bool is_saso = (major_axis == RandBLAS::MajorAxis::Short);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
-        RandBLAS::sparse::SparseDist D = {
+        RandBLAS::SparseDist D = {
             .n_rows = d,
             .n_cols = m,
             .vec_nnz = vec_nnz,
             .major_axis = major_axis
         };
-        RandBLAS::sparse::SparseSkOp<T> S0(D, seed_S0);
-        RandBLAS::sparse::fill_sparse(S0);
+        RandBLAS::SparseSkOp<T> S0(D, seed_S0);
+        RandBLAS::fill_sparse(S0);
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> At(m * n, 0.0);

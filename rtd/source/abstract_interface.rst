@@ -70,15 +70,15 @@ Dense sketching operators
 
 Sparse sketching operators
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. doxygenstruct:: RandBLAS::sparse::SparseDist
+.. doxygenstruct:: RandBLAS::SparseDist
    :project: RandBLAS
    :members:
 
-.. doxygenstruct:: RandBLAS::sparse::SparseSkOp
+.. doxygenstruct:: RandBLAS::SparseSkOp
    :project: RandBLAS
    :members: 
 
-.. doxygenfunction:: RandBLAS::sparse::fill_sparse(SKOP &S)
+.. doxygenfunction:: RandBLAS::fill_sparse(SKOP &S)
    :project: RandBLAS
 
 Details on Random number generation

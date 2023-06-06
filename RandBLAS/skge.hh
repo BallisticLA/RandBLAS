@@ -165,7 +165,7 @@ void sketch_general(
     int64_t n, // \op(A) is m-by-n
     int64_t m, // \op(\submat(S)) is d-by-m
     T alpha,
-    sparse::SparseSkOp<T, RNG> &S,
+    SparseSkOp<T, RNG> &S,
     int64_t i_off,
     int64_t j_off,
     const T *A,
@@ -363,7 +363,7 @@ void sketch_general(
     T alpha,
     const T *A,
     int64_t lda,
-    sparse::SparseSkOp<T, RNG> &S,
+    SparseSkOp<T, RNG> &S,
     int64_t i_off,
     int64_t j_off,
     T beta,

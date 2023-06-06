@@ -19,10 +19,7 @@
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
-namespace RandBLAS::sparse {
-
-using namespace RandBLAS;
-
+namespace RandBLAS {
 // =============================================================================
 /// A distribution over sparse matrices.
 ///
@@ -216,91 +213,6 @@ SparseSkOp<T,RNG>::~SparseSkOp() {
     }
 };
 
-template <typename SKOP>
-static bool has_fixed_nnz_per_col(
-    SKOP const& S0
-) {
-    if (S0.dist.major_axis == MajorAxis::Short) {
-        return S0.dist.n_rows < S0.dist.n_cols;
-    } else {
-        return S0.dist.n_cols < S0.dist.n_rows;
-    }
-}
-
-template <typename SKOP>
-static int64_t nnz(
-    SKOP const& S0
-) {
-    bool saso = S0.dist.major_axis == MajorAxis::Short;
-    bool wide = S0.dist.n_rows < S0.dist.n_cols;
-    if (saso & wide) {
-        return S0.dist.vec_nnz * S0.dist.n_cols;
-    } else if (saso & (!wide)) {
-        return S0.dist.vec_nnz * S0.dist.n_rows;
-    } else if (wide & (!saso)) {
-        return S0.dist.vec_nnz * S0.dist.n_rows;
-    } else {
-        // tall LASO
-        return S0.dist.vec_nnz * S0.dist.n_cols;
-    }
-}
-
-// =============================================================================
-/// WARNING: this function is not part of the public API.
-///
-template <typename T, typename RNG>
-static
-auto repeated_fisher_yates(
-    const RNGState<RNG> &state,
-    int64_t vec_nnz,
-    int64_t dim_major,
-    int64_t dim_minor,
-    int64_t *idxs_major,
-    int64_t *idxs_minor,
-    T *vals
-) {
-    randblas_error_if(vec_nnz > dim_major);
-    std::vector<int64_t> vec_work(dim_major);
-    for (int64_t j = 0; j < dim_major; ++j)
-        vec_work[j] = j;
-    std::vector<int64_t> pivots(vec_nnz);
-    RNG gen;
-    auto [ctr, key] = state;
-    for (int64_t i = 0; i < dim_minor; ++i) {
-        int64_t offset = i * vec_nnz;
-        auto ctri = ctr;
-        ctri.incr(offset);
-        for (int64_t j = 0; j < vec_nnz; ++j) {
-            // one step of Fisher-Yates shuffling
-            auto rv = gen(ctri, key);
-            int64_t ell = j + rv[0] % (dim_major - j);
-            pivots[j] = ell;
-            int64_t swap = vec_work[ell];
-            vec_work[ell] = vec_work[j];
-            vec_work[j] = swap;
-            // update (rows, cols, vals)
-            idxs_major[j + offset] = swap;
-            vals[j + offset] = (rv[1] % 2 == 0) ? 1.0 : -1.0;
-            idxs_minor[j + offset] = i;
-            // increment counter
-            ctri.incr();
-        }
-        // Restore vec_work for next iteration of Fisher-Yates.
-        //      This isn't necessary from a statistical perspective,
-        //      but it makes it easier to generate submatrices of
-        //      a given SparseSkOp.
-        for (int64_t j = 1; j <= vec_nnz; ++j) {
-            int64_t jj = vec_nnz - j;
-            int64_t swap = idxs_major[jj + offset];
-            int64_t ell = pivots[jj];
-            vec_work[jj] = vec_work[ell];
-            vec_work[ell] = swap;
-        }
-        ctr = ctri;
-    }
-    return RNGState<RNG> {ctr, key};
-}
-
 // =============================================================================
 /// Populate the internal data structures of S with values that are 
 /// consistent with S.dist and S.seed_state. This step is needed before
@@ -316,8 +228,7 @@ auto repeated_fisher_yates(
 ///     algorithm.
 ///     
 template <typename SKOP>
-static
-auto fill_sparse(
+static auto fill_sparse(
     SKOP & S
 ) {
     int64_t long_ax_len = MAX(S.dist.n_rows, S.dist.n_cols);
@@ -370,6 +281,97 @@ void print_sparse(SKOP const& S0) {
     }
     std::cout << std::endl;
 }
+
+// =============================================================================
+/// WARNING: this function is not part of the public API.
+///
+template <typename T, typename RNG>
+static auto repeated_fisher_yates(
+    const RNGState<RNG> &state,
+    int64_t vec_nnz,
+    int64_t dim_major,
+    int64_t dim_minor,
+    int64_t *idxs_major,
+    int64_t *idxs_minor,
+    T *vals
+) {
+    randblas_error_if(vec_nnz > dim_major);
+    std::vector<int64_t> vec_work(dim_major);
+    for (int64_t j = 0; j < dim_major; ++j)
+        vec_work[j] = j;
+    std::vector<int64_t> pivots(vec_nnz);
+    RNG gen;
+    auto [ctr, key] = state;
+    for (int64_t i = 0; i < dim_minor; ++i) {
+        int64_t offset = i * vec_nnz;
+        auto ctri = ctr;
+        ctri.incr(offset);
+        for (int64_t j = 0; j < vec_nnz; ++j) {
+            // one step of Fisher-Yates shuffling
+            auto rv = gen(ctri, key);
+            int64_t ell = j + rv[0] % (dim_major - j);
+            pivots[j] = ell;
+            int64_t swap = vec_work[ell];
+            vec_work[ell] = vec_work[j];
+            vec_work[j] = swap;
+            // update (rows, cols, vals)
+            idxs_major[j + offset] = swap;
+            vals[j + offset] = (rv[1] % 2 == 0) ? 1.0 : -1.0;
+            idxs_minor[j + offset] = i;
+            // increment counter
+            ctri.incr();
+        }
+        // Restore vec_work for next iteration of Fisher-Yates.
+        //      This isn't necessary from a statistical perspective,
+        //      but it makes it easier to generate submatrices of
+        //      a given SparseSkOp.
+        for (int64_t j = 1; j <= vec_nnz; ++j) {
+            int64_t jj = vec_nnz - j;
+            int64_t swap = idxs_major[jj + offset];
+            int64_t ell = pivots[jj];
+            vec_work[jj] = vec_work[ell];
+            vec_work[ell] = swap;
+        }
+        ctr = ctri;
+    }
+    return RNGState<RNG> {ctr, key};
+}
+
+} // end namespace RandBLAS
+
+namespace RandBLAS::sparse {
+
+using namespace RandBLAS;
+
+template <typename SKOP>
+static bool has_fixed_nnz_per_col(
+    SKOP const& S0
+) {
+    if (S0.dist.major_axis == MajorAxis::Short) {
+        return S0.dist.n_rows < S0.dist.n_cols;
+    } else {
+        return S0.dist.n_cols < S0.dist.n_rows;
+    }
+}
+
+template <typename SKOP>
+static int64_t nnz(
+    SKOP const& S0
+) {
+    bool saso = S0.dist.major_axis == MajorAxis::Short;
+    bool wide = S0.dist.n_rows < S0.dist.n_cols;
+    if (saso & wide) {
+        return S0.dist.vec_nnz * S0.dist.n_cols;
+    } else if (saso & (!wide)) {
+        return S0.dist.vec_nnz * S0.dist.n_rows;
+    } else if (wide & (!saso)) {
+        return S0.dist.vec_nnz * S0.dist.n_rows;
+    } else {
+        // tall LASO
+        return S0.dist.vec_nnz * S0.dist.n_cols;
+    }
+}
+
 
 // =============================================================================
 /// WARNING: this function is not part of the public API.
@@ -635,8 +637,7 @@ static void apply_cscoo_csroo_left(
 ///     (In particular, it depends on S.rows, S.cols, and S.vals.)
 ///     
 template <typename SKOP>
-static
-auto transpose(SKOP const& S) {
+static auto transpose(SKOP const& S) {
     SparseDist dist = {
         .n_rows = S.dist.n_cols,
         .n_cols = S.dist.n_rows,
@@ -688,9 +689,11 @@ auto transpose(SKOP const& S) {
 /// @param[in] opS
 ///      - If \math{\opS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
 ///      - If \math{\opS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
+///
 /// @param[in] opA
 ///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
 ///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+///
 /// @param[in] d
 ///     A nonnegative integer.
 ///     - The number of rows in \math{\mat(B)}

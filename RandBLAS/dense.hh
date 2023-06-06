@@ -16,11 +16,8 @@
 #include <typeinfo>
 
 
-namespace RandBLAS::dense {
-
-using namespace RandBLAS;
-
-// =============================================================================
+namespace RandBLAS {
+    // =============================================================================
 /// We call a sketching operator "dense" if it takes Level 3 BLAS work to 
 /// apply to a dense matrix. All such sketching operators supported by
 /// RandBLAS currently have i.i.d. entries. This enumeration specifies
@@ -327,6 +324,11 @@ auto fill_dense(
     S.del_buff_on_destruct = true;
     return S.next_state;
 }
+}  // end namespace RandBLAS
+
+namespace RandBLAS::dense {
+
+using namespace RandBLAS;
 
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes

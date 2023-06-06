@@ -219,12 +219,12 @@ void matrices_approx_equal(
 
 template <typename T>
 void sparseskop_to_dense(
-    RandBLAS::sparse::SparseSkOp<T> &S0,
+    RandBLAS::SparseSkOp<T> &S0,
     T *mat,
     blas::Layout layout,
     bool take_abs = false
 ) {
-    RandBLAS::sparse::SparseDist D = S0.dist;
+    RandBLAS::SparseDist D = S0.dist;
     for (int64_t i = 0; i < D.n_rows * D.n_cols; ++i)
         mat[i] = 0.0;
     auto idx = [D, layout](int64_t i, int64_t j) {
@@ -255,7 +255,7 @@ void reference_lskges(
     int64_t n, // op(mat(A)) is m-by-n
     int64_t m, // op(submat(S)) is d-by-m
     T alpha,
-    RandBLAS::sparse::SparseSkOp<T,RNG> &S,
+    RandBLAS::SparseSkOp<T,RNG> &S,
     int64_t i_os,
     int64_t j_os,
     const T *A,
@@ -346,7 +346,7 @@ void reference_rskges(
     T alpha,
     const T *A,
     int64_t lda,
-    RandBLAS::sparse::SparseSkOp<T,RNG> &S0,
+    RandBLAS::SparseSkOp<T,RNG> &S0,
     int64_t i_os,
     int64_t j_os,
     T beta,
