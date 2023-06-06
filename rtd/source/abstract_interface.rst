@@ -16,13 +16,13 @@ Computing a sketch with RandBLAS has four steps.
 
       .. code:: c++
 
-            RandBLAS::dense::DenseDist D{.n_rows = 1000, .n_cols = 100};
+            RandBLAS::DenseDist D{.n_rows = 1000, .n_cols = 100};
    
   2. Using :math:`\texttt{state}`, sample a sketching operator :math:`S` from :math:`\mathcal{D}`. For example,
 
       .. code:: c++
 
-            RandBLAS::dense::DenseSkOp S(D, state);
+            RandBLAS::DenseSkOp S(D, state);
 
   3. Use :math:`S` with a function that is *almost* identical to GEMM.
 
@@ -54,18 +54,18 @@ Choosing a sketching distribution
 
 Dense sketching operators
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-.. doxygenstruct:: RandBLAS::dense::DenseDist
+.. doxygenstruct:: RandBLAS::DenseDist
    :project: RandBLAS
    :members:
 
-.. doxygenstruct:: RandBLAS::dense::DenseSkOp
+.. doxygenstruct:: RandBLAS::DenseSkOp
    :project: RandBLAS
    :members: 
 
-.. doxygenfunction:: RandBLAS::dense::fill_dense(const DenseDist &D, T *buff, RNGState<RNG> const& state)
+.. doxygenfunction:: RandBLAS::fill_dense(const DenseDist &D, T *buff, RNGState<RNG> const& state)
    :project: RandBLAS
 
-.. doxygenfunction:: RandBLAS::dense::fill_dense(SKOP &S)
+.. doxygenfunction:: RandBLAS::fill_dense(SKOP &S)
    :project: RandBLAS
 
 Sparse sketching operators
