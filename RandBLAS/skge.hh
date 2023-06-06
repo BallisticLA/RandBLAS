@@ -19,7 +19,6 @@
 
 namespace RandBLAS {
 
-using namespace RandBLAS::base;
 using namespace RandBLAS::dense;
 using namespace RandBLAS::sparse;
 

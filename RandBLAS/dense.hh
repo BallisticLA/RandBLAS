@@ -18,7 +18,7 @@
 
 namespace RandBLAS::dense {
 
-using namespace RandBLAS::base;
+using namespace RandBLAS;
 
 // =============================================================================
 /// We call a sketching operator "dense" if it takes Level 3 BLAS work to 
@@ -110,12 +110,12 @@ struct DenseSkOp {
     // ---------------------------------------------------------------------------
     ///  The state that should be passed to the RNG when the full sketching 
     ///  operator needs to be sampled from scratch. 
-    const base::RNGState<RNG> seed_state;
+    const RNGState<RNG> seed_state;
 
     // ---------------------------------------------------------------------------
     ///  The state that should be used by the next call to an RNG *after* the
     ///  full sketching operator has been sampled.
-    base::RNGState<RNG> next_state;
+    RNGState<RNG> next_state;
 
     T *buff = nullptr;                         // memory
     const blas::Layout layout;                 // matrix storage order
@@ -274,7 +274,7 @@ static auto fill_dense_submat_impl(
 
 
 template<typename T, typename RNG>
-RandBLAS::base::RNGState<RNG> fill_dense_submat(
+RandBLAS::RNGState<RNG> fill_dense_submat(
     DenseDist D,
     T* smat,
     int64_t n_srows,

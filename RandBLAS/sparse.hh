@@ -21,7 +21,7 @@
 
 namespace RandBLAS::sparse {
 
-using namespace RandBLAS::base;
+using namespace RandBLAS;
 
 // =============================================================================
 /// A distribution over sparse matrices.
@@ -74,12 +74,12 @@ struct SparseSkOp {
     // ---------------------------------------------------------------------------
     ///  The state that should be passed to the RNG when the full sketching 
     ///  operator needs to be sampled from scratch. 
-    const base::RNGState<RNG> seed_state;
+    const RNGState<RNG> seed_state;
 
     // ---------------------------------------------------------------------------
     ///  The state that should be used by the next call to an RNG *after* the
     ///  full sketching operator has been sampled.
-    base::RNGState<RNG> next_state;
+    RNGState<RNG> next_state;
 
     // ---------------------------------------------------------------------------
     /// We need workspace to store a representation of the sampled sketching
@@ -131,7 +131,7 @@ struct SparseSkOp {
     ///
     SparseSkOp(
         SparseDist dist,
-        const base::RNGState<RNG> &state,
+        const RNGState<RNG> &state,
         int64_t *rows,
         int64_t *cols,
         T *vals 
@@ -143,17 +143,17 @@ struct SparseSkOp {
         int64_t *rows,
         int64_t *cols,
         T *vals 
-    ) : SparseSkOp(dist, base::RNGState<RNG>(key), rows, cols, vals) {};
+    ) : SparseSkOp(dist, RNGState<RNG>(key), rows, cols, vals) {};
 
     SparseSkOp(
         SparseDist dist,
-        const base::RNGState<RNG> &state
+        const RNGState<RNG> &state
     );
 
     SparseSkOp(
         SparseDist dist,
         uint32_t key
-    ) : SparseSkOp(dist, base::RNGState<RNG>(key)) {};
+    ) : SparseSkOp(dist, RNGState<RNG>(key)) {};
 
 
     //  Destructor
@@ -164,7 +164,7 @@ struct SparseSkOp {
 template <typename T, typename RNG>
 SparseSkOp<T,RNG>::SparseSkOp(
     SparseDist dist,
-    const base::RNGState<RNG> &state
+    const RNGState<RNG> &state
 ) :  // variable definitions
     dist(dist),
     seed_state(state),
@@ -189,7 +189,7 @@ SparseSkOp<T,RNG>::SparseSkOp(
 template <typename T, typename RNG>
 SparseSkOp<T,RNG>::SparseSkOp(
     SparseDist dist,
-    const base::RNGState<RNG> &state,
+    const RNGState<RNG> &state,
     int64_t *rows,
     int64_t *cols,
     T *vals

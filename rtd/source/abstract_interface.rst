@@ -88,7 +88,7 @@ RandBLAS relies on counter-based random number generators (CBRNGs).
 The mathematical state of a CBRNG is specified by two integers: a *counter* and a *key*.
 We use the following class to represent a CBRNG and its underlying state.
 
-.. doxygenstruct:: RandBLAS::base::RNGState
+.. doxygenstruct:: RandBLAS::RNGState
    :project: RandBLAS
 
 .. important::

@@ -20,7 +20,7 @@
 #include<iostream>
 
 /// code common across the project
-namespace RandBLAS::base {
+namespace RandBLAS {
 
 enum class MajorAxis : char {
     // ---------------------------------------------------------------------------

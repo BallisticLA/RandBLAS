@@ -1,7 +1,7 @@
 #include <RandBLAS/base.hh>
 #include <cstring>
 
-namespace RandBLAS::base {
+namespace RandBLAS {
 
 RNGState::RNGState(
     uint32_t k0

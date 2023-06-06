@@ -51,7 +51,7 @@ class TestDenseMoments : public ::testing::Test
             .n_cols = n_cols,
             .family = dn
         };
-        auto state = RandBLAS::base::RNGState(key);
+        auto state = RandBLAS::RNGState(key);
         auto next_state = RandBLAS::dense::fill_dense(D, A.data(), state);
 
         // Compute the entrywise empirical mean and standard deviation.
@@ -110,7 +110,7 @@ class TestSubmatGeneration : public ::testing::Test
         int64_t n_scols,
         int64_t n_srows,
         int64_t ptr,
-        const RandBLAS::base::RNGState<RNG> &seed
+        const RandBLAS::RNGState<RNG> &seed
     ) {
         T* mat  = new T[n_rows * n_cols];      
         T* smat = new T[n_srows * n_scols];
@@ -141,7 +141,7 @@ class TestSubmatGeneration : public ::testing::Test
         int64_t n_scols,
         int64_t n_srows,
         int64_t ptr,
-        const RandBLAS::base::RNGState<RNG> &seed
+        const RandBLAS::RNGState<RNG> &seed
     ) {
         T* mat  = new T[n_rows * n_cols];      
         T* smat = new T[n_srows * n_scols];
@@ -168,7 +168,7 @@ class TestSubmatGeneration : public ::testing::Test
     static void test_diag_smat_gen(
         int64_t n_cols,
         int64_t n_rows,
-        const RandBLAS::base::RNGState<RNG> &seed
+        const RandBLAS::RNGState<RNG> &seed
     ) {
         T* mat  = new T[n_rows * n_cols];
         T* smat = new T[n_rows * n_cols]{};
@@ -204,7 +204,7 @@ TEST_F(TestSubmatGeneration, col_wise)
     int64_t n_scols = 100;
     int64_t ptr = n_rows + 2;
     for (int k = 0; k < 3; k++) {
-        RandBLAS::base::RNGState<r123::Philox4x32> seed(k);
+        RandBLAS::RNGState<r123::Philox4x32> seed(k);
         test_colwise_smat_gen<float, r123::Philox4x32, r123ext::uneg11>(n_cols, n_rows, n_scols, n_srows, ptr, seed);
     }
 }
@@ -217,7 +217,7 @@ TEST_F(TestSubmatGeneration, row_wise)
     int64_t n_scols = 100;
     int64_t ptr = n_rows + 2;
     for (int k = 0; k < 3; k++) {
-        RandBLAS::base::RNGState<r123::Philox4x32> seed(k);
+        RandBLAS::RNGState<r123::Philox4x32> seed(k);
         test_rowwise_smat_gen<float, r123::Philox4x32, r123ext::uneg11>(n_cols, n_rows, n_scols, n_srows, ptr, seed);
     }
 }
@@ -227,7 +227,7 @@ TEST_F(TestSubmatGeneration, diag)
     int64_t n_rows = 100;
     int64_t n_cols = 2000;
     for (int k = 0; k < 3; k++) {
-        RandBLAS::base::RNGState<r123::Philox4x32> seed(k);
+        RandBLAS::RNGState<r123::Philox4x32> seed(k);
         test_diag_smat_gen<float, r123::Philox4x32, r123ext::uneg11>(n_cols, n_rows, seed);
     }
 }
@@ -245,7 +245,7 @@ void DenseThreadTest() {
 
     // generate the base state with 1 thread.
     omp_set_num_threads(1);
-    RandBLAS::base::RNGState<RNG> state(0);
+    RandBLAS::RNGState<RNG> state(0);
     RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(n, base.data(), m, n, 0, state);
     std::cerr << "with 1 thread: " << base << std::endl;
 
@@ -279,7 +279,7 @@ class TestFillAxis : public::testing::Test
         static inline auto distname = RandBLAS::dense::DenseDistName::Uniform;
 
     template <typename T>
-    static void auto_transpose(int64_t short_dim, int64_t long_dim, RandBLAS::base::MajorAxis ma) {
+    static void auto_transpose(int64_t short_dim, int64_t long_dim, RandBLAS::MajorAxis ma) {
         uint32_t seed = 99;
     
         // make the wide sketching operator
@@ -311,25 +311,25 @@ class TestFillAxis : public::testing::Test
 };
 
 TEST_F(TestFillAxis, long_axis_3x5) {
-    auto_transpose<float>(3, 5, RandBLAS::base::MajorAxis::Long);
+    auto_transpose<float>(3, 5, RandBLAS::MajorAxis::Long);
 }
 
 TEST_F(TestFillAxis, short_axis_3x5) {
-    auto_transpose<float>(3, 5, RandBLAS::base::MajorAxis::Short);
+    auto_transpose<float>(3, 5, RandBLAS::MajorAxis::Short);
 }
 
 TEST_F(TestFillAxis, long_axis_4x8) {
-    auto_transpose<float>(4, 8, RandBLAS::base::MajorAxis::Long);
+    auto_transpose<float>(4, 8, RandBLAS::MajorAxis::Long);
 }
 
 TEST_F(TestFillAxis, short_axis_4x8) {
-    auto_transpose<float>(4, 8, RandBLAS::base::MajorAxis::Short);
+    auto_transpose<float>(4, 8, RandBLAS::MajorAxis::Short);
 }
 
 TEST_F(TestFillAxis, long_axis_2x4) {
-    auto_transpose<float>(2, 4, RandBLAS::base::MajorAxis::Long);
+    auto_transpose<float>(2, 4, RandBLAS::MajorAxis::Long);
 }
 
 TEST_F(TestFillAxis, short_axis_2x4) {
-    auto_transpose<float>(2, 4, RandBLAS::base::MajorAxis::Short);
+    auto_transpose<float>(2, 4, RandBLAS::MajorAxis::Short);
 }

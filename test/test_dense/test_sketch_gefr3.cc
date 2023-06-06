@@ -202,7 +202,7 @@ class TestRSKGE3 : public ::testing::Test
         std::vector<T> A0(m0 * n0, 0.0);
         uint32_t seed_A0 = 42000;
         RandBLAS::dense::DenseDist DA0 = {.n_rows = m0, .n_cols = n0};
-        RandBLAS::dense::fill_dense(DA0, A0.data(), RandBLAS::base::RNGState(seed_A0));
+        RandBLAS::dense::fill_dense(DA0, A0.data(), RandBLAS::RNGState(seed_A0));
         std::vector<T> B(m * d, 0.0);
         int64_t lda = (AB_colmajor) ? DA0.n_rows : DA0.n_cols;
         int64_t ldb = (AB_colmajor) ? m : d;
