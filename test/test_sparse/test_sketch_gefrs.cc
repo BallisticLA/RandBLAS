@@ -80,7 +80,7 @@ class TestRSKGES : public ::testing::Test
         T *B0 = new T[m * d]{};
         RandBLAS::util::genmat(m, n, a, a_seed);  
         RandBLAS::sparse::SparseDist D = {
-            .n_rows=n, .n_cols=d, .major_axis=major_axis, .vec_nnz=vec_nnzs[nnz_index]
+            .n_rows=n, .n_cols=d, .vec_nnz=vec_nnzs[nnz_index], .major_axis=major_axis
         };
         RandBLAS::sparse::SparseSkOp<T> S0(D, keys[key_index]);
         RandBLAS::sparse::fill_sparse(S0);
