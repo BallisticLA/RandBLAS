@@ -29,8 +29,8 @@ class TestRSKGES : public ::testing::Test
         RandBLAS::sparse::SparseDist D = {
             .n_rows = m,
             .n_cols = d,
-            .major_axis = major_axis,
-            .vec_nnz = vec_nnz
+            .vec_nnz = vec_nnz,
+            .major_axis = major_axis
         };
         RandBLAS::sparse::SparseSkOp<T> S0(D, seed);
         RandBLAS::sparse::fill_sparse(S0);

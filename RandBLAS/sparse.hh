@@ -23,21 +23,6 @@ namespace RandBLAS::sparse {
 
 using namespace RandBLAS::base;
 
-// // =============================================================================
-// /// Specifies whether a distribution over sparse sketching operators has a fixed
-// /// number of nonzeros per short-axis vector (SASO) or long-axis vector (LASO).
-// ///
-// enum class SparsityPattern : char {
-//     // ---------------------------------------------------------------------------
-//     /// A SASO has a fixed number of nonzeros per column if it is wide,
-//     /// or per row if it is tall.
-//     SASO = 'S',
-//     // ---------------------------------------------------------------------------
-//     /// A LASO has a fixed number of nonzeros per row if it is wide,
-//     /// or per column if it is tall.
-//     LASO = 'L'
-// };
-
 // =============================================================================
 /// A distribution over sparse matrices.
 ///
