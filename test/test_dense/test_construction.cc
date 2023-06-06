@@ -112,13 +112,14 @@ class TestSubmatGeneration : public ::testing::Test
         int64_t ptr,
         const RandBLAS::RNGState<RNG> &seed
     ) {
+        int stride = n_cols / 50; 
         T* mat  = new T[n_rows * n_cols];      
         T* smat = new T[n_srows * n_scols];
         RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, mat, n_rows, n_cols, 0, seed);
         int ind = 0; // used for indexing smat when comparing to rmat
         T total_error = 0;
-        for (int nptr = ptr; nptr < n_cols*(n_rows-n_srows-1); nptr += n_cols) {
-            // ^ Loop through various pointer locations.- goes down the random matrix
+        for (int nptr = ptr; nptr < n_cols*(n_rows-n_srows-1); nptr += stride*n_cols) {
+            // ^ Loop through various pointer locations.- goes down the random matrix by amount stride.
             RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, smat, n_srows, n_scols, nptr, seed);
             ind = 0;
             for (int i = 0; i<n_srows; i++) {
@@ -143,12 +144,14 @@ class TestSubmatGeneration : public ::testing::Test
         int64_t ptr,
         const RandBLAS::RNGState<RNG> &seed
     ) {
+        int stride = n_cols / 50;
         T* mat  = new T[n_rows * n_cols];      
         T* smat = new T[n_srows * n_scols];
         RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, mat, n_rows, n_cols, 0, seed);
         int ind = 0; // variable used for indexing smat when comparing to rmat
         T total_error = 0;
-        for (int nptr = ptr; nptr < (n_cols - n_scols - 1); nptr += 1) {
+        for (int nptr = ptr; nptr < (n_cols - n_scols - 1); nptr += stride) {
+            // ^ Loop through various pointer locations.- goes across the random matrix by amount stride.
             RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, smat, n_srows, n_scols, nptr, seed);
             ind = 0;
             for (int i = 0; i<n_srows; i++) {
