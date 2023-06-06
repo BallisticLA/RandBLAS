@@ -40,13 +40,13 @@ determines whether the sketching operator is applied from the left or from the r
 Left-sketching
 ^^^^^^^^^^^^^^
 
-.. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, T alpha, SKOP &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb)
+.. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, SKOP &S, int64_t i_off, int64_t j_off, const T *A, int64_t lda, T beta, T *B, int64_t ldb)
    :project: RandBLAS
 
 Right-sketching
 ^^^^^^^^^^^^^^^
 
-.. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SKOP &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb)
+.. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SKOP &S, int64_t i_off, int64_t j_off, T beta, T *B, int64_t ldb)
    :project: RandBLAS
 
 Choosing a sketching distribution

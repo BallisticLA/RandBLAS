@@ -25,8 +25,8 @@ using namespace RandBLAS::sparse;
 
 
 // =============================================================================
-/// \fn sketch_general(blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d,
-///     int64_t n, int64_t m, T alpha, SKOP &S, int64_t i_os, int64_t j_os,
+/// \fn sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
+///     int64_t n, int64_t m, T alpha, SKOP &S, int64_t i_off, int64_t j_off,
 ///     const T *A, int64_t lda, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
@@ -36,8 +36,8 @@ using namespace RandBLAS::sparse;
 ///   .. |submat| mathmacro:: \operatorname{submat}
 ///   .. |lda| mathmacro:: \mathrm{lda}
 ///   .. |ldb| mathmacro:: \mathrm{ldb}
-///   .. |transA| mathmacro:: \mathrm{transA}
-///   .. |transS| mathmacro:: \mathrm{transS}
+///   .. |opA| mathmacro:: \mathrm{opA}
+///   .. |opS| mathmacro:: \mathrm{opS}
 ///
 /// @endverbatim
 /// Perform a GEMM-like operation
@@ -50,26 +50,26 @@ using namespace RandBLAS::sparse;
 /// 
 /// @verbatim embed:rst:leading-slashes
 /// What are :math:`\mat(A)` and :math:`\mat(B)`?
-///     Their shapes are defined implicitly by :math:`(d, m, n, \transA)`.
+///     Their shapes are defined implicitly by :math:`(d, m, n, \opA)`.
 ///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
 ///     and "layout", following the same convention as BLAS.
 ///
 /// What is :math:`\submat(S)`?
-///     Its shape is defined implicitly by :math:`(\transS, d, m)`.
+///     Its shape is defined implicitly by :math:`(\opS, d, m)`.
 ///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
 ///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
-///     appears at index :math:`(\texttt{i_os}, \texttt{j_os})` of :math:`{S}`.
+///     appears at index :math:`(\texttt{i_off}, \texttt{j_off})` of :math:`{S}`.
 /// @endverbatim
 /// @param[in] layout
 ///     Layout::ColMajor or Layout::RowMajor
 ///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
 ///
-/// @param[in] transS
-///      - If \math{\transS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
-///      - If \math{\transS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
-/// @param[in] transA
-///      - If \math{\transA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
-///      - If \math{\transA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+/// @param[in] opS
+///      - If \math{\opS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
+///      - If \math{\opS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
+/// @param[in] opA
+///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
+///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
 /// @param[in] d
 ///     A nonnegative integer.
 ///     - The number of rows in \math{\mat(B)}
@@ -93,15 +93,15 @@ using namespace RandBLAS::sparse;
 ///    A DenseSkOp or SparseSkOp object.
 ///    - Defines \math{\submat(S)}.
 ///
-/// @param[in] i_os
+/// @param[in] i_off
 ///     A nonnegative integer.
 ///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_os}, :]}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_off}, :]}.
 ///
-/// @param[in] j_os
+/// @param[in] j_off
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_os}]}. 
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_off}]}. 
 ///
 /// @param[in] A
 ///     Pointer to a 1D array of real scalars.
@@ -141,15 +141,15 @@ using namespace RandBLAS::sparse;
 template <typename T, typename SKOP>
 void sketch_general(
     blas::Layout layout,
-    blas::Op transS,
-    blas::Op transA,
+    blas::Op opS,
+    blas::Op opA,
     int64_t d, // B is d-by-n
     int64_t n, // \op(A) is m-by-n
     int64_t m, // \op(\submat(S)) is d-by-m
     T alpha,
     SKOP &S,
-    int64_t i_os,
-    int64_t j_os,
+    int64_t i_off,
+    int64_t j_off,
     const T *A,
     int64_t lda,
     T beta,
@@ -160,15 +160,15 @@ void sketch_general(
 template <typename T, typename RNG>
 void sketch_general(
     blas::Layout layout,
-    blas::Op transS,
-    blas::Op transA,
+    blas::Op opS,
+    blas::Op opA,
     int64_t d, // B is d-by-n
     int64_t n, // \op(A) is m-by-n
     int64_t m, // \op(\submat(S)) is d-by-m
     T alpha,
     sparse::SparseSkOp<T, RNG> &S,
-    int64_t row_offset,
-    int64_t col_offset,
+    int64_t i_off,
+    int64_t j_off,
     const T *A,
     int64_t lda,
     T beta,
@@ -176,23 +176,23 @@ void sketch_general(
     int64_t ldb
 ) {
     return sparse::lskges(
-        layout, transS, transA, d, n, m, alpha, S,
-        row_offset, col_offset, A, lda, beta, B, ldb
+        layout, opS, opA, d, n, m, alpha, S,
+        i_off, j_off, A, lda, beta, B, ldb
     );
 }
 
 template <typename T, typename RNG>
 void sketch_general(
     blas::Layout layout,
-    blas::Op transS,
-    blas::Op transA,
+    blas::Op opS,
+    blas::Op opA,
     int64_t d, // B is d-by-n
     int64_t n, // \op(A) is m-by-n
     int64_t m, // \op(\submat(S)) is d-by-m
     T alpha,
     dense::DenseSkOp<T, RNG> &S,
-    int64_t row_offset,
-    int64_t col_offset,
+    int64_t i_off,
+    int64_t j_off,
     const T *A,
     int64_t lda,
     T beta,
@@ -200,15 +200,15 @@ void sketch_general(
     int64_t ldb
 ) {
     return dense::lskge3(
-        layout, transS, transA, d, n, m, alpha, S,
-        row_offset, col_offset, A, lda, beta, B, ldb
+        layout, opS, opA, d, n, m, alpha, S,
+        i_off, j_off, A, lda, beta, B, ldb
     );
 }
 
 // =============================================================================
-/// \fn sketch_general(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n,
+/// \fn sketch_general(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n,
 ///    T alpha, const T *A, int64_t lda, SKOP &S,
-///    int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb
+///    int64_t i_off, int64_t j_off, T beta, T *B, int64_t ldb
 /// )
 /// Perform a GEMM-like operation
 /// @verbatim embed:rst:leading-slashes
@@ -220,27 +220,27 @@ void sketch_general(
 /// 
 /// @verbatim embed:rst:leading-slashes
 /// What are :math:`\mat(A)` and :math:`\mat(B)`?
-///     Their shapes are defined implicitly by :math:`(m, d, n, \transA)`.
+///     Their shapes are defined implicitly by :math:`(m, d, n, \opA)`.
 ///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
 ///     and "layout", following the same convention as BLAS.
 ///
 /// What is :math:`\submat(S)`?
-///     Its shape is defined implicitly by :math:`(\transS, n, d)`.
+///     Its shape is defined implicitly by :math:`(\opS, n, d)`.
 ///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
 ///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
-///     appears at index :math:`(\texttt{i_os}, \texttt{j_os})` of :math:`{S}`.
+///     appears at index :math:`(\texttt{i_off}, \texttt{j_off})` of :math:`{S}`.
 /// @endverbatim
 /// @param[in] layout
 ///     Layout::ColMajor or Layout::RowMajor
 ///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
 ///
-/// @param[in] transA
-///      - If \math{\transA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
-///      - If \math{\transA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+/// @param[in] opA
+///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
+///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
 ///
-/// @param[in] transS
-///      - If \math{\transS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
-///      - If \math{\transS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
+/// @param[in] opS
+///      - If \math{\opS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
+///      - If \math{\opS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
 ///
 /// @param[in] m
 ///     A nonnegative integer.
@@ -285,15 +285,15 @@ void sketch_general(
 ///    A DenseSkOp or SparseSkOp object.
 ///    - Defines \math{\submat(S)}.
 ///
-/// @param[in] i_os
+/// @param[in] i_off
 ///     A nonnegative integer.
 ///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_os}, :]}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_off}, :]}.
 ///
-/// @param[in] j_os
+/// @param[in] j_off
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_os}]}. 
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_off}]}. 
 ///
 /// @param[in] beta
 ///     A real scalar.
@@ -313,8 +313,8 @@ void sketch_general(
 template <typename T, typename SKOP>
 void sketch_general(
     blas::Layout layout,
-    blas::Op transA,
-    blas::Op transS,
+    blas::Op opA,
+    blas::Op opS,
     int64_t m, // B is m-by-d
     int64_t d, // op(\submat(S)) is n-by-d
     int64_t n, // op(A) is m-by-n
@@ -322,8 +322,8 @@ void sketch_general(
     const T *A,
     int64_t lda,
     SKOP &S,
-    int64_t i_os,
-    int64_t j_os,
+    int64_t i_off,
+    int64_t j_off,
     T beta,
     T *B,
     int64_t ldb
@@ -332,8 +332,8 @@ void sketch_general(
 template <typename T, typename RNG>
 void sketch_general(
     blas::Layout layout,
-    blas::Op transA,
-    blas::Op transS,
+    blas::Op opA,
+    blas::Op opS,
     int64_t m, // B is m-by-d
     int64_t d, // op(\submat(S)) is n-by-d
     int64_t n, // op(A) is m-by-n
@@ -341,14 +341,14 @@ void sketch_general(
     const T *A,
     int64_t lda,
     dense::DenseSkOp<T, RNG> &S,
-    int64_t i_os,
-    int64_t j_os,
+    int64_t i_off,
+    int64_t j_off,
     T beta,
     T *B,
     int64_t ldb
 ) {
-    return dense::rskge3(layout, transA, transS, m, d, n, alpha, A, lda,
-        S, i_os, j_os, beta, B, ldb
+    return dense::rskge3(layout, opA, opS, m, d, n, alpha, A, lda,
+        S, i_off, j_off, beta, B, ldb
     );
 }
 
@@ -356,8 +356,8 @@ void sketch_general(
 template <typename T, typename RNG>
 void sketch_general(
     blas::Layout layout,
-    blas::Op transA,
-    blas::Op transS,
+    blas::Op opA,
+    blas::Op opS,
     int64_t m, // B is m-by-d
     int64_t d, // op(\submat(S)) is n-by-d
     int64_t n, // op(A) is m-by-n
@@ -365,14 +365,14 @@ void sketch_general(
     const T *A,
     int64_t lda,
     sparse::SparseSkOp<T, RNG> &S,
-    int64_t i_os,
-    int64_t j_os,
+    int64_t i_off,
+    int64_t j_off,
     T beta,
     T *B,
     int64_t ldb
 ) {
-    return sparse::rskges(layout, transA, transS, m, d, n, alpha, A, lda,
-        S, i_os, j_os, beta, B, ldb
+    return sparse::rskges(layout, opA, opS, m, d, n, alpha, A, lda,
+        S, i_off, j_off, beta, B, ldb
     );
 }
 

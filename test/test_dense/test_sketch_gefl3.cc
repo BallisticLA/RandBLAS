@@ -221,8 +221,8 @@ class TestLSKGE3 : public ::testing::Test
         // Check the result
         int64_t lds = (S0.layout == blas::Layout::ColMajor) ? S0.dist.n_rows : S0.dist.n_cols;
         std::vector<T> B_expect(d * n, 0.0);
-        blas::Op transS = (S0.layout == layout) ? blas::Op::NoTrans : blas::Op::Trans;
-        blas::gemm<T>(layout, transS, blas::Op::NoTrans,
+        blas::Op opS = (S0.layout == layout) ? blas::Op::NoTrans : blas::Op::Trans;
+        blas::gemm<T>(layout, opS, blas::Op::NoTrans,
             d, n, m,
             1.0, S0.buff, lds, A_ptr, lda,
             0.0, B_expect.data(), ldb

@@ -336,8 +336,8 @@ auto fill_dense(
 ///   .. |submat| mathmacro:: \operatorname{submat}
 ///   .. |lda| mathmacro:: \mathrm{lda}
 ///   .. |ldb| mathmacro:: \mathrm{ldb}
-///   .. |transA| mathmacro:: \mathrm{transA}
-///   .. |transS| mathmacro:: \mathrm{transS}
+///   .. |opA| mathmacro:: \mathrm{opA}
+///   .. |opS| mathmacro:: \mathrm{opS}
 ///
 /// @endverbatim
 /// LSKGE3: Perform a GEMM-like operation
@@ -350,26 +350,26 @@ auto fill_dense(
 /// 
 /// @verbatim embed:rst:leading-slashes
 /// What are :math:`\mat(A)` and :math:`\mat(B)`?
-///     Their shapes are defined implicitly by :math:`(d, m, n, \transA)`.
+///     Their shapes are defined implicitly by :math:`(d, m, n, \opA)`.
 ///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
 ///     and "layout", following the same convention as BLAS.
 ///
 /// What is :math:`\submat(S)`?
-///     Its shape is defined implicitly by :math:`(\transS, d, m)`.
+///     Its shape is defined implicitly by :math:`(\opS, d, m)`.
 ///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
 ///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
-///     appears at index :math:`(\texttt{i_os}, \texttt{j_os})` of :math:`{S}`.
+///     appears at index :math:`(\texttt{i_off}, \texttt{j_off})` of :math:`{S}`.
 /// @endverbatim
 /// @param[in] layout
 ///     Layout::ColMajor or Layout::RowMajor
 ///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
 ///
-/// @param[in] transS
-///      - If \math{\transS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
-///      - If \math{\transS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
-/// @param[in] transA
-///      - If \math{\transA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
-///      - If \math{\transA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+/// @param[in] opS
+///      - If \math{\opS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
+///      - If \math{\opS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
+/// @param[in] opA
+///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
+///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
 /// @param[in] d
 ///     A nonnegative integer.
 ///     - The number of rows in \math{\mat(B)}
@@ -393,15 +393,15 @@ auto fill_dense(
 ///    A DenseSkOp object.
 ///    - Defines \math{\submat(S)}.
 ///
-/// @param[in] i_os
+/// @param[in] i_off
 ///     A nonnegative integer.
 ///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_os}, :]}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_off}, :]}.
 ///
-/// @param[in] j_os
+/// @param[in] j_off
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_os}]}. 
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_off}]}. 
 ///
 /// @param[in] A
 ///     Pointer to a 1D array of real scalars.
@@ -441,15 +441,15 @@ auto fill_dense(
 template <typename T, typename RNG>
 void lskge3(
     blas::Layout layout,
-    blas::Op transS,
-    blas::Op transA,
+    blas::Op opS,
+    blas::Op opA,
     int64_t d, // B is d-by-n
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(S) is d-by-m
     T alpha,
     DenseSkOp<T,RNG> &S0,
-    int64_t i_os,
-    int64_t j_os,
+    int64_t i_off,
+    int64_t j_off,
     const T *A,
     int64_t lda,
     T beta,
@@ -459,23 +459,23 @@ void lskge3(
     if (!S0.buff) {
         // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
         // of that sketching operator, and then call LSKGE3 with that new object.
-        int64_t n_srows = (transS == blas::Op::NoTrans) ? d : m;
-        int64_t n_scols = (transS == blas::Op::NoTrans) ? m : d;
+        int64_t n_srows = (opS == blas::Op::NoTrans) ? d : m;
+        int64_t n_scols = (opS == blas::Op::NoTrans) ? m : d;
         T *buff = new T[n_srows * n_scols];
-        fill_dense_submat(S0.dist, buff, n_srows, n_scols, i_os, j_os, S0.seed_state);
+        fill_dense_submat(S0.dist, buff, n_srows, n_scols, i_off, j_off, S0.seed_state);
         DenseDist D{n_srows, n_scols, DenseDistName::BlackBox, S0.dist.major_axis};
         DenseSkOp S(D, S0.seed_state, buff);
-        lskge3(layout, transS, transA, d, n, m, alpha, S, 0, 0, A, lda, beta, B, ldb);
+        lskge3(layout, opS, opA, d, n, m, alpha, S, 0, 0, A, lda, beta, B, ldb);
         delete [] buff;
         return;
     }
     bool opposing_layouts = S0.layout != layout;
     if (opposing_layouts)
-        transS = (transS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
+        opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
 
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
-    if (transA == blas::Op::NoTrans) {
+    if (opA == blas::Op::NoTrans) {
         rows_A = m;
         cols_A = n;
     } else {
@@ -483,7 +483,7 @@ void lskge3(
         cols_A = m;
     }
     // Dimensions of S, rather than op(S)
-    if (transS == blas::Op::NoTrans) {
+    if (opS == blas::Op::NoTrans) {
         rows_submat_S = d;
         cols_submat_S = m;
     } else {
@@ -500,7 +500,7 @@ void lskge3(
         } else {
             randblas_require(lds >= rows_submat_S);
         }
-        pos = i_os + lds * j_os;
+        pos = i_off + lds * j_off;
     } else {
         lds = S0.dist.n_cols;
         if (opposing_layouts) {
@@ -508,7 +508,7 @@ void lskge3(
         } else {
             randblas_require(lds >= cols_submat_S);
         }
-        pos = i_os * lds + j_os;
+        pos = i_off * lds + j_off;
     }
 
     if (layout == blas::Layout::ColMajor) {
@@ -520,7 +520,7 @@ void lskge3(
     }
     // Perform the sketch.
     blas::gemm<T>(
-        layout, transS, transA,
+        layout, opS, opA,
         d, n, m,
         alpha,
         &S0.buff[pos], lds,
@@ -542,27 +542,27 @@ void lskge3(
 /// 
 /// @verbatim embed:rst:leading-slashes
 /// What are :math:`\mat(A)` and :math:`\mat(B)`?
-///     Their shapes are defined implicitly by :math:`(m, d, n, \transA)`.
+///     Their shapes are defined implicitly by :math:`(m, d, n, \opA)`.
 ///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
 ///     and "layout", following the same convention as BLAS.
 ///
 /// What is :math:`\submat(S)`?
-///     Its shape is defined implicitly by :math:`(\transS, n, d)`.
+///     Its shape is defined implicitly by :math:`(\opS, n, d)`.
 ///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
 ///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
-///     appears at index :math:`(\texttt{i_os}, \texttt{j_os})` of :math:`{S}`.
+///     appears at index :math:`(\texttt{i_off}, \texttt{j_off})` of :math:`{S}`.
 /// @endverbatim
 /// @param[in] layout
 ///     Layout::ColMajor or Layout::RowMajor
 ///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
 ///
-/// @param[in] transA
-///      - If \math{\transA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
-///      - If \math{\transA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+/// @param[in] opA
+///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
+///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
 ///
-/// @param[in] transS
-///      - If \math{\transS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
-///      - If \math{\transS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
+/// @param[in] opS
+///      - If \math{\opS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
+///      - If \math{\opS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
 ///
 /// @param[in] m
 ///     A nonnegative integer.
@@ -607,15 +607,15 @@ void lskge3(
 ///    A DenseSkOp object.
 ///    - Defines \math{\submat(S)}.
 ///
-/// @param[in] i_os
+/// @param[in] i_off
 ///     A nonnegative integer.
 ///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_os}, :]}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_off}, :]}.
 ///
-/// @param[in] j_os
+/// @param[in] j_off
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_os}]}. 
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_off}]}. 
 ///
 /// @param[in] beta
 ///     A real scalar.
@@ -635,8 +635,8 @@ void lskge3(
 template <typename T, typename RNG>
 void rskge3(
     blas::Layout layout,
-    blas::Op transA,
-    blas::Op transS,
+    blas::Op opA,
+    blas::Op opS,
     int64_t m, // B is m-by-d
     int64_t d, // op(S) is n-by-d
     int64_t n, // op(A) is m-by-n
@@ -644,8 +644,8 @@ void rskge3(
     const T *A,
     int64_t lda,
     DenseSkOp<T,RNG> &S0,
-    int64_t i_os,
-    int64_t j_os,
+    int64_t i_off,
+    int64_t j_off,
     T beta,
     T *B,
     int64_t ldb
@@ -653,23 +653,23 @@ void rskge3(
     if (!S0.buff) {
         // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
         // of that sketching operator, and then call RSKGE3 with that new object.
-        int64_t n_srows = (transS == blas::Op::NoTrans) ? n : d;
-        int64_t n_scols = (transS == blas::Op::NoTrans) ? d : n;
+        int64_t n_srows = (opS == blas::Op::NoTrans) ? n : d;
+        int64_t n_scols = (opS == blas::Op::NoTrans) ? d : n;
         T *buff = new T[n_srows * n_scols];
-        fill_dense_submat(S0.dist, buff, n_srows, n_scols, i_os, j_os, S0.seed_state);
+        fill_dense_submat(S0.dist, buff, n_srows, n_scols, i_off, j_off, S0.seed_state);
         DenseDist D{n_srows, n_scols, DenseDistName::BlackBox, S0.dist.major_axis};
         DenseSkOp S(D, S0.seed_state, buff);
-        rskge3(layout, transA, transS, m, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);
+        rskge3(layout, opA, opS, m, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);
         delete [] buff;
         return;
     }
     bool opposing_layouts = S0.layout != layout;
     if (opposing_layouts)
-        transS = (transS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
+        opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
 
     // Dimensions of A, rather than op(A)
     int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
-    if (transA == blas::Op::NoTrans) {
+    if (opA == blas::Op::NoTrans) {
         rows_A = m;
         cols_A = n;
     } else {
@@ -677,7 +677,7 @@ void rskge3(
         cols_A = m;
     }
     // Dimensions of S, rather than op(S)
-    if (transS == blas::Op::NoTrans) {
+    if (opS == blas::Op::NoTrans) {
         rows_submat_S = n;
         cols_submat_S = d;
     } else {
@@ -687,20 +687,20 @@ void rskge3(
 
     // Sanity checks on dimensions and strides
     if (opposing_layouts) {
-        randblas_require(S0.dist.n_rows >= cols_submat_S + i_os);
-        randblas_require(S0.dist.n_cols >= rows_submat_S + j_os);
+        randblas_require(S0.dist.n_rows >= cols_submat_S + i_off);
+        randblas_require(S0.dist.n_cols >= rows_submat_S + j_off);
     } else {
-        randblas_require(S0.dist.n_rows >= rows_submat_S + i_os);
-        randblas_require(S0.dist.n_cols >= cols_submat_S + j_os);
+        randblas_require(S0.dist.n_rows >= rows_submat_S + i_off);
+        randblas_require(S0.dist.n_cols >= cols_submat_S + j_off);
     }
 
     int64_t lds, pos;
     if (S0.layout == blas::Layout::ColMajor) {
         lds = S0.dist.n_rows;
-        pos = i_os + lds * j_os;
+        pos = i_off + lds * j_off;
     } else {
         lds = S0.dist.n_cols;
-        pos = i_os * lds + j_os;
+        pos = i_off * lds + j_off;
     }
 
     if (layout == blas::Layout::ColMajor) {
@@ -712,7 +712,7 @@ void rskge3(
     }
     // Perform the sketch.
     blas::gemm<T>(
-        layout, transA, transS,
+        layout, opA, opS,
         m, d, n,
         alpha,
         A, lda,

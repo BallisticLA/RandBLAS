@@ -657,8 +657,8 @@ auto transpose(SKOP const& S) {
 ///   .. |submat| mathmacro:: \operatorname{submat}
 ///   .. |lda| mathmacro:: \mathrm{lda}
 ///   .. |ldb| mathmacro:: \mathrm{ldb}
-///   .. |transA| mathmacro:: \mathrm{transA}
-///   .. |transS| mathmacro:: \mathrm{transS}
+///   .. |opA| mathmacro:: \mathrm{opA}
+///   .. |opS| mathmacro:: \mathrm{opS}
 ///
 /// @endverbatim
 /// LSKGES: Perform a GEMM-like operation
@@ -671,26 +671,26 @@ auto transpose(SKOP const& S) {
 /// 
 /// @verbatim embed:rst:leading-slashes
 /// What are :math:`\mat(A)` and :math:`\mat(B)`?
-///     Their shapes are defined implicitly by :math:`(d, m, n, \transA)`.
+///     Their shapes are defined implicitly by :math:`(d, m, n, \opA)`.
 ///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
 ///     and "layout", following the same convention as BLAS.
 ///
 /// What is :math:`\submat(S)`?
-///     Its shape is defined implicitly by :math:`(\transS, d, m)`.
+///     Its shape is defined implicitly by :math:`(\opS, d, m)`.
 ///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
 ///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
-///     appears at index :math:`(\texttt{i_os}, \texttt{j_os})` of :math:`{S}`.
+///     appears at index :math:`(\texttt{i_off}, \texttt{j_off})` of :math:`{S}`.
 /// @endverbatim
 /// @param[in] layout
 ///     Layout::ColMajor or Layout::RowMajor
 ///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
 ///
-/// @param[in] transS
-///      - If \math{\transS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
-///      - If \math{\transS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
-/// @param[in] transA
-///      - If \math{\transA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
-///      - If \math{\transA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+/// @param[in] opS
+///      - If \math{\opS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
+///      - If \math{\opS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
+/// @param[in] opA
+///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
+///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
 /// @param[in] d
 ///     A nonnegative integer.
 ///     - The number of rows in \math{\mat(B)}
@@ -714,15 +714,15 @@ auto transpose(SKOP const& S) {
 ///    A SparseSkOp object.
 ///    - Defines \math{\submat(S)}.
 ///
-/// @param[in] i_os
+/// @param[in] i_off
 ///     A nonnegative integer.
 ///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_os}, :]}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_off}, :]}.
 ///
-/// @param[in] j_os
+/// @param[in] j_off
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_os}]}. 
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_off}]}. 
 ///
 /// @param[in] A
 ///     Pointer to a 1D array of real scalars.
@@ -762,8 +762,8 @@ auto transpose(SKOP const& S) {
 template <typename T, typename SKOP>
 void lskges(
     blas::Layout layout,
-    blas::Op transS,
-    blas::Op transA,
+    blas::Op opS,
+    blas::Op opA,
     int64_t d, // B is d-by-n
     int64_t n, // \op(A) is m-by-n
     int64_t m, // \op(S) is d-by-m
@@ -777,14 +777,14 @@ void lskges(
     T *B,
     int64_t ldb
 ) {
-    if (S.rows == NULL || S.cols == NULL || S.vals == NULL)
+    if (S.rows == nullptr|| S.cols == nullptr || S.vals == nullptr)
         fill_sparse(S);
 
     // handle applying a transposed sparse sketching operator.
-    if (transS == blas::Op::Trans) {
+    if (opS == blas::Op::Trans) {
         auto St = transpose(S);
         lskges(
-            layout, blas::Op::NoTrans, transA,
+            layout, blas::Op::NoTrans, opA,
             d, n, m, alpha, St, col_offset, row_offset,
             A, lda, beta, B, ldb
         );
@@ -796,20 +796,20 @@ void lskges(
 
     // Dimensions of A, rather than \op(A)
     blas::Layout layout_B = layout;
-    blas::Layout pretend_layout_A;
+    blas::Layout layout_opA;
     int64_t rows_A, cols_A;
-    if (transA == blas::Op::NoTrans) {
+    if (opA == blas::Op::NoTrans) {
         rows_A = m;
         cols_A = n;
-        pretend_layout_A = layout;
+        layout_opA = layout;
     } else {
         rows_A = n;
         cols_A = m;
-        pretend_layout_A = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : blas::Layout::ColMajor;
+        layout_opA = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : blas::Layout::ColMajor;
     }
 
     // Check dimensions and compute B = beta * B.
-    //      Note: both A and B are checked based on "layout"; A is *not* checked on pretend_layout_A.
+    //      Note: both A and B are checked based on "layout"; A is *not* checked on layout_opA.
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= d);
@@ -824,7 +824,7 @@ void lskges(
 
     // Perform the sketch
     if (alpha != 0)
-        apply_cscoo_csroo_left(alpha, pretend_layout_A, layout_B, d, n, m, S, row_offset, col_offset, A, lda, B, ldb);
+        apply_cscoo_csroo_left(alpha, layout_opA, layout_B, d, n, m, S, row_offset, col_offset, A, lda, B, ldb);
     return;
 }
 
@@ -840,27 +840,27 @@ void lskges(
 /// 
 /// @verbatim embed:rst:leading-slashes
 /// What are :math:`\mat(A)` and :math:`\mat(B)`?
-///     Their shapes are defined implicitly by :math:`(m, d, n, \transA)`.
+///     Their shapes are defined implicitly by :math:`(m, d, n, \opA)`.
 ///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
 ///     and "layout", following the same convention as BLAS.
 ///
 /// What is :math:`\submat(S)`?
-///     Its shape is defined implicitly by :math:`(\transS, n, d)`.
+///     Its shape is defined implicitly by :math:`(\opS, n, d)`.
 ///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
 ///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
-///     appears at index :math:`(\texttt{i_os}, \texttt{j_os})` of :math:`{S}`.
+///     appears at index :math:`(\texttt{i_off}, \texttt{j_off})` of :math:`{S}`.
 /// @endverbatim
 /// @param[in] layout
 ///     Layout::ColMajor or Layout::RowMajor
 ///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
 ///
-/// @param[in] transA
-///      - If \math{\transA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
-///      - If \math{\transA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+/// @param[in] opA
+///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
+///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
 ///
-/// @param[in] transS
-///      - If \math{\transS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
-///      - If \math{\transS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
+/// @param[in] opS
+///      - If \math{\opS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
+///      - If \math{\opS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
 ///
 /// @param[in] m
 ///     A nonnegative integer.
@@ -905,15 +905,15 @@ void lskges(
 ///    A SparseSkOp object.
 ///    - Defines \math{\submat(S)}.
 ///
-/// @param[in] i_os
+/// @param[in] i_off
 ///     A nonnegative integer.
 ///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_os}, :]}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_off}, :]}.
 ///
-/// @param[in] j_os
+/// @param[in] j_off
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_os}]}. 
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_off}]}. 
 ///
 /// @param[in] beta
 ///     A real scalar.
@@ -933,8 +933,8 @@ void lskges(
 template <typename T, typename RNG>
 void rskges(
     blas::Layout layout,
-    blas::Op transA,
-    blas::Op transS,
+    blas::Op opA,
+    blas::Op opS,
     int64_t m, // B is m-by-d
     int64_t d, // op(S) is n-by-d
     int64_t n, // op(A) is m-by-n
@@ -942,8 +942,8 @@ void rskges(
     const T *A,
     int64_t lda,
     SparseSkOp<T,RNG> &S0,
-    int64_t i_os,
-    int64_t j_os,
+    int64_t i_off,
+    int64_t j_off,
     T beta,
     T *B,
     int64_t ldb
@@ -962,11 +962,11 @@ void rskges(
     // 
     using blas::Layout;
     using blas::Op;
-    auto trans_transS = (transS == Op::NoTrans) ? Op::Trans : Op::NoTrans;
+    auto trans_opS = (opS == Op::NoTrans) ? Op::Trans : Op::NoTrans;
     auto trans_layout = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
     lskges(
-        trans_layout, trans_transS, transA,
-        d, m, n, alpha, S0, i_os, j_os, A, lda, beta, B, ldb
+        trans_layout, trans_opS, opA,
+        d, m, n, alpha, S0, i_off, j_off, A, lda, beta, B, ldb
     );
 }
 
