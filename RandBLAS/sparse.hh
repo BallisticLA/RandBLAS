@@ -52,25 +52,26 @@ struct SparseDist {
     const int64_t n_cols;
 
     // ---------------------------------------------------------------------------
-    ///  Constrains the sparsity pattern of matrices drawn from this distribution. 
+    ///  If this distribution is short-axis major, then matrices sampled from
+    ///  it will have exactly \math{\texttt{vec_nnz}} nonzeros per short-axis
+    ///  vector (i.e., per column of a wide matrix or row of a tall matrix).
+    //// One would be paranoid to set this higher than, say, eight, even when
+    ///  sketching *very* high-dimensional data.
     ///
-    ///  The default pattern is (SASO) chosen so that sketches are more likely to
-    ///  contain useful geometric information, without making assumptions about
-    ///  the data being sketched.
-    // const SparsityPattern family = SparsityPattern::SASO;
-    const MajorAxis major_axis = MajorAxis::Short;
-
-    // ---------------------------------------------------------------------------
-    ///  If this is a distribution over SASOs, then matrices sampled from this
-    ///  distribution will have exactly \math{\texttt{vec_nnz}} nonzeros per
-    ///  short-axis vector. One would be paranoid to set this higher than, say,
-    ///  eight, even when sketching *very* high-dimensional data.
-    ///
-    ///  If this is a distribution over LASOs, then matrices sampled from this
-    ///  distribution will have *at most* \math{\texttt{vec_nnz}} nonzeros per
-    ///  long-axis vector.
+    ///  If this distribution is long-axis major, then matrices sampled from it
+    ///  will have *at most* \math{\texttt{vec_nnz}} nonzeros per long-axis
+    ///  vector (i.e., per row of a wide matrix or per column of a tall matrix).
     ///
     const int64_t vec_nnz;
+
+    // ---------------------------------------------------------------------------
+    ///  Constrains the sparsity pattern of matrices drawn from this distribution. 
+    ///
+    ///  Having major_axis==Short results in sketches are more likely to contain
+    ///  useful geometric information, without making assumptions about the data
+    ///  being sketched.
+    ///
+    const MajorAxis major_axis = MajorAxis::Short;
 };
 
 // =============================================================================
@@ -654,8 +655,8 @@ auto transpose(SKOP const& S) {
     SparseDist dist = {
         .n_rows = S.dist.n_cols,
         .n_cols = S.dist.n_rows,
-        .major_axis = S.dist.major_axis,
-        .vec_nnz = S.dist.vec_nnz
+        .vec_nnz = S.dist.vec_nnz,
+        .major_axis = S.dist.major_axis
     };
     SKOP St(dist, S.seed_state, S.cols, S.rows, S.vals);
     St.next_state = S.next_state;

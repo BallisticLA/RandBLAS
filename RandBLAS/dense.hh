@@ -39,16 +39,6 @@ enum class DenseDistName : char {
     BlackBox = 'B'
 };
 
-enum class MajorAxis : char {
-    // ---------------------------------------------------------------------------
-    ///  short-axis vectors (cols of a wide matrix, rows of a tall matrix)
-    Short = 'S',
-
-    // ---------------------------------------------------------------------------
-    ///  long-axis vectors (rows of a wide matrix, cols of a tall matrix)
-    Long = 'U'
-};
-
 
 // =============================================================================
 /// A distribution over dense sketching operators.

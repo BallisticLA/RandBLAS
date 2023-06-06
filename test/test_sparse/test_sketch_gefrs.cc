@@ -145,7 +145,7 @@ class TestRSKGES : public ::testing::Test
 
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
         RandBLAS::sparse::SparseSkOp<T> S0(
-            {n0, d0, RandBLAS::base::MajorAxis::Short, vec_nnz}, seed
+            {n0, d0, vec_nnz, RandBLAS::base::MajorAxis::Short}, seed
         );
         RandBLAS::sparse::fill_sparse(S0);
         T *S0_dense = new T[n0 * d0];

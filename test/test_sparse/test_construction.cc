@@ -44,7 +44,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
 
     virtual void proper_saso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
         RandBLAS::sparse::SparseSkOp<double> S0(
-            {d, m, RandBLAS::base::MajorAxis::Short, vec_nnzs[nnz_index]}, keys[key_index]
+            {d, m, vec_nnzs[nnz_index], RandBLAS::base::MajorAxis::Short}, keys[key_index]
         );
        RandBLAS::sparse::fill_sparse(S0);
        if (d < m) {
@@ -56,7 +56,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
 
     virtual void proper_laso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
         RandBLAS::sparse::SparseSkOp<double> S0(
-            {d, m, RandBLAS::base::MajorAxis::Long, vec_nnzs[nnz_index]}, keys[key_index]
+            {d, m, vec_nnzs[nnz_index], RandBLAS::base::MajorAxis::Long}, keys[key_index]
         );
         RandBLAS::sparse::fill_sparse(S0);
        if (d < m) {

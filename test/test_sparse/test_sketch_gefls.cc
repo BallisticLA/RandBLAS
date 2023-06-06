@@ -38,7 +38,7 @@ class TestLSKGES : public ::testing::Test
         T *a = new T[m * n];
         T *B0 = new T[d * n]{};
         RandBLAS::util::genmat(m, n, a, a_seed);  
-        RandBLAS::sparse::SparseSkOp<T> S0({d, m, major_axis, vec_nnzs[nnz_index]}, keys[key_index]);
+        RandBLAS::sparse::SparseSkOp<T> S0({d, m, vec_nnzs[nnz_index], major_axis}, keys[key_index]);
         RandBLAS::sparse::fill_sparse(S0);
         int64_t lda, ldb;
         if (layout == blas::Layout::RowMajor) {
@@ -105,7 +105,7 @@ class TestLSKGES : public ::testing::Test
 
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
         RandBLAS::sparse::SparseSkOp<T> S0(
-            {d0, m0, RandBLAS::base::MajorAxis::Short, vec_nnz}, seed
+            {d0, m0, vec_nnz, RandBLAS::base::MajorAxis::Short}, seed
         );
         RandBLAS::sparse::fill_sparse(S0);
         T *S0_dense = new T[d0 * m0];
@@ -169,7 +169,7 @@ class TestLSKGES : public ::testing::Test
         bool is_colmajor = (layout == blas::Layout::ColMajor);
         randblas_require(m > d);
         int64_t vec_nnz = d / 2;
-        RandBLAS::sparse::SparseDist DS = {d, m, RandBLAS::base::MajorAxis::Short, vec_nnz};
+        RandBLAS::sparse::SparseDist DS = {d, m, vec_nnz, RandBLAS::base::MajorAxis::Short};
         RandBLAS::sparse::SparseSkOp<T> S(DS, key);
         RandBLAS::sparse::fill_sparse(S);
     
@@ -229,8 +229,8 @@ class TestLSKGES : public ::testing::Test
         RandBLAS::sparse::SparseDist Dt = {
             .n_rows = m,
             .n_cols = d,
-            .major_axis = major_axis,
-            .vec_nnz = vec_nnz
+            .vec_nnz = vec_nnz,
+            .major_axis = major_axis
         };
         RandBLAS::sparse::SparseSkOp<T> S0(Dt, key);
         RandBLAS::sparse::fill_sparse(S0);
@@ -289,8 +289,8 @@ class TestLSKGES : public ::testing::Test
         RandBLAS::sparse::SparseDist D = {
             .n_rows = d,
             .n_cols = m,
-            .major_axis = major_axis,
-            .vec_nnz = vec_nnz
+            .vec_nnz = vec_nnz,
+            .major_axis = major_axis
         };
         RandBLAS::sparse::SparseSkOp<T> S0(D, seed_S0);
         RandBLAS::sparse::fill_sparse(S0);
@@ -356,8 +356,8 @@ class TestLSKGES : public ::testing::Test
         RandBLAS::sparse::SparseDist D = {
             .n_rows = d,
             .n_cols = m,
-            .major_axis = major_axis,
-            .vec_nnz = vec_nnz
+            .vec_nnz = vec_nnz,
+            .major_axis = major_axis
         };
         RandBLAS::sparse::SparseSkOp<T> S0(D, seed_S0);
         RandBLAS::sparse::fill_sparse(S0);
