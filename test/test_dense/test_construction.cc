@@ -336,3 +336,47 @@ TEST_F(TestFillAxis, long_axis_2x4) {
 TEST_F(TestFillAxis, short_axis_2x4) {
     auto_transpose<float>(2, 4, RandBLAS::MajorAxis::Short);
 }
+
+class TestStateUpdate : public ::testing::Test
+{
+    protected:
+
+    virtual void SetUp(){};
+
+    virtual void TearDown(){};
+
+    template <typename T>
+    static void test_var_mat_gen(
+        uint32_t key,
+        int64_t n_rows,
+        int64_t n_cols,
+        RandBLAS::DenseDistName dn
+    ) {
+        // Allocate workspace
+        int64_t size = n_rows * n_cols;
+        std::vector<T> A(size, 0.0);
+        std::vector<T> B(size, 0.0);
+
+        // Construct the sketching operator
+        RandBLAS::DenseDist D = {
+            .n_rows = n_rows,
+            .n_cols = n_cols,
+            .family = dn
+        };
+
+        auto state = RandBLAS::RNGState(key);
+        auto next_state = RandBLAS::fill_dense(D, A.data(), state);
+        RandBLAS::fill_dense(D, B.data(), next_state);
+
+        ASSERT_TRUE(!(A == B));
+    }
+};
+
+// For small matrix sizes, mean and stddev are not very close to desired vals.
+TEST_F(TestStateUpdate, Gaussian)
+{
+    for (uint32_t key : {0, 1, 2}) {
+        auto dn = RandBLAS::DenseDistName::Gaussian;
+        test_var_mat_gen<double>(key, 100, 50, dn);
+    }
+}
