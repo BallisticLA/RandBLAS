@@ -400,16 +400,9 @@ class TestStateUpdate : public ::testing::Test
         auto state1 = RandBLAS::RNGState(key);
         // Concatenates two matrices generated from state and next_state
         auto next_state = RandBLAS::fill_dense(D1, A.data(), state);
-        //RandBLAS::fill_dense(D1, A.data() + (int64_t) ((float) size / 2.0), next_state);
         RandBLAS::fill_dense_submat(D1, A.data() + (int64_t) n_cols / 2 * n_rows, n_rows, n_cols - n_cols / 2, ((int64_t) n_cols / 2 * n_rows) % 4, 0, next_state);
 
-        char name [] = "A";
-        RandBLAS::util::print_colmaj(n_rows, n_cols, A.data(), name);
-
         RandBLAS::fill_dense(D2, B.data(), state1);
-
-        char name1 [] = "B";
-        RandBLAS::util::print_colmaj(n_rows, n_cols, B.data(), name1);
 
         ASSERT_TRUE(A == B);
     }
@@ -428,10 +421,9 @@ TEST_F(TestStateUpdate, Gaussian_identity)
 {
     for (uint32_t key : {0, 1, 2}) {
         auto dn = RandBLAS::DenseDistName::Gaussian;
-        //test_identity<double>(key, 83, 41, dn);
-        //test_identity<double>(key, 89, 43, dn);
-        //test_identity<double>(key, 97, 47, dn);
-        
-        test_identity<double>(key, 10, 10, dn);
+        test_identity<double>(key, 13, 7, dn);
+        test_identity<double>(key, 83, 41, dn);
+        test_identity<double>(key, 89, 43, dn);
+        test_identity<double>(key, 97, 47, dn);
     }
 }
