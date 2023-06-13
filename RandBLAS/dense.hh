@@ -266,6 +266,7 @@ static auto fill_dense_submat_impl(
     }
 
     }
+    c.incr( (int64_t) (ptr + n_scols-1 + (n_srows-1) * n_cols) / RNG::ctr_type::static_size);
     return RNGState<RNG> {c, k};
 } 
 
