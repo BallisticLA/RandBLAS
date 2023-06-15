@@ -406,7 +406,6 @@ class TestStateUpdate : public ::testing::Test
         auto state1 = RandBLAS::RNGState(key);
         // Concatenates two matrices generated from state and next_state
         auto next_state = RandBLAS::fill_dense(D1, A.data(), state);
-<<<<<<< HEAD
         //RandBLAS::fill_dense(D1, A.data() + (int64_t) ((float) size / 2.0), next_state);
         RandBLAS::fill_dense_submat(D3, A.data() + (int64_t) n_cols / 2 * n_rows, n_rows, n_cols / 2, ((int64_t) n_cols / 2 * n_rows) % 4, 0, next_state);
 
@@ -418,12 +417,10 @@ class TestStateUpdate : public ::testing::Test
         //char name1 [] = "B";
         //RandBLAS::util::print_colmaj(n_rows, n_cols, B.data(), name1);
 
-=======
         RandBLAS::fill_dense_submat(D1, A.data() + (int64_t) n_cols / 2 * n_rows, n_rows, n_cols - n_cols / 2, ((int64_t) n_cols / 2 * n_rows) % 4, 0, next_state);
 
         RandBLAS::fill_dense(D2, B.data(), state1);
 
->>>>>>> 846466db8725d6115e883c0755e84c9602997451
         ASSERT_TRUE(A == B);
     }
     
