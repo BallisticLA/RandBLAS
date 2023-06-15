@@ -470,9 +470,9 @@ TEST_F(TestStateUpdate, Gaussian_identity)
 {
     for (uint32_t key : {0, 1, 2}) {
         auto dn = RandBLAS::DenseDistName::Gaussian;
-        test_identity<double>(key, 13, 7, dn);
-        test_identity<double>(key, 83, 41, dn);
-        test_identity<double>(key, 89, 43, dn);
-        test_identity<double>(key, 97, 47, dn);
+        test_identity_v2<double>(key, 13, 7);
+        test_identity_v2<double>(key, 83, 41);
+        test_identity_v2<double>(key, 89, 43);
+        test_identity_v2<double>(key, 97, 47);
     }
 }
