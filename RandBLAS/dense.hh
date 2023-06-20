@@ -328,11 +328,11 @@ static RandBLAS::RNGState<RNG> fill_dense_submat_trunc(
 
     int64_t n_cols_padded = n_cols + pad; //Smallest number of columns, greater than or equal to n_cols, that would be divisible by RNG::ctr_type::static_size 
     int64_t ptr_padded = ptr + ptr / n_cols * pad; //Ptr corresponding to the padded matrix
-    int64_t r0_padded = virt_ptr / RNG::ctr_type::static_size; //starting counter corresponding to ptr_padded 
-    int64_t r1_padded = (virt_ptr + n_scols - 1) / RNG::ctr_type::static_size; //ending counter corresponding to ptr of the last element of the row
-    int64_t ctr_gap = virt_n_cols / RNG::ctr_type::static_size; //Number of counters between the first counter of the row to the first counter of the next row;
-    int64_t s0 = virt_ptr % RNG::ctr_type::static_size; 
-    int64_t e1 = (virt_ptr + n_scols - 1) % RNG::ctr_type::static_size;
+    int64_t r0_padded = ptr_padded / RNG::ctr_type::static_size; //starting counter corresponding to ptr_padded 
+    int64_t r1_padded = (ptr_padded + n_scols - 1) / RNG::ctr_type::static_size; //ending counter corresponding to ptr of the last element of the row
+    int64_t ctr_gap = n_cols_padded / RNG::ctr_type::static_size; //Number of counters between the first counter of the row to the first counter of the next row;
+    int64_t s0 = ptr_padded % RNG::ctr_type::static_size; 
+    int64_t e1 = (ptr_padded + n_scols - 1) % RNG::ctr_type::static_size;
 
     #pragma omp parallel firstprivate(c, k)
     {
