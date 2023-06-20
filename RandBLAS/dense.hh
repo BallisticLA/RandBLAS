@@ -266,10 +266,126 @@ static auto fill_dense_submat_impl(
     }
 
     }
-    c.incr( (int64_t) (ptr + n_scols-1 + (n_srows-1) * n_cols) / RNG::ctr_type::static_size);
+    c.incr( (int64_t) (ptr + n_scols + (n_srows-1) * n_cols) / RNG::ctr_type::static_size);
     return RNGState<RNG> {c, k};
 } 
 
+//Function that fills in a random matrix and truncates at the end of each row so that each row starts with a fresh counter.
+template<typename T, typename RNG, typename OP>
+static void fill_dense_rmat_trunc(
+    T* mat,
+    int64_t n_rows,
+    int64_t n_cols,
+    const RandBLAS::RNGState<RNG> & seed
+) {
+
+    RNG rng;
+    typename RNG::ctr_type c = seed.counter;
+    typename RNG::key_type k = seed.key;
+    
+    int ind = 0;
+    int cts = n_cols / RNG::ctr_type::static_size; //number of counters per row, where all the random numbers are to be filled in the array.
+    int res = n_cols % RNG::ctr_type::static_size; //Number of random numbers to be filled at the end of each row the the last counter of the row
+
+    for (int i = 0; i < n_rows; i++) {
+        for (int ctr = 0; ctr < cts; ctr++){
+            auto rv = OP::generate(rng, c, k);
+            for (int j = 0; j < RNG::ctr_type::static_size; j++) {
+                mat[ind] = rv[j];
+                ind++;
+            }
+            c.incr();
+        }
+        if (res != 0) { 
+            for (int j = 0; j < res; j++) {
+                auto rv = OP::generate(rng, c, k);
+                mat[ind] = rv[j];
+                ind++;
+            }
+            c.incr();
+        }
+    }
+}
+
+//Funciton that generates submatrices given that the whole random matrix follows the truncation scheme described by fill_dense_rmat_trunc
+template<typename T, typename RNG, typename OP>
+static RandBLAS::RNGState<RNG> fill_dense_submat_trunc(
+    int64_t n_cols,
+    T* smat,
+    int64_t n_srows,
+    int64_t n_scols,
+    int64_t ptr,
+    const RandBLAS::RNGState<RNG> & seed
+) {
+    RNG rng;
+    typename RNG::ctr_type c = seed.counter;
+    typename RNG::key_type k = seed.key;
+    
+    int64_t pad = 0; //Pad computed such that  n_cols+pad is divisible by RNG::static_size
+    if (n_cols % RNG::ctr_type::static_size != 0) {
+        pad = RNG::ctr_type::static_size - n_cols % RNG::ctr_type::static_size;
+    }
+
+    int64_t n_cols_padded = n_cols + pad; //Smallest number of columns, greater than or equal to n_cols, that would be divisible by RNG::ctr_type::static_size 
+    int64_t ptr_padded = ptr + ptr / n_cols * pad; //Ptr corresponding to the padded matrix
+    int64_t r0_padded = virt_ptr / RNG::ctr_type::static_size; //starting counter corresponding to ptr_padded 
+    int64_t r1_padded = (virt_ptr + n_scols - 1) / RNG::ctr_type::static_size; //ending counter corresponding to ptr of the last element of the row
+    int64_t ctr_gap = virt_n_cols / RNG::ctr_type::static_size; //Number of counters between the first counter of the row to the first counter of the next row;
+    int64_t s0 = virt_ptr % RNG::ctr_type::static_size; 
+    int64_t e1 = (virt_ptr + n_scols - 1) % RNG::ctr_type::static_size;
+
+    #pragma omp parallel firstprivate(c, k)
+    {
+
+    auto cc = c;
+    int64_t prev = 0;
+    int64_t i;
+    int64_t r0, r1;
+    int64_t ind;
+
+    #pragma omp for
+    for (int row = 0; row < n_srows; row++) {
+        ind = 0;
+        r0 = r0_padded + ctr_gap*row;
+        r1 = r1_padded + ctr_gap*row; 
+
+        cc.incr(r0 - prev);
+        prev = r0;
+        auto rv =  OP::generate(rng, cc, k);
+        int64_t range = (r1 > r0)? RNG::ctr_type::static_size-1 : e1;
+        for (i = s0; i <= range; i++) {
+            smat[ind + row*n_scols] = rv[i];
+            ind++;
+        }
+        // middle 
+        int64_t tmp = r0;
+        while( tmp < r1 - 1) {
+            cc.incr();
+            prev++;
+            rv = OP::generate(rng, cc, k);
+            for (i = 0; i < RNG::ctr_type::static_size; i++) {
+                smat[ind + row*n_scols] = rv[i];
+                ind++;
+            }
+            tmp++;
+        }
+
+        // end
+        if ( r1 > r0 ){
+            cc.incr();
+            prev++;
+            rv = OP::generate(rng, cc, k);
+            for (i = 0; i <= e1; i++) {
+                smat[ind + row*n_scols] = rv[i];
+                ind++;
+            }
+        }
+    }
+
+    }
+    c.incr( (int64_t) (ptr + n_scols + (n_srows-1) * n_cols) / RNG::ctr_type::static_size);
+    return RNGState<RNG> {c, k};
+}
 
 template<typename T, typename RNG>
 RandBLAS::RNGState<RNG> fill_dense_submat(
