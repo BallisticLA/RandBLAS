@@ -525,7 +525,7 @@ class TestStateUpdate : public ::testing::Test
     }
     
     template<typename T>
-    static void test_identity_v2(
+    static void test_identity_trunc(
         uint32_t key,
         int64_t n_rows,
         int64_t n_cols
@@ -541,12 +541,11 @@ class TestStateUpdate : public ::testing::Test
         int64_t ptr = n_srows1 * n_cols;
 
         auto state = RandBLAS::RNGState(key);
-        auto stater = RandBLAS::RNGState(key);
-        auto state1 = RandBLAS::RNGState(key);
-        auto next_state = RandBLAS::fill_dense_submat_impl<T, r123::Philox4x32,r123ext::boxmul>(n_cols, A.data(), n_srows1, n_cols, 0, state);
-        RandBLAS::fill_dense_submat_impl<T, r123::Philox4x32,r123ext::boxmul>(n_cols, A.data() + ptr, n_srows2, n_cols, n_srows1*n_cols  % 4, next_state);
 
-        RandBLAS::fill_dense_submat_impl<T, r123::Philox4x32,r123ext::boxmul>(n_cols, B.data(), n_rows, n_cols, 0, state);
+        auto next_state = RandBLAS::fill_dense_submat_trunc<T, r123::Philox4x32,r123ext::boxmul>(n_cols, A.data(), n_srows1, n_cols, 0, state);
+        RandBLAS::fill_dense_submat_trunc<T, r123::Philox4x32,r123ext::boxmul>(n_cols, A.data() + ptr, n_srows2, n_cols, 0, next_state);
+
+        RandBLAS::fill_dense_rmat_trunc<T, r123::Philox4x32,r123ext::boxmul>(B.data(), n_rows, n_cols, state);
 
         for (int i = 0; i < size; i++) {
             total += abs(A[i] - B[i]);
@@ -570,10 +569,10 @@ TEST_F(TestStateUpdate, Gaussian_identity)
 {
     for (uint32_t key : {0, 1, 2}) {
         auto dn = RandBLAS::DenseDistName::Gaussian;
-        test_identity_v2<double>(key, 13, 7);
-        test_identity_v2<double>(key, 80, 40);
-        test_identity_v2<double>(key, 83, 41);
-        test_identity_v2<double>(key, 89, 43);
-        test_identity_v2<double>(key, 97, 47);
+        test_identity_trunc<double>(key, 13, 7);
+        test_identity_trunc<double>(key, 80, 40);
+        test_identity_trunc<double>(key, 41, 83);
+        test_identity_trunc<double>(key, 43, 91);
+        test_identity_trunc<double>(key, 97, 47);
     }
 }

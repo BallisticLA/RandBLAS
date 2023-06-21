@@ -383,7 +383,9 @@ static RandBLAS::RNGState<RNG> fill_dense_submat_trunc(
     }
 
     }
-    c.incr( (int64_t) (ptr + n_scols + (n_srows-1) * n_cols) / RNG::ctr_type::static_size);
+    int64_t last_ptr = ptr + n_scols-1 + (n_srows-1)*n_cols;
+    int64_t last_ptr_padded = last_ptr + last_ptr/n_cols * pad;
+    c.incr(last_ptr_padded / RNG::ctr_type::static_size + 1);
     return RNGState<RNG> {c, k};
 }
 
