@@ -421,36 +421,6 @@ class TestStateUpdate : public ::testing::Test
         ASSERT_TRUE(total == 0.0);
     }
     
-    /*template<typename T>
-    static void test_identity_trunc(
-        uint32_t key,
-        int64_t n_rows,
-        int64_t n_cols
-    ) {
-        // Allocate workspace
-        int64_t size = n_rows * n_cols;
-        std::vector<T> A(size, 0.0);
-        std::vector<T> B(size, 0.0);
-        double total = 0;
-
-        int64_t n_srows1 = n_rows / 2;
-        int64_t n_srows2 = n_rows - n_srows1;
-        int64_t ptr = n_srows1 * n_cols;
-
-        auto state = RandBLAS::RNGState(key);
-
-        auto next_state = RandBLAS::fill_dense_submat_impl<T, r123::Philox4x32,r123ext::boxmul>(n_cols, A.data(), n_srows1, n_cols, 0, state);
-        RandBLAS::fill_dense_submat_impl<T, r123::Philox4x32,r123ext::boxmul>(n_cols, A.data() + ptr, n_srows2, n_cols, 0, next_state);
-
-        RandBLAS_Testing::Util::fill_dense_rmat_trunc<T, r123::Philox4x32,r123ext::boxmul>(B.data(), n_rows, n_cols, state);
-
-        for (int i = 0; i < size; i++) {
-            total += abs(A[i] - B[i]);
-        }
-
-        ASSERT_TRUE(total == 0);
-
-    }*/
 };
 
 // For small matrix sizes, mean and stddev are not very close to desired vals.
