@@ -115,7 +115,7 @@ class TestSubmatGeneration : public ::testing::Test
         int stride = n_cols / 50; 
         T* mat  = new T[n_rows * n_cols];      
         T* smat = new T[n_srows * n_scols];
-        RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, mat, n_rows, n_cols, 0, seed);
+        RandBLAS_Testing::Util::fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
         int ind = 0; // used for indexing smat when comparing to rmat
         T total_error = 0;
         for (int nptr = ptr; nptr < n_cols*(n_rows-n_srows-1); nptr += stride*n_cols) {
@@ -147,7 +147,7 @@ class TestSubmatGeneration : public ::testing::Test
         int stride = n_cols / 50;
         T* mat  = new T[n_rows * n_cols];      
         T* smat = new T[n_srows * n_scols];
-        RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, mat, n_rows, n_cols, 0, seed);
+        RandBLAS_Testing::Util::fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
         int ind = 0; // variable used for indexing smat when comparing to rmat
         T total_error = 0;
         for (int nptr = ptr; nptr < (n_cols - n_scols - 1); nptr += stride) {
@@ -175,7 +175,7 @@ class TestSubmatGeneration : public ::testing::Test
     ) {
         T* mat  = new T[n_rows * n_cols];
         T* smat = new T[n_rows * n_cols]{};
-        RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, mat, n_rows, n_cols, 0, seed);
+        RandBLAS_Testing::Util::fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
         int ind = 0;
         T total_error = 0;
         int64_t n_scols = 1;
@@ -197,14 +197,15 @@ class TestSubmatGeneration : public ::testing::Test
         delete[] smat;
         EXPECT_EQ(total_error, 0);
     }
+
 };
 
 TEST_F(TestSubmatGeneration, col_wise)
 {
     int64_t n_rows = 100;
     int64_t n_cols = 2000;
-    int64_t n_srows = 40;
-    int64_t n_scols = 100;
+    int64_t n_srows = 41;
+    int64_t n_scols = 97;
     int64_t ptr = n_rows + 2;
     for (int k = 0; k < 3; k++) {
         RandBLAS::RNGState<r123::Philox4x32> seed(k);
@@ -335,4 +336,110 @@ TEST_F(TestFillAxis, long_axis_2x4) {
 
 TEST_F(TestFillAxis, short_axis_2x4) {
     auto_transpose<float>(2, 4, RandBLAS::MajorAxis::Short);
+}
+
+class TestStateUpdate : public ::testing::Test
+{
+    protected:
+
+    virtual void SetUp(){};
+
+    virtual void TearDown(){};
+
+    template <typename T>
+    static void test_var_mat_gen(
+        uint32_t key,
+        int64_t n_rows,
+        int64_t n_cols,
+        RandBLAS::DenseDistName dn
+    ) {
+        // Allocate workspace
+        int64_t size = n_rows * n_cols;
+        std::vector<T> A(size, 0.0);
+        std::vector<T> B(size, 0.0);
+
+        // Construct the sketching operator
+        RandBLAS::DenseDist D = {
+            .n_rows = n_rows,
+            .n_cols = n_cols,
+            .family = dn
+        };
+
+        auto state = RandBLAS::RNGState(key);
+        auto next_state = RandBLAS::fill_dense(D, A.data(), state);
+        RandBLAS::fill_dense(D, B.data(), next_state);
+
+        ASSERT_TRUE(!(A == B));
+    }
+
+    template <typename T>
+    static void test_identity(
+        uint32_t key,
+        int64_t n_rows,
+        int64_t n_cols,
+        RandBLAS::DenseDistName dn
+    ) {
+        // Allocate workspace
+        int64_t size = n_rows * n_cols;
+        std::vector<T> A(size, 0.0);
+        std::vector<T> B(size, 0.0);
+
+        double total = 0.0;
+
+        // Construct the sketching operator
+        RandBLAS::DenseDist D1 = {
+            .n_rows = n_rows,
+            .n_cols = n_cols / 2,
+            .family = dn
+        };
+
+        RandBLAS::DenseDist D3 = {
+            .n_rows = n_rows,
+            .n_cols = n_cols - n_cols / 2,
+            .family = dn
+        };
+
+        RandBLAS::DenseDist D2 = {
+            .n_rows = n_rows,
+            .n_cols = n_cols,
+            .family = dn
+        };
+
+        auto state = RandBLAS::RNGState(key);
+        auto state1 = RandBLAS::RNGState(key);
+
+        // Concatenates two matrices generated from state and next_state
+        auto next_state = RandBLAS::fill_dense(D1, A.data(), state);
+        RandBLAS::fill_dense(D3, A.data() + (int64_t) (D1.n_rows * D1.n_cols), next_state);
+
+        RandBLAS::fill_dense(D2, B.data(), state1);
+
+        for (int i = 0; i < size; i++) {
+            total += abs(A[i] - B[i]);
+        }
+        
+        ASSERT_TRUE(total == 0.0);
+    }
+    
+};
+
+// For small matrix sizes, mean and stddev are not very close to desired vals.
+TEST_F(TestStateUpdate, Gaussian_var_gen)
+{
+    for (uint32_t key : {0, 1, 2}) {
+        auto dn = RandBLAS::DenseDistName::Gaussian;
+        test_var_mat_gen<double>(key, 100, 50, dn);
+    }
+}
+
+TEST_F(TestStateUpdate, Gaussian_identity)
+{
+    for (uint32_t key : {0, 1, 2}) {
+        auto dn = RandBLAS::DenseDistName::Gaussian;
+        test_identity<double>(key, 13, 7, dn);
+        test_identity<double>(key, 80, 40, dn);
+        test_identity<double>(key, 83, 41, dn);
+        test_identity<double>(key, 91, 43, dn);
+        test_identity<double>(key, 97, 47, dn);
+    }
 }

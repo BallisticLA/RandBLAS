@@ -23,6 +23,45 @@
 
 namespace RandBLAS_Testing::Util {
 
+
+//Function that fills in a random matrix and truncates at the end of each row so that each row starts with a fresh counter.
+template<typename T, typename RNG, typename OP>
+static void fill_dense_rmat_trunc(
+    T* mat,
+    int64_t n_rows,
+    int64_t n_cols,
+    const RandBLAS::RNGState<RNG> & seed
+) {
+
+    RNG rng;
+    typename RNG::ctr_type c = seed.counter;
+    typename RNG::key_type k = seed.key;
+    
+    int ind = 0;
+    int cts = n_cols / RNG::ctr_type::static_size; //number of counters per row, where all the random numbers are to be filled in the array.
+    int res = n_cols % RNG::ctr_type::static_size; //Number of random numbers to be filled at the end of each row the the last counter of the row
+
+    for (int i = 0; i < n_rows; i++) {
+        for (int ctr = 0; ctr < cts; ctr++){
+            auto rv = OP::generate(rng, c, k);
+            for (int j = 0; j < RNG::ctr_type::static_size; j++) {
+                mat[ind] = rv[j];
+                ind++;
+            }
+            c.incr();
+        }
+        if (res != 0) { 
+            for (int j = 0; j < res; j++) {
+                auto rv = OP::generate(rng, c, k);
+                mat[ind] = rv[j];
+                ind++;
+            }
+            c.incr();
+        }
+    }
+}
+
+
 template <class T>
 std::string type_name() { // call as type_name<obj>()
     typedef typename std::remove_reference<T>::type TR;

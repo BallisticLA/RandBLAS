@@ -201,35 +201,45 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
  * @returns the updated CBRNG state
  */
 template<typename T, typename RNG, typename OP>
-static auto fill_dense_submat_impl(
+static RandBLAS::RNGState<RNG> fill_dense_submat_impl(
     int64_t n_cols,
     T* smat,
     int64_t n_srows,
     int64_t n_scols,
     int64_t ptr,
-    const RNGState<RNG> & seed
+    const RandBLAS::RNGState<RNG> & seed
 ) {
     RNG rng;
     typename RNG::ctr_type c = seed.counter;
     typename RNG::key_type k = seed.key;
+    
+    int64_t pad = 0; //Pad computed such that  n_cols+pad is divisible by RNG::static_size
+    if (n_cols % RNG::ctr_type::static_size != 0) {
+        pad = RNG::ctr_type::static_size - n_cols % RNG::ctr_type::static_size;
+    }
 
-    int64_t i0, i1, r0, r1, s0, e1;
+    int64_t n_cols_padded = n_cols + pad; //Smallest number of columns, greater than or equal to n_cols, that would be divisible by RNG::ctr_type::static_size 
+    int64_t ptr_padded = ptr + ptr / n_cols * pad; //Ptr corresponding to the padded matrix
+    int64_t r0_padded = ptr_padded / RNG::ctr_type::static_size; //starting counter corresponding to ptr_padded 
+    int64_t r1_padded = (ptr_padded + n_scols - 1) / RNG::ctr_type::static_size; //ending counter corresponding to ptr of the last element of the row
+    int64_t ctr_gap = n_cols_padded / RNG::ctr_type::static_size; //Number of counters between the first counter of the row to the first counter of the next row;
+    int64_t s0 = ptr_padded % RNG::ctr_type::static_size; 
+    int64_t e1 = (ptr_padded + n_scols - 1) % RNG::ctr_type::static_size;
+
+    #pragma omp parallel firstprivate(c, k)
+    {
+
+    auto cc = c;
     int64_t prev = 0;
     int64_t i;
+    int64_t r0, r1;
+    int64_t ind;
 
-    #pragma omp parallel firstprivate(c, k) private(i0, i1, r0, r1, s0, e1, prev, i)
-    {
-    auto cc = c;
-    prev = 0;
     #pragma omp for
     for (int row = 0; row < n_srows; row++) {
-        int64_t ind = 0;
-        i0 = ptr + row * n_cols; // start index in each row
-        i1 = ptr + row * n_cols + n_scols - 1; // end index in each row
-        r0 = (int64_t) i0 / RNG::ctr_type::static_size; // start counter
-        r1 = (int64_t) i1 / RNG::ctr_type::static_size; // end counter
-        s0 = i0 % RNG::ctr_type::static_size;
-        e1 = i1 % RNG::ctr_type::static_size;
+        ind = 0;
+        r0 = r0_padded + ctr_gap*row;
+        r1 = r1_padded + ctr_gap*row; 
 
         cc.incr(r0 - prev);
         prev = r0;
@@ -239,7 +249,6 @@ static auto fill_dense_submat_impl(
             smat[ind + row*n_scols] = rv[i];
             ind++;
         }
-
         // middle 
         int64_t tmp = r0;
         while( tmp < r1 - 1) {
@@ -266,9 +275,12 @@ static auto fill_dense_submat_impl(
     }
 
     }
-    return RNGState<RNG> {c, k};
-} 
+    int64_t last_ptr = ptr + n_scols-1 + (n_srows-1)*n_cols;
+    int64_t last_ptr_padded = last_ptr + last_ptr/n_cols * pad;
+    c.incr(last_ptr_padded / RNG::ctr_type::static_size + 1);
 
+    return RNGState<RNG> {c, k};
+}
 
 template<typename T, typename RNG>
 RandBLAS::RNGState<RNG> fill_dense_submat(
