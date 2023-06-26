@@ -201,115 +201,7 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
  * @returns the updated CBRNG state
  */
 template<typename T, typename RNG, typename OP>
-static auto fill_dense_submat_impl(
-    int64_t n_cols,
-    T* smat,
-    int64_t n_srows,
-    int64_t n_scols,
-    int64_t ptr,
-    const RNGState<RNG> & seed
-) {
-    RNG rng;
-    typename RNG::ctr_type c = seed.counter;
-    typename RNG::key_type k = seed.key;
-
-    int64_t i0, i1, r0, r1, s0, e1;
-    int64_t prev = 0;
-    int64_t i;
-
-    #pragma omp parallel firstprivate(c, k) private(i0, i1, r0, r1, s0, e1, prev, i)
-    {
-    auto cc = c;
-    prev = 0;
-    #pragma omp for
-    for (int row = 0; row < n_srows; row++) {
-        int64_t ind = 0;
-        i0 = ptr + row * n_cols; // start index in each row
-        i1 = ptr + row * n_cols + n_scols - 1; // end index in each row
-        r0 = (int64_t) i0 / RNG::ctr_type::static_size; // start counter
-        r1 = (int64_t) i1 / RNG::ctr_type::static_size; // end counter
-        s0 = i0 % RNG::ctr_type::static_size;
-        e1 = i1 % RNG::ctr_type::static_size;
-
-        cc.incr(r0 - prev);
-        prev = r0;
-        auto rv =  OP::generate(rng, cc, k);
-        int64_t range = (r1 > r0)? RNG::ctr_type::static_size-1 : e1;
-        for (i = s0; i <= range; i++) {
-            smat[ind + row*n_scols] = rv[i];
-            ind++;
-        }
-
-        // middle 
-        int64_t tmp = r0;
-        while( tmp < r1 - 1) {
-            cc.incr();
-            prev++;
-            rv = OP::generate(rng, cc, k);
-            for (i = 0; i < RNG::ctr_type::static_size; i++) {
-                smat[ind + row*n_scols] = rv[i];
-                ind++;
-            }
-            tmp++;
-        }
-
-        // end
-        if ( r1 > r0 ){
-            cc.incr();
-            prev++;
-            rv = OP::generate(rng, cc, k);
-            for (i = 0; i <= e1; i++) {
-                smat[ind + row*n_scols] = rv[i];
-                ind++;
-            }
-        }
-    }
-
-    }
-    c.incr( (int64_t) (ptr + n_scols + (n_srows-1) * n_cols) / RNG::ctr_type::static_size);
-    return RNGState<RNG> {c, k};
-} 
-
-//Function that fills in a random matrix and truncates at the end of each row so that each row starts with a fresh counter.
-template<typename T, typename RNG, typename OP>
-static void fill_dense_rmat_trunc(
-    T* mat,
-    int64_t n_rows,
-    int64_t n_cols,
-    const RandBLAS::RNGState<RNG> & seed
-) {
-
-    RNG rng;
-    typename RNG::ctr_type c = seed.counter;
-    typename RNG::key_type k = seed.key;
-    
-    int ind = 0;
-    int cts = n_cols / RNG::ctr_type::static_size; //number of counters per row, where all the random numbers are to be filled in the array.
-    int res = n_cols % RNG::ctr_type::static_size; //Number of random numbers to be filled at the end of each row the the last counter of the row
-
-    for (int i = 0; i < n_rows; i++) {
-        for (int ctr = 0; ctr < cts; ctr++){
-            auto rv = OP::generate(rng, c, k);
-            for (int j = 0; j < RNG::ctr_type::static_size; j++) {
-                mat[ind] = rv[j];
-                ind++;
-            }
-            c.incr();
-        }
-        if (res != 0) { 
-            for (int j = 0; j < res; j++) {
-                auto rv = OP::generate(rng, c, k);
-                mat[ind] = rv[j];
-                ind++;
-            }
-            c.incr();
-        }
-    }
-}
-
-//Funciton that generates submatrices given that the whole random matrix follows the truncation scheme described by fill_dense_rmat_trunc
-template<typename T, typename RNG, typename OP>
-static RandBLAS::RNGState<RNG> fill_dense_submat_trunc(
+static RandBLAS::RNGState<RNG> fill_dense_submat_impl(
     int64_t n_cols,
     T* smat,
     int64_t n_srows,
@@ -386,6 +278,7 @@ static RandBLAS::RNGState<RNG> fill_dense_submat_trunc(
     int64_t last_ptr = ptr + n_scols-1 + (n_srows-1)*n_cols;
     int64_t last_ptr_padded = last_ptr + last_ptr/n_cols * pad;
     c.incr(last_ptr_padded / RNG::ctr_type::static_size + 1);
+
     return RNGState<RNG> {c, k};
 }
 

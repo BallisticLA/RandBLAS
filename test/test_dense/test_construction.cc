@@ -115,7 +115,7 @@ class TestSubmatGeneration : public ::testing::Test
         int stride = n_cols / 50; 
         T* mat  = new T[n_rows * n_cols];      
         T* smat = new T[n_srows * n_scols];
-        RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, mat, n_rows, n_cols, 0, seed);
+        RandBLAS_Testing::Util::fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
         int ind = 0; // used for indexing smat when comparing to rmat
         T total_error = 0;
         for (int nptr = ptr; nptr < n_cols*(n_rows-n_srows-1); nptr += stride*n_cols) {
@@ -134,39 +134,6 @@ class TestSubmatGeneration : public ::testing::Test
         delete[] smat;
         EXPECT_EQ(total_error, 0); //Submatrices are equal if each entry is bitwise the same
     }
-
-    template<typename T, typename RNG, typename OP>
-    static void test_colwise_smat_gen_trunc(
-        int64_t n_cols,
-        int64_t n_rows, 
-        int64_t n_scols,
-        int64_t n_srows,
-        int64_t ptr,
-        const RandBLAS::RNGState<RNG> &seed
-    ) {
-        int stride = n_cols / 50; 
-        T* mat  = new T[n_rows * n_cols];      
-        T* smat = new T[n_srows * n_scols];
-        RandBLAS::fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
-        int ind = 0; // used for indexing smat when comparing to rmat
-        T total_error = 0;
-        for (int nptr = ptr; nptr < n_cols*(n_rows-n_srows-1); nptr += stride*n_cols) {
-            // ^ Loop through various pointer locations.- goes down the random matrix by amount stride.
-            RandBLAS::fill_dense_submat_trunc<T,RNG,OP>(n_cols, smat, n_srows, n_scols, nptr, seed);
-            ind = 0;
-            for (int i = 0; i<n_srows; i++) {
-                // ^ Loop through entries of the submatrix
-                for (int j = 0; j<n_scols; j++) {
-                    total_error += abs(smat[ind] - mat[nptr + i*n_cols + j]); 
-                    ind++;
-                }
-            }
-        }
-        delete[] mat;
-        delete[] smat;
-        EXPECT_EQ(total_error, 0); //Submatrices are equal if each entry is bitwise the same
-    }
-
 
     template<typename T, typename RNG, typename OP>
     static void test_rowwise_smat_gen(
@@ -180,44 +147,12 @@ class TestSubmatGeneration : public ::testing::Test
         int stride = n_cols / 50;
         T* mat  = new T[n_rows * n_cols];      
         T* smat = new T[n_srows * n_scols];
-        RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, mat, n_rows, n_cols, 0, seed);
+        RandBLAS_Testing::Util::fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
         int ind = 0; // variable used for indexing smat when comparing to rmat
         T total_error = 0;
         for (int nptr = ptr; nptr < (n_cols - n_scols - 1); nptr += stride) {
             // ^ Loop through various pointer locations.- goes across the random matrix by amount stride.
             RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, smat, n_srows, n_scols, nptr, seed);
-            ind = 0;
-            for (int i = 0; i<n_srows; i++) {
-                // ^ Loop through entries of the submatrix
-                for (int j = 0; j<n_scols; j++) {
-                    total_error += abs(smat[ind] - mat[nptr + i*n_cols + j]);
-                    ind++;
-                }
-            }
-        }
-        delete[] mat;
-        delete[] smat;
-        EXPECT_EQ(total_error, 0);
-    }
-
-    template<typename T, typename RNG, typename OP>
-    static void test_rowwise_smat_gen_trunc(
-        int64_t n_cols,
-        int64_t n_rows, 
-        int64_t n_scols,
-        int64_t n_srows,
-        int64_t ptr,
-        const RandBLAS::RNGState<RNG> &seed
-    ) {
-        int stride = n_cols / 50;
-        T* mat  = new T[n_rows * n_cols];      
-        T* smat = new T[n_srows * n_scols];
-        RandBLAS::fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
-        int ind = 0; // variable used for indexing smat when comparing to rmat
-        T total_error = 0;
-        for (int nptr = ptr; nptr < (n_cols - n_scols - 1); nptr += stride) {
-            // ^ Loop through various pointer locations.- goes across the random matrix by amount stride.
-            RandBLAS::fill_dense_submat_trunc<T,RNG,OP>(n_cols, smat, n_srows, n_scols, nptr, seed);
             ind = 0;
             for (int i = 0; i<n_srows; i++) {
                 // ^ Loop through entries of the submatrix
@@ -240,7 +175,7 @@ class TestSubmatGeneration : public ::testing::Test
     ) {
         T* mat  = new T[n_rows * n_cols];
         T* smat = new T[n_rows * n_cols]{};
-        RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, mat, n_rows, n_cols, 0, seed);
+        RandBLAS_Testing::Util::fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
         int ind = 0;
         T total_error = 0;
         int64_t n_scols = 1;
@@ -248,37 +183,6 @@ class TestSubmatGeneration : public ::testing::Test
         for (int ptr = 0; ptr + n_scols + n_cols*n_srows < n_cols*n_rows; ptr += n_rows+1) { // Loop through the diagonal of the matrix
             RandBLAS::util::safe_scal(n_srows * n_scols, (T) 0.0, smat, 1);
             RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, smat, n_srows, n_scols, ptr, seed);
-            ind = 0;
-            for (int i = 0; i<n_srows; i++) { // Loop through entries of the submatrix
-                for (int j = 0; j<n_scols; j++) {
-                    total_error += abs(smat[ind] - mat[ptr + i*n_cols + j]);
-                    ind++;
-                }
-            }
-            n_scols++; // At each iteration the dimension of the submat increases
-            n_srows++;
-        }
-        delete[] mat;
-        delete[] smat;
-        EXPECT_EQ(total_error, 0);
-    }
-
-    template<typename T, typename RNG, typename OP>
-    static void test_diag_smat_gen_trunc(
-        int64_t n_cols,
-        int64_t n_rows,
-        const RandBLAS::RNGState<RNG> &seed
-    ) {
-        T* mat  = new T[n_rows * n_cols];
-        T* smat = new T[n_rows * n_cols]{};
-        RandBLAS::fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
-        int ind = 0;
-        T total_error = 0;
-        int64_t n_scols = 1;
-        int64_t n_srows = 1;
-        for (int ptr = 0; ptr + n_scols + n_cols*n_srows < n_cols*n_rows; ptr += n_rows+1) { // Loop through the diagonal of the matrix
-            RandBLAS::util::safe_scal(n_srows * n_scols, (T) 0.0, smat, 1);
-            RandBLAS::fill_dense_submat_trunc<T,RNG,OP>(n_cols, smat, n_srows, n_scols, ptr, seed);
             ind = 0;
             for (int i = 0; i<n_srows; i++) { // Loop through entries of the submatrix
                 for (int j = 0; j<n_scols; j++) {
@@ -306,7 +210,6 @@ TEST_F(TestSubmatGeneration, col_wise)
     for (int k = 0; k < 3; k++) {
         RandBLAS::RNGState<r123::Philox4x32> seed(k);
         test_colwise_smat_gen<float, r123::Philox4x32, r123ext::uneg11>(n_cols, n_rows, n_scols, n_srows, ptr, seed);
-        test_colwise_smat_gen_trunc<float, r123::Philox4x32, r123ext::uneg11>(n_cols, n_rows, n_scols, n_srows, ptr, seed);
     }
 }
 
@@ -320,7 +223,6 @@ TEST_F(TestSubmatGeneration, row_wise)
     for (int k = 0; k < 3; k++) {
         RandBLAS::RNGState<r123::Philox4x32> seed(k);
         test_rowwise_smat_gen<float, r123::Philox4x32, r123ext::uneg11>(n_cols, n_rows, n_scols, n_srows, ptr, seed);
-        test_rowwise_smat_gen_trunc<float, r123::Philox4x32, r123ext::uneg11>(n_cols, n_rows, n_scols, n_srows, ptr, seed);
     }
 }
 
@@ -331,7 +233,6 @@ TEST_F(TestSubmatGeneration, diag)
     for (int k = 0; k < 3; k++) {
         RandBLAS::RNGState<r123::Philox4x32> seed(k);
         test_diag_smat_gen<float, r123::Philox4x32, r123ext::uneg11>(n_cols, n_rows, seed);
-        test_diag_smat_gen_trunc<float, r123::Philox4x32, r123ext::uneg11>(n_cols, n_rows, seed);
     }
 }
 
@@ -542,10 +443,10 @@ class TestStateUpdate : public ::testing::Test
 
         auto state = RandBLAS::RNGState(key);
 
-        auto next_state = RandBLAS::fill_dense_submat_trunc<T, r123::Philox4x32,r123ext::boxmul>(n_cols, A.data(), n_srows1, n_cols, 0, state);
-        RandBLAS::fill_dense_submat_trunc<T, r123::Philox4x32,r123ext::boxmul>(n_cols, A.data() + ptr, n_srows2, n_cols, 0, next_state);
+        auto next_state = RandBLAS::fill_dense_submat_impl<T, r123::Philox4x32,r123ext::boxmul>(n_cols, A.data(), n_srows1, n_cols, 0, state);
+        RandBLAS::fill_dense_submat_impl<T, r123::Philox4x32,r123ext::boxmul>(n_cols, A.data() + ptr, n_srows2, n_cols, 0, next_state);
 
-        RandBLAS::fill_dense_rmat_trunc<T, r123::Philox4x32,r123ext::boxmul>(B.data(), n_rows, n_cols, state);
+        RandBLAS_Testing::Util::fill_dense_rmat_trunc<T, r123::Philox4x32,r123ext::boxmul>(B.data(), n_rows, n_cols, state);
 
         for (int i = 0; i < size; i++) {
             total += abs(A[i] - B[i]);
