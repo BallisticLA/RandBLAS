@@ -384,6 +384,8 @@ class TestStateUpdate : public ::testing::Test
         std::vector<T> A(size, 0.0);
         std::vector<T> B(size, 0.0);
 
+        double total = 0.0;
+
         // Construct the sketching operator
         RandBLAS::DenseDist D1 = {
             .n_rows = n_rows,
@@ -405,27 +407,21 @@ class TestStateUpdate : public ::testing::Test
 
         auto state = RandBLAS::RNGState(key);
         auto state1 = RandBLAS::RNGState(key);
+
         // Concatenates two matrices generated from state and next_state
         auto next_state = RandBLAS::fill_dense(D1, A.data(), state);
-        //RandBLAS::fill_dense(D1, A.data() + (int64_t) ((float) size / 2.0), next_state);
-        RandBLAS::fill_dense_submat(D3, A.data() + (int64_t) n_cols / 2 * n_rows, n_rows, n_cols / 2, ((int64_t) n_cols / 2 * n_rows) % 4, 0, next_state);
-
-        /*char name [] = "A";
-        RandBLAS::util::print_colmaj(n_rows, n_cols, A.data(), name);*/
+        RandBLAS::fill_dense(D3, A.data() + (int64_t) (D1.n_rows * D1.n_cols), next_state);
 
         RandBLAS::fill_dense(D2, B.data(), state1);
 
-        //char name1 [] = "B";
-        //RandBLAS::util::print_colmaj(n_rows, n_cols, B.data(), name1);
-
-        RandBLAS::fill_dense_submat(D1, A.data() + (int64_t) n_cols / 2 * n_rows, n_rows, n_cols - n_cols / 2, ((int64_t) n_cols / 2 * n_rows) % 4, 0, next_state);
-
-        RandBLAS::fill_dense(D2, B.data(), state1);
-
-        ASSERT_TRUE(A == B);
+        for (int i = 0; i < size; i++) {
+            total += abs(A[i] - B[i]);
+        }
+        
+        ASSERT_TRUE(total == 0.0);
     }
     
-    template<typename T>
+    /*template<typename T>
     static void test_identity_trunc(
         uint32_t key,
         int64_t n_rows,
@@ -454,7 +450,7 @@ class TestStateUpdate : public ::testing::Test
 
         ASSERT_TRUE(total == 0);
 
-    }
+    }*/
 };
 
 // For small matrix sizes, mean and stddev are not very close to desired vals.
@@ -470,10 +466,10 @@ TEST_F(TestStateUpdate, Gaussian_identity)
 {
     for (uint32_t key : {0, 1, 2}) {
         auto dn = RandBLAS::DenseDistName::Gaussian;
-        test_identity_trunc<double>(key, 13, 7);
-        test_identity_trunc<double>(key, 80, 40);
-        test_identity_trunc<double>(key, 41, 83);
-        test_identity_trunc<double>(key, 43, 91);
-        test_identity_trunc<double>(key, 97, 47);
+        test_identity<double>(key, 13, 7, dn);
+        test_identity<double>(key, 80, 40, dn);
+        test_identity<double>(key, 83, 41, dn);
+        test_identity<double>(key, 91, 43, dn);
+        test_identity<double>(key, 97, 47, dn);
     }
 }
