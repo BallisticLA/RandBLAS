@@ -240,7 +240,7 @@ static RandBLAS::RNGState<RNG> fill_dense_submat_impl(
     int64_t s0 = ptr_padded % RNG::ctr_type::static_size; 
     int64_t e1 = (ptr_padded + n_scols - 1) % RNG::ctr_type::static_size;
 
-    int64_t num_thrds;
+    int64_t num_thrds = 1;;
     #pragma omp parallel 
     {
         num_thrds = omp_get_num_threads();
@@ -260,8 +260,10 @@ static RandBLAS::RNGState<RNG> fill_dense_submat_impl(
 
     #pragma omp for
     for (int row = 0; row < n_srows; row++) {
-        thrd = omp_get_thread_num();
-        thrd_arr[thrd] = thrd;
+        #if defined(_OPENMP)
+            thrd = omp_get_thread_num();
+            thrd_arr[thrd] = thrd;
+        #endif  
 
         ind = 0;
         r0 = r0_padded + ctr_gap*row;
