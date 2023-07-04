@@ -72,7 +72,19 @@ void print_colmaj(int64_t n_rows, int64_t n_cols, T *a, char label[])
     return;
 }
 
-
+template<typename RNG>
+bool compare_ctr(typename RNG::ctr_type c1, typename RNG::ctr_type c2) {
+    int len = c1.size();
+    
+    for (int ind = len - 1; ind >= 0; ind--) {
+        if (c1[ind] > c2[ind]) {
+            return true;
+        } else if (c1[ind] < c2[ind]) {
+            return false;
+        }
+    }
+    return false;
+}
 
 
 } // end namespace RandBLAS::util
