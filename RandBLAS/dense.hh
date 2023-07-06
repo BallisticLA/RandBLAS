@@ -258,12 +258,14 @@ static RandBLAS::RNGState<RNG> fill_dense_submat_impl(
     int64_t i;
     int64_t r0, r1;
     int64_t ind;
-    int64_t thrd;
+    int64_t thrd = 0;
 
     #pragma omp for
     for (int row = 0; row < n_srows; row++) {
 #if defined(RandBLAS_HAS_OpenMP)
             thrd = omp_get_thread_num();
+            thrd_arr[thrd] = thrd;
+#else
             thrd_arr[thrd] = thrd;
 #endif
 
