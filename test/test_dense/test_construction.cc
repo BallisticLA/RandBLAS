@@ -420,6 +420,45 @@ class TestStateUpdate : public ::testing::Test
         
         ASSERT_TRUE(total == 0.0);
     }
+
+    template<typename RNG>
+    static void test_finalstate(
+        uint32_t key,
+        int64_t n_rows,
+        int64_t n_cols,
+        RandBLAS::DenseDistName dn
+    ) {
+        int total = 0;
+        int buff[n_rows*n_cols];
+        auto state = RandBLAS::RNGState(key);
+        auto state_copy = RandBLAS::RNGState(key);
+
+        RandBLAS::DenseDist D = {
+            .n_rows = n_rows,
+            .n_cols = n_cols,
+            .family = dn
+        };
+
+        typename RNG::ctr_type c_ref = state_copy.counter;
+
+        auto final_state = RandBLAS::dense::fill_dense(D, buff, state);
+        auto c = final_state.counter;
+        int c_len = c.size();
+
+        int64_t pad = 0; //Pad computed such that  n_cols+pad is divisible by RNG::static_size
+        if (n_rows % RNG::ctr_type::static_size != 0) {
+            pad = RNG::ctr_type::static_size - n_rows % RNG::ctr_type::static_size;
+        }
+        int64_t last_ptr = n_rows-1 + (n_cols-1)*n_rows;
+        int64_t last_ptr_padded = last_ptr + last_ptr/n_rows * pad;
+        c_ref.incr(last_ptr_padded / RNG::ctr_type::static_size + 1); 
+
+        for (int i = 0; i < c_len; i++) {
+            total += c[i] - c_ref[i];
+        }
+
+        ASSERT_TRUE(total == 0);
+    }
     
 };
 
@@ -441,5 +480,17 @@ TEST_F(TestStateUpdate, Gaussian_identity)
         test_identity<double>(key, 83, 41, dn);
         test_identity<double>(key, 91, 43, dn);
         test_identity<double>(key, 97, 47, dn);
+    }
+}
+
+TEST_F(TestStateUpdate, Final_State)
+{
+    for (uint32_t key : {0, 1, 2}) {
+        auto dn = RandBLAS::DenseDistName::Gaussian;
+        test_finalstate<r123::Philox4x32>(key, 13, 7, dn);
+        test_finalstate<r123::Philox4x32>(key, 11, 5, dn);
+        test_finalstate<r123::Philox4x32>(key, 131, 71, dn);
+        test_finalstate<r123::Philox4x32>(key, 80, 40, dn);
+        test_finalstate<r123::Philox4x32>(key, 91, 43, dn);
     }
 }
