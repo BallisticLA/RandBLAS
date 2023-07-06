@@ -177,6 +177,20 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
     }
 }
 
+template<typename RNG>
+bool compare_ctr(typename RNG::ctr_type c1, typename RNG::ctr_type c2) {
+    int len = c1.size();
+    
+    for (int ind = len - 1; ind >= 0; ind--) {
+        if (c1[ind] > c2[ind]) {
+            return true;
+        } else if (c1[ind] < c2[ind]) {
+            return false;
+        }
+    }
+    return false;
+}
+
 /** Fill a n_srows \times n_scols submatrix with random values starting at a pointer, from a n_rows \times n_cols random matrix. 
  * Assumes that the random matrix and the submatrix are row major.
  * If RandBLAS is compiled with OpenMP threading support enabled, the operation is
@@ -226,6 +240,16 @@ static RandBLAS::RNGState<RNG> fill_dense_submat_impl(
     int64_t s0 = ptr_padded % RNG::ctr_type::static_size; 
     int64_t e1 = (ptr_padded + n_scols - 1) % RNG::ctr_type::static_size;
 
+    int64_t num_thrds = 1;
+#if defined(RandBLAS_HAS_OpenMP)
+    #pragma omp parallel 
+    {
+        num_thrds = omp_get_num_threads();
+    }
+#endif
+    typename RNG::ctr_type ctr_arr[num_thrds];
+    int thrd_arr[8] = { 0 };
+
     #pragma omp parallel firstprivate(c, k)
     {
 
@@ -234,9 +258,17 @@ static RandBLAS::RNGState<RNG> fill_dense_submat_impl(
     int64_t i;
     int64_t r0, r1;
     int64_t ind;
+    int64_t thrd = 0;
 
     #pragma omp for
     for (int row = 0; row < n_srows; row++) {
+#if defined(RandBLAS_HAS_OpenMP)
+            thrd = omp_get_thread_num();
+            thrd_arr[thrd] = thrd;
+#else
+            thrd_arr[thrd] = thrd;
+#endif
+
         ind = 0;
         r0 = r0_padded + ctr_gap*row;
         r1 = r1_padded + ctr_gap*row; 
@@ -272,14 +304,31 @@ static RandBLAS::RNGState<RNG> fill_dense_submat_impl(
                 ind++;
             }
         }
+        ctr_arr[thrd] = cc;
     }
 
     }
-    int64_t last_ptr = ptr + n_scols-1 + (n_srows-1)*n_cols;
+
+    int max_thrd = thrd_arr[0];
+    for (int i = 1; i < num_thrds; i++) {
+        if (thrd_arr[i] > max_thrd) {
+            max_thrd = thrd_arr[i];
+        }
+    }
+
+    typename RNG::ctr_type max_c = ctr_arr[0];
+    for (int i = 1; i < max_thrd+1; i++) {  
+        if (compare_ctr<RNG>(ctr_arr[i], max_c) == true) {
+            max_c = ctr_arr[i];
+        }
+    }
+
+    /*int64_t last_ptr = ptr + n_scols-1 + (n_srows-1)*n_cols;
     int64_t last_ptr_padded = last_ptr + last_ptr/n_cols * pad;
-    c.incr(last_ptr_padded / RNG::ctr_type::static_size + 1);
+    c.incr(last_ptr_padded / RNG::ctr_type::static_size + 1);*/
 
-    return RNGState<RNG> {c, k};
+    max_c.incr();
+    return RNGState<RNG> {max_c, k};
 }
 
 template<typename T, typename RNG>
