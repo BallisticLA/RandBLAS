@@ -250,7 +250,9 @@ static RandBLAS::RNGState<RNG> fill_dense_submat_impl(
 
     //Instead of using thrd_arr just initialize ctr_arr to be zero counters;
     typename RNG::ctr_type ctr_arr[num_thrds];
-    int thrd_arr[8] = { 0 };
+    for (int i = 0; i < num_thrds; i++) {
+        ctr_arr[i] = c;
+    }
 
     #pragma omp parallel firstprivate(c, k)
     {
@@ -264,12 +266,10 @@ static RandBLAS::RNGState<RNG> fill_dense_submat_impl(
 
     #pragma omp for
     for (int row = 0; row < n_srows; row++) {
-#if defined(RandBLAS_HAS_OpenMP)
-            thrd = omp_get_thread_num();
-            thrd_arr[thrd] = thrd;
-#else
-            thrd_arr[thrd] = thrd;
-#endif
+        
+    #if defined(RandBLAS_HAS_OpenMP)
+        thrd = omp_get_thread_num();
+    #endif
 
         ind = 0;
         r0 = r0_padded + ctr_gap*row;
@@ -311,18 +311,9 @@ static RandBLAS::RNGState<RNG> fill_dense_submat_impl(
 
     }
     
-    //max_thrd is represents the number of threads that were used in the parallel for loop.
-    //The number of threads used in the parallel for loop is not necesarrily equal to num_threads, especially if the matrix is small.
-    int max_thrd = thrd_arr[0];
-    for (int i = 1; i < num_thrds; i++) {
-        if (thrd_arr[i] > max_thrd) {
-            max_thrd = thrd_arr[i];
-        }
-    }
-
     //finds the largest counter in the counter array
     typename RNG::ctr_type max_c = ctr_arr[0];
-    for (int i = 1; i < max_thrd+1; i++) {  
+    for (int i = 1; i < num_thrds; i++) {  
         if (compare_ctr<RNG>(ctr_arr[i], max_c)) {
             max_c = ctr_arr[i];
         }
