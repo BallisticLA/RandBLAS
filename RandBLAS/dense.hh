@@ -247,6 +247,8 @@ static RandBLAS::RNGState<RNG> fill_dense_submat_impl(
         num_thrds = omp_get_num_threads();
     }
 #endif
+
+    //Instead of using thrd_arr just initialize ctr_arr to be zero counters;
     typename RNG::ctr_type ctr_arr[num_thrds];
     int thrd_arr[8] = { 0 };
 
@@ -321,7 +323,7 @@ static RandBLAS::RNGState<RNG> fill_dense_submat_impl(
     //finds the largest counter in the counter array
     typename RNG::ctr_type max_c = ctr_arr[0];
     for (int i = 1; i < max_thrd+1; i++) {  
-        if (compare_ctr<RNG>(ctr_arr[i], max_c) == true) {
+        if (compare_ctr<RNG>(ctr_arr[i], max_c)) {
             max_c = ctr_arr[i];
         }
     }
