@@ -4,8 +4,21 @@
 /// @file
 
 // this is for sincosf
-#ifndef _GNU_SOURCE
+#if !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
+#endif
+#include <math.h>
+// this is for sincosf
+#if !defined(__CUDACC__)
+static inline void sincospif(float x, float *s, float *c) {
+    const float PIf = 3.1415926535897932f;
+    sincosf(PIf*x, s, c);
+}
+
+static inline void sincospi(double x, double *s, double *c) {
+    const double PI = 3.1415926535897932;
+    sincos(PI*x, s, c);
+}
 #endif
 
 #include <math.h>
