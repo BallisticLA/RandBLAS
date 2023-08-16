@@ -380,16 +380,18 @@ std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
     switch (D.family) {
         case DenseDistName::Gaussian: {
             auto next_state_g = fill_dense_submat_impl<T,RNG,r123ext::boxmul>(ma_len, buff, n_rows_, n_cols_, ptr, seed);
-            return std::make_tuple(layout, next_state_g);
+            return std::make_pair(layout, next_state_g);
         }
         case DenseDistName::Uniform: {
             auto next_state_u = fill_dense_submat_impl<T,RNG,r123ext::uneg11>(ma_len, buff, n_rows_, n_cols_, ptr, seed);
-            return std::make_tuple(layout, next_state_u);
+            return std::make_pair(layout, next_state_u);
         }
-        case DenseDistName::BlackBox:
+        case DenseDistName::BlackBox: {
             throw std::invalid_argument(std::string("fill_buff cannot be called with the BlackBox distribution."));
-        default:
+        }
+        default: {
             throw std::runtime_error(std::string("Unrecognized distribution."));
+        }
     }
 }
  
