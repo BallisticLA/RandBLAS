@@ -177,26 +177,36 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
     }
 }
 
-/** Fill a n_srows \times n_scols submatrix with random values starting at a pointer, from a n_rows \times n_cols random matrix. 
+/** Fill a n_srows \times n_scols submatrix with random values starting at a pointer,
+ * from a n_rows \times n_cols random matrix. 
  * Assumes that the random matrix and the submatrix are row major.
+ * 
  * If RandBLAS is compiled with OpenMP threading support enabled, the operation is
- * parallelized using OMP_NUM_THREADS. The sequence of values genrated is not
- * dependent on the number of OpenMP threads.
+ * parallelized using OMP_NUM_THREADS. The sequence of values generated does not
+ * depend on the number of OpenMP threads.
  *
  * @tparam T the data type of the matrix
  * @tparam RNG a random123 CBRNG type
- * @tparm OP an operator that transforms raw random values into matrix
+ * @tparam OP an operator that transforms raw random values into matrix
  *           elements. See r123ext::uneg11 and r123ext::boxmul.
  *
- * @param[in] n_cols the number of columns in the matrix.
- * @param[in] smat a pointer to a contiguous region of memory with space for
- *                n_rows \times n_cols elements of type T. This memory will be
- *                filled with random values.
- * @param[in] n_srows the number of rows in the submatrix.
- * @param[in] n_scols the number of colomns in the submatrix.
- * @param[in] ptr the starting locaiton within the random matrix, for which 
- *                the submatrix is to be generated
+ * @param[in] n_cols
+ *      The number of columns in the implicitly defined parent matrix.
+ * @param[in] smat
+ *      A pointer to a region of memory with space for n_rows \times lda elements of type T.
+ *      This memory will be filled with random values by wrting rows of length "n_scols"
+ *      with an inter-row stride of length "lda".
+ * @param[in] n_srows
+ *      The number of rows in the submatrix.
+ * @param[in] n_scols
+ *      The number of columns in the submatrix.
+ * @param[in] ptr
+ *      The starting locaiton within the random matrix, for which 
+ *      the submatrix is to be generated
  * @param[in] seed A CBRNG state
+ * @param[in] lda
+ *      If positive then must be >= n_scols.
+ *      Otherwise, we automatically set it to n_scols.
  *
  * @returns the updated CBRNG state
  */
@@ -207,8 +217,15 @@ static auto fill_dense_submat_impl(
     int64_t n_srows,
     int64_t n_scols,
     int64_t ptr,
-    const RNGState<RNG> & seed
+    const RNGState<RNG> & seed,
+    int64_t lda = 0
 ) {
+    if (lda <= 0) {
+        lda = n_scols;
+    } else {
+        randblas_require(lda >= n_scols);
+    }
+    randblas_require(n_cols >= n_scols);
     RNG rng;
     typename RNG::ctr_type c = seed.counter;
     typename RNG::key_type k = seed.key;
@@ -236,7 +253,7 @@ static auto fill_dense_submat_impl(
         auto rv =  OP::generate(rng, cc, k);
         int64_t range = (r1 > r0)? RNG::ctr_type::static_size-1 : e1;
         for (i = s0; i <= range; i++) {
-            smat[ind + row*n_scols] = rv[i];
+            smat[ind + row * lda] = rv[i];
             ind++;
         }
 
@@ -247,7 +264,7 @@ static auto fill_dense_submat_impl(
             prev++;
             rv = OP::generate(rng, cc, k);
             for (i = 0; i < RNG::ctr_type::static_size; i++) {
-                smat[ind + row*n_scols] = rv[i];
+                smat[ind + row * lda] = rv[i];
                 ind++;
             }
             tmp++;
@@ -259,7 +276,7 @@ static auto fill_dense_submat_impl(
             prev++;
             rv = OP::generate(rng, cc, k);
             for (i = 0; i <= e1; i++) {
-                smat[ind + row*n_scols] = rv[i];
+                smat[ind + row * lda] = rv[i];
                 ind++;
             }
         }
