@@ -44,7 +44,7 @@ jobs:
           mkdir RandBLAS-build
           cd RandBLAS-build
           cmake -DCMAKE_BUILD_TYPE=Release \
-            -Dblaspp_DIR=`pwd`/../blaspp-install/lib/blaspp/ \
+            -Dblaspp_DIR=`pwd`/../blaspp-install/lib/cmake/blaspp/ \
             -DRandom123_DIR=`pwd`/../Random123-install/include/ \
             -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
             -DCMAKE_BINARY_DIR=`pwd` \
@@ -59,7 +59,7 @@ jobs:
           cd RandBLAS-asan-build
           cmake -DCMAKE_BUILD_TYPE=Debug \
             -DSANITIZE_ADDRESS=ON \
-            -Dblaspp_DIR=`pwd`/../blaspp-install/lib/blaspp/ \
+            -Dblaspp_DIR=`pwd`/../blaspp-install/lib/cmake/blaspp/ \
             -DRandom123_DIR=`pwd`/../Random123-install/include/ \
             -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
             -DCMAKE_BINARY_DIR=`pwd` \
