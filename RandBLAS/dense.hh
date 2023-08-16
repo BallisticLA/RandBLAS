@@ -178,6 +178,20 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
     }
 }
 
+template<typename RNG>
+bool compare_ctr(typename RNG::ctr_type c1, typename RNG::ctr_type c2) {
+    int len = c1.size();
+    
+    for (int ind = len - 1; ind >= 0; ind--) {
+        if (c1[ind] > c2[ind]) {
+            return true;
+        } else if (c1[ind] < c2[ind]) {
+            return false;
+        }
+    }
+    return false;
+}
+
 /** 
  * Fill buff with random values so it gives a row-major representation of an n_srows \times n_scols
  * submatrix of some implicitly defined parent matrix.
@@ -236,24 +250,60 @@ static RNGState<RNG> fill_dense_submat_impl(
     RNG rng;
     typename RNG::ctr_type c = seed.counter;
     typename RNG::key_type k = seed.key;
+    
+    int64_t pad = 0;
+    // ^ computed such that  n_cols+pad is divisible by RNG::static_size
+    if (n_cols % RNG::ctr_type::static_size != 0) {
+        pad = RNG::ctr_type::static_size - n_cols % RNG::ctr_type::static_size;
+    }
 
-    int64_t i0, i1, r0, r1, s0, e1;
+    int64_t n_cols_padded = n_cols + pad;
+    // ^ smallest number of columns, greater than or equal to n_cols, that would be divisible by RNG::ctr_type::static_size 
+    int64_t ptr_padded = ptr + ptr / n_cols * pad;
+    // ^ ptr corresponding to the padded matrix
+    int64_t r0_padded = ptr_padded / RNG::ctr_type::static_size;
+    // ^ starting counter corresponding to ptr_padded 
+    int64_t r1_padded = (ptr_padded + n_scols - 1) / RNG::ctr_type::static_size;
+    // ^ ending counter corresponding to ptr of the last element of the row
+    int64_t ctr_gap = n_cols_padded / RNG::ctr_type::static_size; 
+    // ^ number of counters between the first counter of the row to the first counter of the next row;
+    int64_t s0 = ptr_padded % RNG::ctr_type::static_size; 
+    int64_t e1 = (ptr_padded + n_scols - 1) % RNG::ctr_type::static_size;
+
+    int64_t num_thrds = 1;
+#if defined(RandBLAS_HAS_OpenMP)
+    #pragma omp parallel 
+    {
+        num_thrds = omp_get_num_threads();
+    }
+#endif
+
+    //Instead of using thrd_arr just initialize ctr_arr to be zero counters;
+    typename RNG::ctr_type ctr_arr[num_thrds];
+    for (int i = 0; i < num_thrds; i++) {
+        ctr_arr[i] = c;
+    }
+
+    #pragma omp parallel firstprivate(c, k)
+    {
+
+    auto cc = c;
     int64_t prev = 0;
     int64_t i;
+    int64_t r0, r1;
+    int64_t ind;
+    int64_t thrd = 0;
 
-    #pragma omp parallel firstprivate(c, k) private(i0, i1, r0, r1, s0, e1, prev, i)
-    {
-    auto cc = c;
-    prev = 0;
     #pragma omp for
     for (int row = 0; row < n_srows; row++) {
-        int64_t ind = 0;
-        i0 = ptr + row * n_cols; // start index in each row
-        i1 = ptr + row * n_cols + n_scols - 1; // end index in each row
-        r0 = (int64_t) i0 / RNG::ctr_type::static_size; // start counter
-        r1 = (int64_t) i1 / RNG::ctr_type::static_size; // end counter
-        s0 = i0 % RNG::ctr_type::static_size;
-        e1 = i1 % RNG::ctr_type::static_size;
+        
+    #if defined(RandBLAS_HAS_OpenMP)
+        thrd = omp_get_thread_num();
+    #endif
+
+        ind = 0;
+        r0 = r0_padded + ctr_gap*row;
+        r1 = r1_padded + ctr_gap*row; 
 
         cc.incr(r0 - prev);
         prev = r0;
@@ -263,7 +313,6 @@ static RNGState<RNG> fill_dense_submat_impl(
             smat[ind + row * lda] = rv[i];
             ind++;
         }
-
         // middle 
         int64_t tmp = r0;
         while( tmp < r1 - 1) {
@@ -287,12 +336,22 @@ static RNGState<RNG> fill_dense_submat_impl(
                 ind++;
             }
         }
+        ctr_arr[thrd] = cc;
     }
 
     }
-    return RNGState<RNG> {c, k};
-} 
+    
+    //finds the largest counter in the counter array
+    typename RNG::ctr_type max_c = ctr_arr[0];
+    for (int i = 1; i < num_thrds; i++) {  
+        if (compare_ctr<RNG>(ctr_arr[i], max_c)) {
+            max_c = ctr_arr[i];
+        }
+    }
 
+    max_c.incr();
+    return RNGState<RNG> {max_c, k};
+}
 
 template<typename T, typename RNG>
 std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(

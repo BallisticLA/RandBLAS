@@ -1,10 +1,9 @@
-### RandBLAS
+### RandBLAS : A C++ library for sketching in randomized linear algebra
 
-RandBLAS - A C++ library for sketching in randomized linear algebra.  RandBLAS
-provides a standard library that supports randomized linear algebra algorithms
-in other libraries.  RandBLAS will eventually become a standard like the BLAS,
-in that hardware vendors might release their own optimized implementations of
-algorithms which confirm to the RandBLAS API.
+RandBLAS supports high-level randomized linear algebra algorithms (like randomized low-rank SVD) that might be implemented in other libraries.
+
+Our goal is for RandBLAS to become a standard like the BLAS, in that hardware vendors might
+release their own optimized implementations of algorithms which confirm to the RandBLAS API.
 
 ### Source Code
 
@@ -12,10 +11,7 @@ The source code can be obtained at the [RandBLAS github repository](https://gith
 
 ### Documentation
 
-The [RandBLAS User's Guide](https://randblas.readthedocs.io/en/latest/) documents
-compiling and use of HAMR and contains simple examples.
-
-The [RandBLAS Doxygen site](https://randblas.readthedocs.io/en/latest/doxygen/index.html) documents the APIs.
+See [RandBLAS User's Guide](https://randblas.readthedocs.io/en/latest/) for a terse but thorough overview of RandBLAS' functionality.
 
 ### CI
 ![Ubuntu Latest](https://github.com/BallisticLA/RandBLAS/actions/workflows/core-linux.yaml/badge.svg)
