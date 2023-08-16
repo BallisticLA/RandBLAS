@@ -518,22 +518,20 @@ void lskge3(
     }
 
     // Sanity checks on dimensions and strides
+    if (opposing_layouts) {
+        randblas_require(S.dist.n_rows >= cols_submat_S + i_off);
+        randblas_require(S.dist.n_cols >= rows_submat_S + j_off);
+    } else {
+        randblas_require(S.dist.n_rows >= rows_submat_S + i_off);
+        randblas_require(S.dist.n_cols >= cols_submat_S + j_off);
+    }
+
     int64_t lds, pos;
     if (S.layout == blas::Layout::ColMajor) {
         lds = S.dist.n_rows;
-        if (opposing_layouts) {
-            randblas_require(lds >= cols_submat_S);
-        } else {
-            randblas_require(lds >= rows_submat_S);
-        }
         pos = i_off + lds * j_off;
     } else {
         lds = S.dist.n_cols;
-        if (opposing_layouts) {
-            randblas_require(lds >= rows_submat_S);
-        } else {
-            randblas_require(lds >= cols_submat_S);
-        }
         pos = i_off * lds + j_off;
     }
 
