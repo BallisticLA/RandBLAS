@@ -3,11 +3,32 @@
 
 /// @file
 
+#include <Random123/features/compilerfeatures.h>
+
 // this is for sincosf
 #if !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
 #endif
 #include <math.h>
+
+#if !defined(R123_NO_SINCOS) && defined(__APPLE__)
+/* MacOS X 10.10.5 (2015) doesn't have sincosf */
+// use "-D __APPLE__" as a compiler flag to make sure this is hit.
+#define R123_NO_SINCOS 1
+#endif
+
+#if R123_NO_SINCOS /* enable this if sincos and sincosf are not in the math library */
+R123_CUDA_DEVICE R123_STATIC_INLINE void sincosf(float x, float *s, float *c) {
+    *s = sinf(x);
+    *c = cosf(x);
+}
+
+R123_CUDA_DEVICE R123_STATIC_INLINE void sincos(double x, double *s, double *c) {
+    *s = sin(x);
+    *c = cos(x);
+}
+#endif /* sincos is not in the math library */
+
 // this is for sincosf
 #if !defined(__CUDACC__)
 static inline void sincospif(float x, float *s, float *c) {
@@ -21,7 +42,6 @@ static inline void sincospi(double x, double *s, double *c) {
 }
 #endif
 
-#include <math.h>
 #include <Random123/array.h>
 #include <Random123/philox.h>
 #include <Random123/threefry.h>
