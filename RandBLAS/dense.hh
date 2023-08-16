@@ -278,7 +278,7 @@ RandBLAS::RNGState<RNG> fill_dense_submat(
     int64_t n_scols,
     int64_t i_off,
     int64_t j_off,
-    const RNGState<RNG> & seed
+    const RNGState<RNG> &seed
 ) {
     blas::Layout layout = dist_to_layout(D);
     int64_t ma_len = major_axis_length(D);
@@ -309,9 +309,33 @@ template <typename T, typename RNG>
 RNGState<RNG> fill_dense(
     const DenseDist &D,
     T *buff,
-    RNGState<RNG> const& state
+    const RNGState<RNG> &state
 ) {
     return fill_dense_submat(D, buff, D.n_rows, D.n_cols, 0, 0, state);
+}
+
+template <typename T, typename RNG>
+RNGState<RNG> fill_dense(
+    const DenseDist &D,
+    int64_t n_rows,
+    int64_t n_cols,
+    int64_t i_off,
+    int64_t j_off,
+    blas::Layout layout,
+    T* S_buff,
+    int64_t lds,
+    const RNGState<RNG> &state
+) {
+    // We want the (n_rows by n_cols) operator whose upper-left corner
+    // is at index (i_off, j_off) of a sketching operator drawn from D.
+    //
+    // The operator needs to be stored in "layout" order.
+
+    // Note: the major-axis and aspect ratio of D imply a layout
+    // that we assume in our implementation of lskge3 / rskge3.
+    // That layout might not be the same as the "layout" argument here.
+    // If that happens then we ... what? 
+    throw std::runtime_error(std::string("Not implemented"));
 }
 
 template <typename SKOP>
@@ -449,7 +473,7 @@ void lskge3(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(S) is d-by-m
     T alpha,
-    DenseSkOp<T,RNG> &S0,
+    DenseSkOp<T,RNG> &S,
     int64_t i_off,
     int64_t j_off,
     const T *A,
@@ -458,20 +482,20 @@ void lskge3(
     T *B,
     int64_t ldb
 ){
-    if (!S0.buff) {
+    if (!S.buff) {
         // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
         // of that sketching operator, and then call LSKGE3 with that new object.
         int64_t n_srows = (opS == blas::Op::NoTrans) ? d : m;
         int64_t n_scols = (opS == blas::Op::NoTrans) ? m : d;
         T *buff = new T[n_srows * n_scols];
-        fill_dense_submat(S0.dist, buff, n_srows, n_scols, i_off, j_off, S0.seed_state);
-        DenseDist D{n_srows, n_scols, DenseDistName::BlackBox, S0.dist.major_axis};
-        DenseSkOp S(D, S0.seed_state, buff);
-        lskge3(layout, opS, opA, d, n, m, alpha, S, 0, 0, A, lda, beta, B, ldb);
+        fill_dense_submat(S.dist, buff, n_srows, n_scols, i_off, j_off, S.seed_state);
+        DenseDist D{n_srows, n_scols, DenseDistName::BlackBox, S.dist.major_axis};
+        DenseSkOp S_(D, S.seed_state, buff);
+        lskge3(layout, opS, opA, d, n, m, alpha, S_, 0, 0, A, lda, beta, B, ldb);
         delete [] buff;
         return;
     }
-    bool opposing_layouts = S0.layout != layout;
+    bool opposing_layouts = S.layout != layout;
     if (opposing_layouts)
         opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
 
@@ -495,8 +519,8 @@ void lskge3(
 
     // Sanity checks on dimensions and strides
     int64_t lds, pos;
-    if (S0.layout == blas::Layout::ColMajor) {
-        lds = S0.dist.n_rows;
+    if (S.layout == blas::Layout::ColMajor) {
+        lds = S.dist.n_rows;
         if (opposing_layouts) {
             randblas_require(lds >= cols_submat_S);
         } else {
@@ -504,7 +528,7 @@ void lskge3(
         }
         pos = i_off + lds * j_off;
     } else {
-        lds = S0.dist.n_cols;
+        lds = S.dist.n_cols;
         if (opposing_layouts) {
             randblas_require(lds >= rows_submat_S);
         } else {
@@ -525,7 +549,7 @@ void lskge3(
         layout, opS, opA,
         d, n, m,
         alpha,
-        &S0.buff[pos], lds,
+        &S.buff[pos], lds,
         A, lda,
         beta,
         B, ldb
@@ -645,27 +669,27 @@ void rskge3(
     T alpha,
     const T *A,
     int64_t lda,
-    DenseSkOp<T,RNG> &S0,
+    DenseSkOp<T,RNG> &S,
     int64_t i_off,
     int64_t j_off,
     T beta,
     T *B,
     int64_t ldb
 ){
-    if (!S0.buff) {
+    if (!S.buff) {
         // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
         // of that sketching operator, and then call RSKGE3 with that new object.
         int64_t n_srows = (opS == blas::Op::NoTrans) ? n : d;
         int64_t n_scols = (opS == blas::Op::NoTrans) ? d : n;
         T *buff = new T[n_srows * n_scols];
-        fill_dense_submat(S0.dist, buff, n_srows, n_scols, i_off, j_off, S0.seed_state);
-        DenseDist D{n_srows, n_scols, DenseDistName::BlackBox, S0.dist.major_axis};
-        DenseSkOp S(D, S0.seed_state, buff);
-        rskge3(layout, opA, opS, m, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);
+        fill_dense_submat(S.dist, buff, n_srows, n_scols, i_off, j_off, S.seed_state);
+        DenseDist D{n_srows, n_scols, DenseDistName::BlackBox, S.dist.major_axis};
+        DenseSkOp S_(D, S.seed_state, buff);
+        rskge3(layout, opA, opS, m, d, n, alpha, A, lda, S_, 0, 0, beta, B, ldb);
         delete [] buff;
         return;
     }
-    bool opposing_layouts = S0.layout != layout;
+    bool opposing_layouts = S.layout != layout;
     if (opposing_layouts)
         opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
 
@@ -689,19 +713,19 @@ void rskge3(
 
     // Sanity checks on dimensions and strides
     if (opposing_layouts) {
-        randblas_require(S0.dist.n_rows >= cols_submat_S + i_off);
-        randblas_require(S0.dist.n_cols >= rows_submat_S + j_off);
+        randblas_require(S.dist.n_rows >= cols_submat_S + i_off);
+        randblas_require(S.dist.n_cols >= rows_submat_S + j_off);
     } else {
-        randblas_require(S0.dist.n_rows >= rows_submat_S + i_off);
-        randblas_require(S0.dist.n_cols >= cols_submat_S + j_off);
+        randblas_require(S.dist.n_rows >= rows_submat_S + i_off);
+        randblas_require(S.dist.n_cols >= cols_submat_S + j_off);
     }
 
     int64_t lds, pos;
-    if (S0.layout == blas::Layout::ColMajor) {
-        lds = S0.dist.n_rows;
+    if (S.layout == blas::Layout::ColMajor) {
+        lds = S.dist.n_rows;
         pos = i_off + lds * j_off;
     } else {
-        lds = S0.dist.n_cols;
+        lds = S.dist.n_cols;
         pos = i_off * lds + j_off;
     }
 
@@ -718,7 +742,7 @@ void rskge3(
         m, d, n,
         alpha,
         A, lda,
-        &S0.buff[pos], lds,
+        &S.buff[pos], lds,
         beta,
         B, ldb
     );
