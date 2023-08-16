@@ -331,30 +331,6 @@ RNGState<RNG> fill_dense(
     return fill_dense_submat(D, buff, D.n_rows, D.n_cols, 0, 0, state);
 }
 
-template <typename T, typename RNG>
-RNGState<RNG> fill_dense(
-    const DenseDist &D,
-    int64_t n_rows,
-    int64_t n_cols,
-    int64_t i_off,
-    int64_t j_off,
-    blas::Layout layout,
-    T* S_buff,
-    int64_t lds,
-    const RNGState<RNG> &state
-) {
-    // We want the (n_rows by n_cols) operator whose upper-left corner
-    // is at index (i_off, j_off) of a sketching operator drawn from D.
-    //
-    // The operator needs to be stored in "layout" order.
-
-    // Note: the major-axis and aspect ratio of D imply a layout
-    // that we assume in our implementation of lskge3 / rskge3.
-    // That layout might not be the same as the "layout" argument here.
-    // If that happens then we ... what? 
-    throw std::runtime_error(std::string("Not implemented"));
-}
-
 template <typename SKOP>
 auto fill_dense(
     SKOP &S
