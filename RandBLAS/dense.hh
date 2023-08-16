@@ -11,13 +11,14 @@
 #include <stdio.h>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 
 #include <math.h>
 #include <typeinfo>
 
 
 namespace RandBLAS {
-    // =============================================================================
+// =============================================================================
 /// We call a sketching operator "dense" if it takes Level 3 BLAS work to 
 /// apply to a dense matrix. All such sketching operators supported by
 /// RandBLAS currently have i.i.d. entries. This enumeration specifies
@@ -177,13 +178,12 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
     }
 }
 
-/** Fill a n_srows \times n_scols submatrix with random values starting at a pointer,
- * from a n_rows \times n_cols random matrix. 
- * Assumes that the random matrix and the submatrix are row major.
+/** 
+ * Fill buff with random values so it gives a row-major representation of an n_srows \times n_scols
+ * submatrix of some implicitly defined parent matrix.
  * 
- * If RandBLAS is compiled with OpenMP threading support enabled, the operation is
- * parallelized using OMP_NUM_THREADS. The sequence of values generated does not
- * depend on the number of OpenMP threads.
+ * The implicit parent matrix is **imagined** as a buffer in row-major order with "n_cols" columns.
+ * "ptr" is the pointer offset for the desired submatrix in the imagined buffer of the parent matrix.
  *
  * @tparam T the data type of the matrix
  * @tparam RNG a random123 CBRNG type
@@ -203,15 +203,22 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
  * @param[in] ptr
  *      The starting locaiton within the random matrix, for which 
  *      the submatrix is to be generated
- * @param[in] seed A CBRNG state
+ * @param[in] seed
+ *      A CBRNG state
  * @param[in] lda
  *      If positive then must be >= n_scols.
  *      Otherwise, we automatically set it to n_scols.
  *
  * @returns the updated CBRNG state
+ * 
+ * Notes
+ * -----
+ * If RandBLAS is compiled with OpenMP threading support enabled, the operation is parallelized
+ * using OMP_NUM_THREADS. The sequence of values generated does not depend on the number of threads.
+ * 
  */
 template<typename T, typename RNG, typename OP>
-static auto fill_dense_submat_impl(
+static RNGState<RNG> fill_dense_submat_impl(
     int64_t n_cols,
     T* smat,
     int64_t n_srows,
@@ -271,7 +278,7 @@ static auto fill_dense_submat_impl(
         }
 
         // end
-        if ( r1 > r0 ){
+        if ( r1 > r0 ) {
             cc.incr();
             prev++;
             rv = OP::generate(rng, cc, k);
@@ -288,33 +295,38 @@ static auto fill_dense_submat_impl(
 
 
 template<typename T, typename RNG>
-RandBLAS::RNGState<RNG> fill_dense_submat(
+std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
     DenseDist D,
-    T* smat,
-    int64_t n_srows,
-    int64_t n_scols,
+    int64_t n_rows,
+    int64_t n_cols,
     int64_t i_off,
     int64_t j_off,
+    T* buff,
     const RNGState<RNG> &seed
 ) {
+
     blas::Layout layout = dist_to_layout(D);
     int64_t ma_len = major_axis_length(D);
-    int64_t n_srows_, n_scols_, ptr;
+    int64_t n_rows_, n_cols_, ptr;
     if (layout == blas::Layout::ColMajor) {
         // operate on the transpose in row-major
-        n_srows_ = n_scols;
-        n_scols_ = n_srows;
+        n_rows_ = n_cols;
+        n_cols_ = n_rows;
         ptr = i_off + j_off * ma_len;
     } else {
-        n_srows_ = n_srows;
-        n_scols_ = n_scols;
+        n_rows_ = n_rows;
+        n_cols_ = n_cols;
         ptr = i_off * ma_len + j_off;
     }
     switch (D.family) {
-        case DenseDistName::Gaussian:
-            return fill_dense_submat_impl<T,RNG,r123ext::boxmul>(ma_len, smat, n_srows_, n_scols_, ptr, seed);
-        case DenseDistName::Uniform:
-            return fill_dense_submat_impl<T,RNG,r123ext::uneg11>(ma_len, smat, n_srows_, n_scols_, ptr, seed);
+        case DenseDistName::Gaussian: {
+            auto next_state_g = fill_dense_submat_impl<T,RNG,r123ext::boxmul>(ma_len, buff, n_rows_, n_cols_, ptr, seed);
+            return std::make_tuple(layout, next_state_g);
+        }
+        case DenseDistName::Uniform: {
+            auto next_state_u = fill_dense_submat_impl<T,RNG,r123ext::uneg11>(ma_len, buff, n_rows_, n_cols_, ptr, seed);
+            return std::make_tuple(layout, next_state_u);
+        }
         case DenseDistName::BlackBox:
             throw std::invalid_argument(std::string("fill_buff cannot be called with the BlackBox distribution."));
         default:
@@ -323,23 +335,25 @@ RandBLAS::RNGState<RNG> fill_dense_submat(
 }
  
 template <typename T, typename RNG>
-RNGState<RNG> fill_dense(
+std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
     const DenseDist &D,
     T *buff,
-    const RNGState<RNG> &state
+    const RNGState<RNG> &seed
 ) {
-    return fill_dense_submat(D, buff, D.n_rows, D.n_cols, 0, 0, state);
+    return fill_dense(D, D.n_rows, D.n_cols, 0, 0,  buff, seed);
 }
 
-template <typename SKOP>
-auto fill_dense(
-    SKOP &S
+template <typename T, typename RNG>
+RNGState<RNG> fill_dense(
+    DenseSkOp<T,RNG> &S
 ) {
     randblas_require(!S.buff);
-    S.buff = new typename SKOP::buffer_type[S.dist.n_rows * S.dist.n_cols];
-    S.next_state = fill_dense(S.dist, S.buff, S.seed_state);
+    randblas_require(S.dist.family != DenseDistName::BlackBox);
+    S.buff = new T[S.dist.n_rows * S.dist.n_cols];
+    auto [layout, next_state] = fill_dense<T, RNG>(S.dist, S.buff, S.seed_state);
+    S.next_state = next_state;
     S.del_buff_on_destruct = true;
-    return S.next_state;
+    return next_state;
 }
 }  // end namespace RandBLAS
 
@@ -478,11 +492,11 @@ void lskge3(
     if (!S.buff) {
         // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
         // of that sketching operator, and then call LSKGE3 with that new object.
-        int64_t n_srows = (opS == blas::Op::NoTrans) ? d : m;
-        int64_t n_scols = (opS == blas::Op::NoTrans) ? m : d;
-        T *buff = new T[n_srows * n_scols];
-        fill_dense_submat(S.dist, buff, n_srows, n_scols, i_off, j_off, S.seed_state);
-        DenseDist D{n_srows, n_scols, DenseDistName::BlackBox, S.dist.major_axis};
+        int64_t rows_submat_S = (opS == blas::Op::NoTrans) ? d : m;
+        int64_t cols_submat_S = (opS == blas::Op::NoTrans) ? m : d;
+        T *buff = new T[rows_submat_S * cols_submat_S];
+        fill_dense(S.dist, rows_submat_S, cols_submat_S, i_off, j_off, buff, S.seed_state);
+        DenseDist D{rows_submat_S, cols_submat_S, DenseDistName::BlackBox, S.dist.major_axis};
         DenseSkOp S_(D, S.seed_state, buff);
         lskge3(layout, opS, opA, d, n, m, alpha, S_, 0, 0, A, lda, beta, B, ldb);
         delete [] buff;
@@ -670,11 +684,11 @@ void rskge3(
     if (!S.buff) {
         // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
         // of that sketching operator, and then call RSKGE3 with that new object.
-        int64_t n_srows = (opS == blas::Op::NoTrans) ? n : d;
-        int64_t n_scols = (opS == blas::Op::NoTrans) ? d : n;
-        T *buff = new T[n_srows * n_scols];
-        fill_dense_submat(S.dist, buff, n_srows, n_scols, i_off, j_off, S.seed_state);
-        DenseDist D{n_srows, n_scols, DenseDistName::BlackBox, S.dist.major_axis};
+        int64_t rows_submat_S = (opS == blas::Op::NoTrans) ? n : d;
+        int64_t cols_submat_S = (opS == blas::Op::NoTrans) ? d : n;
+        T *buff = new T[rows_submat_S * cols_submat_S];
+        fill_dense(S.dist, rows_submat_S, cols_submat_S, i_off, j_off, buff, S.seed_state);
+        DenseDist D{rows_submat_S, cols_submat_S, DenseDistName::BlackBox, S.dist.major_axis};
         DenseSkOp S_(D, S.seed_state, buff);
         rskge3(layout, opA, opS, m, d, n, alpha, A, lda, S_, 0, 0, beta, B, ldb);
         delete [] buff;

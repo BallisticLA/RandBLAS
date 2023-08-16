@@ -52,7 +52,7 @@ class TestDenseMoments : public ::testing::Test
             .family = dn
         };
         auto state = RandBLAS::RNGState(key);
-        auto next_state = RandBLAS::fill_dense(D, A.data(), state);
+        auto [layout, next_state] = RandBLAS::fill_dense(D, A.data(), state);
 
         // Compute the entrywise empirical mean and standard deviation.
         T mean = std::accumulate(A.data(), A.data() + size, 0.0) /size;
