@@ -353,9 +353,66 @@ static RNGState<RNG> fill_dense_submat_impl(
     return RNGState<RNG> {max_c, k};
 }
 
+// =============================================================================
+/// @verbatim embed:rst:leading-slashes
+///
+///   .. |mat|   mathmacro:: \operatorname{mat}
+///   .. |buff|  mathmacro:: \mathtt{buff}
+///   .. |D|     mathmacro:: \mathcal{D}
+///   .. |nrows| mathmacro:: \mathtt{n\_rows}
+///   .. |ncols| mathmacro:: \mathtt{n\_cols}
+///   .. |ioff| mathmacro:: \mathtt{i\_off}
+///   .. |joff| mathmacro:: \mathtt{j\_off}
+///
+/// @endverbatim
+/// Fill \math{\buff} so that \math{\mat(\buff)} is a submatrix of
+/// an _implicit_ random sample from \math{\D}.
+/// 
+/// If we denote the implicit sample from \math{\D} by \math{S}, then we have
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     \mat(\buff) = S[\ioff:(\ioff + \nrows),\, \joff:(\joff + \ncols)]
+/// @endverbatim
+/// on exit.
+///
+/// @param[in] D
+///      A DenseDist object.
+///      - A distribution over random matrices of shape (D.n_rows, D.n_cols).
+/// @param[in] n_rows
+///      A positive integer.
+///      - The number of rows in \math{\mat(\buff)}.
+/// @param[in] n_cols
+///      A positive integer.
+///      - The number of columns in \math{\mat(\buff)}.
+/// @param[in] i_off
+///      A nonnegative integer.
+///      - The row offset for \math{\mat(\buff)} as a submatrix of \math{S}. 
+///      - We require that \math{\ioff + \nrows} is at most D.n_rows.
+/// @param[in] j_off
+///      A nonnegative integer.
+///      - The column offset for \math{\mat(\buff)} as a submatrix of \math{S}. 
+///      - We require that \math{\joff + \ncols} is at most D.n_cols.
+/// @param[in] buff
+///     Buffer of type T.
+///     - Length must be at least \math{\nrows \cdot \ncols}.
+///     - The leading dimension of \math{\mat(\buff)} when reading from \math{\buff}
+///       is either \math{\nrows} or \math{\ncols}, depending on the return value of this function
+///       that indicates row-major or column-major layout.
+/// @param[in] seed
+///      A CBRNG state
+///      - Used to define \math{S} as a sample from \math{\D}.
+///
+/// @returns
+///     A std::pair consisting of "layout" and "next_state".
+///     - \math{\buff} must be read in "layout" order 
+///       to recover \math{\mat(\buff)}. This layout is determined
+///       from \math{\D} and cannot be controlled directly.
+///     - If this function returns a layout that is undesirable then it is
+///       the caller's responsibility to perform a transpose as needed.
+/// 
 template<typename T, typename RNG>
 std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
-    DenseDist D,
+    const DenseDist &D,
     int64_t n_rows,
     int64_t n_cols,
     int64_t i_off,
@@ -363,7 +420,8 @@ std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
     T* buff,
     const RNGState<RNG> &seed
 ) {
-
+    randblas_require(D.n_rows >= n_rows + i_off);
+    randblas_require(D.n_cols >= n_cols + j_off);
     blas::Layout layout = dist_to_layout(D);
     int64_t ma_len = major_axis_length(D);
     int64_t n_rows_, n_cols_, ptr;
@@ -395,6 +453,37 @@ std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
     }
 }
  
+// =============================================================================
+/// @verbatim embed:rst:leading-slashes
+///
+///   .. |mat|  mathmacro:: \operatorname{mat}
+///   .. |buff| mathmacro:: \mathtt{buff}
+///   .. |D|    mathmacro:: \mathcal{D} 
+///
+/// @endverbatim
+/// Fill \math{\buff} so that \math{\mat(\buff)} is a sample from \math{\D} using
+/// seed \math{\mathtt{seed}}.
+///
+/// @param[in] D
+///      A DenseDist object.
+/// @param[in] buff
+///     Buffer of type T.
+///     - Length must be at least D.n_rows * D.n_cols.
+///     - The leading dimension of \math{\mat(\buff)} when reading from \math{\buff}
+///       is either D.n_rows or D.n_cols, depending on the return value of this function
+///       that indicates row-major or column-major layout.
+/// @param[in] seed
+///      A CBRNG state
+///      - Used to define \math{\mat(\buff)} as a sample from \math{\D}.
+///
+/// @returns
+///     A std::pair consisting of "layout" and "next_state".
+///     - \math{\buff} must be read in "layout" order 
+///       to recover \math{\mat(\buff)}. This layout is determined
+///       from \math{\D} and cannot be controlled directly.
+///     - If this function returns a layout that is undesirable then it is
+///       the caller's responsibility to perform a transpose as needed.
+/// 
 template <typename T, typename RNG>
 std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
     const DenseDist &D,
@@ -404,6 +493,31 @@ std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
     return fill_dense(D, D.n_rows, D.n_cols, 0, 0,  buff, seed);
 }
 
+// ============================================================================= 
+/// This function performs three operations:
+///   (1) Allocate a buffer of size S.dist.n_rows * S.dist.n_cols.
+///   (2) Populate that buffer with the entries of the sketching operator
+///       that's implicitly defined by S.dist and S.seed_state. 
+///   (3) Set a flag on S so it will deallocate this buffer when its constructor
+///       is called.
+///
+/// _Background_.
+/// If S is used in a sketching operation and this function _is not_ called in
+/// advance, then that sketching function will allocate the necessary memory,
+/// sample the necessary submatrix of S, and then dellocate that memory before returning.
+/// The allocation and sampling are potentially wasteful if S had been used in some
+/// earlier sketching operation.
+/// Therefore this function can be used to avoid duplicating that work if S needs
+/// to be used for multiple sketching operations.
+///
+/// @param[in] S
+///     A DenseSkOp object.
+///
+/// @return
+///     An RNGState object. This is the state that should be used the next 
+///     time the program needs to generate random numbers for use in a randomized
+///     algorithm.
+///    
 template <typename T, typename RNG>
 RNGState<RNG> fill_dense(
     DenseSkOp<T,RNG> &S
