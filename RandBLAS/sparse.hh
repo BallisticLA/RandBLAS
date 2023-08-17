@@ -216,8 +216,8 @@ SparseSkOp<T,RNG>::~SparseSkOp() {
 // =============================================================================
 /// Populate the internal data structures of S with values that are 
 /// consistent with S.dist and S.seed_state. This step is needed before
-/// S can be applied to data matrices. LSKGES and RSKGES will automatically
-/// perform this step if needed.
+/// S can be applied to data matrices. Sketching functions in RandBLAS will
+/// automatically call this function if needed.
 ///
 /// @param[in] S
 ///     SparseSkOp object.
