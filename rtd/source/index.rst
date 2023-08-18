@@ -24,4 +24,4 @@ RandBLAS is configured with CMake. The following CMake variables influence the b
 .. toctree::
    :hidden:
 
-   User Guide <abstract_interface>
+   User Guide <user_guide/index>

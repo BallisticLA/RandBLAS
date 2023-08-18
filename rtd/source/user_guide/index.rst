@@ -1,7 +1,6 @@
 RandBLAS User Guide
 ===================
 
-
 The basic workflow for sketching
 --------------------------------
 
@@ -49,11 +48,11 @@ Right-sketching
 .. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SKOP &S, int64_t i_off, int64_t j_off, T beta, T *B, int64_t ldb)
    :project: RandBLAS
 
-Choosing a sketching distribution
----------------------------------
+Sketching distributions and sketching operators
+-----------------------------------------------
 
-Dense sketching operators
-^^^^^^^^^^^^^^^^^^^^^^^^^
+Essentials of dense sketching
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. doxygenstruct:: RandBLAS::DenseDist
    :project: RandBLAS
    :members:
@@ -62,17 +61,8 @@ Dense sketching operators
    :project: RandBLAS
    :members: 
 
-.. doxygenfunction:: RandBLAS::fill_dense(const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t i_off, int64_t j_off, T *buff, const RNGState<RNG> &seed)
-   :project: RandBLAS
-
-.. doxygenfunction:: RandBLAS::fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed)
-   :project: RandBLAS
-
-.. doxygenfunction:: RandBLAS::fill_dense(DenseSkOp<T, RNG> &S)
-   :project: RandBLAS
-
-Sparse sketching operators
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+Essentials of sparse sketching 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. doxygenstruct:: RandBLAS::SparseDist
    :project: RandBLAS
    :members:
@@ -81,10 +71,24 @@ Sparse sketching operators
    :project: RandBLAS
    :members: 
 
-.. doxygenfunction:: RandBLAS::fill_sparse(SKOP &S)
+Advanced: filling sketching operator data structures
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. doxygenfunction:: RandBLAS::fill_sparse(SparseSkOp<T, RNG> &S)
    :project: RandBLAS
 
-Details on Random number generation
+.. doxygenfunction:: RandBLAS::fill_dense(DenseSkOp<T, RNG> &S)
+   :project: RandBLAS
+
+.. doxygenfunction:: RandBLAS::fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed)
+   :project: RandBLAS
+
+.. doxygenfunction:: RandBLAS::fill_dense(const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t i_off, int64_t j_off, T *buff, const RNGState<RNG> &seed)
+   :project: RandBLAS
+
+
+
+Details on random number generators
 -----------------------------------
 
 RandBLAS relies on counter-based random number generators (CBRNGs).
@@ -110,8 +114,8 @@ This is important: you should never set the counter yourself!
 If you want statistically independent runs of the same program, then you can start with different values for the key.
 
 
-Advanced material on random number generation
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Advanced material on CBRNGs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 An RNGState has :math:`\texttt{ctr}` and :math:`\texttt{key}` members.
 These members are in fact arrays of integers, rather than integers themselves.
 Users should not manipulate these values directly.

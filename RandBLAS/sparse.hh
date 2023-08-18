@@ -227,9 +227,9 @@ SparseSkOp<T,RNG>::~SparseSkOp() {
 ///     time the program needs to generate random numbers for use in a randomized
 ///     algorithm.
 ///     
-template <typename SKOP>
-static auto fill_sparse(
-    SKOP & S
+template <typename T, typename RNG>
+RNGState<RNG> fill_sparse(
+    SparseSkOp<T,RNG> & S
 ) {
     int64_t long_ax_len = MAX(S.dist.n_rows, S.dist.n_cols);
     int64_t short_ax_len = MIN(S.dist.n_rows, S.dist.n_cols);
