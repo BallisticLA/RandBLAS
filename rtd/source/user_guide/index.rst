@@ -1,131 +1,49 @@
 RandBLAS User Guide
 ===================
 
-The basic workflow for sketching
---------------------------------
 
-Computing a sketch with RandBLAS has four steps. 
-  0. Get your hands on an RNGState struct variable; let's call it :math:`\texttt{state}`. This can be as simple as 
+Computing a sketch with RandBLAS can be done in three easy steps.
 
-      .. code:: c++
-
-            RandBLAS::RNGState state(); // could pass an unsigned integer.
-
-  1. Define a distribution :math:`\mathcal{D}` over random matrices with desired dimensions. For example,
+  1. Get your hands on an RNGState variable.
+     This can be as simple as the following.
 
       .. code:: c++
 
-            RandBLAS::DenseDist D{.n_rows = 1000, .n_cols = 100};
-   
-  2. Using :math:`\texttt{state}`, sample a sketching operator :math:`S` from :math:`\mathcal{D}`. For example,
+            RandBLAS::RNGState state();
+
+    Alternatively, you can pass an unsigned integer to an RNGState constructor as a seed for the random state.
+    If an integer isn't provided (like above), then the seed defaults to zero.
+
+  2. Define a distribution :math:`\mathcal{D}` over random matrices with desired properties, then use :math:`\texttt{state}`
+     to sample a sketching operator :math:`S` from :math:`\mathcal{D}`.
+     
+     For example, here is how we could define a 1000-by-50 sketching operator with iid Gaussian entries stored in double precision.
 
       .. code:: c++
 
-            RandBLAS::DenseSkOp S(D, state);
+            RandBLAS::DenseDist D(1000, 50);
+            RandBLAS::DenseSkOp<double> S(D, state);
 
-  3. Use :math:`S` with a function that is *almost* identical to GEMM.
+     RandBLAS provides a wide range of possibilities for the choice of sketching distribution. In particular, it supports
+     both dense and sparse sketching operators. More on this later!
 
-We elaborate on each of these steps below.
-Of particular note is our coverage of the sketching operator distributions that RandBLAS supports.
+  3. Use :math:`S` with a function that is *almost* identical to GEMM. For example, here is how we could compute
+     a sketch :math:`A S` where :math:`A` is a 2000-by-1000 double-precision matrix stored in column-major order.
 
-Applying a sketching operator : a GEMM-like interface
------------------------------------------------------
+      .. code:: c++
 
-RandBLAS currently only supports sketching matrices that would be called "general" in BLAS.
-This is done with an overloaded and templated function called :math:`\texttt{sketch_general}`.
-The order of arguments provided to :math:`\texttt{sketch_general}` is very important; it
-determines whether the sketching operator is applied from the left or from the right.
+            double B* = new double[2000 * 50];
+            RandBLAS::sketch_general(
+                blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans,
+                2000, 50,  1000,
+                1.0, A, 2000, S, 0, 0, 0.0, B, 2000
+            ); // B = A S.
 
-Left-sketching
-^^^^^^^^^^^^^^
+We elaborate on each of these steps in the pages linked below.
 
-.. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, SKOP &S, int64_t i_off, int64_t j_off, const T *A, int64_t lda, T beta, T *B, int64_t ldb)
-   :project: RandBLAS
+.. toctree::
+    :maxdepth: 3
 
-Right-sketching
-^^^^^^^^^^^^^^^
-
-.. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SKOP &S, int64_t i_off, int64_t j_off, T beta, T *B, int64_t ldb)
-   :project: RandBLAS
-
-Sketching distributions and sketching operators
------------------------------------------------
-
-Essentials of dense sketching
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. doxygenstruct:: RandBLAS::DenseDist
-   :project: RandBLAS
-   :members:
-
-.. doxygenstruct:: RandBLAS::DenseSkOp
-   :project: RandBLAS
-   :members: 
-
-Essentials of sparse sketching 
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. doxygenstruct:: RandBLAS::SparseDist
-   :project: RandBLAS
-   :members:
-
-.. doxygenstruct:: RandBLAS::SparseSkOp
-   :project: RandBLAS
-   :members: 
-
-Advanced: filling sketching operator data structures
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. doxygenfunction:: RandBLAS::fill_sparse(SparseSkOp<T, RNG> &S)
-   :project: RandBLAS
-
-.. doxygenfunction:: RandBLAS::fill_dense(DenseSkOp<T, RNG> &S)
-   :project: RandBLAS
-
-.. doxygenfunction:: RandBLAS::fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed)
-   :project: RandBLAS
-
-.. doxygenfunction:: RandBLAS::fill_dense(const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t i_off, int64_t j_off, T *buff, const RNGState<RNG> &seed)
-   :project: RandBLAS
-
-
-
-Details on random number generators
------------------------------------
-
-RandBLAS relies on counter-based random number generators (CBRNGs).
-The mathematical state of a CBRNG is specified by two integers: a *counter* and a *key*.
-We use the following class to represent a CBRNG and its underlying state.
-
-.. doxygenstruct:: RandBLAS::RNGState
-   :project: RandBLAS
-
-.. important::
-
-   Every RandBLAS function that involves random sampling needs an RNGState as input!
-
-There are two ways to construct an RNGState from scratch:
-
-.. code:: c++
-
-   RandBLAS::RNGState s1();     // key and counter are initialized to 0.
-   RandBLAS::RNGState s2(42);   // key set to 42, counter set to 0.
-
-Note that in both cases the counter is initialized to zero.
-This is important: you should never set the counter yourself!
-If you want statistically independent runs of the same program, then you can start with different values for the key.
-
-
-Advanced material on CBRNGs
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-An RNGState has :math:`\texttt{ctr}` and :math:`\texttt{key}` members.
-These members are in fact arrays of integers, rather than integers themselves.
-Users should not manipulate these values directly.
-It is reasonable to access them for debugging purposes and for creating copies, as below:
-
-.. code:: c++
-
-   RandBLAS::RNGState s3(s2.ctr, s2.key); // s3 is a copy of s2
-
-Every RNGState has an associated template parameter, RNG.
-The default value of the RNG template parameter is :math:`\texttt{Philox4x32}`.
-An RNG template parameter with name :math:`\texttt{GeneratorNxW}` will represent
-the counter and key by an array of (at most) :math:`\texttt{N}` unsiged :math:`\texttt{W}`-bit integers.
+    Applying a sketching operator : a GEMM-like interface <sketching>
+    Sketching distributions and sketching operators <operators>
+    Details on random number generators <rng_details>
