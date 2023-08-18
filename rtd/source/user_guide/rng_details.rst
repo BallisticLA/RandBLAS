@@ -1,6 +1,6 @@
-************************
-Random number generators
-************************
+*************
+Random states
+*************
 
 RandBLAS relies on counter-based random number generators (CBRNGs).
 The mathematical state of a CBRNG is specified by two integers: a *counter* and a *key*.

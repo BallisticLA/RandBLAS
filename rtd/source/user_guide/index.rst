@@ -3,47 +3,37 @@ RandBLAS User Guide
 ###################
 
 
-Computing a sketch with RandBLAS can be done in three easy steps.
+It's useful to think of RandBLAS' sketching workflow in three steps.
 
-  1. Get your hands on an RNGState variable.
-     This can be as simple as the following.
+  1. Get your hands on a random state.
+  2. Define a sketching distribution, and use the random state to sample a sketching operator from that distribution.
+  3. Apply the sketching operator with a function that's *almost* identical to GEMM.
 
-      .. code:: c++
+To illustrate this workflow, suppose we have a 20,000-by-10,000 double-precision matrix :math:`A`  stored in column-major
+layout. Suppose also that we want to compute a sketch of the form :math:`B = AS`, where :math:`S` is a Gaussian matrix of size 10,000-by-50.
+This can be done as follows.
 
-            RandBLAS::RNGState state();
+   .. code:: c++
 
-    Alternatively, you can pass an unsigned integer to an RNGState constructor as a seed for the random state.
-    If an integer isn't provided (like above), then the seed defaults to zero.
+      // step 1
+      RandBLAS::RNGState state();
+      // step 2
+      RandBLAS::DenseDist D(10000, 50);
+      RandBLAS::DenseSkOp<double> S(D, state);
+      // step 3
+      double B* = new double[20000 * 50];
+      RandBLAS::sketch_general(
+            blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans,
+            20000, 50,  10000,
+            1.0, A, 20000, S, 0.0, B, 20000
+      ); // B = AS
 
-  2. Define a distribution :math:`\mathcal{D}` over random matrices with desired properties, then use :math:`\texttt{state}`
-     to sample a sketching operator :math:`S` from :math:`\mathcal{D}`.
-     
-     For example, here is how we could define a 1000-by-50 sketching operator with iid Gaussian entries stored in double precision.
+RandBLAS has a wealth of capabilities that are not reflected in that code sippet.
+For example, it lets you set an integer-valued the seed when defining :math:`\texttt{state}`, and it provides a wide range of both dense and sparse sketching operators.
+It even lets you compute products against *submatrices* of sketching operators without ever forming the full operator in memory.
 
-      .. code:: c++
+The full range of possibilities with RandBLAS are described in the pages linked below.
 
-            RandBLAS::DenseDist D(1000, 50);
-            RandBLAS::DenseSkOp<double> S(D, state);
-
-     RandBLAS provides a wide range of possibilities for the choice of sketching distribution. In particular, it supports
-     both dense and sparse sketching operators. More on this later!
-
-  3. Use :math:`S` with a function that is *almost* identical to GEMM. For example, here is how we could compute
-     a sketch :math:`A S` where :math:`A` is a 2000-by-1000 double-precision matrix stored in column-major order.
-
-      .. code:: c++
-
-            double B* = new double[2000 * 50];
-            RandBLAS::sketch_general(
-                blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans,
-                2000, 50,  1000,
-                1.0, A, 2000, S, 0.0, B, 2000
-            ); // B = A S.
-
-     RandBLAS has been designed with efficiency and performance in mind. So it's also possible to apply a 
-     *submatrix* of a sketching operator without so much as even generating the full operator to begin with.
-
-We elaborate on each of these steps in the pages linked below.
 
 .. toctree::
     :maxdepth: 3
