@@ -189,7 +189,7 @@ void sketch_general(
     int64_t n, // \op(A) is m-by-n
     int64_t m, // \op(\submat(S)) is d-by-m
     T alpha,
-    dense::DenseSkOp<T, RNG> &S,
+    DenseSkOp<T, RNG> &S,
     int64_t i_off,
     int64_t j_off,
     const T *A,
@@ -339,7 +339,7 @@ void sketch_general(
     T alpha,
     const T *A,
     int64_t lda,
-    dense::DenseSkOp<T, RNG> &S,
+    DenseSkOp<T, RNG> &S,
     int64_t i_off,
     int64_t j_off,
     T beta,
@@ -374,6 +374,229 @@ void sketch_general(
         S, i_off, j_off, beta, B, ldb
     );
 }
+
+// =============================================================================
+/// \fn sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
+///     int64_t n, int64_t m, T alpha, SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb
+/// ) 
+/// @verbatim embed:rst:leading-slashes
+///
+///   .. |op| mathmacro:: \operatorname{op}
+///   .. |mat| mathmacro:: \operatorname{mat}
+///   .. |lda| mathmacro:: \mathrm{lda}
+///   .. |ldb| mathmacro:: \mathrm{ldb}
+///   .. |opA| mathmacro:: \mathrm{opA}
+///   .. |opS| mathmacro:: \mathrm{opS}
+///
+/// @endverbatim
+/// Perform a GEMM-like operation
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     \mat(B) = \alpha \cdot \underbrace{\op(S)}_{d \times m} \cdot \underbrace{\op(\mat(A))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
+/// @endverbatim
+/// where \math{\alpha} and \math{\beta} are real scalars, \math{\op(X)} either returns a matrix \math{X}
+/// or its transpose, and \math{S} is a sketching operator.
+/// 
+/// @verbatim embed:rst:leading-slashes
+/// What are :math:`\mat(A)` and :math:`\mat(B)`?
+///     Their shapes are defined implicitly by :math:`(d, m, n, \opA)`.
+///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
+///     and "layout", following the same convention as BLAS.
+/// @endverbatim
+/// @param[in] layout
+///     Layout::ColMajor or Layout::RowMajor
+///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
+///
+/// @param[in] opS
+///      - If \math{\opS} = NoTrans, then \math{ \op(S) = S}.
+///      - If \math{\opS} = Trans, then \math{\op(S) = S^T }.
+/// @param[in] opA
+///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
+///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+/// @param[in] d
+///     A nonnegative integer.
+///     - The number of rows in \math{\mat(B)}
+///     - The number of rows in \math{\op(\mat(S))}.
+///
+/// @param[in] n
+///     A nonnegative integer.
+///     - The number of columns in \math{\mat(B)}
+///     - The number of columns in \math{\op(\mat(A))}.
+///
+/// @param[in] m
+///     A nonnegative integer.
+///     - The number of columns in \math{\op(S)}
+///     - The number of rows in \math{\op(\mat(A))}.
+///
+/// @param[in] alpha
+///     A real scalar.
+///     - If zero, then \math{A} is not accessed.
+///
+/// @param[in] S
+///    A DenseSkOp or SparseSkOp object.
+///
+/// @param[in] A
+///     Pointer to a 1D array of real scalars.
+///     - Defines \math{\mat(A)}.
+///
+/// @param[in] lda
+///     A nonnegative integer.
+///     * Leading dimension of \math{\mat(A)} when reading from \math{A}.
+///     * If layout == ColMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i + j \cdot \lda].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a column in \math{\mat(A)}.
+///     * If layout == RowMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i \cdot \lda + j].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a row in \math{\mat(A)}.
+///
+/// @param[in] beta
+///     A real scalar.
+///     - If zero, then \math{B} need not be set on input.
+///
+/// @param[in, out] B
+///    Pointer to 1D array of real scalars.
+///    - On entry, defines \math{\mat(B)}
+///      on the RIGHT-hand side of \math{(\star)}.
+///    - On exit, defines \math{\mat(B)}
+///      on the LEFT-hand side of \math{(\star)}.
+///
+/// @param[in] ldb
+///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
+///    - Refer to documentation for \math{\lda} for details. 
+///
+template <typename T, typename SKOP>
+void sketch_general(
+    blas::Layout layout,
+    blas::Op opS,
+    blas::Op opA,
+    int64_t d, // B is d-by-n
+    int64_t n, // \op(A) is m-by-n
+    int64_t m, // \op(S) is d-by-m
+    T alpha,
+    SKOP &S,
+    const T *A,
+    int64_t lda,
+    T beta,
+    T *B,
+    int64_t ldb
+) {
+    return sketch_general(layout, opS, opA, d, n, m, alpha, S, 0, 0, A, lda, beta, B, ldb);
+};
+
+// =============================================================================
+/// \fn sketch_general(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n,
+///    T alpha, const T *A, int64_t lda, SKOP &S,
+///    int64_t i_off, int64_t j_off, T beta, T *B, int64_t ldb
+/// )
+/// Perform a GEMM-like operation
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     \mat(B) = \alpha \cdot \underbrace{\op(\mat(A))}_{m \times n} \cdot \underbrace{\op(S)}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
+/// @endverbatim
+/// where \math{\alpha} and \math{\beta} are real scalars, \math{\op(X)} either returns a matrix \math{X}
+/// or its transpose, and \math{S} is a sketching operator.
+/// 
+/// @verbatim embed:rst:leading-slashes
+/// What are :math:`\mat(A)` and :math:`\mat(B)`?
+///     Their shapes are defined implicitly by :math:`(m, d, n, \opA)`.
+///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
+///     and "layout", following the same convention as BLAS.
+/// @endverbatim
+/// @param[in] layout
+///     Layout::ColMajor or Layout::RowMajor
+///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
+///
+/// @param[in] opA
+///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
+///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+///
+/// @param[in] opS
+///      - If \math{\opS} = NoTrans, then \math{ \op(S) = S}.
+///      - If \math{\opS} = Trans, then \math{\op(S) = S^T }.
+///
+/// @param[in] m
+///     A nonnegative integer.
+///     - The number of rows in \math{\mat(B)}.
+///     - The number of rows in \math{\op(\mat(A))}.
+///
+/// @param[in] d
+///     A nonnegative integer.
+///     - The number of columns in \math{\mat(B)}
+///     - The number of columns in \math{\op(\mat(S))}.
+///
+/// @param[in] n
+///     A nonnegative integer.
+///     - The number of columns in \math{\op(\mat(A))}
+///     - The number of rows in \math{\op(S)}.
+///
+/// @param[in] alpha
+///     A real scalar.
+///     - If zero, then \math{A} is not accessed.
+///
+/// @param[in] A
+///     Pointer to a 1D array of real scalars.
+///     - Defines \math{\mat(A)}.
+///
+/// @param[in] lda
+///     A nonnegative integer.
+///     * Leading dimension of \math{\mat(A)} when reading from \math{A}.
+///     * If layout == ColMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i + j \cdot \lda].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a column in \math{\mat(A)}.
+///     * If layout == RowMajor, then
+///         @verbatim embed:rst:leading-slashes
+///             .. math::
+///                 \mat(A)[i, j] = A[i \cdot \lda + j].
+///         @endverbatim
+///       In this case, \math{\lda} must be \math{\geq} the length of a row in \math{\mat(A)}.
+///
+/// @param[in] S
+///    A DenseSkOp or SparseSkOp object.
+///    - Defines \math{S}.
+///
+/// @param[in] beta
+///     A real scalar.
+///     - If zero, then \math{B} need not be set on input.
+///
+/// @param[in, out] B
+///    Pointer to 1D array of real scalars.
+///    - On entry, defines \math{\mat(B)}
+///      on the RIGHT-hand side of \math{(\star)}.
+///    - On exit, defines \math{\mat(B)}
+///      on the LEFT-hand side of \math{(\star)}.
+///
+/// @param[in] ldb
+///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
+///    - Refer to documentation for \math{\lda} for details. 
+///
+template <typename T, typename SKOP>
+void sketch_general(
+    blas::Layout layout,
+    blas::Op opA,
+    blas::Op opS,
+    int64_t m, // B is m-by-d
+    int64_t d, // op(S) is n-by-d
+    int64_t n, // op(A) is m-by-n
+    T alpha,
+    const T *A,
+    int64_t lda,
+    SKOP &S,
+    T beta,
+    T *B,
+    int64_t ldb
+) {
+    return sketch_general(layout, opA, opS, m, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);
+};
+
 
 }  // end namespace RandBLAS
 #endif
