@@ -491,8 +491,7 @@ void sketch_general(
 
 // =============================================================================
 /// \fn sketch_general(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n,
-///    T alpha, const T *A, int64_t lda, SKOP &S,
-///    int64_t i_off, int64_t j_off, T beta, T *B, int64_t ldb
+///    T alpha, const T *A, int64_t lda, SKOP &S, T beta, T *B, int64_t ldb
 /// )
 /// Perform a GEMM-like operation
 /// @verbatim embed:rst:leading-slashes
