@@ -7,7 +7,7 @@ The act of applying a sketching operator -- that is, the act of *sketching* -- i
 
 RandBLAS is efficient, flexible, and reliable.
 It can sample sketching operators from a wide range of dense and sparse distributions.
-It offers OpenMP acceleration for applying its sketching operators to dense data matrices stored in main memory.
+It uses CPU-based OpenMP acceleration to apply its sketching operators to dense data matrices stored in main memory.
 It can be used in distributed environments through its ability to (reproducibly) compute products with *submatrices* of sketching operators.
 
 Learn more by reading the `RandBLAS User Guide <user_guide/index.html>`_.
