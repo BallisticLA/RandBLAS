@@ -214,22 +214,23 @@ SparseSkOp<T,RNG>::~SparseSkOp() {
 };
 
 // =============================================================================
-/// Populate the internal data structures of S with values that are 
-/// consistent with S.dist and S.seed_state. This step is needed before
-/// S can be applied to data matrices. Sketching functions in RandBLAS will
-/// automatically call this function if needed.
+/// Performs the work in sampling S from its underlying distribution. This 
+/// entails populating S.rows, S.cols, and S.vals with COO-format sparse matrix
+/// data.
+///
+/// RandBLAS will automatically call this function if and when it is needed.
 ///
 /// @param[in] S
 ///     SparseSkOp object.
 ///
 /// @return
 ///     An RNGState object. This is the state that should be used the next 
-///     time the program needs to generate random numbers for use in a randomized
+///     time the program needs to generate random numbers for a randomized
 ///     algorithm.
 ///     
-template <typename SKOP>
-static auto fill_sparse(
-    SKOP & S
+template <typename T, typename RNG>
+RNGState<RNG> fill_sparse(
+    SparseSkOp<T,RNG> & S
 ) {
     int64_t long_ax_len = MAX(S.dist.n_rows, S.dist.n_cols);
     int64_t short_ax_len = MIN(S.dist.n_rows, S.dist.n_cols);
