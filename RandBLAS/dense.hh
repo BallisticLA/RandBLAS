@@ -494,21 +494,14 @@ std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
 }
 
 // ============================================================================= 
-/// This function performs three operations:
-///   (1) Allocate a buffer of size S.dist.n_rows * S.dist.n_cols.
-///   (2) Populate that buffer with the entries of the sketching operator
-///       that's implicitly defined by S.dist and S.seed_state. 
-///   (3) Set a flag on S so it will deallocate this buffer when its constructor
-///       is called.
-///
-/// _Background_.
-/// If S is used in a sketching operation and this function _is not_ called in
-/// advance, then that sketching function will allocate the necessary memory,
-/// sample the necessary submatrix of S, and then dellocate that memory before returning.
-/// The allocation and sampling are potentially wasteful if S had been used in some
-/// earlier sketching operation.
-/// Therefore this function can be used to avoid duplicating that work if S needs
-/// to be used for multiple sketching operations.
+/// Performs the work in sampling S from its underlying distribution. This entails
+/// allocating a buffer of size S.dist.n_rows * S.dist.n_cols, attaching that
+/// buffer to S as S.buff, and finally sampling iid random variables to populate
+/// S.buff. A flag is set on S so its destructor will deallocate S.buff.
+/// 
+/// By default, RandBLAS allocates and populates buffers for dense sketching operators
+/// just before they are needed in some operation, and then it deletes these buffers
+/// once the operation is complete. Calling this function bypasses that policy.
 ///
 /// @param[in] S
 ///     A DenseSkOp object.

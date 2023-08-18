@@ -1,9 +1,10 @@
+***********************************************
 Sketching distributions and sketching operators
-===============================================
+***********************************************
 
 
 Essentials of dense sketching
------------------------------
+=============================
 .. doxygenstruct:: RandBLAS::DenseDist
    :project: RandBLAS
    :members:
@@ -13,7 +14,7 @@ Essentials of dense sketching
    :members: 
 
 Essentials of sparse sketching 
-------------------------------
+==============================
 .. doxygenstruct:: RandBLAS::SparseDist
    :project: RandBLAS
    :members:
@@ -22,11 +23,18 @@ Essentials of sparse sketching
    :project: RandBLAS
    :members: 
 
-Advanced: sketching operator data structures
---------------------------------------------
+Advanced material
+=================
 
-.. doxygenfunction:: RandBLAS::fill_sparse(SparseSkOp<T, RNG> &S)
-   :project: RandBLAS
+
+What's this about a "major axis"?
+---------------------------------
+
+Data structures and memory management
+-------------------------------------
+
+Dense sketching operators
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. doxygenfunction:: RandBLAS::fill_dense(DenseSkOp<T, RNG> &S)
    :project: RandBLAS
@@ -37,3 +45,8 @@ Advanced: sketching operator data structures
 .. doxygenfunction:: RandBLAS::fill_dense(const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t i_off, int64_t j_off, T *buff, const RNGState<RNG> &seed)
    :project: RandBLAS
 
+Sparse sketching operators
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. doxygenfunction:: RandBLAS::fill_sparse(SparseSkOp<T, RNG> &S)
+   :project: RandBLAS

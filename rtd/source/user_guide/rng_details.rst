@@ -1,7 +1,6 @@
-
-
-Details on random number generators
------------------------------------
+************************
+Random number generators
+************************
 
 RandBLAS relies on counter-based random number generators (CBRNGs).
 The mathematical state of a CBRNG is specified by two integers: a *counter* and a *key*.
@@ -26,8 +25,12 @@ This is important: you should never set the counter yourself!
 If you want statistically independent runs of the same program, then you can start with different values for the key.
 
 
-Advanced material on CBRNGs
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Advanced material
+=================
+
+Counters and keys in CBRNGs
+---------------------------
+
 An RNGState has :math:`\texttt{ctr}` and :math:`\texttt{key}` members.
 These members are in fact arrays of integers, rather than integers themselves.
 Users should not manipulate these values directly.

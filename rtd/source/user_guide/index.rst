@@ -1,5 +1,6 @@
+###################
 RandBLAS User Guide
-===================
+###################
 
 
 Computing a sketch with RandBLAS can be done in three easy steps.
@@ -36,14 +37,17 @@ Computing a sketch with RandBLAS can be done in three easy steps.
             RandBLAS::sketch_general(
                 blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans,
                 2000, 50,  1000,
-                1.0, A, 2000, S, 0, 0, 0.0, B, 2000
+                1.0, A, 2000, S, 0.0, B, 2000
             ); // B = A S.
+
+     RandBLAS has been designed with efficiency and performance in mind. So it's also possible to apply a 
+     *submatrix* of a sketching operator without so much as even generating the full operator to begin with.
 
 We elaborate on each of these steps in the pages linked below.
 
 .. toctree::
     :maxdepth: 3
 
-    Applying a sketching operator : a GEMM-like interface <sketching>
+    Applying a sketching operator <sketching>
     Sketching distributions and sketching operators <operators>
-    Details on random number generators <rng_details>
+    Random states <rng_details>
