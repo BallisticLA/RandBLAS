@@ -103,9 +103,8 @@ struct DenseDist {
     DenseDist(
         int64_t n_rows,
         int64_t n_cols,
-        DenseDistName dn = DenseDistName::Gaussian,
-        MajorAxis ma = MajorAxis::Long
-    ) : n_rows(n_rows), n_cols(n_cols), family(dn), major_axis(ma) {
+        DenseDistName dn = DenseDistName::Gaussian
+    ) : n_rows(n_rows), n_cols(n_cols), family(dn), major_axis(MajorAxis::Long) {
         randblas_require(dn != DenseDistName::BlackBox);
     };
 
