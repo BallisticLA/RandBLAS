@@ -20,14 +20,14 @@
 namespace RandBLAS {
 // =============================================================================
 /// We call a sketching operator "dense" if (1) it is naturally represented with a
-/// buffer and (2) the natural way to apply that operator to a data matrix is
+/// buffer and (2) the natural way to apply that operator to a matrix is
 /// to use the operator's buffer in GEMM.
 ///
 /// We support two distributions for dense sketching operators: those whose
 /// entries are iid Gaussians or iid uniform over a symmetric interval.
 /// For implementation reasons, we also expose an option to indicate that an
 /// operator's distribution is unknown but it is still represented by a buffer
-/// that can be used in GEMM. This third option must be used with care.
+/// that can be used in GEMM.
 enum class DenseDistName : char {
     // ---------------------------------------------------------------------------
     ///  Indicates the Gaussian distribution with mean 0 and standard deviation 1.
@@ -39,15 +39,13 @@ enum class DenseDistName : char {
 
     // ---------------------------------------------------------------------------
     /// Indicates that the sketching operator's entries will only be specified by
-    /// a user-provided buffer. The storage order of this buffer must be consistent
-    /// with the sketching operator's "layout" property.
+    /// a user-provided buffer.
     BlackBox = 'B'
 };
 
 
 // =============================================================================
 /// A distribution over dense sketching operators.
-///
 struct DenseDist {
     // ---------------------------------------------------------------------------
     ///  Matrices drawn from this distribution have this many rows.
@@ -59,29 +57,59 @@ struct DenseDist {
 
     // ---------------------------------------------------------------------------
     ///  The distribution used for the entries of the sketching operator.
-    const DenseDistName family = DenseDistName::Gaussian;
+    const DenseDistName family;
 
     // ---------------------------------------------------------------------------
-    ///  The order in which the buffer should be populated, if sampling iid.
-    ///  Not applicable if family == BlackBox.
-    const MajorAxis major_axis = MajorAxis::Long;
+    ///  This member indirectly sets the storage order of buffers of
+    ///  sketching operators that are sampled from this distribution.
+    ///
+    ///  We note that the storage order of a DenseSkOp's underlying buffer does not
+    ///  affect whether the operator can be applied to row-major or column-major data.
+    ///  Mismatched data layouts are resolved automatically and 
+    ///  with zero copies inside RandBLAS::sketch_general. Therefore most users need
+    ///  not spend any brain power thinking about how this value should be set.
+    ///  
+    /// @verbatim embed:rst:leading-slashes
+    ///  *Notes for experts*. Deciding the value of this member is only needed
+    ///  in algorithms where (1) there's a need to iteratively generate panels of
+    ///  a larger sketching operator and (2) one of larger operator's dimensions
+    ///  cannot be known before the  iterative process starts.
+    ///
+    ///  Essentially, column-major storage order lets us
+    ///  stack operators horizontally in a consistent way, while row-major storage order
+    ///  lets us stack operators vertically in a consistent way. The mapping from
+    ///  major_axis to storage order is given in the table below.
+    /// 
+    ///     .. list-table::
+    ///        :widths: 34 33 33
+    ///        :header-rows: 1
+    ///
+    ///        * -  
+    ///          - :math:`\texttt{major_axis} = \texttt{Long}`
+    ///          - :math:`\texttt{major_axis} = \texttt{Short}`
+    ///        * - :math:`\texttt{n_rows} > \texttt{n_cols}`
+    ///          - column major
+    ///          - row major
+    ///        * - :math:`\texttt{n_rows} \leq \texttt{n_cols}`
+    ///          - row major
+    ///          - column major
+    /// @endverbatim
+    const MajorAxis major_axis;
 
     // ---------------------------------------------------------------------------
-    ///  A distribution over Gaussian matrices of shape (n_rows, n_cols).
-    ///  The MajorAxis is chosen so that operators sampled from this
-    ///  distribution can easily be concatenated to increase the size of a sketch.
-    DenseDist(
-        int64_t n_rows,
-        int64_t n_cols
-    ) : n_rows(n_rows), n_cols(n_cols),
-        family(DenseDistName::Gaussian), major_axis(MajorAxis::Long) { };
-
+    ///  A distribution over matrices of shape (n_rows, n_cols) with entries drawn
+    ///  iid from either the standard normal distribution or the uniform distribution
+    ///  over [-1, 1]. 
     DenseDist(
         int64_t n_rows,
         int64_t n_cols,
-        DenseDistName dn
-    ) : n_rows(n_rows), n_cols(n_cols), family(dn), major_axis(MajorAxis::Long) { };
+        DenseDistName dn = DenseDistName::Gaussian,
+        MajorAxis ma = MajorAxis::Long
+    ) : n_rows(n_rows), n_cols(n_cols), family(dn), major_axis(ma) {
+        randblas_require(dn != DenseDistName::BlackBox);
+    };
 
+    // Only use with struct initializer.
     DenseDist(
         int64_t n_rows,
         int64_t n_cols,
@@ -116,7 +144,7 @@ inline int64_t major_axis_length(
 }
 
 // =============================================================================
-/// A sample from a prescribed distribution over dense sketching operators.
+/// A sample from a distribution over dense sketching operators.
 ///
 template <typename T, typename RNG = r123::Philox4x32>
 struct DenseSkOp {

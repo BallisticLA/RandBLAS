@@ -283,12 +283,12 @@ class TestFillAxis : public::testing::Test
         uint32_t seed = 99;
     
         // make the wide sketching operator
-        RandBLAS::DenseDist D_wide(short_dim, long_dim, distname, ma);
+        RandBLAS::DenseDist D_wide {short_dim, long_dim, distname, ma};
         RandBLAS::DenseSkOp<T> S_wide(D_wide, seed);
         RandBLAS::fill_dense(S_wide);
 
         // make the tall sketching operator
-        RandBLAS::DenseDist D_tall(long_dim, short_dim, distname, ma);
+        RandBLAS::DenseDist D_tall {long_dim, short_dim, distname, ma};
         RandBLAS::DenseSkOp<T> S_tall(D_tall, seed);
         RandBLAS::fill_dense(S_tall);
 
