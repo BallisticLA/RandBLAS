@@ -180,7 +180,7 @@ class TestLSKGES : public ::testing::Test
 
         // create initialized workspace for the sketch
         std::vector<T> B0(d * m);
-        RandBLAS::dense::DenseDist DB = {.n_rows = d, .n_cols = m};
+        RandBLAS::dense::DenseDist DB(d, m);
         RandBLAS::dense::fill_dense(DB, B0.data(), RandBLAS::RNGState(42));
         int64_t ldb = (is_colmajor) ? d : m;
         std::vector<T> B1(d * m);
@@ -298,11 +298,7 @@ class TestLSKGES : public ::testing::Test
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A0(m0 * n0, 0.0);
         uint32_t seed_A0 = 42000;
-        RandBLAS::dense::DenseDist DA0 = {
-            .n_rows = m0,
-            .n_cols = n0,
-            .family = RandBLAS::dense::DenseDistName::Uniform
-        };
+        RandBLAS::dense::DenseDist DA0(m0, n0, RandBLAS::dense::DenseDistName::Uniform);
         RandBLAS::dense::fill_dense(DA0, A0.data(), RandBLAS::RNGState(seed_A0));
         std::vector<T> B0(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
@@ -365,11 +361,7 @@ class TestLSKGES : public ::testing::Test
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> At(m * n, 0.0);
         uint32_t seed_A = 42000;
-        RandBLAS::dense::DenseDist DAt = {
-            .n_rows = n,
-            .n_cols = m,
-            .family = RandBLAS::dense::DenseDistName::Uniform
-        };
+        RandBLAS::dense::DenseDist DAt(n, m, RandBLAS::dense::DenseDistName::Uniform);
         RandBLAS::dense::fill_dense(DAt, At.data(), RandBLAS::RNGState(seed_A));
         std::vector<T> B0(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DAt.n_rows : DAt.n_cols;

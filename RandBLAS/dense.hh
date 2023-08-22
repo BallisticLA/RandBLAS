@@ -19,21 +19,28 @@
 
 namespace RandBLAS {
 // =============================================================================
-/// We call a sketching operator "dense" if it takes Level 3 BLAS work to 
-/// apply to a dense matrix. All such sketching operators supported by
-/// RandBLAS currently have i.i.d. entries. This enumeration specifies
-/// the distribution of the entries of such a sketching operator.
+/// We call a sketching operator "dense" if (1) it is naturally represented with a
+/// buffer and (2) the natural way to apply that operator to a data matrix is
+/// to use the operator's buffer in GEMM.
+///
+/// We support two distributions for dense sketching operators: those whose
+/// entries are iid Gaussians or iid uniform over a symmetric interval.
+/// For implementation reasons, we also expose an option to indicate that an
+/// operator's distribution is unknown but it is still represented by a buffer
+/// that can be used in GEMM. This third option must be used with care.
 enum class DenseDistName : char {
     // ---------------------------------------------------------------------------
-    ///  Gaussian distribution with mean 0 and standard deviation 1
+    ///  Indicates the Gaussian distribution with mean 0 and standard deviation 1.
     Gaussian = 'G',
 
     // ---------------------------------------------------------------------------
-    ///  uniform distribution over [-1, 1].
+    ///  Indicates the uniform distribution over [-1, 1].
     Uniform = 'U',
 
     // ---------------------------------------------------------------------------
-    ///  entries are defined only by a user-provided buffer
+    /// Indicates that the sketching operator's entries will only be specified by
+    /// a user-provided buffer. The storage order of this buffer must be consistent
+    /// with the sketching operator's "layout" property.
     BlackBox = 'B'
 };
 
@@ -56,7 +63,32 @@ struct DenseDist {
 
     // ---------------------------------------------------------------------------
     ///  The order in which the buffer should be populated, if sampling iid.
+    ///  Not applicable if family == BlackBox.
     const MajorAxis major_axis = MajorAxis::Long;
+
+    // ---------------------------------------------------------------------------
+    ///  A distribution over Gaussian matrices of shape (n_rows, n_cols).
+    ///  The MajorAxis is chosen so that operators sampled from this
+    ///  distribution can easily be concatenated to increase the size of a sketch.
+    DenseDist(
+        int64_t n_rows,
+        int64_t n_cols
+    ) : n_rows(n_rows), n_cols(n_cols),
+        family(DenseDistName::Gaussian), major_axis(MajorAxis::Long) { };
+
+    DenseDist(
+        int64_t n_rows,
+        int64_t n_cols,
+        DenseDistName dn
+    ) : n_rows(n_rows), n_cols(n_cols), family(dn), major_axis(MajorAxis::Long) { };
+
+    DenseDist(
+        int64_t n_rows,
+        int64_t n_cols,
+        DenseDistName dn,
+        MajorAxis ma
+    ) : n_rows(n_rows), n_cols(n_cols), family(dn), major_axis(ma) { };
+
 };
 
 
