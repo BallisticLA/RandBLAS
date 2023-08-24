@@ -46,11 +46,7 @@ class TestDenseMoments : public ::testing::Test
         std::vector<T> A(size, 0.0);
 
         // Construct the sketching operator
-        RandBLAS::DenseDist D = {
-            .n_rows = n_rows,
-            .n_cols = n_cols,
-            .family = dn
-        };
+        RandBLAS::DenseDist D(n_rows, n_cols, dn);
         auto state = RandBLAS::RNGState(key);
         auto [layout, next_state] = RandBLAS::fill_dense(D, A.data(), state);
 
@@ -359,11 +355,7 @@ class TestStateUpdate : public ::testing::Test
         std::vector<T> B(size, 0.0);
 
         // Construct the sketching operator
-        RandBLAS::DenseDist D = {
-            .n_rows = n_rows,
-            .n_cols = n_cols,
-            .family = dn
-        };
+        RandBLAS::DenseDist D(n_rows, n_cols, dn);
 
         auto state = RandBLAS::RNGState(key);
         auto [layout, next_state] = RandBLAS::fill_dense(D, A.data(), state);
@@ -387,23 +379,23 @@ class TestStateUpdate : public ::testing::Test
         double total = 0.0;
 
         // Construct the sketching operator
-        RandBLAS::DenseDist D1 = {
-            .n_rows = n_rows,
-            .n_cols = n_cols / 2,
-            .family = dn
-        };
+        RandBLAS::DenseDist D1(
+            n_rows,
+            n_cols / 2,
+            dn
+        );
 
-        RandBLAS::DenseDist D3 = {
-            .n_rows = n_rows,
-            .n_cols = n_cols - n_cols / 2,
-            .family = dn
-        };
+        RandBLAS::DenseDist D3(
+            n_rows,
+            n_cols - n_cols / 2,
+            dn
+        );
 
-        RandBLAS::DenseDist D2 = {
-            .n_rows = n_rows,
-            .n_cols = n_cols,
-            .family = dn
-        };
+        RandBLAS::DenseDist D2(
+            n_rows,
+            n_cols,
+            dn
+        );
 
         auto state = RandBLAS::RNGState(key);
         auto state1 = RandBLAS::RNGState(key);
@@ -433,11 +425,7 @@ class TestStateUpdate : public ::testing::Test
         auto state = RandBLAS::RNGState(key);
         auto state_copy = RandBLAS::RNGState(key);
 
-        RandBLAS::DenseDist D = {
-            .n_rows = n_rows,
-            .n_cols = n_cols,
-            .family = dn
-        };
+        RandBLAS::DenseDist D(n_rows, n_cols, dn);
 
         typename RNG::ctr_type c_ref = state_copy.counter;
 

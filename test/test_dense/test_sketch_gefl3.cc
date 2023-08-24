@@ -29,15 +29,9 @@ class TestLSKGE3 : public ::testing::Test
         bool preallocate,
         blas::Layout layout
     ) {
-        // Define the distribution for S0.
-        RandBLAS::DenseDist D = {
-            .n_rows = d,
-            .n_cols = m,
-            .family = RandBLAS::DenseDistName::Gaussian
-        };
-
-        // Define the sketching operator struct, S0.
+        // Define the distribution for S0, and S0 itself.
         // Create a copy that we always realize explicitly.
+        RandBLAS::DenseDist D(d, m);
         RandBLAS::DenseSkOp<T> S0(D, seed, nullptr);
         if (preallocate)
             RandBLAS::fill_dense(S0);
@@ -77,13 +71,8 @@ class TestLSKGE3 : public ::testing::Test
         int64_t d,
         blas::Layout layout
     ) {
-        // Define the distribution for S0.
-        RandBLAS::DenseDist Dt = {
-            .n_rows = m,
-            .n_cols = d,
-            .family = RandBLAS::DenseDistName::Gaussian
-        };
-        // Define the sketching operator struct, S0.
+        // Define the distribution for S0, and S0 itself.
+        RandBLAS::DenseDist Dt(m, d);
         RandBLAS::DenseSkOp<T> S0(Dt, seed, nullptr);
         RandBLAS::DenseSkOp<T> S0_ref(Dt, seed, nullptr);
         RandBLAS::fill_dense(S0_ref);
@@ -127,14 +116,8 @@ class TestLSKGE3 : public ::testing::Test
         assert(d0 > d);
         assert(m0 > m);
 
-        // Define the distribution for S0.
-        RandBLAS::DenseDist D = {
-            .n_rows = d0,
-            .n_cols = m0,
-            .family = RandBLAS::DenseDistName::Gaussian
-        };
-
-        // Define the sketching operator struct, S0.
+        // Define the distribution for S0, and S0 itself.
+        RandBLAS::DenseDist D(d0, m0);
         RandBLAS::DenseSkOp<T> S0(D, seed, nullptr);
         RandBLAS::DenseSkOp<T> S0_ref(D, seed, nullptr);
         RandBLAS::fill_dense(S0_ref);
@@ -185,13 +168,8 @@ class TestLSKGE3 : public ::testing::Test
         assert(m0 > m);
         assert(n0 > n);
 
-        // Define the distribution for S0.
-        RandBLAS::DenseDist D = {
-            .n_rows = d,
-            .n_cols = m,
-            .family = RandBLAS::DenseDistName::Gaussian
-        };
-        // Define the sketching operator struct, S0.
+        // Define the distribution for S0, and S0 itself.
+        RandBLAS::DenseDist D(d, m);
         RandBLAS::DenseSkOp<T> S0(D, seed_S0, nullptr);
         RandBLAS::fill_dense(S0);
         bool AB_colmajor = layout == blas::Layout::ColMajor;
@@ -199,7 +177,7 @@ class TestLSKGE3 : public ::testing::Test
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A0(m0 * n0, 0.0);
         uint32_t seed_A0 = 42000;
-        RandBLAS::DenseDist DA0 = {.n_rows = m0, .n_cols = n0};
+        RandBLAS::DenseDist DA0(m0, n0);
         RandBLAS::fill_dense(DA0, A0.data(), RandBLAS::RNGState(seed_A0));
         std::vector<T> B(d * n, 0.0);
         int64_t lda = (AB_colmajor) ? DA0.n_rows : DA0.n_cols;
