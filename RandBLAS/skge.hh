@@ -596,6 +596,23 @@ void sketch_general(
     return sketch_general(layout, opA, opS, m, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);
 };
 
+template <typename T, typename SKOP>
+void sketch_vector(
+    blas::Op opS,
+    int64_t d, // length of y
+    int64_t m, // length of x
+    T alpha,
+    SKOP &S,   // S has dim d by m
+    int64_t i_off,
+    int64_t j_off,
+    const T *x,
+    int64_t incx,
+    T beta,
+    T *y,
+    int64_t incy
+) {
+    return sketch_general(blas::Layout::RowMajor, opS, blas::Op::NoTrans, d, 1, m, alpha, S, i_off, j_off, x, incx, beta, y, incy);
+}
 
 }  // end namespace RandBLAS
 #endif

@@ -210,8 +210,46 @@ class TestLSKGE3 : public ::testing::Test
         );
     }
 
+    template<typename T>
+    static void test_sketch_vec(
+        uint32_t seed,
+        int64_t d,
+        int64_t m,
+        int64_t incx,
+        int64_t incy
+    ) {
+        T total = 0;
+        T x[incx*m];
+        T y[incy*d];
+        T y_test[incy*d];
+    
+        for (int i = 0; i < incx*m; i++){
+            x[i] = 1.0;
+        }
+
+        RandBLAS::DenseDist D(d, m);
+
+        RandBLAS::DenseSkOp<double> S0(D, seed, nullptr);
+        RandBLAS::fill_dense(S0);
+
+        RandBLAS::sketch_vector<T>(blas::Op::NoTrans, d, m, 1, S0, 0, 0, x, incx, 0, y, incy);
+
+        blas::gemv(blas::Layout::RowMajor, blas::Op::NoTrans, d, m, 1, S0.buff, m, x, incx, 0, y_test, incy); 
+
+        for (int i = 0; i < d; i++) {
+            total += abs(y[incy*i] - y_test[incy*i]);
+        }
+
+        ASSERT_EQ(total, 0);
+        
+    }
 };
 
+TEST_F(TestLSKGE3, test_sketch_vec)
+{
+    for (uint32_t seed : {0})
+        test_sketch_vec<double>(seed, 1000, 10000, 2, 3);
+}
 
 ////////////////////////////////////////////////////////////////////////
 //
