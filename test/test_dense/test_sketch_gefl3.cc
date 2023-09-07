@@ -211,7 +211,7 @@ class TestLSKGE3 : public ::testing::Test
     }
 
     template<typename T>
-    static void test_sketch_vec(
+    static void test_sketch_vec_wide(
         uint32_t seed,
         int64_t d,
         int64_t m,
@@ -220,8 +220,8 @@ class TestLSKGE3 : public ::testing::Test
     ) {
         T total = 0;
         T x[incx*m];
-        T y[incy*d];
-        T y_test[incy*d];
+        T y_wide[incy*d];
+        T y_ref[incy*d];
     
         for (int i = 0; i < incx*m; i++){
             x[i] = 1.0;
@@ -229,28 +229,77 @@ class TestLSKGE3 : public ::testing::Test
 
         RandBLAS::DenseDist D(d, m);
 
-        RandBLAS::DenseSkOp<double> S0(D, seed, nullptr);
-        RandBLAS::fill_dense(S0);
+        RandBLAS::DenseSkOp<double> S_wide(D, seed, nullptr);
+        RandBLAS::fill_dense(S_wide);
 
-        RandBLAS::sketch_vector<T>(blas::Op::NoTrans, d, m, 1, S0, 0, 0, x, incx, 0, y, incy);
+        RandBLAS::sketch_vector<T>(blas::Op::NoTrans, d, m, 1, S_wide, 0, 0, x, incx, 0, y_wide, incy);
 
-        blas::gemv(blas::Layout::RowMajor, blas::Op::NoTrans, d, m, 1, S0.buff, m, x, incx, 0, y_test, incy); 
+        //Possible: repalce blas::Layout::Rowmajor with S0.layout
+        int64_t lds = (S_wide.layout == blas::Layout::RowMajor) ? m : d;
+        blas::gemv(S_wide.layout, blas::Op::NoTrans, d, m, 1, S_wide.buff, lds, x, incx, 0, y_ref, incy); 
 
         for (int i = 0; i < d; i++) {
-            total += abs(y[incy*i] - y_test[incy*i]);
+            total += abs(y_wide[incy*i] - y_ref[incy*i]);
         }
 
         ASSERT_EQ(total, 0);
-        
     }
+    
+    template<typename T>
+    static void test_sketch_vec_tall(
+        uint32_t seed,
+        int64_t d,
+        int64_t m,
+        int64_t incx,
+        int64_t incy
+    ) {
+        T total = 0;
+        T x[incx*m];
+        T y_tall[incy*d];
+        T y_ref[incy*d];
+    
+        for (int i = 0; i < incx*m; i++){
+            x[i] = 1.0;
+        }
+
+        RandBLAS::DenseDist D_tall(m, d);
+
+        RandBLAS::DenseSkOp<double> S_tall(D_tall, seed, nullptr);
+        RandBLAS::fill_dense(S_tall);
+
+
+        RandBLAS::sketch_vector<T>(blas::Op::Trans, d, m, 1, S_tall, 0, 0, x, incx, 0, y_tall, incy);
+
+        //Possible: repalce blas::Layout::Rowmajor with S0.layout
+        int64_t lds = (S_tall.layout == blas::Layout::RowMajor) ? d : m;
+        blas::gemv(S_tall.layout, blas::Op::Trans, m, d, 1, S_tall.buff, lds, x, incx, 0, y_ref, incy); 
+
+        for (int i = 0; i < d; i++) {
+            total += abs(y_tall[incy*i] - y_ref[incy*i]);
+        }
+
+        ASSERT_EQ(total, 0);
+    }
+
 };
 
-TEST_F(TestLSKGE3, test_sketch_vec)
+//TODO: Write testing functions that generates a tall sketching operator with OpS = Trans. Should be the same as generating a wide operator oith no trans.
+//      Test tall sketching operators.    
+TEST_F(TestLSKGE3, test_sketch_vec_wide)
 {
-    for (uint32_t seed : {0})
-        test_sketch_vec<double>(seed, 1000, 10000, 2, 3);
+    for (uint32_t seed : {0, 1, 2}) {
+        test_sketch_vec_wide<double>(seed, 1000, 10000, 2, 3);
+        test_sketch_vec_wide<double>(seed, 997, 17371, 3, 2);
+    }
 }
 
+TEST_F(TestLSKGE3, test_sketch_vec_tall)
+{
+    for (uint32_t seed : {0, 1, 2}) {
+        test_sketch_vec_tall<double>(seed, 1000, 10000, 2, 3);
+        test_sketch_vec_tall<double>(seed, 997, 17371, 3, 2);
+    }
+}
 ////////////////////////////////////////////////////////////////////////
 //
 //
