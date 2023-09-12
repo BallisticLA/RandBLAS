@@ -596,13 +596,74 @@ void sketch_general(
     return sketch_general(layout, opA, opS, m, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);
 };
 
+// =============================================================================
+/// \fn sketch_vector(blas::Op opS, int64_t d, int64_t m, T alpha, SKOP &S,
+///    int64_t i_off, int64_t j_off, const T *x, incx, T beta, T *y, incy
+/// )
+/// Perform a GEMV-like operation
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     \mat(y) = \alpha \cdot \underbrace{\op(S)}_{d \times m} \cdot \underbrace{\mat(x)}_{m \times 1} + \beta \cdot \underbrace{\mat(y)}_{d \times 1},    \tag{$\star$}
+/// @endverbatim
+/// where \math{\alpha} and \math{\beta} are real scalars and \math{S} is a sketching operator.
+/// 
+/// @verbatim embed:rst:leading-slashes
+/// What are :math:`\mat(x)` and :math:`\mat(y)`?
+///     Their shapes are defined as tall vectors of dimension :math:`(\mat(x), m \times 1)`, :math:`(\mat(y), d \times 1)`.
+///     Their precise contents are determined by :math:`(x, incx)`, :math:`(y, incy)`,
+///     and "layout = RowMajor", following the same convention as BLAS.
+/// @endverbatim
+///
+/// @param[in] opS
+///      - If \math{\opS} = NoTrans, then \math{ \op(S) = S}.
+///      - If \math{\opS} = Trans, then \math{\op(S) = S^T }.
+///
+/// @param[in] d
+///     A nonnegative integer.
+///     - The number of elements of \math{\mat(x)}.
+///
+/// @param[in] m
+///     A nonnegative integer.
+///     - The number of elements of \math{\mat(B)}
+///
+/// @param[in] alpha
+///     A real scalar.
+///     - If zero, then \math{x} is not accessed.
+///
+/// @param[in] x
+///     Pointer to a 1D array of real scalars.
+///     - Defines \math{\mat(x)}.
+///
+/// @param[in] incx
+///     A nonnegative integer.
+///     * Stride between elements of x. incx must not be zero.
+///     
+/// @param[in] S
+///    A DenseSkOp or SparseSkOp object.
+///    - Defines \math{S}.
+///
+/// @param[in] beta
+///     A real scalar.
+///     - If zero, then \math{x} need not be set on input.
+///
+/// @param[in, out] B
+///    Pointer to 1D array of real scalars.
+///    - On entry, defines \math{\mat(y)}
+///      on the RIGHT-hand side of \math{(\star)}.
+///    - On exit, defines \math{\mat(y)}
+///      on the LEFT-hand side of \math{(\star)}.
+///
+/// @param[in] incy
+///     A nonnegative integer.
+///     * Stride between elements of y. incy must not be zero.
+///
 template <typename T, typename SKOP>
 void sketch_vector(
     blas::Op opS,
     int64_t d, // length of y
     int64_t m, // length of x
     T alpha,
-    SKOP &S,   // S has dim d by m
+    SKOP &S,   // op(submat(S)) has dim d by m
     int64_t i_off,
     int64_t j_off,
     const T *x,
