@@ -230,7 +230,7 @@ class TestLSKGE3 : public ::testing::Test
 
         // Generate wide sketching operator
         RandBLAS::DenseDist D(d, m);
-        RandBLAS::DenseSkOp<double> S_wide(D, seed, nullptr);
+        RandBLAS::DenseSkOp<T> S_wide(D, seed, nullptr);
         RandBLAS::fill_dense(S_wide);
 
         // Perform wide sketch
