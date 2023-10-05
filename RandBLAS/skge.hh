@@ -610,11 +610,11 @@ void sketch_general(
 /// @verbatim embed:rst:leading-slashes
 /// What are :math:`\mat(x)` and :math:`\mat(y)`?
 ///     Their shapes are defined as tall vectors of dimension :math:`(\mat(x), m \times 1)`, :math:`(\mat(y), d \times 1)`.
-///     Their precise contents are determined by :math:`(x, incx)`, :math:`(y, incy)`,
-///     and "layout = RowMajor", following the same convention as BLAS. We note that this representation is unusual, but it allows us to interpret incx and incy like lda in GEMM.
-///     This function treats (\mat{x},incx) and (\mat{x}, incy) the exact same way as Netlib BLAS, which uses column-major layout. In interfaces like CBLAS, which allow either row-major or column-major
-///     layout, the layout argument in GEMV only affects the matrix. sketch_vector does not have a Layout argument because the matrix is a sketching operator,
-///     and RandBLAS does not deal with the "layout" of a sketching operator in the conventional way.
+///     Their precise contents are determined by :math:`(x, incx)`, :math:`(y, incy)`, in a way that is identical to BLAS.
+///
+/// Why no "layout" argument?
+///     The GEMV in CBLAS accepts a parameter that specifies row-major or column-major layout of the matrix.
+///     Since our matrix is a sketching operator, and since RandBLAS has no notion of the layout of a sketching operator, we do not have a layout parameter.
 /// @endverbatim
 ///
 /// @param[in] opS
