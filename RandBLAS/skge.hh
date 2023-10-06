@@ -66,9 +66,11 @@ using namespace RandBLAS::sparse;
 /// @param[in] opS
 ///      - If \math{\opS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
 ///      - If \math{\opS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
+///
 /// @param[in] opA
 ///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
 ///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+///
 /// @param[in] d
 ///     A nonnegative integer.
 ///     - The number of rows in \math{\mat(B)}
@@ -410,9 +412,11 @@ void sketch_general(
 /// @param[in] opS
 ///      - If \math{\opS} = NoTrans, then \math{ \op(S) = S}.
 ///      - If \math{\opS} = Trans, then \math{\op(S) = S^T }.
+///
 /// @param[in] opA
 ///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
 ///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+///
 /// @param[in] d
 ///     A nonnegative integer.
 ///     - The number of rows in \math{\mat(B)}
@@ -632,15 +636,6 @@ void sketch_general(
 /// @param[in] alpha
 ///     A real scalar.
 ///     - If zero, then \math{x} is not accessed.
-///
-/// @param[in] x
-///     Pointer to a 1D array of real scalars.
-///     - Defines \math{\mat(x)}.
-///
-/// @param[in] incx
-///     A nonnegative integer. 
-///     * Stride between elements of x. incx must not be zero.
-///     * RandBLAS currently does not support negative values for LDA, so incx cannot be negative unlike GEMV in the BLAS.
 ///     
 /// @param[in] S
 ///    A DenseSkOp or SparseSkOp object.
@@ -655,6 +650,15 @@ void sketch_general(
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
 ///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_off}]}. 
+///
+/// @param[in] x
+///     Pointer to a 1D array of real scalars.
+///     - Defines \math{\mat(x)}.
+///
+/// @param[in] incx
+///     A nonnegative integer. 
+///     * Stride between elements of x. incx must not be zero.
+///     * RandBLAS currently does not support negative values for LDA, so incx cannot be negative unlike GEMV in the BLAS.
 ///
 /// @param[in] beta
 ///     A real scalar.
@@ -725,6 +729,10 @@ void sketch_vector(
 /// @param[in] alpha
 ///     A real scalar.
 ///     - If zero, then \math{x} is not accessed.
+///     
+/// @param[in] S
+///    A DenseSkOp or SparseSkOp object.
+///    - Defines \math{S}.
 ///
 /// @param[in] x
 ///     Pointer to a 1D array of real scalars.
@@ -734,10 +742,6 @@ void sketch_vector(
 ///     A nonnegative integer. 
 ///     * Stride between elements of x. incx must not be zero.
 ///     * RandBLAS currently does not support negative values for LDA, so incx cannot be negative unlike GEMV in the BLAS.
-///     
-/// @param[in] S
-///    A DenseSkOp or SparseSkOp object.
-///    - Defines \math{S}.
 ///
 /// @param[in] beta
 ///     A real scalar.
