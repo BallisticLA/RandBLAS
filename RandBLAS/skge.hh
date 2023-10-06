@@ -658,7 +658,7 @@ void sketch_general(
 ///
 /// @param[in] beta
 ///     A real scalar.
-///     - If zero, then \math{x} need not be set on input.
+///     - If zero, then \math{y} need not be set on input.
 ///
 /// @param[in, out] y
 ///    Pointer to 1D array of real scalars.
@@ -690,6 +690,71 @@ void sketch_vector(
     return sketch_general(blas::Layout::RowMajor, opS, blas::Op::NoTrans, d, 1, m, alpha, S, i_off, j_off, x, incx, beta, y, incy);
 }
 
+// =============================================================================
+/// \fn sketch_vector(blas::Op opS, int64_t d, int64_t m, T alpha, SKOP &S, const T *x, incx, T beta, T *y, incy
+/// )
+/// Perform a GEMV-like operation
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     \mat(y) = \alpha \cdot \underbrace{\op(S)}_{d \times m} \cdot \underbrace{\mat(x)}_{m \times 1} + \beta \cdot \underbrace{\mat(y)}_{d \times 1},    \tag{$\star$}
+/// @endverbatim
+/// where \math{\alpha} and \math{\beta} are real scalars and \math{S} is a sketching operator.
+/// 
+/// @verbatim embed:rst:leading-slashes
+/// What are :math:`\mat(x)` and :math:`\mat(y)`?
+///     Their shapes are defined as tall vectors of dimension :math:`(\mat(x), m \times 1)`, :math:`(\mat(y), d \times 1)`.
+///     Their precise contents are determined by :math:`(x, incx)`, :math:`(y, incy)`, in a way that is identical to BLAS.
+///
+/// Why no "layout" argument?
+///     The GEMV in CBLAS accepts a parameter that specifies row-major or column-major layout of the matrix.
+///     Since our matrix is a sketching operator, and since RandBLAS has no notion of the layout of a sketching operator, we do not have a layout parameter.
+/// @endverbatim
+///
+/// @param[in] opS
+///      - If \math{\opS} = NoTrans, then \math{ \op(S) = S}.
+///      - If \math{\opS} = Trans, then \math{\op(S) = S^T }.
+///
+/// @param[in] d
+///     A nonnegative integer.
+///     - The number of elements of \math{\mat(x)}.
+///
+/// @param[in] m
+///     A nonnegative integer.
+///     - The number of elements of \math{\mat(y)}
+///
+/// @param[in] alpha
+///     A real scalar.
+///     - If zero, then \math{x} is not accessed.
+///
+/// @param[in] x
+///     Pointer to a 1D array of real scalars.
+///     - Defines \math{\mat(x)}.
+///
+/// @param[in] incx
+///     A nonnegative integer. 
+///     * Stride between elements of x. incx must not be zero.
+///     * RandBLAS currently does not support negative values for LDA, so incx cannot be negative unlike GEMV in the BLAS.
+///     
+/// @param[in] S
+///    A DenseSkOp or SparseSkOp object.
+///    - Defines \math{S}.
+///
+/// @param[in] beta
+///     A real scalar.
+///     - If zero, then \math{y} need not be set on input.
+///
+/// @param[in, out] y
+///    Pointer to 1D array of real scalars.
+///    - On entry, defines \math{\mat(y)}
+///      on the RIGHT-hand side of \math{(\star)}.
+///    - On exit, defines \math{\mat(y)}
+///      on the LEFT-hand side of \math{(\star)}.
+///
+/// @param[in] incy
+///     A nonnegative integer.
+///     * Stride between elements of y. incy must not be zero.
+///     * RandBLAS currently does not support negative values for LDA, so incy cannot be negative unlike GEMV in the BLAS.
+///
 template <typename T, typename SKOP>
 void sketch_vector(
     blas::Op opS,
