@@ -66,9 +66,11 @@ using namespace RandBLAS::sparse;
 /// @param[in] opS
 ///      - If \math{\opS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
 ///      - If \math{\opS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
+///
 /// @param[in] opA
 ///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
 ///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+///
 /// @param[in] d
 ///     A nonnegative integer.
 ///     - The number of rows in \math{\mat(B)}
@@ -410,9 +412,11 @@ void sketch_general(
 /// @param[in] opS
 ///      - If \math{\opS} = NoTrans, then \math{ \op(S) = S}.
 ///      - If \math{\opS} = Trans, then \math{\op(S) = S^T }.
+///
 /// @param[in] opA
 ///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
 ///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+///
 /// @param[in] d
 ///     A nonnegative integer.
 ///     - The number of rows in \math{\mat(B)}
@@ -596,6 +600,180 @@ void sketch_general(
     return sketch_general(layout, opA, opS, m, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);
 };
 
+// =============================================================================
+/// \fn sketch_vector(blas::Op opS, int64_t d, int64_t m, T alpha, SKOP &S,
+///    int64_t i_off, int64_t j_off, const T *x, incx, T beta, T *y, incy
+/// )
+/// Perform a GEMV-like operation
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     \mat(y) = \alpha \cdot \underbrace{\op(\submat(S))}_{d \times m} \cdot \underbrace{\mat(x)}_{m \times 1} + \beta \cdot \underbrace{\mat(y)}_{d \times 1},    \tag{$\star$}
+/// @endverbatim
+/// where \math{\alpha} and \math{\beta} are real scalars and \math{S} is a sketching operator.
+/// 
+/// @verbatim embed:rst:leading-slashes
+/// What are :math:`\mat(x)` and :math:`\mat(y)`?
+///     Their shapes are defined as tall vectors of dimension :math:`(\mat(x), m \times 1)`, :math:`(\mat(y), d \times 1)`.
+///     Their precise contents are determined by :math:`(x, incx)`, :math:`(y, incy)`, in a way that is identical to BLAS.
+///
+/// Why no "layout" argument?
+///     The GEMV in CBLAS accepts a parameter that specifies row-major or column-major layout of the matrix.
+///     Since our matrix is a sketching operator, and since RandBLAS has no notion of the layout of a sketching operator, we do not have a layout parameter.
+/// @endverbatim
+///
+/// @param[in] opS
+///      - If \math{\opS} = NoTrans, then \math{ \op(S) = S}.
+///      - If \math{\opS} = Trans, then \math{\op(S) = S^T }.
+///
+/// @param[in] d
+///     A nonnegative integer.
+///     - The number of elements of \math{\mat(x)}.
+///
+/// @param[in] m
+///     A nonnegative integer.
+///     - The number of elements of \math{\mat(y)}
+///
+/// @param[in] alpha
+///     A real scalar.
+///     - If zero, then \math{x} is not accessed.
+///     
+/// @param[in] S
+///    A DenseSkOp or SparseSkOp object.
+///    - Defines \math{S}.
+///
+/// @param[in] i_off
+///     A nonnegative integer.
+///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_off}, :]}.
+///
+/// @param[in] j_off
+///     A nonnnegative integer.
+///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_off}]}. 
+///
+/// @param[in] x
+///     Pointer to a 1D array of real scalars.
+///     - Defines \math{\mat(x)}.
+///
+/// @param[in] incx
+///     A nonnegative integer. 
+///     * Stride between elements of x. incx must not be zero.
+///     * RandBLAS currently does not support negative values for LDA, so incx cannot be negative unlike GEMV in the BLAS.
+///
+/// @param[in] beta
+///     A real scalar.
+///     - If zero, then \math{y} need not be set on input.
+///
+/// @param[in, out] y
+///    Pointer to 1D array of real scalars.
+///    - On entry, defines \math{\mat(y)}
+///      on the RIGHT-hand side of \math{(\star)}.
+///    - On exit, defines \math{\mat(y)}
+///      on the LEFT-hand side of \math{(\star)}.
+///
+/// @param[in] incy
+///     A nonnegative integer.
+///     * Stride between elements of y. incy must not be zero.
+///     * RandBLAS currently does not support negative values for LDA, so incy cannot be negative unlike GEMV in the BLAS.
+///
+template <typename T, typename SKOP>
+void sketch_vector(
+    blas::Op opS,
+    int64_t d, // length of y
+    int64_t m, // length of x
+    T alpha,
+    SKOP &S,   // op(submat(S)) has dim d by m
+    int64_t i_off,
+    int64_t j_off,
+    const T *x,
+    int64_t incx,
+    T beta,
+    T *y,
+    int64_t incy
+) {
+    return sketch_general(blas::Layout::RowMajor, opS, blas::Op::NoTrans, d, 1, m, alpha, S, i_off, j_off, x, incx, beta, y, incy);
+}
+
+// =============================================================================
+/// \fn sketch_vector(blas::Op opS, int64_t d, int64_t m, T alpha, SKOP &S, const T *x, incx, T beta, T *y, incy
+/// )
+/// Perform a GEMV-like operation
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     \mat(y) = \alpha \cdot \underbrace{\op(S)}_{d \times m} \cdot \underbrace{\mat(x)}_{m \times 1} + \beta \cdot \underbrace{\mat(y)}_{d \times 1},    \tag{$\star$}
+/// @endverbatim
+/// where \math{\alpha} and \math{\beta} are real scalars and \math{S} is a sketching operator.
+/// 
+/// @verbatim embed:rst:leading-slashes
+/// What are :math:`\mat(x)` and :math:`\mat(y)`?
+///     Their shapes are defined as tall vectors of dimension :math:`(\mat(x), m \times 1)`, :math:`(\mat(y), d \times 1)`.
+///     Their precise contents are determined by :math:`(x, incx)`, :math:`(y, incy)`, in a way that is identical to BLAS.
+///
+/// Why no "layout" argument?
+///     The GEMV in CBLAS accepts a parameter that specifies row-major or column-major layout of the matrix.
+///     Since our matrix is a sketching operator, and since RandBLAS has no notion of the layout of a sketching operator, we do not have a layout parameter.
+/// @endverbatim
+///
+/// @param[in] opS
+///      - If \math{\opS} = NoTrans, then \math{ \op(S) = S}.
+///      - If \math{\opS} = Trans, then \math{\op(S) = S^T }.
+///
+/// @param[in] d
+///     A nonnegative integer.
+///     - The number of elements of \math{\mat(x)}.
+///
+/// @param[in] m
+///     A nonnegative integer.
+///     - The number of elements of \math{\mat(y)}
+///
+/// @param[in] alpha
+///     A real scalar.
+///     - If zero, then \math{x} is not accessed.
+///     
+/// @param[in] S
+///    A DenseSkOp or SparseSkOp object.
+///    - Defines \math{S}.
+///
+/// @param[in] x
+///     Pointer to a 1D array of real scalars.
+///     - Defines \math{\mat(x)}.
+///
+/// @param[in] incx
+///     A nonnegative integer. 
+///     * Stride between elements of x. incx must not be zero.
+///     * RandBLAS currently does not support negative values for LDA, so incx cannot be negative unlike GEMV in the BLAS.
+///
+/// @param[in] beta
+///     A real scalar.
+///     - If zero, then \math{y} need not be set on input.
+///
+/// @param[in, out] y
+///    Pointer to 1D array of real scalars.
+///    - On entry, defines \math{\mat(y)}
+///      on the RIGHT-hand side of \math{(\star)}.
+///    - On exit, defines \math{\mat(y)}
+///      on the LEFT-hand side of \math{(\star)}.
+///
+/// @param[in] incy
+///     A nonnegative integer.
+///     * Stride between elements of y. incy must not be zero.
+///     * RandBLAS currently does not support negative values for LDA, so incy cannot be negative unlike GEMV in the BLAS.
+///
+template <typename T, typename SKOP>
+void sketch_vector(
+    blas::Op opS,
+    int64_t d, // length of y
+    int64_t m, // length of x
+    T alpha,
+    SKOP &S,   // op(submat(S)) has dim d by m
+    const T *x,
+    int64_t incx,
+    T beta,
+    T *y,
+    int64_t incy
+) {
+    return sketch_vector(opS, d, m, alpha, S, 0, 0, x, incx, beta, y, incy);
+}
 
 }  // end namespace RandBLAS
 #endif
