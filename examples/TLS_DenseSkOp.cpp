@@ -17,8 +17,6 @@ using std::chrono::duration;
 using std::chrono::milliseconds;
 
 
-//TODO: Read in matrix dimensions 
-
 void init_noisy_data(int64_t m, int64_t n, int64_t d, double* AB){
     double target_x[n*d];
     double eps[m*d];
