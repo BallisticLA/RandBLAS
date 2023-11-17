@@ -5,7 +5,7 @@
 #include <RandBLAS/exceptions.hh>
 #include <RandBLAS/base.hh>
 #include <RandBLAS/util.hh>
-#include <RandBLAS/sparse.hh>
+#include <RandBLAS/sparse_skops.hh>
 #include <RandBLAS/dense.hh>
 #include <RandBLAS/skge.hh>
 

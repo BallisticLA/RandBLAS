@@ -1,5 +1,5 @@
 #include <RandBLAS/dense.hh>
-#include <RandBLAS/sparse.hh>
+#include <RandBLAS/sparse_skops.hh>
 #include <RandBLAS/skge.hh>
 #include <RandBLAS/util.hh>
 #include <RandBLAS/test_util.hh>

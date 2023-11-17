@@ -1,5 +1,5 @@
-#ifndef randblas_sparse_hh
-#define randblas_sparse_hh
+#ifndef randblas_sparse_skops.hh
+#define randblas_sparse_skops.hh
 
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
