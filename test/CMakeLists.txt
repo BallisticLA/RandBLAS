@@ -11,9 +11,9 @@ if (GTest_FOUND)
         test_dense/test_sketch_gefl3.cc
         test_dense/test_sketch_gefr3.cc
         # sparse
-        test_sparse/test_construction.cc
-        test_sparse/test_sketch_gefls.cc
-        test_sparse/test_sketch_gefrs.cc
+        test_sparse_skops/test_construction.cc
+        test_sparse_skops/test_sketch_gefls.cc
+        test_sparse_skops/test_sketch_gefrs.cc
     )
     target_link_libraries(RandBLAS_tests
         RandBLAS
