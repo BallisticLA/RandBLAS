@@ -10,6 +10,8 @@
 using namespace RandBLAS::sparse_data;
 using namespace RandBLAS::sparse_data::csr;
 
+
+
 class TestCSR_Basics : public ::testing::Test
 {
     protected:
@@ -20,7 +22,7 @@ class TestCSR_Basics : public ::testing::Test
 
     template <typename T>
     static void test_csr_to_dense_identity(int64_t n) {
-        RandBLAS::sparse_data::CSRMatrix<T> A(n, n, RandBLAS::sparse_data::IndexBase::Zero);
+        CSRMatrix<T> A(n, n, IndexBase::Zero);
         A.reserve_nnz(n);
         for (int i = 0; i < n; ++i) {
             A.vals[i] = 1.0;
@@ -29,7 +31,7 @@ class TestCSR_Basics : public ::testing::Test
         }
         A.rowptr[n] = n;
         T *mat = new T[n*n];
-        RandBLAS::sparse_data::csr::csr_to_dense(A, 1, n, mat);
+        csr_to_dense(A, 1, n, mat);
         T *eye = new T[n*n]{0.0};
         for (int i = 0; i < n; ++i)
             eye[i + n*i] = 1.0;
