@@ -20,18 +20,14 @@ class TestCSR_Basics : public ::testing::Test
 
     template <typename T>
     static void test_csr_to_dense_identity(int64_t n) {
-        T *vals = new T[n];
-        int64_t *rowptr = new int64_t[n+1];
-        int64_t *colidxs = new int64_t[n];
+        RandBLAS::sparse_data::CSRMatrix<T> A(n, n, RandBLAS::sparse_data::IndexBase::Zero);
+        A.reserve_nnz(n);
         for (int i = 0; i < n; ++i) {
-            vals[i] = 1.0;
-            rowptr[i] = i;
-            colidxs[i] = i;
+            A.vals[i] = 1.0;
+            A.rowptr[i] = i;
+            A.colidxs[i] = i;
         }
-        rowptr[n] = n;
-        RandBLAS::sparse_data::CSRMatrix<T> A{
-            n, n, n, RandBLAS::sparse_data::IndexBase::Zero, vals, rowptr, colidxs
-        };
+        A.rowptr[n] = n;
         T *mat = new T[n*n];
         RandBLAS::sparse_data::csr::csr_to_dense(A, 1, n, mat);
         T *eye = new T[n*n]{0.0};
@@ -40,6 +36,7 @@ class TestCSR_Basics : public ::testing::Test
         RandBLAS_Testing::Util::buffs_approx_equal(mat, eye, n * n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        return;
     }
 };
 

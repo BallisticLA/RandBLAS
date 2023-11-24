@@ -20,9 +20,10 @@ template <typename T>
 struct SparseMatrix {
     const int64_t n_rows;
     const int64_t n_cols;
-    const int64_t nnz;
     const IndexBase index_base;
-    const T *vals;
+    const bool own_memory;
+    int64_t nnz;
+    T *vals;
 };
 
 } // end namespace RandBLAS::sparse_data

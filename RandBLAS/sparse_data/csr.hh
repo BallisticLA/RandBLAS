@@ -1,13 +1,50 @@
 #include "RandBLAS/base.hh"
+#include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
 
 namespace RandBLAS::sparse_data {
 
 template <typename T>
-struct CSRMatrix : SparseMatrix<T> {
-    const int64_t *rowptr;
-    const int64_t *colidxs;
+struct CSRMatrix {
+    const int64_t n_rows;
+    const int64_t n_cols;
+    const RandBLAS::sparse_data::IndexBase index_base;
+    const bool own_memory;
+    int64_t nnz;
+    T *vals;
+    int64_t *rowptr;
+    int64_t *colidxs;
+
+    CSRMatrix(
+        int64_t n_rows,
+        int64_t n_cols,
+        RandBLAS::sparse_data::IndexBase index_base
+    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) {
+        this->nnz = 0;
+        this->vals = nullptr;
+        this->rowptr = nullptr;
+        this->colidxs = nullptr;
+    };
+
+    ~CSRMatrix() {
+        if (this->own_memory) {
+            delete [] this->rowptr;
+            delete [] this->colidxs;
+            delete [] this->vals;
+        }
+    };
+
+    void reserve_nnz(int64_t nnz) {
+        randblas_require(this->own_memory);
+        this->nnz = nnz;
+        this->rowptr = new int64_t[this->n_rows + 1];
+        this->colidxs = new int64_t[nnz];
+        this->vals = new T[nnz];
+    };
+
 };
+
+
 
 } // end namespace RandBLAS::sparse_data
 
@@ -45,7 +82,7 @@ void csr_to_dense(
 
 template <typename T>
 void csr_to_dense(
-    RandBLAS::sparse_data::CSRMatrix<T> spmat,
+    RandBLAS::sparse_data::CSRMatrix<T> &spmat,
     int64_t stride_row,
     int64_t stride_col,
     T *mat
@@ -55,5 +92,6 @@ void csr_to_dense(
         stride_row, stride_col, mat
     );
 }
+
 
 } // end namespace RandBLAS::sparse_data::csr
