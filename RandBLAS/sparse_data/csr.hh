@@ -73,7 +73,6 @@ void csr_to_dense(
             MAT(i, j) = 0.0;
         }
     }
-    // TODO: add error checks for (stride_row, stride_col, n_cols, n_rows)
     for (int64_t i = 0; i < n_rows; ++i) {
         for (int64_t ell = rowptr[i]; ell < rowptr[i+1]; ++ell) {
             int j = colidxs[ell];
@@ -110,14 +109,8 @@ void dense_to_csr(
     int64_t n_cols = spmat.n_cols;
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
     // Step 1: count the number of entries with absolute value at least abstol
-    int64_t nnz = 0;
-    for (int64_t i = 0; i < n_rows; ++i) {
-        for (int64_t j = 0; j < n_cols; ++j) {
-            if (abs(MAT(i, j)) >= abs_tol)
-                nnz += 1;
-        }
-    }
-    // Step 2: allocate memory in the sparse matrix
+    int64_t nnz = nnz_in_dense(n_rows, n_cols, stride_row, stride_col, abs_tol);
+    // Step 2: allocate memory needed by the sparse matrix
     spmat.reserve_nnz(nnz);
     // Step 3: traverse the dense matrix again, populating the sparse matrix as we go
     nnz = 0;
