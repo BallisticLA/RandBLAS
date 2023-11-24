@@ -6,14 +6,16 @@ if (GTest_FOUND)
     set(tmp TRUE)
 
     add_executable(RandBLAS_tests
-        # dense
+        # dense sketching operators for dense data matrices
         test_dense/test_construction.cc
         test_dense/test_sketch_gefl3.cc
         test_dense/test_sketch_gefr3.cc
-        # sparse
+        # sparse sketching operators for dense data matrices
         test_sparse_skops/test_construction.cc
         test_sparse_skops/test_sketch_gefls.cc
         test_sparse_skops/test_sketch_gefrs.cc
+        # dense sketching operators for sparse matrices
+        test_sparse_data/test_csr.cc
     )
     target_link_libraries(RandBLAS_tests
         RandBLAS
