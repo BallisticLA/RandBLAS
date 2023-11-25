@@ -11,8 +11,8 @@ enum class NonzeroSort : char {
 };
 
 NonzeroSort coo_sort_type(int64_t nnz, int64_t *rows, int64_t *cols) {
-    bool csr_so_far = true;
-    bool csc_so_far = true;
+    bool csr_okay = true;
+    bool csc_okay = true;
     auto increasing_by_csr = [](int64_t i0, int64_t j0, int64_t i1, int64_t j1) {
         if (i0 > i1) {
             return false;
@@ -36,16 +36,18 @@ NonzeroSort coo_sort_type(int64_t nnz, int64_t *rows, int64_t *cols) {
         auto j0 = cols[ell-1];
         auto i1 = rows[ell];
         auto j1 = cols[ell];
-        if (csr_so_far) {
-            csr_so_far = increasing_by_csr(i0, j0, i1, j1);
+        if (csr_okay) {
+            csr_okay = increasing_by_csr(i0, j0, i1, j1);
         }
-        if (csc_so_far) {
-            csc_so_far = increasing_by_csc(i0, j0, i1, j1);
+        if (csc_okay) {
+            csc_okay = increasing_by_csc(i0, j0, i1, j1);
         }
+        if (!csr_okay && !csc_okay)
+            break;
     }
-    if (csr_so_far) {
+    if (csr_okay) {
         return NonzeroSort::CSR;
-    } else if (csc_so_far) {
+    } else if (csc_okay) {
         return NonzeroSort::CSC;
     } else {
         return NonzeroSort::None;
