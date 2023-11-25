@@ -9,8 +9,8 @@
 
 using namespace RandBLAS::sparse_data;
 using namespace RandBLAS::sparse_data::csr;
+using blas::Layout;
 
-// TODO: move me into a testing utility file.
 template <typename T, typename RNG = r123::Philox4x32>
 void iid_sparsify_random_dense(
     int64_t n_rows,
@@ -50,6 +50,23 @@ void iid_sparsify_random_dense(
 }
 
 
+template <typename T, typename RNG = r123::Philox4x32>
+void iid_sparsify_random_dense(
+    int64_t n_rows,
+    int64_t n_cols,
+    Layout layout,
+    T* mat,
+    T prob_of_zero,
+    RandBLAS::RNGState<RNG> state
+) {
+    if (layout == Layout::ColMajor) {
+        iid_sparsify_random_dense(n_rows, n_cols, 1, n_cols, mat, prob_of_zero, state);
+    } else {
+        iid_sparsify_random_dense(n_rows, n_cols, n_rows, 1, mat, prob_of_zero, state);
+    }
+    return;
+}
+
 class TestCSR_Conversions : public ::testing::Test
 {
     protected:
@@ -81,27 +98,18 @@ class TestCSR_Conversions : public ::testing::Test
 
     template <typename T>
     static void test_random_sparsified(blas::Layout layout, int64_t m, int64_t n, T p) {
+        // Step 1. get dense representation of random sparse matrix
         RandBLAS::RNGState s(0);
         auto dn_mat = new T[m * n];
-        int64_t stride_row, stride_col;
-        // TODO: figure out what these parameters
-        // should actually be to test something meaningful and
-        // pass the address sanitizer ...
-        if (layout == blas::Layout::ColMajor) {
-            stride_row = m;
-            stride_col = 1;
-        } else {
-            stride_row = 1;
-            stride_col = n;
-        }
-        // get dense representation of random sparse matrix
-        iid_sparsify_random_dense(m, n, stride_row, stride_col, dn_mat, p, s);
-        // convert the dense representation into a CSR matrix
+        iid_sparsify_random_dense(m, n, layout, dn_mat, p, s);
+
+        // Step 2. convert the dense representation into a CSR matrix
         CSRMatrix<T> spmat(m, n, IndexBase::Zero);
-        dense_to_csr(stride_row, stride_col, dn_mat, 0.0, spmat);
-        // reconstruct the dense representation of dn_mat from the CSR matrix.
+        dense_to_csr(layout, dn_mat, 0.0, spmat);
+
+        // Step 3. reconstruct the dense representation of dn_mat from the CSR matrix.
         auto dn_mat_recon = new T[m * n];
-        csr_to_dense(spmat, stride_row, stride_col, dn_mat_recon);
+        csr_to_dense(spmat, layout, dn_mat_recon);
 
         // check equivalence of dn_mat and dn_mat_recon
         RandBLAS_Testing::Util::buffs_approx_equal(dn_mat, dn_mat_recon, m * n,

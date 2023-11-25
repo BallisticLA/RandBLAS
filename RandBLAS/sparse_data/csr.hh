@@ -19,7 +19,7 @@ struct CSRMatrix {
     CSRMatrix(
         int64_t n_rows,
         int64_t n_cols,
-        IndexBase index_base
+        IndexBase index_base = IndexBase::Zero
     ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) {
         this->nnz = 0;
         this->vals = nullptr;
@@ -47,36 +47,43 @@ struct CSRMatrix {
 
 };
 
-
-
 } // end namespace RandBLAS::sparse_data
 
 namespace RandBLAS::sparse_data::csr {
 
 using namespace RandBLAS::sparse_data;
+using blas::Layout;
 
+// =============================================================================
+///
+/// @param[in] stride_row
+/// Logic offset for moving between two consecutive rows (equivalently,
+/// to take one step down a given column). Equal to 1 in column-major format.
+///
+/// @param[in] stride_col
+/// Logic offset for moving between two consecutive columns (equivalently,
+/// to take one step along a given row). Equal to 1 in row-major format.
+///
 template <typename T>
 void csr_to_dense(
-    int64_t n_rows,
-    int64_t n_cols,
-    IndexBase index_base,
-    const T *vals,
-    const int64_t *rowptr,
-    const int64_t *colidxs,
+    const CSRMatrix<T> &spmat,
     int64_t stride_row,
     int64_t stride_col,
     T *mat
 ) {
+    auto *rowptr = spmat.rowptr;
+    auto *colidxs = spmat.colidxs;
+    auto *vals = spmat.vals;
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
-    for (int64_t i = 0; i < n_rows; ++i) {
-        for (int64_t j = 0; j < n_cols; ++j) {
+    for (int64_t i = 0; i < spmat.n_rows; ++i) {
+        for (int64_t j = 0; j < spmat.n_cols; ++j) {
             MAT(i, j) = 0.0;
         }
     }
-    for (int64_t i = 0; i < n_rows; ++i) {
+    for (int64_t i = 0; i < spmat.n_rows; ++i) {
         for (int64_t ell = rowptr[i]; ell < rowptr[i+1]; ++ell) {
             int j = colidxs[ell];
-            if (index_base == IndexBase::One)
+            if (spmat.index_base == IndexBase::One)
                 j -= 1;
             MAT(i, j) = vals[ell];
         }
@@ -86,15 +93,16 @@ void csr_to_dense(
 
 template <typename T>
 void csr_to_dense(
-    CSRMatrix<T> &spmat,
-    int64_t stride_row,
-    int64_t stride_col,
+    const CSRMatrix<T> &spmat,
+    Layout layout,
     T *mat
 ) {
-    return csr_to_dense(
-        spmat.n_rows, spmat.n_cols, spmat.index_base, spmat.vals, spmat.rowptr, spmat.colidxs,
-        stride_row, stride_col, mat
-    );
+    if (layout == Layout::ColMajor) {
+        csr_to_dense(spmat, 1, spmat.n_cols, mat);
+    } else {
+        csr_to_dense(spmat, spmat.n_rows, 1, mat);
+    }
+    return;
 }
 
 template <typename T>
@@ -124,6 +132,16 @@ void dense_to_csr(
             }
         }
         spmat.rowptr[i+1] = nnz;
+    }
+    return;
+}
+
+template <typename T>
+void dense_to_csr(Layout layout, T* mat, T abs_tol, CSRMatrix<T> &spmat) {
+    if (layout == Layout::ColMajor) {
+        dense_to_csr(1, spmat.n_cols, mat, abs_tol, spmat);
+    } else {
+        dense_to_csr(spmat.n_rows, 1, mat, abs_tol, spmat);
     }
     return;
 }
