@@ -8,7 +8,7 @@ template <typename T>
 struct CSRMatrix {
     const int64_t n_rows;
     const int64_t n_cols;
-    const RandBLAS::sparse_data::IndexBase index_base;
+    const IndexBase index_base;
     const bool own_memory;
     int64_t nnz;
     T *vals;
@@ -19,7 +19,7 @@ struct CSRMatrix {
     CSRMatrix(
         int64_t n_rows,
         int64_t n_cols,
-        RandBLAS::sparse_data::IndexBase index_base
+        IndexBase index_base
     ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) {
         this->nnz = 0;
         this->vals = nullptr;
