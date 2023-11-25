@@ -161,5 +161,40 @@ void dense_to_csr(Layout layout, T* mat, T abs_tol, CSRMatrix<T> &spmat) {
     return;
 }
 
+template <typename T>
+void csr_from_diag(
+    T* vals,
+    int64_t nnz,
+    int64_t offset,
+    CSRMatrix<T> &spmat
+) {
+    spmat.reserve_nnz(nnz);
+    int64_t ell = 0;
+    if (offset >= 0) {
+        randblas_require(nnz <= spmat.n_rows);
+        while (ell < nnz) {
+            spmat.rowptr[ell] = ell;
+            spmat.colidxs[ell] = ell + offset;
+            spmat.vals[ell] = vals[ell];
+            ++ell;
+        }
+    } else { // offset < 0
+        randblas_require(nnz <= spmat.n_cols);
+        for (int64_t i = 0; i < -offset; ++i)
+            spmat.rowptr[i] = 0;
+        while(ell < nnz) {
+            spmat.rowptr[ell - offset] = ell;
+            spmat.colidxs[ell] = ell;
+            spmat.vals[ell] = vals[ell];
+            ++ell;
+        }
+    }
+    while (ell <= spmat.n_rows) {
+        spmat.rowptr[ell] = nnz;
+        ++ell;
+    }
+    return;
+}
+
 
 } // end namespace RandBLAS::sparse_data::csr
