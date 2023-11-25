@@ -1,3 +1,5 @@
+#ifndef randblas_sparse_data_coo
+#define randblas_sparse_data_coo
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
@@ -175,4 +177,32 @@ void sort_coo_data(
 
 namespace RandBLAS::sparse_data::coo {
 
+template <typename T>
+void coo_from_diag(
+    T* vals,
+    int64_t nnz,
+    int64_t offset,
+    COOMatrix<T> &spmat
+) {
+    spmat.reserve(nnz);
+    int64_t ell = 0;
+    if (offset >= 0) {
+        randblas_require(nnz <= spmat.n_rows);
+        while (ell < nnz) {
+            spmat.rows[ell] = ell;
+            spmat.cols[ell] = ell + offset;
+            spmat.vals[ell] = vals[ell];
+            ++ell;
+        }
+    } else {
+        while (ell < nnz) {
+            spmat.rows[ell] = ell - offset;
+            spmat.cols[ell] = ell;
+            spmat.vals[ell] = vals[ell];
+        }
+    }
+    return;
 }
+
+}
+#endif

@@ -1,3 +1,5 @@
+#ifndef randblas_sparse_data_csr
+#define randblas_sparse_data_csr
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
@@ -231,3 +233,4 @@ void csr_from_diag(
 
 
 } // end namespace RandBLAS::sparse_data::csr
+#endif
