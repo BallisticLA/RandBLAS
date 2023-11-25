@@ -1,6 +1,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
+#include "RandBLAS/sparse_data/coo.hh"
 
 namespace RandBLAS::sparse_data {
 
@@ -159,6 +160,38 @@ void dense_to_csr(Layout layout, T* mat, T abs_tol, CSRMatrix<T> &spmat) {
         dense_to_csr(spmat.n_rows, 1, mat, abs_tol, spmat);
     }
     return;
+}
+
+template <typename T>
+void coo_to_csr(COOMatrix<T> &coo, CSRMatrix<T> &csr) {
+    sort_coo_data(NonzeroSort::CSR, coo);
+    csr.reserve_nnz(coo.nnz);
+    csr.rowptr[0] = 0;
+    int64_t ell = 0;
+    for (int64_t i = 0; i < coo.n_rows; ++i) {
+        while (coo.rows[ell] == i) {
+            csr.colidxs[ell] = coo.cols[ell];
+            csr.vals[ell] = coo.vals[ell];
+            ++ell;
+        }
+        csr.rowptr[ell] = ell;
+    }
+}
+
+template <typename T>
+void csr_to_coo(CSRMatrix<T> &csr, COOMatrix<T> &coo) {
+    randblas_require(csr.n_rows == coo.n_rows);
+    randblas_require(csr.n_cols == coo.n_cols);
+    coo.reserve_nnz(csr.nnz);
+    int64_t ell = 0;
+    for (int64_t i = 0; i < csr; ++i) {
+        for (int64_t j = csr.rowptr[i]; j < csr.rowptr[i+1]; ++j) {
+            coo.vals[ell] = csr.vals[ell];
+            coo.rows[ell] = i;
+            coo.cols[ell] = j;
+        }
+    }
+    coo.sort = NonzeroSort::CSR;
 }
 
 template <typename T>
