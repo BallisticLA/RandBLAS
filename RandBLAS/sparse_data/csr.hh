@@ -27,6 +27,21 @@ struct CSRMatrix {
         this->colidxs = nullptr;
     };
 
+    CSRMatrix(
+        int64_t n_rows,
+        int64_t n_cols,
+        int64_t nnz,
+        T *vals,
+        int64_t *rowptr,
+        int64_t *colidxs,
+        IndexBase index_base = IndexBase::Zero
+    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(false) {
+        this->nnz = nnz;
+        this->vals = vals;
+        this->rowptr = rowptr;
+        this->colidxs = colidxs;
+    };
+
     ~CSRMatrix() {
         if (this->own_memory) {
             delete [] this->rowptr;
