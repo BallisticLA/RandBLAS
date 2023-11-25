@@ -13,7 +13,6 @@ enum class NonzeroSort : char {
 NonzeroSort coo_sort_type(int64_t nnz, int64_t *rows, int64_t *cols) {
     bool maybe_csc = true;
     bool maybe_csr = true;
-    // only think about CSR first
     auto increasing_by_csr = [](int64_t i0, int64_t j0, int64_t i1, int64_t j1) {
         if (i0 > i1) {
             return false;
@@ -38,10 +37,10 @@ NonzeroSort coo_sort_type(int64_t nnz, int64_t *rows, int64_t *cols) {
         auto i1 = rows[ell];
         auto j1 = cols[ell];
         if (maybe_csr) {
-            maybe_csr = !increasing_by_csr(i0, j0, i1, j1);
+            maybe_csr = increasing_by_csr(i0, j0, i1, j1);
         }
         if (maybe_csc) {
-            maybe_csc = !increasing_by_csc(i0, j0, i1, j1);
+            maybe_csc = increasing_by_csc(i0, j0, i1, j1);
         }
     }
     if (maybe_csr) {
