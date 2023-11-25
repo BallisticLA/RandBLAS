@@ -51,7 +51,7 @@ struct CSRMatrix {
         }
     };
 
-    void reserve_nnz(int64_t nnz) {
+    void reserve(int64_t nnz) {
         randblas_require(this->_can_reserve);
         randblas_require(this->own_memory);
         this->nnz = nnz;
@@ -135,7 +135,7 @@ void dense_to_csr(
     // Step 1: count the number of entries with absolute value at least abstol
     int64_t nnz = nnz_in_dense(n_rows, n_cols, stride_row, stride_col, mat, abs_tol);
     // Step 2: allocate memory needed by the sparse matrix
-    spmat.reserve_nnz(nnz);
+    spmat.reserve(nnz);
     // Step 3: traverse the dense matrix again, populating the sparse matrix as we go
     nnz = 0;
     for (int64_t i = 0; i < n_rows; ++i) {
@@ -165,7 +165,7 @@ void dense_to_csr(Layout layout, T* mat, T abs_tol, CSRMatrix<T> &spmat) {
 template <typename T>
 void coo_to_csr(COOMatrix<T> &coo, CSRMatrix<T> &csr) {
     sort_coo_data(NonzeroSort::CSR, coo);
-    csr.reserve_nnz(coo.nnz);
+    csr.reserve(coo.nnz);
     csr.rowptr[0] = 0;
     int64_t ell = 0;
     for (int64_t i = 0; i < coo.n_rows; ++i) {
@@ -182,7 +182,7 @@ template <typename T>
 void csr_to_coo(CSRMatrix<T> &csr, COOMatrix<T> &coo) {
     randblas_require(csr.n_rows == coo.n_rows);
     randblas_require(csr.n_cols == coo.n_cols);
-    coo.reserve_nnz(csr.nnz);
+    coo.reserve(csr.nnz);
     int64_t ell = 0;
     for (int64_t i = 0; i < csr; ++i) {
         for (int64_t j = csr.rowptr[i]; j < csr.rowptr[i+1]; ++j) {
@@ -201,7 +201,7 @@ void csr_from_diag(
     int64_t offset,
     CSRMatrix<T> &spmat
 ) {
-    spmat.reserve_nnz(nnz);
+    spmat.reserve(nnz);
     int64_t ell = 0;
     if (offset >= 0) {
         randblas_require(nnz <= spmat.n_rows);

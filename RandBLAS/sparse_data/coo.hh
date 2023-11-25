@@ -11,8 +11,8 @@ enum class NonzeroSort : char {
 };
 
 NonzeroSort coo_sort_type(int64_t nnz, int64_t *rows, int64_t *cols) {
-    bool maybe_csc = true;
-    bool maybe_csr = true;
+    bool csr_so_far = true;
+    bool csc_so_far = true;
     auto increasing_by_csr = [](int64_t i0, int64_t j0, int64_t i1, int64_t j1) {
         if (i0 > i1) {
             return false;
@@ -36,16 +36,16 @@ NonzeroSort coo_sort_type(int64_t nnz, int64_t *rows, int64_t *cols) {
         auto j0 = cols[ell-1];
         auto i1 = rows[ell];
         auto j1 = cols[ell];
-        if (maybe_csr) {
-            maybe_csr = increasing_by_csr(i0, j0, i1, j1);
+        if (csr_so_far) {
+            csr_so_far = increasing_by_csr(i0, j0, i1, j1);
         }
-        if (maybe_csc) {
-            maybe_csc = increasing_by_csc(i0, j0, i1, j1);
+        if (csc_so_far) {
+            csc_so_far = increasing_by_csc(i0, j0, i1, j1);
         }
     }
-    if (maybe_csr) {
+    if (csr_so_far) {
         return NonzeroSort::CSR;
-    } else if (maybe_csc) {
+    } else if (csc_so_far) {
         return NonzeroSort::CSC;
     } else {
         return NonzeroSort::None;
@@ -94,7 +94,7 @@ struct COOMatrix {
         this->sort = coo_sort_type(nnz, rows, cols);
     }
 
-    void reserve_nnz(int64_t nnz) {
+    void reserve(int64_t nnz) {
         randblas_require(this->_can_reserve);
         randblas_require(this->own_memory);
         this->nnz = nnz;

@@ -78,7 +78,7 @@ class TestCSR_Conversions : public ::testing::Test
     template <typename T>
     static void test_csr_to_dense_identity(int64_t n) {
         CSRMatrix<T> A(n, n, IndexBase::Zero);
-        A.reserve_nnz(n);
+        A.reserve(n);
         for (int i = 0; i < n; ++i) {
             A.vals[i] = 1.0;
             A.rowptr[i] = i;
