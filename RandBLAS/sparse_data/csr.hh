@@ -184,7 +184,7 @@ void csr_to_coo(CSRMatrix<T> &csr, COOMatrix<T> &coo) {
     randblas_require(csr.n_cols == coo.n_cols);
     coo.reserve(csr.nnz);
     int64_t ell = 0;
-    for (int64_t i = 0; i < csr; ++i) {
+    for (int64_t i = 0; i < csr.n_rows; ++i) {
         for (int64_t j = csr.rowptr[i]; j < csr.rowptr[i+1]; ++j) {
             coo.vals[ell] = csr.vals[ell];
             coo.rows[ell] = i;
