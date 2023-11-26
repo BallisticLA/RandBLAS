@@ -57,9 +57,9 @@ struct CSRMatrix {
         randblas_require(this->_can_reserve);
         randblas_require(this->own_memory);
         this->nnz = nnz;
-        this->rowptr = new int64_t[this->n_rows + 1];
-        this->colidxs = new int64_t[nnz];
-        this->vals = new T[nnz];
+        this->rowptr = new int64_t[this->n_rows + 1]{0};
+        this->colidxs = new int64_t[nnz]{0};
+        this->vals = new T[nnz]{0.0};
         this->_can_reserve = false;
     };
 
@@ -89,9 +89,9 @@ void csr_to_dense(
     int64_t stride_col,
     T *mat
 ) {
-    auto *rowptr = spmat.rowptr;
-    auto *colidxs = spmat.colidxs;
-    auto *vals = spmat.vals;
+    auto rowptr = spmat.rowptr;
+    auto colidxs = spmat.colidxs;
+    auto vals = spmat.vals;
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
     for (int64_t i = 0; i < spmat.n_rows; ++i) {
         for (int64_t j = 0; j < spmat.n_cols; ++j) {
@@ -116,9 +116,9 @@ void csr_to_dense(
     T *mat
 ) {
     if (layout == Layout::ColMajor) {
-        csr_to_dense(spmat, 1, spmat.n_cols, mat);
+        csr_to_dense(spmat, 1, spmat.n_rows, mat);
     } else {
-        csr_to_dense(spmat, spmat.n_rows, 1, mat);
+        csr_to_dense(spmat, spmat.n_cols, 1, mat);
     }
     return;
 }
@@ -140,6 +140,7 @@ void dense_to_csr(
     spmat.reserve(nnz);
     // Step 3: traverse the dense matrix again, populating the sparse matrix as we go
     nnz = 0;
+    spmat.rowptr[0] = 0;
     for (int64_t i = 0; i < n_rows; ++i) {
         for (int64_t j = 0; j < n_cols; ++j) {
             T val = MAT(i, j);
@@ -157,9 +158,9 @@ void dense_to_csr(
 template <typename T>
 void dense_to_csr(Layout layout, T* mat, T abs_tol, CSRMatrix<T> &spmat) {
     if (layout == Layout::ColMajor) {
-        dense_to_csr(1, spmat.n_cols, mat, abs_tol, spmat);
+        dense_to_csr(1, spmat.n_rows, mat, abs_tol, spmat);
     } else {
-        dense_to_csr(spmat.n_rows, 1, mat, abs_tol, spmat);
+        dense_to_csr(spmat.n_cols, 1, mat, abs_tol, spmat);
     }
     return;
 }
@@ -191,6 +192,7 @@ void csr_to_coo(CSRMatrix<T> &csr, COOMatrix<T> &coo) {
             coo.vals[ell] = csr.vals[ell];
             coo.rows[ell] = i;
             coo.cols[ell] = j;
+            ++ell;
         }
     }
     coo.sort = NonzeroSort::CSR;

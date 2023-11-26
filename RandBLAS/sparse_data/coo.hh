@@ -80,7 +80,7 @@ struct COOMatrix {
         this->rows = nullptr;
         this->cols = nullptr;
         this->sort = NonzeroSort::None;
-    }
+    };
 
     COOMatrix(
         int64_t n_rows,
@@ -96,7 +96,15 @@ struct COOMatrix {
         this->rows = rows;
         this->cols = cols;
         this->sort = coo_sort_type(nnz, rows, cols);
-    }
+    };
+
+    ~COOMatrix() {
+        if (this->own_memory) {
+            delete [] this->vals;
+            delete [] this->rows;
+            delete [] this->cols;
+        }
+    };
 
     void reserve(int64_t nnz) {
         randblas_require(this->_can_reserve);
@@ -170,7 +178,9 @@ void sort_coo_data(
     NonzeroSort s,
     COOMatrix<T> &spmat
 ) {
-    return sort_coo_data(s, spmat.vals, spmat.rows, spmat.cols);
+    sort_coo_data(s, spmat.vals, spmat.rows, spmat.cols);
+    spmat.sort = s;
+    return;
 }
 
 } // end namespace RandBLAS::sparse_data

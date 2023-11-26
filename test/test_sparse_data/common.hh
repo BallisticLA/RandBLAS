@@ -61,9 +61,9 @@ void iid_sparsify_random_dense(
     RandBLAS::RNGState<RNG> state
 ) {
     if (layout == Layout::ColMajor) {
-        iid_sparsify_random_dense(n_rows, n_cols, 1, n_cols, mat, prob_of_zero, state);
+        iid_sparsify_random_dense(n_rows, n_cols, 1, n_rows, mat, prob_of_zero, state);
     } else {
-        iid_sparsify_random_dense(n_rows, n_cols, n_rows, 1, mat, prob_of_zero, state);
+        iid_sparsify_random_dense(n_rows, n_cols, n_cols, 1, mat, prob_of_zero, state);
     }
     return;
 }

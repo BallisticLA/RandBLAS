@@ -14,9 +14,6 @@ if (GTest_FOUND)
         test_sparse_skops/test_construction.cc
         test_sparse_skops/test_sketch_gefls.cc
         test_sparse_skops/test_sketch_gefrs.cc
-        # dense sketching operators for sparse matrices
-        test_sparse_data/common.hh
-        test_sparse_data/test_csr.cc
     )
     target_link_libraries(RandBLAS_tests
         RandBLAS
@@ -24,6 +21,18 @@ if (GTest_FOUND)
         GTest::Main
     )
     gtest_discover_tests(RandBLAS_tests)
+
+    add_executable(SparseRandBLAS_tests
+        # dense sketching operators for sparse matrices
+        test_sparse_data/common.hh
+        test_sparse_data/test_csr.cc
+    )
+    target_link_libraries(SparseRandBLAS_tests
+        RandBLAS
+        GTest::GTest
+        GTest::Main
+    )
+    gtest_discover_tests(SparseRandBLAS_tests)
 
 endif()
 message(STATUS "Checking for regression tests ... ${tmp}")
