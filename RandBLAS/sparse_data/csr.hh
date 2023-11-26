@@ -172,12 +172,12 @@ void coo_to_csr(COOMatrix<T> &coo, CSRMatrix<T> &csr) {
     csr.rowptr[0] = 0;
     int64_t ell = 0;
     for (int64_t i = 0; i < coo.n_rows; ++i) {
-        while (coo.rows[ell] == i) {
+        while (ell < coo.nnz && coo.rows[ell] == i) {
             csr.colidxs[ell] = coo.cols[ell];
             csr.vals[ell] = coo.vals[ell];
             ++ell;
         }
-        csr.rowptr[ell] = ell;
+        csr.rowptr[i+1] = ell;
     }
 }
 
@@ -196,41 +196,6 @@ void csr_to_coo(CSRMatrix<T> &csr, COOMatrix<T> &coo) {
         }
     }
     coo.sort = NonzeroSort::CSR;
-}
-
-template <typename T>
-void csr_from_diag(
-    T* vals,
-    int64_t nnz,
-    int64_t offset,
-    CSRMatrix<T> &spmat
-) {
-    spmat.reserve(nnz);
-    int64_t ell = 0;
-    if (offset >= 0) {
-        randblas_require(nnz <= spmat.n_rows);
-        while (ell < nnz) {
-            spmat.rowptr[ell] = ell;
-            spmat.colidxs[ell] = ell + offset;
-            spmat.vals[ell] = vals[ell];
-            ++ell;
-        }
-    } else { // offset < 0
-        randblas_require(nnz <= spmat.n_cols);
-        for (int64_t i = 0; i < -offset; ++i)
-            spmat.rowptr[i] = 0;
-        while(ell < nnz) {
-            spmat.rowptr[ell - offset] = ell;
-            spmat.colidxs[ell] = ell;
-            spmat.vals[ell] = vals[ell];
-            ++ell;
-        }
-    }
-    while (ell <= spmat.n_rows) {
-        spmat.rowptr[ell] = nnz;
-        ++ell;
-    }
-    return;
 }
 
 

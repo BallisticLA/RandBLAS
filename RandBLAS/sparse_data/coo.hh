@@ -178,7 +178,7 @@ void sort_coo_data(
     NonzeroSort s,
     COOMatrix<T> &spmat
 ) {
-    sort_coo_data(s, spmat.vals, spmat.rows, spmat.cols);
+    sort_coo_data(s, spmat.nnz, spmat.vals, spmat.rows, spmat.cols);
     spmat.sort = s;
     return;
 }
@@ -209,6 +209,7 @@ void coo_from_diag(
             spmat.rows[ell] = ell - offset;
             spmat.cols[ell] = ell;
             spmat.vals[ell] = vals[ell];
+            ++ell;
         }
     }
     return;
