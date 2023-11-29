@@ -228,7 +228,7 @@ static void set_filtered_colptr(
         curr_col = colidxs[ell];
         if (curr_col < col_start)
             continue;
-        colptr_update_limit = MIN(curr_col, col_end);
+        colptr_update_limit = std::min(curr_col, col_end);
         for (j = prev_col + 1; j <= colptr_update_limit; ++j)
             new_colptr[j - col_start] = ell;
         prev_col = curr_col;
@@ -255,7 +255,7 @@ static int64_t set_filtered_csc_from_cscoo(
     set_filtered_colptr(nnz, colidxs, col_start, col_end, new_colptr);
     for (j = 0; j < col_end - col_start; ++j) {
         for (k = new_colptr[j]; k < new_colptr[j+1]; ++k) {
-            i = rowidxs[ell];
+            i = rowidxs[k];
             if (i < row_start)
                 continue;
             if (i >= row_end)
@@ -274,14 +274,17 @@ static void apply_csc_to_vector_from_left(
     int64_t incv,   // stride between elements of v
     T *Sv,          // Sv += S * v.
     int64_t incSv,  // stride between elements of Sv
-    CSCMatrix<T> &S
+    int64_t n_cols,
+    T *vals,
+    int64_t *rowidxs,
+    int64_t *colptr
 ) {
     int64_t i = 0;
-    for (int64_t c = 0; c < S.n_cols; ++c) {
+    for (int64_t c = 0; c < n_cols; ++c) {
         T scale = v[c * incv];
-        while (i < S.colptr[c+1]) {
-            int64_t row = S.rows[i];
-            Sv[row * incSv] += (S.vals[i] * scale);
+        while (i < colptr[c+1]) {
+            int64_t row = rowidxs[i];
+            Sv[row * incSv] += (vals[i] * scale);
             i += 1;
         }
     }
@@ -327,7 +330,6 @@ static void apply_coo_left(
     std::vector<int64_t> S_rows(S0_nnz, 0);
     std::vector<int64_t> S_colptr(m, 0);
     std::vector<T> S_vals(S0_nnz, 0.0);
-    std::vector
     S_nnz = set_filtered_csc_from_cscoo(
         S0.vals, S0.rows, S0.cols, S0.nnz,
         col_offset, col_offset + m,
@@ -335,7 +337,6 @@ static void apply_coo_left(
         S_vals.data(), S_rows.data(), S_colptr.data()
     );
     blas::scal<T>(S_nnz, alpha, S_vals.data(), 1);
-    CSCMatrix<T> S(d, m, S_nnz, S.vals.data(), S_rows.data(), S_colptr.data());
 
 
     // Step 3: Apply "S" to the left of A to get B += S*A.
@@ -367,7 +368,7 @@ static void apply_coo_left(
             apply_csc_to_vector_from_left<T>(
                 A_col, A_intra_col_stride,
                 B_col, B_intra_col_stride,
-                S
+                m, S_vals.data(), S_rows.data(), S_colptr.data()
             );
         }
     }
