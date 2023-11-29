@@ -4,7 +4,6 @@
 
 using namespace RandBLAS::sparse_data;
 using namespace RandBLAS::sparse_data::csr;
-using namespace RandBLAS::sparse_data::coo;
 using namespace test::sparse_data::common;
 using blas::Layout;
 
