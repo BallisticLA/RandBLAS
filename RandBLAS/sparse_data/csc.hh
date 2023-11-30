@@ -1,5 +1,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/sparse_data/base.hh"
+#include "RandBLAS/sparse_data/coo.hh"
+
 
 namespace RandBLAS::sparse_data {
 
@@ -64,6 +66,122 @@ struct CSCMatrix {
 } // end namespace RandBLAS::sparse_data
 
 namespace RandBLAS::sparse_data::csc {
+
+using namespace RandBLAS::sparse_data;
+using blas::Layout;
+
+template <typename T>
+void csc_to_dense(
+    const CSCMatrix<T> &spmat,
+    int64_t stride_row,
+    int64_t stride_col,
+    T *mat
+) {
+    #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
+    for (int64_t i = 0; i < spmat.n_rows; ++i) {
+        for (int64_t j = 0; j < spmat.n_cols; ++j) {
+            MAT(i, j) = 0.0;
+        }
+    }
+    for (int64_t j = 0; j < spmat.n_cols; ++j) {
+        for (int64_t ell = spmat.colptr[j]; ell < spmat.colptr[j+1]; ++ell) {
+            if (spmat.index_base == IndexBase::One)
+                i -= 1;
+            MAT(i, j) = spmat.vals[ell];
+        }
+    }
+    return;
+}
+
+template <typename T>
+void csc_to_dense(const CSCMatrix<T> &spmat, Layout layout, T *mat
+) {
+    if (layout == Layout::ColMajor) {
+        csc_to_dense(spmat, 1, spmat.n_rows, mat);
+    } else {
+        csc_to_dense(spmat, spmat.n_cols, 1, mat);
+    }
+    return;
+}
+
+template <typename T>
+void dense_to_csc(
+    int64_t stride_row,
+    int64_t stride_col,
+    T *mat,
+    T abs_tol,
+    CSCMatrix<T> &spmat
+) {
+    int64_t n_rows = spmat.n_rows;
+    int64_t n_cols = spmat.n_cols;
+    #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
+    // Step 1: count the number of entries with absolute value at least abstol
+    int64_t nnz = nnz_in_dense(n_rows, n_cols, stride_row, stride_col, mat, abs_tol);
+    // Step 2: allocate memory needed by the sparse matrix
+    spmat.reserve(nnz);
+    // Step 3: traverse the dense matrix again, populating the sparse matrix as we go
+    nnz = 0;
+    spmat.colptr[0] = 0;
+    for (int64_t j = 0; j < n_cols; ++j) {
+        for (int64_t i = 0; i < n_rows; ++i) {
+            T val = MAT(i, j);
+            if (abs(val) > abs_tol) {
+                spmat.vals[nnz] = val;
+                spmat.rowidxs[nnz] = i;
+                nnz += 1;
+            }
+        }
+        spmat.colptr[j+1] = nnz;
+    }
+    return;
+}
+
+template <typename T>
+void dense_to_csc(Layout layout, T* mat, T abs_tol, CSCMatrix<T> &spmat) {
+    if (layout == Layout::ColMajor) {
+        dense_to_csc(1, spmat.n_rows, mat, abs_tol, spmat);
+    } else {
+        dense_to_csc(spmat.n_cols, 1, mat, abs_tol, spmat);
+    }
+    return;
+}
+
+template <typename T>
+void coo_to_csc(COOMatrix<T> &coo, CSCMatrix<T> &csc) {
+    randblas_require(csc.n_rows == coo.n_rows);
+    randblas_require(csc.n_cols == csc.n_cols);
+    sort_coo_data(NonzeroSort::CSC, coo);
+    csc.reserve(coo.nnz);
+    csc.colptr[0] = 0;
+    int64_t ell = 0;
+    for (int64_t j = 0; j < coo.n_rows; ++j) {
+        while (ell < coo.nnz && coo.cols[ell] == j) {
+            csc.rowidxs[ell] = coo.rows[ell];
+            csc.vals[ell] = coo.vals[ell];
+            ++ell;
+        }
+        csc.colptr[j+1] = ell;
+    }
+    return;
+}
+
+template <typename T>
+void csc_to_coo(CSCMatrix<T> &csc, COOMatrix<T> &coo) {
+    randblas_require(csc.n_rows == coo.n_rows);
+    randblas_require(csc.n_cols == coo.n_cols);
+    coo.reserve(csc.nnz);
+    int64_t ell = 0;
+    for (int64_t j = 0; j < csc.n_cols; ++j) {
+        for (int64_t i = csc.colptr[j]; i < csc.colptr[j+1]; ++i) {
+            coo.vals[ell] = csc.vals[ell];
+            coo.rows[ell] = i;
+            coo.cols[ell] = j;
+            ++ell;
+        }
+    }
+    coo.sort = NonzeroSort::CSR;
+    return;
+}
 
 
 
