@@ -195,15 +195,13 @@ void sort_coo_data(
 }
 
 template <typename T>
-static auto transpose(COOMatrix<T> S) {
-    auto srt = NonzeroSort::None;
-    if (S.sort == NonzeroSort::CSC) {
-        srt = NonzeroSort::CSR;
-    } else if (S.sort == NonzeroSort::CSR) {
-        srt = NonzeroSort::CSC;
-    }
+static auto transpose(COOMatrix<T> &S) {
     COOMatrix<T> St(S.n_rows, S.n_cols, S.nnz, S.vals, S.cols, S.rows, false, S.index_base);
-    St.sort = srt;
+    if (S.sort == NonzeroSort::CSC) {
+        St.sort = NonzeroSort::CSR;
+    } else if (S.sort == NonzeroSort::CSR) {
+        St.sort = NonzeroSort::CSC;
+    }
     return St;
 }
 
@@ -215,16 +213,21 @@ namespace RandBLAS::sparse_data::coo {
 
 using namespace RandBLAS::sparse_data;
 
-static void set_filtered_colptr(
-    int64_t nnz,
+static inline void set_filtered_colptr(
+    int64_t len_colidxs,
     const int64_t *colidxs,
     int64_t col_start,
     int64_t col_end,
     int64_t *new_colptr
 ) {
+    int64_t ell;
+    // check that colidxs is sorted in increasing order
+    for (ell = 1; ell < len_colidxs; ++ell)
+        randblas_require(colidxs[ell-1] <= colidxs[ell]);
+    // compress filter and compress colidxs into colptr
     int64_t prev_col = col_start - 1;
-    int64_t curr_col, ell, j, colptr_update_limit;
-    for (ell = 0; ell < nnz; ++ell) {
+    int64_t curr_col, j, colptr_update_limit;
+    for (ell = 0; ell < len_colidxs; ++ell) {
         curr_col = colidxs[ell];
         if (curr_col < col_start)
             continue;
@@ -238,14 +241,17 @@ static void set_filtered_colptr(
 
 template <typename T>
 static int64_t set_filtered_csc_from_cscoo(
+    // COO-format matrix data, in CSC order
     const T       *vals,
     const int64_t *rowidxs,
     const int64_t *colidxs,
     int64_t nnz,
+    // submatrix bounds
     int64_t col_start,
     int64_t col_end,
     int64_t row_start,
     int64_t row_end,
+    // CSC-format data for the submatrix
     T       *new_vals,
     int64_t *new_rowidxs,
     int64_t *new_colptr
@@ -270,21 +276,23 @@ static int64_t set_filtered_csc_from_cscoo(
 
 template <typename T>
 static void apply_csc_to_vector_from_left(
+    // CSC-format data
+    int64_t n_cols,
+    const T *vals,
+    int64_t *rowidxs,
+    int64_t *colptr,
+    // input-output vector data
     const T *v,
     int64_t incv,   // stride between elements of v
-    T *Sv,          // Sv += S * v.
-    int64_t incSv,  // stride between elements of Sv
-    int64_t n_cols,
-    T *vals,
-    int64_t *rowidxs,
-    int64_t *colptr
+    T *Av,          // Av += A * v.
+    int64_t incAv   // stride between elements of Av
 ) {
     int64_t i = 0;
     for (int64_t c = 0; c < n_cols; ++c) {
         T scale = v[c * incv];
         while (i < colptr[c+1]) {
             int64_t row = rowidxs[i];
-            Sv[row * incSv] += (vals[i] * scale);
+            Av[row * incAv] += (vals[i] * scale);
             i += 1;
         }
     }
@@ -298,56 +306,48 @@ static void apply_csc_to_vector_from_left(
 template <typename T>
 static void apply_coo_left(
     T alpha,
-    blas::Layout layout_A,
     blas::Layout layout_B,
+    blas::Layout layout_C,
     int64_t d,
     int64_t n,
     int64_t m,
-    COOMatrix<T> & S0,
+    COOMatrix<T> & A0,
     int64_t row_offset,
     int64_t col_offset,
-    const T *A,
-    int64_t lda,
-    T *B,
-    int64_t ldb
+    const T *B,
+    int64_t ldb,
+    T *C,
+    int64_t ldc
 ) {
-    randblas_require(S0.index_base == IndexBase::Zero);
+    randblas_require(A0.index_base == IndexBase::Zero);
 
     // Step 1: reduce to the case of CSC sort order.
-    if (S0.sort != NonzeroSort::CSC) {
-        auto orig_sort = S0.sort;
-        sort_coo_data(NonzeroSort::CSC, S0);
-        apply_cscoo_submat_to_vector_from_left(layout_A, layout_B, d, n, m, S0, row_offset, col_offset, A, lda, B, ldb);
-        sort_coo_data(orig_sort, S0);
+    if (A0.sort != NonzeroSort::CSC) {
+        auto orig_sort = A0.sort;
+        sort_coo_data(NonzeroSort::CSC, A0);
+        apply_cscoo_submat_to_vector_from_left(layout_B, layout_C, d, n, m, A0, row_offset, col_offset, B, ldb, C, ldc);
+        sort_coo_data(orig_sort, A0);
         return;
     }
 
     // Step 2: make a CSC-sort-order COOMatrix that represents the desired submatrix of S.
     //      While we're at it, reduce to the case when alpha = 1.0 by scaling the values
     //      of the matrix we just created.
-    int64_t S_nnz;
-    int64_t S0_nnz = S0.nnz;
-    std::vector<int64_t> S_rows(S0_nnz, 0);
-    std::vector<int64_t> S_colptr(m, 0);
-    std::vector<T> S_vals(S0_nnz, 0.0);
-    S_nnz = set_filtered_csc_from_cscoo(
-        S0.vals, S0.rows, S0.cols, S0.nnz,
+    int64_t A_nnz;
+    int64_t A0_nnz = A0.nnz;
+    std::vector<int64_t> A_rows(A0_nnz, 0);
+    std::vector<int64_t> A_colptr(m + 1, 0);
+    std::vector<T> A_vals(A0_nnz, 0.0);
+    A_nnz = set_filtered_csc_from_cscoo(
+        A0.vals, A0.rows, A0.cols, A0.nnz,
         col_offset, col_offset + m,
         row_offset, row_offset + d,
-        S_vals.data(), S_rows.data(), S_colptr.data()
+        A_vals.data(), A_rows.data(), A_colptr.data()
     );
-    blas::scal<T>(S_nnz, alpha, S_vals.data(), 1);
+    blas::scal<T>(A_nnz, alpha, A_vals.data(), 1);
 
 
     // Step 3: Apply "S" to the left of A to get B += S*A.
-    int64_t A_inter_col_stride, A_intra_col_stride;
-    if (layout_A == blas::Layout::ColMajor) {
-        A_inter_col_stride = lda;
-        A_intra_col_stride = 1;
-    } else {
-        A_inter_col_stride = 1;
-        A_intra_col_stride = lda;
-    }
     int64_t B_inter_col_stride, B_intra_col_stride;
     if (layout_B == blas::Layout::ColMajor) {
         B_inter_col_stride = ldb;
@@ -356,19 +356,27 @@ static void apply_coo_left(
         B_inter_col_stride = 1;
         B_intra_col_stride = ldb;
     }
+    int64_t C_inter_col_stride, C_intra_col_stride;
+    if (layout_C == blas::Layout::ColMajor) {
+        C_inter_col_stride = ldc;
+        C_intra_col_stride = 1;
+    } else {
+        C_inter_col_stride = 1;
+        C_intra_col_stride = ldc;
+    }
 
     #pragma omp parallel default(shared)
     {
-        const T *A_col = nullptr;
-        T *B_col = nullptr;
+        const T *B_col = nullptr;
+        T *C_col = nullptr;
         #pragma omp for schedule(static)
         for (int64_t k = 0; k < n; k++) {
-            A_col = &A[A_inter_col_stride * k];
             B_col = &B[B_inter_col_stride * k];
+            C_col = &C[C_inter_col_stride * k];
             apply_csc_to_vector_from_left<T>(
-                A_col, A_intra_col_stride,
+                m, A_vals.data(), A_rows.data(), A_colptr.data(),
                 B_col, B_intra_col_stride,
-                m, S_vals.data(), S_rows.data(), S_colptr.data()
+                C_col, C_intra_col_stride
             );
         }
     }
