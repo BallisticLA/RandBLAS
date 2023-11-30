@@ -70,7 +70,6 @@ struct COOMatrix {
     int64_t *cols;
     NonzeroSort sort;
     int64_t *_sortptr;
-    // bool _self_allocate_sortptr = true;
     bool _can_reserve = true;
 
     COOMatrix(
@@ -83,8 +82,6 @@ struct COOMatrix {
         this->rows = nullptr;
         this->cols = nullptr;
         this->sort = NonzeroSort::None;
-        // this->_self_allocate_sort_ptr = true;
-        // this->_sortptr = new int64_t[MAX(n_rows, n_cols) + 1];
     };
 
     COOMatrix(
@@ -223,7 +220,6 @@ static inline void filter_and_compress_sorted(
     int64_t k;
     for (k = 1; k < len_sorted; ++k)
         randblas_require(sorted[k-1] <= sorted[k]);
-    // compress filter and compress sorted into compressed
     int64_t prev, curr, j, update_limit;
     prev = start_val - 1;
     for (k = 0; k < len_sorted; ++k) {
@@ -300,10 +296,6 @@ static void apply_csc_to_vector_from_left(
 }
 
 
-
-// =============================================================================
-/// WARNING: this function is not part of the public API.
-///
 template <typename T>
 static void apply_coo_left(
     T alpha,
@@ -382,6 +374,113 @@ static void apply_coo_left(
         }
     }
     return;
+}
+
+
+template <typename T>
+void lspgemm(
+    blas::Layout layout,
+    blas::Op opA,
+    blas::Op opB,
+    int64_t d, // C is d-by-n
+    int64_t n, // \op(B) is m-by-n
+    int64_t m, // \op(A) is d-by-m
+    T alpha,
+    COOMatrix<T> &A,
+    int64_t row_offset,
+    int64_t col_offset,
+    const T *B,
+    int64_t ldb,
+    T beta,
+    T *C,
+    int64_t ldc
+) {
+    // handle applying a transposed sparse sketching operator.
+    if (opA == blas::Op::Trans) {
+        auto At = transpose(A);
+        lspgemm(
+            layout, blas::Op::NoTrans, opB,
+            d, n, m, alpha, At, col_offset, row_offset,
+            B, ldb, beta, C, ldc
+        );
+        return; 
+    }
+    // Below this point, we can assume A is not transposed.
+    randblas_require(A.n_rows >= d);
+    randblas_require(A.n_cols >= m);
+
+    // Dimensions of B, rather than \op(B)
+    blas::Layout layout_C = layout;
+    blas::Layout layout_opB;
+    int64_t rows_B, cols_B;
+    if (opB == blas::Op::NoTrans) {
+        rows_B = m;
+        cols_B = n;
+        layout_opB = layout;
+    } else {
+        rows_B = n;
+        cols_B = m;
+        layout_opB = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : blas::Layout::ColMajor;
+    }
+
+    // Check dimensions and compute C = beta * C.
+    //      Note: both B and C are checked based on "layout"; B is *not* checked on layout_opB.
+    if (layout == blas::Layout::ColMajor) {
+        randblas_require(ldb >= rows_B);
+        randblas_require(ldc >= d);
+        for (int64_t i = 0; i < n; ++i)
+            RandBLAS::util::safe_scal(d, beta, &C[i*ldc], 1);
+    } else {
+        randblas_require(ldc >= n);
+        randblas_require(ldb >= cols_B);
+        for (int64_t i = 0; i < d; ++i)
+            RandBLAS::util::safe_scal(n, beta, &C[i*ldc], 1);
+    }
+
+    // compute the matrix-matrix product
+    if (alpha != 0)
+        apply_coo_left(alpha, layout_opB, layout_C, d, n, m, A, row_offset, col_offset, B, ldb, C, ldc);
+    return;
+}
+
+template <typename T>
+void rspgemm(
+    blas::Layout layout,
+    blas::Op opB,
+    blas::Op opA,
+    int64_t m, // C is m-by-d
+    int64_t d, // op(A) is n-by-d
+    int64_t n, // op(B) is m-by-n
+    T alpha,
+    const T *B,
+    int64_t lda,
+    COOMatrix<T> &A0,
+    int64_t i_off,
+    int64_t j_off,
+    T beta,
+    T *C,
+    int64_t ldb
+) { 
+    //
+    // Compute C = op(B) op(submat(A)) by reduction to LSPGEMM. We start with
+    //
+    //      C^T = op(submat(A))^T op(B)^T.
+    //
+    // Then we interchange the operator "op(*)" in op(B) and (*)^T:
+    //
+    //      C^T = op(submat(A))^T op(B^T).
+    //
+    // We tell LSPGEMM to process (C^T) and (B^T) in the opposite memory layout
+    // compared to the layout for (B, C).
+    // 
+    using blas::Layout;
+    using blas::Op;
+    auto trans_opA = (opA == Op::NoTrans) ? Op::Trans : Op::NoTrans;
+    auto trans_layout = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
+    lspgemm(
+        trans_layout, trans_opA, opB,
+        d, m, n, alpha, A0, i_off, j_off, B, lda, beta, C, ldb
+    );
 }
 
 } // end namespace RandBLAS::sparse_data::coo

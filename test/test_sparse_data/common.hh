@@ -2,6 +2,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/dense.hh"
 #include "RandBLAS/util.hh"
+#include "RandBLAS/sparse_skops.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/coo.hh"
 #include "RandBLAS/sparse_data/csr.hh"
@@ -92,6 +93,28 @@ void coo_from_diag(
             spmat.vals[ell] = vals[ell];
             ++ell;
         }
+    }
+    return;
+}
+
+template <typename T, typename RNG>
+void skop_to_coo(
+    RandBLAS::SparseSkOp<T,RNG> &S,
+    COOMatrix<T> &A
+) {
+    randblas_require(S.n_rows == A.n_rows);
+    randblas_require(S.n_cols == A.n_cols);
+    if (S.rows == nullptr|| S.cols == nullptr || S.vals == nullptr)
+        RandBLAS::fill_sparse(S);
+    int64_t nnz = RandBLAS::sparse::nnz(S);
+    A.reserve(nnz);
+    std::copy(S.rows, S.rows + nnz, A.rows);
+    std::copy(S.cols, S.cols + nnz, A.cols);
+    std::copy(S.vals, S.vals + nnz, A.vals);
+    if (RandBLAS::sparse::has_fixed_nnz_per_col(S)) {
+        A.sort = NonzeroSort::CSC;
+    } else {
+        A.sort = NonzeroSort::CSR;
     }
     return;
 }
