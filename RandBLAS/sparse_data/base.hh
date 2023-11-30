@@ -46,7 +46,7 @@ int64_t nnz_in_dense(
     return nnz;
 }
 
-static inline void filter_and_compress_sorted(
+static inline int64_t filter_and_compress_sorted(
     int64_t len_sorted,
     const int64_t *sorted,
     int64_t start_val,
@@ -54,6 +54,7 @@ static inline void filter_and_compress_sorted(
     int64_t *compressed
 ) {
     int64_t k;
+    int64_t nnz_in_range = 0;
     for (k = 1; k < len_sorted; ++k)
         randblas_require(sorted[k-1] <= sorted[k]);
     int64_t prev, curr, j, update_limit;
@@ -68,8 +69,9 @@ static inline void filter_and_compress_sorted(
         prev = curr;
         if (prev >= stop_val)
             break;
+        nnz_in_range += 1;
     }
-    return;
+    return nnz_in_range;
 }
 
 } // end namespace RandBLAS::sparse_data

@@ -33,6 +33,7 @@ class TestCOO : public ::testing::Test
         );
         EXPECT_GT(A.nnz, 0);
         EXPECT_LT(A.nnz, n*n);
+        return;
     }
 
     template <typename T = double>
@@ -57,6 +58,7 @@ class TestCOO : public ::testing::Test
         EXPECT_EQ(A.sort, NonzeroSort::CSC);
         sort = coo_sort_type(A.nnz, A.rows, A.cols);
         EXPECT_EQ(sort, NonzeroSort::CSC);
+        return;
     }
 
 };
@@ -105,6 +107,7 @@ class Test_SkOp_to_COO : public ::testing::Test
         RandBLAS_Testing::Util::buffs_approx_equal(S_dense.data(), A_dense.data(), d * m,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        return;
     } 
 };
 
@@ -183,3 +186,20 @@ TEST_F(Test_SkOp_to_COO, LASO_Dim_15by7) {
     sparse_skop_to_coo(15, 7, 0, 3, RandBLAS::MajorAxis::Long);
     sparse_skop_to_coo(15, 7, 1, 3, RandBLAS::MajorAxis::Long);
 }
+
+
+
+// class Test_Filter_COO : public ::testing::Test
+// {
+//     protected:
+    
+//     virtual void SetUp(){};
+
+//     virtual void TearDown(){};
+
+//     template <typename T = double>
+//     void run() {
+//         return;
+//     }
+
+// }

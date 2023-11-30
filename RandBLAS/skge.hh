@@ -6,7 +6,7 @@
 #include "RandBLAS/random_gen.hh"
 #include "RandBLAS/dense.hh"
 #include "RandBLAS/sparse_skops.hh"
-//#include "RandBLAS/sparse_data/coo.hh"
+#include "RandBLAS/sparse_data/coo.hh"
 
 #include <blas.hh>
 
@@ -177,17 +177,19 @@ void sketch_general(
     T *B,
     int64_t ldb
 ) {
-    // if (S.rows == nullptr|| S.cols == nullptr || S.vals == nullptr)
-    //     fill_sparse(S);
-    // RandBLAS::sparse_data::COOMatrix<T> Scoo(S.dist.n_rows, S.dist.n_cols);
-    // return RandBLAS::sparse_data::coo::lspgemm(
-    //     layout, opS, opA, d, n, m, alpha, Scoo,
-    //     i_off, j_off, A, lda, beta, B, ldb
-    // );
-    return sparse::lskges(
-        layout, opS, opA, d, n, m, alpha, S,
+    if (S.rows == nullptr|| S.cols == nullptr || S.vals == nullptr)
+        fill_sparse(S);
+    RandBLAS::sparse_data::COOMatrix<T> Scoo(S.dist.n_rows, S.dist.n_cols);
+    RandBLAS::sparse_data::coo::skop_to_coo(S, Scoo);
+    return RandBLAS::sparse_data::coo::lspgemm(
+        layout, opS, opA, d, n, m, alpha, Scoo,
         i_off, j_off, A, lda, beta, B, ldb
     );
+    return;
+    // return sparse::lskges(
+    //     layout, opS, opA, d, n, m, alpha, S,
+    //     i_off, j_off, A, lda, beta, B, ldb
+    // );
 }
 
 template <typename T, typename RNG>
