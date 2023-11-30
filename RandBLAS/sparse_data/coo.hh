@@ -12,7 +12,7 @@ enum class NonzeroSort : char {
     None = 'N'
 };
 
-NonzeroSort coo_sort_type(int64_t nnz, int64_t *rows, int64_t *cols) {
+static inline NonzeroSort coo_sort_type(int64_t nnz, int64_t *rows, int64_t *cols) {
     bool csr_okay = true;
     bool csc_okay = true;
     auto increasing_by_csr = [](int64_t i0, int64_t j0, int64_t i1, int64_t j1) {
@@ -193,7 +193,7 @@ void sort_coo_data(
 
 template <typename T>
 static auto transpose(COOMatrix<T> &S) {
-    COOMatrix<T> St(S.n_rows, S.n_cols, S.nnz, S.vals, S.cols, S.rows, false, S.index_base);
+    COOMatrix<T> St(S.n_cols, S.n_rows, S.nnz, S.vals, S.cols, S.rows, false, S.index_base);
     if (S.sort == NonzeroSort::CSC) {
         St.sort = NonzeroSort::CSR;
     } else if (S.sort == NonzeroSort::CSR) {
@@ -209,6 +209,87 @@ static auto transpose(COOMatrix<T> &S) {
 namespace RandBLAS::sparse_data::coo {
 
 using namespace RandBLAS::sparse_data;
+using blas::Layout;
+
+template <typename T>
+void dense_to_coo(
+    int64_t stride_row,
+    int64_t stride_col,
+    T *mat,
+    T abs_tol,
+    COOMatrix<T> &spmat
+) {
+    int64_t n_rows = spmat.n_rows;
+    int64_t n_cols = spmat.n_cols;
+    int64_t nnz = nnz_in_dense(n_rows, n_cols, stride_row, stride_col, mat, abs_tol);
+    spmat.reserve(nnz);
+    nnz = 0;
+    #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
+    for (int64_t i = 0; i < n_rows; ++i) {
+        for (int64_t j = 0; j < n_cols; ++j) {
+            T val = MAT(i, j);
+            if (abs(val) > abs_tol) {
+                spmat.vals[nnz] = val;
+                spmat.rows[nnz] = i;
+                spmat.cols[nnz] = j;
+                nnz += 1;
+            }
+        }
+    }
+    return;
+}
+
+template <typename T>
+void dense_to_coo(
+    Layout layout,
+    T* mat,
+    T abs_tol,
+    COOMatrix<T> &spmat
+) {
+    if (layout == Layout::ColMajor) {
+        dense_to_coo(1, spmat.n_rows, mat, abs_tol, spmat);
+    } else {
+        dense_to_coo(spmat.n_cols, 1, mat, abs_tol, spmat);
+    }
+}
+
+template <typename T>
+void coo_to_dense(
+    const COOMatrix<T> &spmat,
+    int64_t stride_row,
+    int64_t stride_col,
+    T *mat
+) {
+    #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
+    for (int64_t i = 0; i < spmat.n_rows; ++i) {
+        for (int64_t j = 0; j < spmat.n_cols; ++j) {
+            MAT(i, j) = 0.0;
+        }
+    }
+    for (int64_t ell = 0; ell < spmat.nnz; ++ell) {
+        int64_t i = spmat.rows[ell];
+        int64_t j = spmat.cols[ell];
+        if (spmat.index_base == IndexBase::One) {
+            i -= 1;
+            j -= 1;
+        }
+        MAT(i, j) = spmat.vals[ell];
+    }
+    return;
+}
+
+template <typename T>
+void coo_to_dense(
+    const COOMatrix<T> &spmat,
+    Layout layout,
+    T *mat
+) {
+    if (layout == Layout::ColMajor) {
+        coo_to_dense(spmat, 1, spmat.n_rows, mat);
+    } else {
+        coo_to_dense(spmat, spmat.n_cols, 1, mat);
+    }
+}
 
 static inline void filter_and_compress_sorted(
     int64_t len_sorted,
@@ -304,7 +385,7 @@ static void apply_coo_left(
     int64_t d,
     int64_t n,
     int64_t m,
-    COOMatrix<T> & A0,
+    COOMatrix<T> &A0,
     int64_t row_offset,
     int64_t col_offset,
     const T *B,
@@ -318,7 +399,7 @@ static void apply_coo_left(
     if (A0.sort != NonzeroSort::CSC) {
         auto orig_sort = A0.sort;
         sort_coo_data(NonzeroSort::CSC, A0);
-        apply_cscoo_submat_to_vector_from_left(layout_B, layout_C, d, n, m, A0, row_offset, col_offset, B, ldb, C, ldc);
+        apply_coo_left(alpha, layout_B, layout_C, d, n, m, A0, row_offset, col_offset, B, ldb, C, ldc);
         sort_coo_data(orig_sort, A0);
         return;
     }
@@ -481,6 +562,28 @@ void rspgemm(
         trans_layout, trans_opA, opB,
         d, m, n, alpha, A0, i_off, j_off, B, lda, beta, C, ldb
     );
+}
+
+template <typename T, typename RNG>
+void skop_to_coo(
+    RandBLAS::SparseSkOp<T,RNG> &S,
+    COOMatrix<T> &A
+) {
+    randblas_require(S.dist.n_rows == A.n_rows);
+    randblas_require(S.dist.n_cols == A.n_cols);
+    if (S.rows == nullptr|| S.cols == nullptr || S.vals == nullptr)
+        RandBLAS::fill_sparse(S);
+    int64_t nnz = RandBLAS::sparse::nnz(S);
+    A.reserve(nnz);
+    std::copy(S.rows, S.rows + nnz, A.rows);
+    std::copy(S.cols, S.cols + nnz, A.cols);
+    std::copy(S.vals, S.vals + nnz, A.vals);
+    if (RandBLAS::sparse::has_fixed_nnz_per_col(S)) {
+        A.sort = NonzeroSort::CSC;
+    } else {
+        A.sort = NonzeroSort::CSR;
+    }
+    return;
 }
 
 } // end namespace RandBLAS::sparse_data::coo

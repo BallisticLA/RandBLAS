@@ -39,7 +39,7 @@ int64_t nnz_in_dense(
     int64_t nnz = 0;
     for (int64_t i = 0; i < n_rows; ++i) {
         for (int64_t j = 0; j < n_cols; ++j) {
-            if (abs(MAT(i, j)) >= abs_tol)
+            if (abs(MAT(i, j)) > abs_tol)
                 nnz += 1;
         }
     }
