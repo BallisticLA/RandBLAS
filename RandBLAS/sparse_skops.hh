@@ -84,6 +84,12 @@ struct SparseSkOp {
     /// deallocating this workspace. If own_memory is true, then 
     /// RandBLAS is responsible.
     const bool own_memory = true;
+
+    // ---------------------------------------------------------------------------
+    /// A flag (indicating a sufficient condition) that the data underlying the
+    /// sparse matrix has already been sampled.
+    bool known_filled = false;
+    
     
     /////////////////////////////////////////////////////////////////////
     //
@@ -125,13 +131,19 @@ struct SparseSkOp {
     /// @param[in] vals
     ///     Pointer to array of real numerical type T.
     ///     - stores nonzeros as part of the COO format.
-    ///
+    /// 
+    /// @param[in] known_filled
+    ///     A boolean. If true, then the arrays pointed to by
+    ///     (rows, cols, vals) already contain the randomly sampled
+    ///     data defining this sketching operator.
+    ///     
     SparseSkOp(
         SparseDist dist,
         const RNGState<RNG> &state,
         int64_t *rows,
         int64_t *cols,
-        T *vals 
+        T *vals,
+        bool known_filled = true
     );
 
     SparseSkOp(
@@ -189,7 +201,8 @@ SparseSkOp<T,RNG>::SparseSkOp(
     const RNGState<RNG> &state,
     int64_t *rows,
     int64_t *cols,
-    T *vals
+    T *vals,
+    bool known_filled
 ) :  // variable definitions
     dist(dist),
     seed_state(state),
@@ -202,6 +215,7 @@ SparseSkOp<T,RNG>::SparseSkOp(
     this->rows = rows;
     this->cols = cols;
     this->vals = vals;
+    this->known_filled = known_filled;
 };
 
 template <typename T, typename RNG>
@@ -250,6 +264,7 @@ RNGState<RNG> fill_sparse(
             long_ax_idxs, short_ax_idxs, S.vals
         );
     }
+    S.known_filled = true;
     return S.next_state;
 }
 
@@ -781,9 +796,9 @@ void lskges(
     T *B,
     int64_t ldb
 ) {
-    if (S.rows == nullptr|| S.cols == nullptr || S.vals == nullptr)
+    if (!S.known_filled)
         fill_sparse(S);
-
+    
     // handle applying a transposed sparse sketching operator.
     if (opS == blas::Op::Trans) {
         auto St = transpose(S);

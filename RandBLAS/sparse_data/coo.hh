@@ -543,22 +543,36 @@ void rspgemm(
 }
 
 template <typename T, typename RNG>
-void skop_to_coo(
-    RandBLAS::SparseSkOp<T,RNG> &S,
-    COOMatrix<T> &A
-) {
-    randblas_require(S.dist.n_rows == A.n_rows);
-    randblas_require(S.dist.n_cols == A.n_cols);
-    if (S.rows == nullptr|| S.cols == nullptr || S.vals == nullptr)
+COOMatrix<T> coo_view_of_skop(RandBLAS::SparseSkOp<T,RNG> &S) {
+    if (!S.known_filled)
         RandBLAS::fill_sparse(S);
     int64_t nnz = RandBLAS::sparse::nnz(S);
-    A.reserve(nnz);
-    std::copy(S.rows, S.rows + nnz, A.rows);
-    std::copy(S.cols, S.cols + nnz, A.cols);
-    std::copy(S.vals, S.vals + nnz, A.vals);
-    A.sort = coo_sort_type(nnz, A.rows, A.cols);
-    return;
+    COOMatrix<T> A(
+        S.dist.n_rows, S.dist.n_cols, nnz,
+        S.vals, S.rows, S.cols
+    );
+    return A;
 }
+
+// template <typename T>
+// COOMatrix<T> coo_submatrix_view(
+//     COOMatrix<T> mat,
+//     int64_t row_start,
+//     int64_t row_end,
+//     int64_t col_start,
+//     int64_t col_end
+// ) {
+//     int64_t idx_end = mat.nnz - 1;
+//     int64_t i, j, ii, jj;
+//     T v, vv;
+//     for (int64_t k = 0; k < mat.nnz; ++k) {
+//         i = mat.rows[k];
+//         j = mat.cols[k];
+//         if (i < row_start || i >= row_end) {
+            
+//         }
+//     }
+// }
 
 } // end namespace RandBLAS::sparse_data::coo
 
