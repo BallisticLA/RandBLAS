@@ -213,28 +213,29 @@ namespace RandBLAS::sparse_data::coo {
 
 using namespace RandBLAS::sparse_data;
 
-static inline void set_filtered_colptr(
-    int64_t len_colidxs,
-    const int64_t *colidxs,
-    int64_t col_start,
-    int64_t col_end,
-    int64_t *new_colptr
+static inline void filter_and_compress_sorted(
+    int64_t len_sorted,
+    const int64_t *sorted,
+    int64_t start_val,
+    int64_t stop_val,
+    int64_t *compressed
 ) {
-    int64_t ell;
-    // check that colidxs is sorted in increasing order
-    for (ell = 1; ell < len_colidxs; ++ell)
-        randblas_require(colidxs[ell-1] <= colidxs[ell]);
-    // compress filter and compress colidxs into colptr
-    int64_t prev_col = col_start - 1;
-    int64_t curr_col, j, colptr_update_limit;
-    for (ell = 0; ell < len_colidxs; ++ell) {
-        curr_col = colidxs[ell];
-        if (curr_col < col_start)
+    int64_t k;
+    for (k = 1; k < len_sorted; ++k)
+        randblas_require(sorted[k-1] <= sorted[k]);
+    // compress filter and compress sorted into compressed
+    int64_t prev, curr, j, update_limit;
+    prev = start_val - 1;
+    for (k = 0; k < len_sorted; ++k) {
+        curr = sorted[k];
+        if (curr < start_val)
             continue;
-        colptr_update_limit = std::min(curr_col, col_end);
-        for (j = prev_col + 1; j <= colptr_update_limit; ++j)
-            new_colptr[j - col_start] = ell;
-        prev_col = curr_col;
+        update_limit = std::min(curr, stop_val);
+        for (j = prev + 1; j <= update_limit; ++j)
+            compressed[j - start_val] = k;
+        prev = curr;
+        if (prev >= stop_val)
+            break;
     }
     return;
 }
@@ -258,7 +259,7 @@ static int64_t set_filtered_csc_from_cscoo(
 ) {
     int64_t new_nnz = 0;
     int64_t i, j, k;
-    set_filtered_colptr(nnz, colidxs, col_start, col_end, new_colptr);
+    filter_and_compress_sorted(nnz, colidxs, col_start, col_end, new_colptr);
     for (j = 0; j < col_end - col_start; ++j) {
         for (k = new_colptr[j]; k < new_colptr[j+1]; ++k) {
             i = rowidxs[k];
