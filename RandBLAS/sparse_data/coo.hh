@@ -291,31 +291,6 @@ void coo_to_dense(
     }
 }
 
-static inline void filter_and_compress_sorted(
-    int64_t len_sorted,
-    const int64_t *sorted,
-    int64_t start_val,
-    int64_t stop_val,
-    int64_t *compressed
-) {
-    int64_t k;
-    for (k = 1; k < len_sorted; ++k)
-        randblas_require(sorted[k-1] <= sorted[k]);
-    int64_t prev, curr, j, update_limit;
-    prev = start_val - 1;
-    for (k = 0; k < len_sorted; ++k) {
-        curr = sorted[k];
-        if (curr < start_val)
-            continue;
-        update_limit = std::min(curr, stop_val);
-        for (j = prev + 1; j <= update_limit; ++j)
-            compressed[j - start_val] = k;
-        prev = curr;
-        if (prev >= stop_val)
-            break;
-    }
-    return;
-}
 
 template <typename T>
 static int64_t set_filtered_csc_from_cscoo(
@@ -355,18 +330,18 @@ static int64_t set_filtered_csc_from_cscoo(
 template <typename T>
 static void apply_csc_to_vector_from_left(
     // CSC-format data
-    int64_t n_cols,
     const T *vals,
     int64_t *rowidxs,
     int64_t *colptr,
     // input-output vector data
+    int64_t len_v,
     const T *v,
     int64_t incv,   // stride between elements of v
     T *Av,          // Av += A * v.
     int64_t incAv   // stride between elements of Av
 ) {
     int64_t i = 0;
-    for (int64_t c = 0; c < n_cols; ++c) {
+    for (int64_t c = 0; c < len_v; ++c) {
         T scale = v[c * incv];
         while (i < colptr[c+1]) {
             int64_t row = rowidxs[i];
@@ -448,9 +423,9 @@ static void apply_coo_left(
             B_col = &B[B_inter_col_stride * k];
             C_col = &C[C_inter_col_stride * k];
             apply_csc_to_vector_from_left<T>(
-                m, A_vals.data(), A_rows.data(), A_colptr.data(),
-                B_col, B_intra_col_stride,
-                C_col, C_intra_col_stride
+                A_vals.data(), A_rows.data(), A_colptr.data(),
+                m, B_col, B_intra_col_stride,
+                   C_col, C_intra_col_stride
             );
         }
     }
@@ -578,11 +553,7 @@ void skop_to_coo(
     std::copy(S.rows, S.rows + nnz, A.rows);
     std::copy(S.cols, S.cols + nnz, A.cols);
     std::copy(S.vals, S.vals + nnz, A.vals);
-    if (RandBLAS::sparse::has_fixed_nnz_per_col(S)) {
-        A.sort = NonzeroSort::CSC;
-    } else {
-        A.sort = NonzeroSort::CSR;
-    }
+    A.sort = coo_sort_type(nnz, A.rows, A.cols);
     return;
 }
 

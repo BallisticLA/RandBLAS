@@ -46,6 +46,32 @@ int64_t nnz_in_dense(
     return nnz;
 }
 
+static inline void filter_and_compress_sorted(
+    int64_t len_sorted,
+    const int64_t *sorted,
+    int64_t start_val,
+    int64_t stop_val,
+    int64_t *compressed
+) {
+    int64_t k;
+    for (k = 1; k < len_sorted; ++k)
+        randblas_require(sorted[k-1] <= sorted[k]);
+    int64_t prev, curr, j, update_limit;
+    prev = start_val - 1;
+    for (k = 0; k < len_sorted; ++k) {
+        curr = sorted[k];
+        if (curr < start_val)
+            continue;
+        update_limit = std::min(curr, stop_val);
+        for (j = prev + 1; j <= update_limit; ++j)
+            compressed[j - start_val] = k;
+        prev = curr;
+        if (prev >= stop_val)
+            break;
+    }
+    return;
+}
+
 } // end namespace RandBLAS::sparse_data
 
 #endif
