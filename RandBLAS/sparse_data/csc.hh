@@ -85,6 +85,7 @@ void csc_to_dense(
     }
     for (int64_t j = 0; j < spmat.n_cols; ++j) {
         for (int64_t ell = spmat.colptr[j]; ell < spmat.colptr[j+1]; ++ell) {
+            int64_t i = spmat.rowidxs[ell];
             if (spmat.index_base == IndexBase::One)
                 i -= 1;
             MAT(i, j) = spmat.vals[ell];
@@ -154,7 +155,7 @@ void coo_to_csc(COOMatrix<T> &coo, CSCMatrix<T> &csc) {
     csc.reserve(coo.nnz);
     csc.colptr[0] = 0;
     int64_t ell = 0;
-    for (int64_t j = 0; j < coo.n_rows; ++j) {
+    for (int64_t j = 0; j < coo.n_cols; ++j) {
         while (ell < coo.nnz && coo.cols[ell] == j) {
             csc.rowidxs[ell] = coo.rows[ell];
             csc.vals[ell] = coo.vals[ell];

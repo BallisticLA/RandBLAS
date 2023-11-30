@@ -6,6 +6,7 @@
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/coo.hh"
 #include "RandBLAS/sparse_data/csr.hh"
+#include "RandBLAS/sparse_data/csc.hh"
 
 namespace test::sparse_data::common {
 

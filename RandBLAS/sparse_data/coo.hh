@@ -309,7 +309,10 @@ static int64_t set_filtered_csc_from_cscoo(
     int64_t *new_rowidxs,
     int64_t *new_colptr
 ) {
-    int64_t new_nnz_expect = filter_and_compress_sorted(nnz, colidxs, col_start, col_end, new_colptr);
+    filter_and_compress_sorted(nnz, colidxs, col_start, col_end, new_colptr);
+    for (int64_t i = 1; i <= (col_end - col_start); ++i) {
+        randblas_require(new_colptr[i-1] <= new_colptr[i]);
+    }
     int64_t new_nnz = 0;
     int64_t i, j, k;
     for (j = 0; j < col_end - col_start; ++j) {
@@ -324,9 +327,6 @@ static int64_t set_filtered_csc_from_cscoo(
             new_nnz += 1;
         }
     }
-    // randblas_require(new_nnz == new_nnz_expect);
-    // ^ unclear why new_nnz_expect is "num_rows" larger than we'd expect based on new_nnz.
-    //      especially since new_colptr looks correct.
     return new_nnz;
 }
 

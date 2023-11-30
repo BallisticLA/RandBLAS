@@ -25,6 +25,7 @@ if (GTest_FOUND)
     add_executable(SparseRandBLAS_tests
         # dense sketching operators for sparse matrices
         test_sparse_data/common.hh
+        test_sparse_data/test_csc.cc
         test_sparse_data/test_csr.cc
         test_sparse_data/test_coo.cc
     )
