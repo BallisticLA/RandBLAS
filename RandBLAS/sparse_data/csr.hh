@@ -169,6 +169,7 @@ void coo_to_csr(COOMatrix<T> &coo, CSRMatrix<T> &csr) {
         }
         csr.rowptr[i+1] = ell;
     }
+    return;
 }
 
 template <typename T>
@@ -186,6 +187,7 @@ void csr_to_coo(CSRMatrix<T> &csr, COOMatrix<T> &coo) {
         }
     }
     coo.sort = NonzeroSort::CSR;
+    return;
 }
 
 
