@@ -72,16 +72,6 @@ namespace RandBLAS::sparse_data::csr {
 using namespace RandBLAS::sparse_data;
 using blas::Layout;
 
-// =============================================================================
-///
-/// @param[in] stride_row
-/// Logic offset for moving between two consecutive rows (equivalently,
-/// to take one step down a given column). Equal to 1 in column-major format.
-///
-/// @param[in] stride_col
-/// Logic offset for moving between two consecutive columns (equivalently,
-/// to take one step along a given row). Equal to 1 in row-major format.
-///
 template <typename T>
 void csr_to_dense(
     const CSRMatrix<T> &spmat,

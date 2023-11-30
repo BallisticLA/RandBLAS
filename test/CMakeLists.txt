@@ -26,6 +26,7 @@ if (GTest_FOUND)
         # dense sketching operators for sparse matrices
         test_sparse_data/common.hh
         test_sparse_data/test_csr.cc
+        test_sparse_data/test_coo.cc
     )
     target_link_libraries(SparseRandBLAS_tests
         RandBLAS
