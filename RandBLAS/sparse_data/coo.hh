@@ -549,25 +549,6 @@ COOMatrix<T> coo_view_of_skop(RandBLAS::SparseSkOp<T,RNG> &S) {
     return A;
 }
 
-// template <typename T>
-// COOMatrix<T> coo_submatrix_view(
-//     COOMatrix<T> mat,
-//     int64_t row_start,
-//     int64_t row_end,
-//     int64_t col_start,
-//     int64_t col_end
-// ) {
-//     int64_t idx_end = mat.nnz - 1;
-//     int64_t i, j, ii, jj;
-//     T v, vv;
-//     for (int64_t k = 0; k < mat.nnz; ++k) {
-//         i = mat.rows[k];
-//         j = mat.cols[k];
-//         if (i < row_start || i >= row_end) {
-            
-//         }
-//     }
-// }
 
 } // end namespace RandBLAS::sparse_data::coo
 
