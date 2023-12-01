@@ -126,3 +126,4 @@ TEST_F(TestCSC_Conversions, coo_diagonal_rectangular_neg_offset) {
     test_csc_from_diag_coo(5, 10, -3);
     test_csc_from_diag_coo(5, 10, -4);
  }
+

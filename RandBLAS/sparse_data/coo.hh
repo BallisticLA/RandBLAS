@@ -309,24 +309,19 @@ static int64_t set_filtered_csc_from_cscoo(
     int64_t *new_rowidxs,
     int64_t *new_colptr
 ) {
-    filter_and_compress_sorted(nnz, colidxs, col_start, col_end, new_colptr);
-    for (int64_t i = 1; i <= (col_end - col_start); ++i) {
-        randblas_require(new_colptr[i-1] <= new_colptr[i]);
-    }
     int64_t new_nnz = 0;
-    int64_t i, j, k;
-    for (j = 0; j < col_end - col_start; ++j) {
-        for (k = new_colptr[j]; k < new_colptr[j+1]; ++k) {
-            i = rowidxs[k];
-            if (i < row_start)
-                continue;
-            if (i >= row_end)
-                break;
-            new_vals[new_nnz] = vals[k];
-            new_rowidxs[new_nnz] = i - row_start;
+    for (int64_t ell = 0; ell < nnz; ++ell) {
+        if (
+            row_start <= rowidxs[ell] && rowidxs[ell] < row_end &&
+            col_start <= colidxs[ell] && colidxs[ell] < col_end
+        ) {
+            new_vals[new_nnz] = vals[ell];
+            new_rowidxs[new_nnz] = rowidxs[ell] - row_start;
+            new_colptr[new_nnz] = colidxs[ell] - col_start;
             new_nnz += 1;
         }
     }
+    nonzero_locations_to_pointer_array(new_nnz, new_colptr, col_end - col_start);
     return new_nnz;
 }
 
@@ -388,7 +383,7 @@ static void apply_coo_left(
     int64_t A_nnz;
     int64_t A0_nnz = A0.nnz;
     std::vector<int64_t> A_rows(A0_nnz, 0);
-    std::vector<int64_t> A_colptr(m + 1, 0);
+    std::vector<int64_t> A_colptr(MAX(A0_nnz, m + 1), 0);
     std::vector<T> A_vals(A0_nnz, 0.0);
     A_nnz = set_filtered_csc_from_cscoo(
         A0.vals, A0.rows, A0.cols, A0.nnz,

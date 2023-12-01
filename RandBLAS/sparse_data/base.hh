@@ -46,25 +46,23 @@ int64_t nnz_in_dense(
     return nnz;
 }
 
-static inline void filter_and_compress_sorted(
-    int64_t len_sorted,
-    const int64_t *sorted,
-    int64_t start_val,
-    int64_t stop_val,
-    int64_t *compressed
+static inline void nonzero_locations_to_pointer_array(
+    int64_t nnz,
+    int64_t *sorted,
+    int64_t last_ptr_index
 ) {
-    int64_t ell = 0;
-    for (; ell < len_sorted; ++ell) {
-        if (sorted[ell] >= start_val)
-            break;
-    } // ell is now the first index that's in-bounds.
-    compressed[0] = ell;
-    for (int64_t i = start_val; i < stop_val; ++i) {
-        while (ell < len_sorted && sorted[ell] == i) {
+    auto temp_compressed = new int64_t[last_ptr_index + 1];
+    temp_compressed[0] = 0;
+    int64_t i, ell = 0;
+    for (i = 0; i < last_ptr_index; ++i) {
+        while (ell < nnz && sorted[ell] == i)
             ++ell;
-        }
-        compressed[(i+1) - start_val] = ell;
+        temp_compressed[i+1] = ell;
     }
+    sorted[0] = 0;
+    for (i = 0; i < last_ptr_index; ++i)
+        sorted[i+1] = temp_compressed[i+1];
+    delete [] temp_compressed;
     return;
 }
 
