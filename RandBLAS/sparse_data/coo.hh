@@ -57,7 +57,6 @@ static inline NonzeroSort coo_sort_type(int64_t nnz, int64_t *rows, int64_t *col
     
 }
 
-
 template <typename T>
 struct COOMatrix {
     const int64_t n_rows;
@@ -127,13 +126,7 @@ struct COOMatrix {
 };
 
 template <typename T>
-void sort_coo_data(
-    NonzeroSort s,
-    int64_t nnz,
-    T *vals,
-    int64_t *rows,
-    int64_t *cols
-) {
+void sort_coo_data(NonzeroSort s, int64_t nnz, T *vals, int64_t *rows, int64_t *cols) {
     if (s == NonzeroSort::None)
         return;
     // note: this implementation makes unnecessary copies
@@ -182,10 +175,7 @@ void sort_coo_data(
 }
 
 template <typename T>
-void sort_coo_data(
-    NonzeroSort s,
-    COOMatrix<T> &spmat
-) {
+void sort_coo_data(NonzeroSort s, COOMatrix<T> &spmat) {
     sort_coo_data(s, spmat.nnz, spmat.vals, spmat.rows, spmat.cols);
     spmat.sort = s;
     return;
@@ -202,7 +192,6 @@ static auto transpose(COOMatrix<T> &S) {
     return St;
 }
 
-
 } // end namespace RandBLAS::sparse_data
 
 
@@ -212,13 +201,7 @@ using namespace RandBLAS::sparse_data;
 using blas::Layout;
 
 template <typename T>
-void dense_to_coo(
-    int64_t stride_row,
-    int64_t stride_col,
-    T *mat,
-    T abs_tol,
-    COOMatrix<T> &spmat
-) {
+void dense_to_coo(int64_t stride_row, int64_t stride_col, T *mat, T abs_tol, COOMatrix<T> &spmat) {
     int64_t n_rows = spmat.n_rows;
     int64_t n_cols = spmat.n_cols;
     int64_t nnz = nnz_in_dense(n_rows, n_cols, stride_row, stride_col, mat, abs_tol);
@@ -240,12 +223,7 @@ void dense_to_coo(
 }
 
 template <typename T>
-void dense_to_coo(
-    Layout layout,
-    T* mat,
-    T abs_tol,
-    COOMatrix<T> &spmat
-) {
+void dense_to_coo(Layout layout, T* mat, T abs_tol, COOMatrix<T> &spmat) {
     if (layout == Layout::ColMajor) {
         dense_to_coo(1, spmat.n_rows, mat, abs_tol, spmat);
     } else {
@@ -254,12 +232,7 @@ void dense_to_coo(
 }
 
 template <typename T>
-void coo_to_dense(
-    const COOMatrix<T> &spmat,
-    int64_t stride_row,
-    int64_t stride_col,
-    T *mat
-) {
+void coo_to_dense(const COOMatrix<T> &spmat, int64_t stride_row, int64_t stride_col, T *mat) {
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
     for (int64_t i = 0; i < spmat.n_rows; ++i) {
         for (int64_t j = 0; j < spmat.n_cols; ++j) {
@@ -279,18 +252,13 @@ void coo_to_dense(
 }
 
 template <typename T>
-void coo_to_dense(
-    const COOMatrix<T> &spmat,
-    Layout layout,
-    T *mat
-) {
+void coo_to_dense(const COOMatrix<T> &spmat, Layout layout, T *mat) {
     if (layout == Layout::ColMajor) {
         coo_to_dense(spmat, 1, spmat.n_rows, mat);
     } else {
         coo_to_dense(spmat, spmat.n_cols, 1, mat);
     }
 }
-
 
 template <typename T>
 static int64_t set_filtered_csc_from_cscoo(
@@ -348,7 +316,6 @@ static void apply_csc_to_vector_from_left(
         }
     }
 }
-
 
 template <typename T>
 static void apply_coo_left(
@@ -429,7 +396,6 @@ static void apply_coo_left(
     }
     return;
 }
-
 
 template <typename T>
 void lspgemm(

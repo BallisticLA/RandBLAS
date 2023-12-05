@@ -7,11 +7,14 @@
 #include "RandBLAS/sparse_data/coo.hh"
 #include "RandBLAS/sparse_data/csr.hh"
 #include "RandBLAS/sparse_data/csc.hh"
+#include "RandBLAS/sparse_data/conversions.hh"
+
 
 namespace test::sparse_data::common {
 
 using namespace RandBLAS::sparse_data;
 using namespace RandBLAS::sparse_data::csr;
+using namespace RandBLAS::sparse_data::conversions;
 using blas::Layout;
 
 template <typename T, typename RNG = r123::Philox4x32>

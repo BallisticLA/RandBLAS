@@ -73,12 +73,7 @@ using namespace RandBLAS::sparse_data;
 using blas::Layout;
 
 template <typename T>
-void csr_to_dense(
-    const CSRMatrix<T> &spmat,
-    int64_t stride_row,
-    int64_t stride_col,
-    T *mat
-) {
+void csr_to_dense(const CSRMatrix<T> &spmat, int64_t stride_row, int64_t stride_col, T *mat) {
     auto rowptr = spmat.rowptr;
     auto colidxs = spmat.colidxs;
     auto vals = spmat.vals;
@@ -100,11 +95,7 @@ void csr_to_dense(
 }
 
 template <typename T>
-void csr_to_dense(
-    const CSRMatrix<T> &spmat,
-    Layout layout,
-    T *mat
-) {
+void csr_to_dense(const CSRMatrix<T> &spmat, Layout layout, T *mat) {
     if (layout == Layout::ColMajor) {
         csr_to_dense(spmat, 1, spmat.n_rows, mat);
     } else {
@@ -114,13 +105,7 @@ void csr_to_dense(
 }
 
 template <typename T>
-void dense_to_csr(
-    int64_t stride_row,
-    int64_t stride_col,
-    T *mat,
-    T abs_tol,
-    CSRMatrix<T> &spmat
-) {
+void dense_to_csr(int64_t stride_row, int64_t stride_col, T *mat, T abs_tol, CSRMatrix<T> &spmat) {
     int64_t n_rows = spmat.n_rows;
     int64_t n_cols = spmat.n_cols;
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
@@ -152,41 +137,6 @@ void dense_to_csr(Layout layout, T* mat, T abs_tol, CSRMatrix<T> &spmat) {
     } else {
         dense_to_csr(spmat.n_cols, 1, mat, abs_tol, spmat);
     }
-    return;
-}
-
-template <typename T>
-void coo_to_csr(COOMatrix<T> &coo, CSRMatrix<T> &csr) {
-    sort_coo_data(NonzeroSort::CSR, coo);
-    csr.reserve(coo.nnz);
-    csr.rowptr[0] = 0;
-    int64_t ell = 0;
-    for (int64_t i = 0; i < coo.n_rows; ++i) {
-        while (ell < coo.nnz && coo.rows[ell] == i) {
-            csr.colidxs[ell] = coo.cols[ell];
-            csr.vals[ell] = coo.vals[ell];
-            ++ell;
-        }
-        csr.rowptr[i+1] = ell;
-    }
-    return;
-}
-
-template <typename T>
-void csr_to_coo(CSRMatrix<T> &csr, COOMatrix<T> &coo) {
-    randblas_require(csr.n_rows == coo.n_rows);
-    randblas_require(csr.n_cols == coo.n_cols);
-    coo.reserve(csr.nnz);
-    int64_t ell = 0;
-    for (int64_t i = 0; i < csr.n_rows; ++i) {
-        for (int64_t j = csr.rowptr[i]; j < csr.rowptr[i+1]; ++j) {
-            coo.vals[ell] = csr.vals[ell];
-            coo.rows[ell] = i;
-            coo.cols[ell] = j;
-            ++ell;
-        }
-    }
-    coo.sort = NonzeroSort::CSR;
     return;
 }
 
