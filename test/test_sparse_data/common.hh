@@ -4,9 +4,9 @@
 #include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_skops.hh"
 #include "RandBLAS/sparse_data/base.hh"
-#include "RandBLAS/sparse_data/coo.hh"
-#include "RandBLAS/sparse_data/csr.hh"
-#include "RandBLAS/sparse_data/csc.hh"
+#include "RandBLAS/sparse_data/coo_matrix.hh"
+#include "RandBLAS/sparse_data/csr_matrix.hh"
+#include "RandBLAS/sparse_data/csc_matrix.hh"
 #include "RandBLAS/sparse_data/conversions.hh"
 
 
