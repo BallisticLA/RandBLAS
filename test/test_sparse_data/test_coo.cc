@@ -1,4 +1,5 @@
 #include "test/test_sparse_data/common.hh"
+#include "RandBLAS/sparse_data/coo_multiply.hh"
 #include "RandBLAS/test_util.hh"
 #include <gtest/gtest.h>
 

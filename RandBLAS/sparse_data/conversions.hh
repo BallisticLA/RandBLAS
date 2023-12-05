@@ -3,9 +3,9 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
-#include "RandBLAS/sparse_data/coo.hh"
-#include "RandBLAS/sparse_data/csr.hh"
-#include "RandBLAS/sparse_data/csc.hh"
+#include "RandBLAS/sparse_data/coo_matrix.hh"
+#include "RandBLAS/sparse_data/csr_matrix.hh"
+#include "RandBLAS/sparse_data/csc_matrix.hh"
 
 namespace RandBLAS::sparse_data::conversions {
 

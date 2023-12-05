@@ -2,7 +2,6 @@
 #define randblas_sparse_data_csc
 #include "RandBLAS/base.hh"
 #include "RandBLAS/sparse_data/base.hh"
-#include "RandBLAS/sparse_data/coo.hh"
 
 
 namespace RandBLAS::sparse_data {

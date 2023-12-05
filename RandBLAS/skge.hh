@@ -6,7 +6,8 @@
 #include "RandBLAS/random_gen.hh"
 #include "RandBLAS/dense.hh"
 #include "RandBLAS/sparse_skops.hh"
-#include "RandBLAS/sparse_data/coo.hh"
+#include "RandBLAS/sparse_data/coo_matrix.hh"
+#include "RandBLAS/sparse_data/coo_multiply.hh"
 
 #include <blas.hh>
 
@@ -381,9 +382,15 @@ void sketch_general(
     T *B,
     int64_t ldb
 ) {
-    return sparse::rskges(layout, opA, opS, m, d, n, alpha, A, lda,
-        S, i_off, j_off, beta, B, ldb
+    if (!S.known_filled)
+        fill_sparse(S);
+    auto Scoo = RandBLAS::sparse_data::coo::coo_view_of_skop(S);
+    return RandBLAS::sparse_data::coo::rspgemm(layout, opA, opS, m, d, n, alpha, A, lda,
+         Scoo, i_off, j_off, beta, B, ldb
     );
+    // return sparse::rskges(layout, opA, opS, m, d, n, alpha, A, lda,
+    //     S, i_off, j_off, beta, B, ldb
+    // );
 }
 
 // =============================================================================
