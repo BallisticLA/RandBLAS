@@ -46,14 +46,18 @@ int64_t nnz_in_dense(
     return nnz;
 }
 
-static inline void nonzero_locations_to_pointer_array(
+static inline void sorted_nonzero_locations_to_pointer_array(
     int64_t nnz,
     int64_t *sorted, // length at least max(nnz, last_ptr_index + 1)
     int64_t last_ptr_index
 ) {
+    int64_t i;
+    for (i = 1; i < nnz; ++i)
+        randblas_require(sorted[i - 1] <= sorted[i]);
+    
     auto temp = new int64_t[last_ptr_index + 1];
     temp[0] = 0;
-    int64_t i, ell = 0;
+    int64_t ell = 0;
     for (i = 0; i < last_ptr_index; ++i) {
         while (ell < nnz && sorted[ell] == i)
             ++ell;

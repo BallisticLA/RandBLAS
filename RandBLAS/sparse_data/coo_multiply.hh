@@ -8,8 +8,8 @@
 namespace RandBLAS::sparse_data::coo {
 
 template <typename T>
-static int64_t set_filtered_csc_from_cscoo(
-    // COO-format matrix data, in CSC order
+static int64_t set_filtered_coo(
+    // COO-format matrix data
     const T       *vals,
     const int64_t *rowidxs,
     const int64_t *colidxs,
@@ -19,10 +19,10 @@ static int64_t set_filtered_csc_from_cscoo(
     int64_t col_end,
     int64_t row_start,
     int64_t row_end,
-    // CSC-format data for the submatrix
+    // COO-format submatrix data
     T       *new_vals,
     int64_t *new_rowidxs,
-    int64_t *new_colptr
+    int64_t *new_colidxs
 ) {
     int64_t new_nnz = 0;
     for (int64_t ell = 0; ell < nnz; ++ell) {
@@ -32,11 +32,10 @@ static int64_t set_filtered_csc_from_cscoo(
         ) {
             new_vals[new_nnz] = vals[ell];
             new_rowidxs[new_nnz] = rowidxs[ell] - row_start;
-            new_colptr[new_nnz] = colidxs[ell] - col_start;
+            new_colidxs[new_nnz] = colidxs[ell] - col_start;
             new_nnz += 1;
         }
     }
-    nonzero_locations_to_pointer_array(new_nnz, new_colptr, col_end - col_start);
     return new_nnz;
 }
 
@@ -99,12 +98,13 @@ static void apply_coo_left(
     std::vector<int64_t> A_rows(A0_nnz, 0);
     std::vector<int64_t> A_colptr(MAX(A0_nnz, m + 1), 0);
     std::vector<T> A_vals(A0_nnz, 0.0);
-    A_nnz = set_filtered_csc_from_cscoo(
+    A_nnz = set_filtered_coo(
         A0.vals, A0.rows, A0.cols, A0.nnz,
         col_offset, col_offset + m,
         row_offset, row_offset + d,
         A_vals.data(), A_rows.data(), A_colptr.data()
     );
+    sorted_nonzero_locations_to_pointer_array(A_nnz, A_colptr.data(), m);
     blas::scal<T>(A_nnz, alpha, A_vals.data(), 1);
 
 
