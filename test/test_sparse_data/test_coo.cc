@@ -2,6 +2,7 @@
 #include "RandBLAS/sparse_data/coo_multiply.hh"
 #include "RandBLAS/test_util.hh"
 #include <gtest/gtest.h>
+#include <vector>
 
 using namespace RandBLAS::sparse_data;
 using namespace RandBLAS::sparse_data::coo;

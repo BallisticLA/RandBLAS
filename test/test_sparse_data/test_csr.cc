@@ -1,6 +1,7 @@
 #include "test/test_sparse_data/common.hh"
 #include "RandBLAS/test_util.hh"
 #include <gtest/gtest.h>
+#include <algorithm>
 
 using namespace RandBLAS::sparse_data;
 using namespace RandBLAS::sparse_data::csr;

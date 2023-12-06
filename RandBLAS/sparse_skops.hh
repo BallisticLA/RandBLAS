@@ -416,6 +416,7 @@ RandBLAS::sparse_data::COOMatrix<T> coo_view_of_skop(SparseSkOp<T,RNG> &S) {
 ///     
 template <typename SKOP>
 static auto transpose(SKOP const& S) {
+    randblas_require(S.known_filled);
     SparseDist dist = {
         .n_rows = S.dist.n_cols,
         .n_cols = S.dist.n_rows,

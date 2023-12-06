@@ -4,6 +4,8 @@
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/coo_matrix.hh"
+#include <vector>
+#include <algorithm>
 
 namespace RandBLAS::sparse_data::coo {
 
