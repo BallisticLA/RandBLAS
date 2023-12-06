@@ -109,24 +109,14 @@ static void apply_coo_left(
 
 
     // Step 3: Apply "S" to the left of A to get B += S*A.
-    auto [B_inter_col_stride, B_intra_col_stride] = layout_to_strides(layout_B, ldb);
-    // int64_t B_inter_col_stride, B_intra_col_stride;
-    // if (layout_B == blas::Layout::ColMajor) {
-    //     B_inter_col_stride = ldb;
-    //     B_intra_col_stride = 1;
-    // } else {
-    //     B_inter_col_stride = 1;
-    //     B_intra_col_stride = ldb;
-    // }
-    auto [C_inter_col_stride, C_intra_col_stride] = layout_to_strides(layout_C, ldc);
-    // int64_t C_inter_col_stride, C_intra_col_stride;
-    // if (layout_C == blas::Layout::ColMajor) {
-    //     C_inter_col_stride = ldc;
-    //     C_intra_col_stride = 1;
-    // } else {
-    //     C_inter_col_stride = 1;
-    //     C_intra_col_stride = ldc;
-    // }
+    auto s = layout_to_strides(layout_B, ldb);
+    auto B_inter_col_stride = s.inter_col_stride;
+    auto B_intra_col_stride = s.intra_col_stride;
+
+    s = layout_to_strides(layout_C, ldc);
+    auto C_inter_col_stride = s.inter_col_stride;
+    auto C_intra_col_stride = s.intra_col_stride;
+
 
     #pragma omp parallel default(shared)
     {

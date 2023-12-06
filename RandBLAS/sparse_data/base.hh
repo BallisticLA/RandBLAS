@@ -46,16 +46,17 @@ int64_t nnz_in_dense(
     return nnz;
 }
 
-static std::pair<int64_t, int64_t> layout_to_strides(blas::Layout layout, int64_t ldim) {
-    //std::pair<int64_t, int64_t> p();
+struct stride_64t {
+    int64_t inter_col_stride;
+    int64_t intra_col_stride;
+};
+
+static inline stride_64t layout_to_strides(blas::Layout layout, int64_t ldim) {
     if (layout == blas::Layout::ColMajor) {
-        return std::make_pair(ldim, 1);
+        return stride_64t{ldim, (int64_t) 1};
     } else {
-        return std::make_pair(1, ldim);
-        // p.first = 1;
-        // p.second = ldim;
+        return stride_64t{(int64_t) 1, ldim};
     }
-    //return p;
 }
 
 static inline void sorted_nonzero_locations_to_pointer_array(
