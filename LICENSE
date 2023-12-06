@@ -1,0 +1,76 @@
+RandBLAS Copyright Notices and License Agreement
+================================================
+RandBLAS is an open source software project. Contributors to RandBLAS can act
+as individuals or as corporate entities. All contributions are licensed for
+use under the BSD 3-Clause License. The terms of the license appear below.
+
+Some contributors to RandBLAS have chosen to make explicit statements concerning
+authorship, copyright, or other aspects of intellectual property. Those statements
+appear later in this file, after the license agreement. Future modifications of
+RandBLAS code may result in ammendments to these statements.
+
+******************************************************************************
+***                          License Agreement                             ***
+******************************************************************************
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+(1) Redistributions of source code must retain the above copyright notice,
+this list of conditions and the following disclaimer.
+
+(2) Redistributions in binary form must reproduce the above copyright
+notice, this list of conditions and the following disclaimer in the
+documentation and/or other materials provided with the distribution.
+
+(3) Neither the name of the copyright holder nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+******************************************************************************
+***                        Copyright Notice 1.                             ***
+******************************************************************************
+
+Copyright (c) 2022, The Regents of the University of California, through
+Lawrence Berkeley National Laboratory (subject to receipt of any
+required approvals from the U.S. Dept. of Energy). All rights reserved.
+
+If you have questions about your rights to use or distribute this software,
+please contact Berkeley Lab's Intellectual Property Office at
+IPO@lbl.gov.
+
+NOTICE.  This Software was developed under funding from the U.S. Department
+of Energy and the U.S. Government consequently retains certain rights.  As
+such, the U.S. Government has been granted for itself and others acting on
+its behalf a paid-up, nonexclusive, irrevocable, worldwide license in the
+Software to reproduce, distribute copies to the public, prepare derivative 
+works, and perform publicly and display publicly, and to permit others to do so.
+
+
+******************************************************************************
+***                        Copyright Notice 2.                             ***
+******************************************************************************
+
+Copyright (2023) National Technology & Engineering Solutions of Sandia, LLC (NTESS).
+Under the terms of Contract DE-NA0003525, there is a non-exclusive license for use
+of this work by or on behalf of the U.S. Government.  Export of this program
+may require a license from the United States Government.
+
+NEITHER THE UNITED STATES GOVERNMENT, NOR THE UNITED STATES DEPARTMENT
+OF ENERGY, NOR NTESS, NOR ANY OF THEIR EMPLOYEES, MAKES
+ANY WARRANTY, EXPRESS OR IMPLIED, OR ASSUMES ANY LEGAL LIABILITY OR
+RESPONSIBILITY FOR THE ACCURACY, COMPLETENESS, OR USEFULNESS OF ANY
+INFORMATION, APPARATUS, PRODUCT, OR PROCESS DISCLOSED, OR REPRESENTS
+THAT ITS USE WOULD NOT INFRINGE PRIVATELY OWNED RIGHTS.
