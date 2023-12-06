@@ -10,7 +10,6 @@ using namespace test::sparse_data::common;
 using blas::Layout;
 
 
-
 class TestCOO : public ::testing::Test
 {
     protected:
@@ -186,20 +185,3 @@ TEST_F(Test_SkOp_to_COO, LASO_Dim_15by7) {
     sparse_skop_to_coo(15, 7, 0, 3, RandBLAS::MajorAxis::Long);
     sparse_skop_to_coo(15, 7, 1, 3, RandBLAS::MajorAxis::Long);
 }
-
-
-
-// class Test_Filter_COO : public ::testing::Test
-// {
-//     protected:
-    
-//     virtual void SetUp(){};
-
-//     virtual void TearDown(){};
-
-//     template <typename T = double>
-//     void run() {
-//         return;
-//     }
-
-// }

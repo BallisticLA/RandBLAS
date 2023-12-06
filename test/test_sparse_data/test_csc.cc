@@ -71,6 +71,10 @@ class TestCSC_Conversions : public ::testing::Test
             m, n, mat_expect, m, mat_actual, m,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+
+        delete [] mat_expect;
+        delete [] diag;
+        delete [] mat_actual;
         return;
     }
 };

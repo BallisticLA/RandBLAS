@@ -36,6 +36,9 @@ class TestCSR_Conversions : public ::testing::Test
         RandBLAS_Testing::Util::buffs_approx_equal(mat, eye, n * n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        
+        delete [] eye;
+        delete [] mat;
         return;
     }
 
@@ -92,6 +95,9 @@ class TestCSR_Conversions : public ::testing::Test
             m, n, mat_expect, m, mat_actual, m,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        delete [] mat_expect;
+        delete [] diag;
+        delete [] mat_actual;
         return;
     }
 };
