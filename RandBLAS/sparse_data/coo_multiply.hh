@@ -115,7 +115,7 @@ static void apply_coo_left(
         return;
     }
 
-    // Step 2: make a CSC-sort-order COOMatrix that represents the desired submatrix of S.
+    // Step 2: make a CSC-sort-order COOMatrix that represents the desired submatrix of A.
     //      While we're at it, reduce to the case when alpha = 1.0 by scaling the values
     //      of the matrix we just created.
     int64_t A_nnz;
@@ -135,7 +135,7 @@ static void apply_coo_left(
     for (int64_t ell = 2; (ell < m + 1) && fixed_nnz_per_col; ++ell)
         fixed_nnz_per_col = (A_colptr[1] == A_colptr[ell]);
 
-    // Step 3: Apply "S" to the left of A to get B += S*A.
+    // Step 3: Apply "A" to the left of B to get C += A*B.
     auto s = layout_to_strides(layout_B, ldb);
     auto B_inter_col_stride = s.inter_col_stride;
     auto B_intra_col_stride = s.intra_col_stride;
