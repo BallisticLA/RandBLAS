@@ -16,7 +16,7 @@
 #include <cstdlib>
 
 #include <RandBLAS/dense.hh>
-#include <RandBLAS/sparse.hh>
+#include <RandBLAS/sparse_skops.hh>
 #include <RandBLAS/util.hh>
 #include <math.h>
 
