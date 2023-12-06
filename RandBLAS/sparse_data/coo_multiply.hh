@@ -64,6 +64,31 @@ static void apply_csc_to_vector_from_left(
 }
 
 template <typename T>
+static void apply_regular_csc_to_vector_from_left(
+    // data for "regular CSC": CSC with fixed nnz per col,
+    // which obviates the requirement for colptr.
+    const T *vals,
+    int64_t *rowidxs,
+    int64_t col_nnz,
+    // input-output vector data
+    int64_t len_v,
+    const T *v,
+    int64_t incv,   // stride between elements of v
+    T *Av,          // Av += A * v.
+    int64_t incAv   // stride between elements of Av
+) {
+    for (int64_t c = 0; c < len_v; ++c) {
+        T scale = v[c * incv];
+        for (int64_t j = c * col_nnz; j < (c + 1) * col_nnz; ++j) {
+            int64_t row = rowidxs[j];
+            Av[row * incAv] += (vals[j] * scale);
+        }
+    }
+}
+
+
+
+template <typename T>
 static void apply_coo_left(
     T alpha,
     blas::Layout layout_B,
@@ -104,9 +129,11 @@ static void apply_coo_left(
         row_offset, row_offset + d,
         A_vals.data(), A_rows.data(), A_colptr.data()
     );
-    sorted_nonzero_locations_to_pointer_array(A_nnz, A_colptr.data(), m);
     blas::scal<T>(A_nnz, alpha, A_vals.data(), 1);
-
+    sorted_nonzero_locations_to_pointer_array(A_nnz, A_colptr.data(), m);
+    bool fixed_nnz_per_col = true;
+    for (int64_t ell = 2; (ell < m + 1) && fixed_nnz_per_col; ++ell)
+        fixed_nnz_per_col = (A_colptr[1] == A_colptr[ell]);
 
     // Step 3: Apply "S" to the left of A to get B += S*A.
     auto s = layout_to_strides(layout_B, ldb);
@@ -126,11 +153,19 @@ static void apply_coo_left(
         for (int64_t k = 0; k < n; k++) {
             B_col = &B[B_inter_col_stride * k];
             C_col = &C[C_inter_col_stride * k];
-            apply_csc_to_vector_from_left<T>(
-                A_vals.data(), A_rows.data(), A_colptr.data(),
-                m, B_col, B_intra_col_stride,
-                   C_col, C_intra_col_stride
-            );
+            if (fixed_nnz_per_col) {
+                apply_regular_csc_to_vector_from_left<T>(
+                    A_vals.data(), A_rows.data(), A_colptr[1],
+                    m, B_col, B_intra_col_stride,
+                    C_col, C_intra_col_stride
+                );
+            } else {
+                apply_csc_to_vector_from_left<T>(
+                    A_vals.data(), A_rows.data(), A_colptr.data(),
+                    m, B_col, B_intra_col_stride,
+                    C_col, C_intra_col_stride
+                ); 
+            }
         }
     }
     return;

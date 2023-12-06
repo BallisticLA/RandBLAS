@@ -12,45 +12,47 @@ enum class NonzeroSort : char {
     None = 'N'
 };
 
+static inline bool increasing_by_csr(int64_t i0, int64_t j0, int64_t i1, int64_t j1) {
+    if (i0 > i1) {
+        return false;
+    } else if (i0 == i1) {
+        return j0 <= j1;
+    } else {
+        return true;
+    }
+}
+
+static inline bool increasing_by_csc(int64_t i0, int64_t j0, int64_t i1, int64_t j1) {
+    if (j0 > j1) {
+        return false;
+    } else if (j0 == j1) {
+        return i0 <= i1;
+    } else {
+        return true;
+    }
+}
+
 static inline NonzeroSort coo_sort_type(int64_t nnz, int64_t *rows, int64_t *cols) {
-    bool csr_okay = true;
     bool csc_okay = true;
-    auto increasing_by_csr = [](int64_t i0, int64_t j0, int64_t i1, int64_t j1) {
-        if (i0 > i1) {
-            return false;
-        } else if (i0 == i1) {
-            return j0 <= j1;
-        } else {
-            return true;
-        }
-    };
-    auto increasing_by_csc = [](int64_t i0, int64_t j0, int64_t i1, int64_t j1) {
-        if (j0 > j1) {
-            return false;
-        } else if (j0 == j1) {
-            return i0 <= i1;
-        } else {
-            return true;
-        }
-    };
+    bool csr_okay = true;
     for (int64_t ell = 1; ell < nnz; ++ell) {
         auto i0 = rows[ell-1];
         auto j0 = cols[ell-1];
         auto i1 = rows[ell];
         auto j1 = cols[ell];
-        if (csr_okay) {
-            csr_okay = increasing_by_csr(i0, j0, i1, j1);
-        }
         if (csc_okay) {
             csc_okay = increasing_by_csc(i0, j0, i1, j1);
         }
-        if (!csr_okay && !csc_okay)
+        if (csr_okay) {
+            csr_okay = increasing_by_csr(i0, j0, i1, j1);
+        }
+        if (!csc_okay && !csr_okay)
             break;
     }
-    if (csr_okay) {
-        return NonzeroSort::CSR;
-    } else if (csc_okay) {
+    if (csc_okay) {
         return NonzeroSort::CSC;
+    } else if (csr_okay) {
+        return NonzeroSort::CSR;
     } else {
         return NonzeroSort::None;
     }
@@ -129,7 +131,11 @@ template <typename T>
 void sort_coo_data(NonzeroSort s, int64_t nnz, T *vals, int64_t *rows, int64_t *cols) {
     if (s == NonzeroSort::None)
         return;
-    // note: this implementation makes unnecessary copies
+    auto curr_s = coo_sort_type(nnz, rows, cols);
+    if (curr_s == s)
+        return;
+    // TODO: fix this implementation so that it's in-place.
+    //  (right now we make expensive copies)
 
     // get a vector-of-triples representation of the matrix
     using tuple_type = std::tuple<int64_t, int64_t, T>;
