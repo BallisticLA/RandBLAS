@@ -121,7 +121,7 @@ static void apply_coo_left(
     int64_t A_nnz;
     int64_t A0_nnz = A0.nnz;
     std::vector<int64_t> A_rows(A0_nnz, 0);
-    std::vector<int64_t> A_colptr(MAX(A0_nnz, m + 1), 0);
+    std::vector<int64_t> A_colptr(std::max(A0_nnz, m + 1), 0);
     std::vector<T> A_vals(A0_nnz, 0.0);
     A_nnz = set_filtered_coo(
         A0.vals, A0.rows, A0.cols, A0.nnz,
@@ -246,14 +246,14 @@ void rspgemm(
     int64_t d, // op(A) is n-by-d
     int64_t n, // op(B) is m-by-n
     T alpha,
-    const T *B,
+    const T *A,
     int64_t lda,
-    COOMatrix<T> &A0,
+    COOMatrix<T> &B0,
     int64_t i_off,
     int64_t j_off,
     T beta,
     T *C,
-    int64_t ldb
+    int64_t ldc
 ) { 
     //
     // Compute C = op(B) op(submat(A)) by reduction to LSPGEMM. We start with
@@ -273,21 +273,10 @@ void rspgemm(
     auto trans_layout = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
     lspgemm(
         trans_layout, trans_opA, opB,
-        d, m, n, alpha, A0, i_off, j_off, B, lda, beta, C, ldb
+        d, m, n, alpha, B0, i_off, j_off, A, lda, beta, C, ldc
     );
 }
 
-template <typename T, typename RNG>
-COOMatrix<T> coo_view_of_skop(RandBLAS::SparseSkOp<T,RNG> &S) {
-    if (!S.known_filled)
-        RandBLAS::fill_sparse(S);
-    int64_t nnz = RandBLAS::sparse::nnz(S);
-    COOMatrix<T> A(
-        S.dist.n_rows, S.dist.n_cols, nnz,
-        S.vals, S.rows, S.cols
-    );
-    return A;
-}
 
 } // end namespace
 

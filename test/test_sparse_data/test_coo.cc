@@ -92,7 +92,7 @@ class Test_SkOp_to_COO : public ::testing::Test
         RandBLAS::SparseSkOp<T> S(
             {d, m, vec_nnzs[nnz_index], ma}, keys[key_index]
         );
-        auto A = coo_view_of_skop(S);
+        auto A = RandBLAS::sparse::coo_view_of_skop(S);
 
         EXPECT_EQ(S.dist.n_rows, A.n_rows);
         EXPECT_EQ(S.dist.n_cols, A.n_cols);

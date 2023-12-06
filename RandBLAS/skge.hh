@@ -180,16 +180,10 @@ void sketch_general(
 ) {
     if (!S.known_filled)
         fill_sparse(S);
-    auto Scoo = RandBLAS::sparse_data::coo::coo_view_of_skop(S);
-    return RandBLAS::sparse_data::coo::lspgemm(
-        layout, opS, opA, d, n, m, alpha, Scoo,
+    return sparse::lskges(
+        layout, opS, opA, d, n, m, alpha, S,
         i_off, j_off, A, lda, beta, B, ldb
     );
-    // // return;
-    // return sparse::lskges(
-    //     layout, opS, opA, d, n, m, alpha, S,
-    //     i_off, j_off, A, lda, beta, B, ldb
-    // );
 }
 
 template <typename T, typename RNG>
@@ -384,13 +378,13 @@ void sketch_general(
 ) {
     if (!S.known_filled)
         fill_sparse(S);
-    auto Scoo = RandBLAS::sparse_data::coo::coo_view_of_skop(S);
-    return RandBLAS::sparse_data::coo::rspgemm(layout, opA, opS, m, d, n, alpha, A, lda,
-         Scoo, i_off, j_off, beta, B, ldb
-    );
-    // return sparse::rskges(layout, opA, opS, m, d, n, alpha, A, lda,
-    //     S, i_off, j_off, beta, B, ldb
+    // auto Scoo = RandBLAS::coo_view_of_skop(S);
+    // return RandBLAS::sparse_data::coo::rspgemm(layout, opA, opS, m, d, n, alpha, A, lda,
+    //      Scoo, i_off, j_off, beta, B, ldb
     // );
+    return sparse::rskges(layout, opA, opS, m, d, n, alpha, A, lda,
+        S, i_off, j_off, beta, B, ldb
+    );
 }
 
 // =============================================================================

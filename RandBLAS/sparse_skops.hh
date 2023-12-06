@@ -6,6 +6,7 @@
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/random_gen.hh"
 #include "RandBLAS/util.hh"
+#include "RandBLAS/sparse_data/coo_multiply.hh"
 
 #include <blas.hh>
 #include <iostream>
@@ -61,6 +62,9 @@ struct SparseDist {
 ///
 template <typename T, typename RNG = r123::Philox4x32>
 struct SparseSkOp {
+
+    using RNG_t = RNG;
+    using T_t = T;
 
     // ---------------------------------------------------------------------------
     ///  The distribution from which this sketching operator is sampled.
@@ -389,258 +393,16 @@ static int64_t nnz(
 }
 
 
-// =============================================================================
-/// WARNING: this function is not part of the public API.
-///
-template <typename T>
-static int64_t filter_regular_cscoo(
-    const int64_t *nzidx2row,
-    const int64_t *nzidx2col,
-    const T *nzidx2val,
-    int64_t vec_nnz,
-    int64_t col_start,
-    int64_t col_end,
-    int64_t row_start,
-    int64_t row_end,
-    int64_t *rows_view,
-    int64_t *cols_view,
-    T *vals_view
-) {
-    // (nzidx2row, nzidx2col, nzidx2val) define a sparse matrix S0
-    //  in COO format with a CSC-like property. The CSC-like property
-    //  is that all nonzero entries in a given column of S0 are 
-    //  contiguous in "nzidx2col". The sparse matrix S0 must be "regular"
-    //  in the sense that it must have exactly vec_nnz nonzeros in each
-    //  column.
-    //
-    //  This function writes data to (rows_view, cols_view, vals_view)
-    //  for a sparse matrix S in the same "COO/CSC-like" format.
-    //  Mathematically, we have S = S0[row_start:row_end, col_start:col_end].
-    //  The sparse matrix S does not necessarily have a fixed number of
-    //  nonzeros in each column.
-    //
-    //  Neither S0 nor S need to be wide.  
-    //
-    int64_t nnz = 0;
-    for (int64_t i = col_start * vec_nnz; i < col_end * vec_nnz; ++i) {
-        int64_t row = nzidx2row[i];
-        if (row_start <= row && row < row_end)  {
-            rows_view[nnz] = row - row_start;
-            cols_view[nnz] = nzidx2col[i] - col_start;
-            vals_view[nnz] = nzidx2val[i];
-            nnz += 1;
-        }
-    }
-    return nnz;
-}
-
-// =============================================================================
-/// WARNING: this function is not part of the public API.
-///
-template <typename T>
-static int64_t filter_and_convert_regular_csroo_to_cscoo(
-    const int64_t *nonzeroidx2row,
-    const int64_t *nonzeroidx2col,
-    const T *nonzeroidx2val,
-    int64_t vec_nnz,
-    int64_t col_start,
-    int64_t col_end,
-    int64_t row_start,
-    int64_t row_end,
-    int64_t *rows_view,
-    int64_t *cols_view,
-    T *vals_view
-) {
-    // (nonzeroidx2row, nonzeroidx2col, nonzeroidx2val) define a sparse matrix S0
-    //  in COO format with a CSR-like property. The CSR-like property
-    //  is that all nonzero entries in a given row of S0 are 
-    //  contiguous in "nonzeroidx2col". The sparse matrix S0 must be "regular"
-    //  in the sense that it must have exactly vec_nnz nonzeros in each
-    //  row.
-    //
-    //  This function writes data to (rows_view, cols_view, vals_view)
-    //  for a sparse matrix S in an analogous "COO/CSC-like" format.
-    //  Mathematically, we have S = S0[row_start:row_end, col_start:col_end].
-    //  The sparse matrix S does not necessarily have a fixed number of
-    //  nonzeros in each column.
-    //
-    using tuple_type = std::tuple<int64_t, int64_t, T>;
-    std::vector<tuple_type> nonzeros;
-    nonzeros.reserve((row_end - row_start) * vec_nnz);
-
-    for (int64_t i = row_start * vec_nnz; i < row_end * vec_nnz; ++i) {
-        int64_t col = nonzeroidx2col[i];
-        if (col_start <= col && col < col_end)  {
-            nonzeros.emplace_back(
-                nonzeroidx2row[i] - row_start,
-                col - col_start,
-                nonzeroidx2val[i]);
-        }
-    }
-
-    auto sort_func = [](tuple_type const& t1, tuple_type const& t2) {
-        if (std::get<1>(t1) < std::get<1>(t2)) {
-            return true;
-        } else if (std::get<1>(t1) > std::get<1>(t2)) {
-            return false;
-        }
-        // t1.second == t2.second
-        if (std::get<0>(t1) < std::get<0>(t2)) {
-            return true;
-        } else {
-            return false;
-        }
-    };
-    std::sort(nonzeros.begin(), nonzeros.end(), sort_func);
-    
-    int64_t nnz = nonzeros.size();
-    for (int64_t i = 0; i < nnz; ++i) {
-        tuple_type tup = nonzeros[i];
-        rows_view[i] = std::get<0>(tup);
-        cols_view[i] = std::get<1>(tup);
-        vals_view[i] = std::get<2>(tup);
-    }
-    return nnz;
-}
-
-// =============================================================================
-/// WARNING: this function is not part of the public API.
-///
-template <typename T>
-static void apply_cscoo_submat_to_vector_from_left(
-    const T *v,
-    int64_t incv,   // stride between elements of v
-    T *Sv,          // Sv += S * v.
-    int64_t incSv,  // stride between elements of Sv
-    const int64_t *rows_view,
-    const int64_t *cols_view,
-    const T       *vals_view,
-    int64_t num_cols,
-    int64_t nnz
-) {
-    // (rows_view, cols_view, vals_view) define a sparse matrix
-    // "S" in COO-format with a CSC-like property.
-    //
-    //      The CSC-like property requires that all nonzero entries
-    //      in a given column of the sparse matrix are contiguous in
-    //      "cols_view" and that entries in cols_view are nondecreasing.
-    //  
-    //      The sparse matrix does not need to be wide.
-    //
-    // When nnz < 0, each of the "num_cols" blocks in "cols_view" 
-    // must be the same size -nnz > 0. Furthermore, consecutive values
-    // in cols_view can only differ from one another by at most one.
-    //
-    if (nnz >= 0) {
-        int64_t i = 0;
-        for (int64_t c = 0; c < num_cols; ++c) {
-            T scale = v[c * incv];
-            while (i < nnz && cols_view[i] == c) {
-                int64_t row = rows_view[i];
-                Sv[row * incSv] += (vals_view[i] * scale);
-                i += 1;
-            }
-        }
-    } else {
-        int64_t col_nnz = -nnz;
-        for (int64_t c = 0; c < num_cols; ++c) {
-            T scale = v[c * incv];
-            for (int64_t j = c * col_nnz; j < (c + 1) * col_nnz; ++j) {
-                int64_t row = rows_view[j];
-                Sv[row * incSv] += (vals_view[j] * scale);
-            }
-        }
-    }
-}
-
-// =============================================================================
-/// WARNING: this function is not part of the public API.
-///
-template <typename T, typename SKOP>
-static void apply_cscoo_csroo_left(
-    T alpha,
-    blas::Layout layout_A,
-    blas::Layout layout_B,
-    int64_t d,
-    int64_t n,
-    int64_t m,
-    SKOP & S0,
-    int64_t row_offset,
-    int64_t col_offset,
-    const T *A,
-    int64_t lda,
-    T *B,
-    int64_t ldb
-) {
-    int64_t S_nnz;
-    int64_t S0_nnz = nnz(S0);
-    std::vector<int64_t> S_rows(S0_nnz, 0.0);
-    std::vector<int64_t> S_cols(S0_nnz, 0.0);
-    std::vector<T> S_vals(S0_nnz, 0.0);
-
-    bool S0_fixed_nnz_per_col = has_fixed_nnz_per_col(S0);
-    bool S_fixed_nnz_per_col = S0_fixed_nnz_per_col && (row_offset == 0) && (d == S0.dist.n_rows);
-
-    if (S0_fixed_nnz_per_col) {
-        S_nnz = filter_regular_cscoo<T>(
-            S0.rows, S0.cols, S0.vals, S0.dist.vec_nnz,
-            col_offset, col_offset + m,
-            row_offset, row_offset + d,
-            S_rows.data(), S_cols.data(), S_vals.data()
-        );
-    } else {
-        S_nnz = filter_and_convert_regular_csroo_to_cscoo<T>(
-            S0.rows, S0.cols, S0.vals, S0.dist.vec_nnz,
-            col_offset, col_offset + m,
-            row_offset, row_offset + d,
-            S_rows.data(), S_cols.data(), S_vals.data()
-        );
-    }
-    blas::scal<T>(S_nnz, alpha, S_vals.data(), 1);
-
-    // Once we have (S_rows, S_cols, S_vals) in the format ensured
-    // by the functions above, we apply the resulting sparse matrix "S"
-    // to the left of A to get B = S*A.
-    //
-    // This function does not require that S or S0 is wide.
-
-    int64_t A_inter_col_stride, A_intra_col_stride;
-    if (layout_A == blas::Layout::ColMajor) {
-        A_inter_col_stride = lda;
-        A_intra_col_stride = 1;
-    } else {
-        A_inter_col_stride = 1;
-        A_intra_col_stride = lda;
-    }
-    int64_t B_inter_col_stride, B_intra_col_stride;
-    if (layout_B == blas::Layout::ColMajor) {
-        B_inter_col_stride = ldb;
-        B_intra_col_stride = 1;
-    } else {
-        B_inter_col_stride = 1;
-        B_intra_col_stride = ldb;
-    }
-
-    if (S_fixed_nnz_per_col) {
-        S_nnz = -S0.dist.vec_nnz; // this value in interpreted differently when negative.
-    }
-
-    #pragma omp parallel default(shared)
-    {
-        const T *A_col = nullptr;
-        T *B_col = nullptr;
-        #pragma omp for schedule(static)
-        for (int64_t k = 0; k < n; k++) {
-            A_col = &A[A_inter_col_stride * k];
-            B_col = &B[B_inter_col_stride * k];
-            apply_cscoo_submat_to_vector_from_left<T>(
-                A_col, A_intra_col_stride,
-                B_col, B_intra_col_stride,
-                S_rows.data(), S_cols.data(), S_vals.data(), m, S_nnz
-            );
-        }
-    }
-    return;
+template <typename T, typename RNG>
+RandBLAS::sparse_data::COOMatrix<T> coo_view_of_skop(SparseSkOp<T,RNG> &S) {
+    if (!S.known_filled)
+        fill_sparse(S);
+    int64_t nnz = RandBLAS::sparse::nnz(S);
+    RandBLAS::sparse_data::COOMatrix<T> A(
+        S.dist.n_rows, S.dist.n_cols, nnz,
+        S.vals, S.rows, S.cols
+    );
+    return A;
 }
 
 // =============================================================================
@@ -798,52 +560,12 @@ void lskges(
 ) {
     if (!S.known_filled)
         fill_sparse(S);
-    
-    // handle applying a transposed sparse sketching operator.
-    if (opS == blas::Op::Trans) {
-        auto St = transpose(S);
-        lskges(
-            layout, blas::Op::NoTrans, opA,
-            d, n, m, alpha, St, col_offset, row_offset,
-            A, lda, beta, B, ldb
-        );
-        return; 
-    }
-    // Below this point, we can assume S is not transposed.
-    randblas_require(S.dist.n_rows >= d);
-    randblas_require(S.dist.n_cols >= m);
-
-    // Dimensions of A, rather than \op(A)
-    blas::Layout layout_B = layout;
-    blas::Layout layout_opA;
-    int64_t rows_A, cols_A;
-    if (opA == blas::Op::NoTrans) {
-        rows_A = m;
-        cols_A = n;
-        layout_opA = layout;
-    } else {
-        rows_A = n;
-        cols_A = m;
-        layout_opA = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : blas::Layout::ColMajor;
-    }
-
-    // Check dimensions and compute B = beta * B.
-    //      Note: both A and B are checked based on "layout"; A is *not* checked on layout_opA.
-    if (layout == blas::Layout::ColMajor) {
-        randblas_require(lda >= rows_A);
-        randblas_require(ldb >= d);
-        for (int64_t i = 0; i < n; ++i)
-            RandBLAS::util::safe_scal(d, beta, &B[i*ldb], 1);
-    } else {
-        randblas_require(ldb >= n);
-        randblas_require(lda >= cols_A);
-        for (int64_t i = 0; i < d; ++i)
-            RandBLAS::util::safe_scal(n, beta, &B[i*ldb], 1);
-    }
-
-    // Perform the sketch
-    if (alpha != 0)
-        apply_cscoo_csroo_left(alpha, layout_opA, layout_B, d, n, m, S, row_offset, col_offset, A, lda, B, ldb);
+    using RNG = typename SKOP::RNG_t;
+    auto Scoo = coo_view_of_skop<T,RNG>(S);
+    RandBLAS::sparse_data::coo::lspgemm(
+        layout, opS, opA, d, n, m, alpha, Scoo, row_offset, col_offset,
+        A, lda, beta, B, ldb
+    );
     return;
 }
 
@@ -967,26 +689,13 @@ void rskges(
     T *B,
     int64_t ldb
 ) { 
-    //
-    // Compute B = op(A) op(submat(S)) by reduction to LSKGES. We start with
-    //
-    //      B^T = op(submat(S))^T op(A)^T.
-    //
-    // Then we interchange the operator "op(*)" in op(A) and (*)^T:
-    //
-    //      B^T = op(submat(S))^T op(A^T).
-    //
-    // We tell LSKGES to process (B^T) and (A^T) in the opposite memory layout
-    // compared to the layout for (A, B).
-    // 
-    using blas::Layout;
-    using blas::Op;
-    auto trans_opS = (opS == Op::NoTrans) ? Op::Trans : Op::NoTrans;
-    auto trans_layout = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
-    lskges(
-        trans_layout, trans_opS, opA,
-        d, m, n, alpha, S0, i_off, j_off, A, lda, beta, B, ldb
+    if (!S0.known_filled)
+        fill_sparse(S0);
+    auto Scoo = coo_view_of_skop<T,RNG>(S0);
+    RandBLAS::sparse_data::coo::rspgemm(
+        layout, opA, opS, m, d, n, alpha, A, lda, Scoo, i_off, j_off, beta, B, ldb
     );
+    return;
 }
 
 } // end namespace RandBLAS::sparse_ops
