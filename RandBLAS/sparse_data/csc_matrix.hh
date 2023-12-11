@@ -6,7 +6,7 @@
 
 namespace RandBLAS::sparse_data {
 
-template <typename T>
+template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 struct CSCMatrix {
     const int64_t n_rows;
     const int64_t n_cols;
@@ -14,8 +14,8 @@ struct CSCMatrix {
     const bool own_memory;
     int64_t nnz;
     T *vals;
-    int64_t *rowidxs;
-    int64_t *colptr;
+    sint_t *rowidxs;
+    sint_t *colptr;
     bool _can_reserve = true;
 
     CSCMatrix(
@@ -34,8 +34,8 @@ struct CSCMatrix {
         int64_t n_cols,
         int64_t nnz,
         T *vals,
-        int64_t *rowidxs,
-        int64_t *colptr,
+        sint_t *rowidxs,
+        sint_t *colptr,
         IndexBase index_base = IndexBase::Zero
     ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(false) {
         this->nnz = nnz;
@@ -56,8 +56,8 @@ struct CSCMatrix {
         randblas_require(this->_can_reserve);
         randblas_require(this->own_memory);
         this->nnz = nnz;
-        this->rowidxs = new int64_t[nnz]{0};
-        this->colptr = new int64_t[this->n_cols + 1]{0};
+        this->rowidxs = new sint_t[nnz]{0};
+        this->colptr = new sint_t[this->n_cols + 1]{0};
         this->vals = new T[nnz]{0.0};
         this->_can_reserve = false;
     };

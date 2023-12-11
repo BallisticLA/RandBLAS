@@ -18,9 +18,16 @@
 #endif
 
 #include<iostream>
+#include<numeric>
+
 
 /// code common across the project
 namespace RandBLAS {
+
+
+template<typename T>
+concept SignedInteger = (std::numeric_limits<T>::is_signed && std::numeric_limits<T>::is_integer);
+
 
 enum class MajorAxis : char {
     // ---------------------------------------------------------------------------

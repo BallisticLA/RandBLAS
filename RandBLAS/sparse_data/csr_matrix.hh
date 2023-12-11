@@ -6,7 +6,7 @@
 
 namespace RandBLAS::sparse_data {
 
-template <typename T>
+template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 struct CSRMatrix {
     const int64_t n_rows;
     const int64_t n_cols;
@@ -14,8 +14,8 @@ struct CSRMatrix {
     const bool own_memory;
     int64_t nnz;
     T *vals;
-    int64_t *rowptr;
-    int64_t *colidxs;
+    sint_t *rowptr;
+    sint_t *colidxs;
     bool _can_reserve = true;
 
     CSRMatrix(
@@ -34,8 +34,8 @@ struct CSRMatrix {
         int64_t n_cols,
         int64_t nnz,
         T *vals,
-        int64_t *rowptr,
-        int64_t *colidxs,
+        sint_t *rowptr,
+        sint_t *colidxs,
         IndexBase index_base = IndexBase::Zero
     ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(false) {
         this->nnz = nnz;
@@ -56,8 +56,8 @@ struct CSRMatrix {
         randblas_require(this->_can_reserve);
         randblas_require(this->own_memory);
         this->nnz = nnz;
-        this->rowptr = new int64_t[this->n_rows + 1]{0};
-        this->colidxs = new int64_t[nnz]{0};
+        this->rowptr = new sint_t[this->n_rows + 1]{0};
+        this->colidxs = new sint_t[nnz]{0};
         this->vals = new T[nnz]{0.0};
         this->_can_reserve = false;
     };

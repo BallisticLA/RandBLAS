@@ -9,12 +9,12 @@
 
 namespace RandBLAS::sparse_data::coo {
 
-template <typename T>
+template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 static int64_t set_filtered_coo(
     // COO-format matrix data
     const T       *vals,
-    const int64_t *rowidxs,
-    const int64_t *colidxs,
+    const sint_t *rowidxs,
+    const sint_t *colidxs,
     int64_t nnz,
     // submatrix bounds
     int64_t col_start,
@@ -23,8 +23,8 @@ static int64_t set_filtered_coo(
     int64_t row_end,
     // COO-format submatrix data
     T       *new_vals,
-    int64_t *new_rowidxs,
-    int64_t *new_colidxs
+    sint_t *new_rowidxs,
+    sint_t *new_colidxs
 ) {
     int64_t new_nnz = 0;
     for (int64_t ell = 0; ell < nnz; ++ell) {
@@ -41,12 +41,12 @@ static int64_t set_filtered_coo(
     return new_nnz;
 }
 
-template <typename T>
+template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 static void apply_csc_to_vector_from_left(
     // CSC-format data
     const T *vals,
-    int64_t *rowidxs,
-    int64_t *colptr,
+    sint_t *rowidxs,
+    sint_t *colptr,
     // input-output vector data
     int64_t len_v,
     const T *v,
@@ -65,12 +65,12 @@ static void apply_csc_to_vector_from_left(
     }
 }
 
-template <typename T>
+template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 static void apply_regular_csc_to_vector_from_left(
     // data for "regular CSC": CSC with fixed nnz per col,
     // which obviates the requirement for colptr.
     const T *vals,
-    int64_t *rowidxs,
+    sint_t *rowidxs,
     int64_t col_nnz,
     // input-output vector data
     int64_t len_v,
