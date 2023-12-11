@@ -57,14 +57,17 @@ struct SparseDist {
     const MajorAxis major_axis = MajorAxis::Short;
 };
 
+using RandBLAS::SignedInteger;
+
 // =============================================================================
 /// A sample from a prescribed distribution over sparse matrices.
 ///
-template <typename T, typename RNG = r123::Philox4x32>
+template <typename T, typename RNG = r123::Philox4x32, SignedInteger sint_t = int64_t>
 struct SparseSkOp {
 
     using RNG_t = RNG;
     using T_t = T;
+    using index_t = sint_t;
 
     // ---------------------------------------------------------------------------
     ///  The distribution from which this sketching operator is sampled.
@@ -101,8 +104,8 @@ struct SparseSkOp {
     //
     /////////////////////////////////////////////////////////////////////
 
-    int64_t *rows = nullptr;
-    int64_t *cols = nullptr;
+    sint_t *rows = nullptr;
+    sint_t *cols = nullptr;
     T *vals = nullptr;
 
     /////////////////////////////////////////////////////////////////////
@@ -144,8 +147,8 @@ struct SparseSkOp {
     SparseSkOp(
         SparseDist dist,
         const RNGState<RNG> &state,
-        int64_t *rows,
-        int64_t *cols,
+        sint_t *rows,
+        sint_t *cols,
         T *vals,
         bool known_filled = true
     );
@@ -153,8 +156,8 @@ struct SparseSkOp {
     SparseSkOp(
         SparseDist dist,
         uint32_t key,
-        int64_t *rows,
-        int64_t *cols,
+        sint_t *rows,
+        sint_t *cols,
         T *vals 
     ) : SparseSkOp(dist, RNGState<RNG>(key), rows, cols, vals) {};
 
@@ -174,8 +177,8 @@ struct SparseSkOp {
 };
 
 
-template <typename T, typename RNG>
-SparseSkOp<T,RNG>::SparseSkOp(
+template <typename T, typename RNG, SignedInteger sint_t>
+SparseSkOp<T,RNG,sint_t>::SparseSkOp(
     SparseDist dist,
     const RNGState<RNG> &state
 ) :  // variable definitions
@@ -194,17 +197,17 @@ SparseSkOp<T,RNG>::SparseSkOp(
         minor_ax_len = MIN(this->dist.n_rows, this->dist.n_cols);
     }
     int64_t nnz = this->dist.vec_nnz * minor_ax_len;
-    this->rows = new int64_t[nnz];
-    this->cols = new int64_t[nnz];
+    this->rows = new sint_t[nnz];
+    this->cols = new sint_t[nnz];
     this->vals = new T[nnz];
 };
 
-template <typename T, typename RNG>
-SparseSkOp<T,RNG>::SparseSkOp(
+template <typename T, typename RNG, SignedInteger sint_t>
+SparseSkOp<T,RNG,sint_t>::SparseSkOp(
     SparseDist dist,
     const RNGState<RNG> &state,
-    int64_t *rows,
-    int64_t *cols,
+    sint_t *rows,
+    sint_t *cols,
     T *vals,
     bool known_filled
 ) :  // variable definitions
@@ -222,8 +225,8 @@ SparseSkOp<T,RNG>::SparseSkOp(
     this->known_filled = known_filled;
 };
 
-template <typename T, typename RNG>
-SparseSkOp<T,RNG>::~SparseSkOp() {
+template <typename T, typename RNG, SignedInteger sint_t>
+SparseSkOp<T,RNG,sint_t>::~SparseSkOp() {
     if (this->own_memory) {
         delete [] this->rows;
         delete [] this->cols;
@@ -246,16 +249,16 @@ SparseSkOp<T,RNG>::~SparseSkOp() {
 ///     time the program needs to generate random numbers for a randomized
 ///     algorithm.
 ///     
-template <typename T, typename RNG>
+template <typename T, typename RNG, SignedInteger sint_t>
 RNGState<RNG> fill_sparse(
-    SparseSkOp<T,RNG> & S
+    SparseSkOp<T,RNG,sint_t> & S
 ) {
     int64_t long_ax_len = MAX(S.dist.n_rows, S.dist.n_cols);
     int64_t short_ax_len = MIN(S.dist.n_rows, S.dist.n_cols);
 
     bool is_wide = S.dist.n_rows == short_ax_len;
-    int64_t *short_ax_idxs = (is_wide) ? S.rows : S.cols;
-    int64_t *long_ax_idxs = (is_wide) ? S.cols : S.rows;
+    sint_t *short_ax_idxs = (is_wide) ? S.rows : S.cols;
+    sint_t *long_ax_idxs = (is_wide) ? S.cols : S.rows;
 
     if (S.dist.major_axis == MajorAxis::Short) {
         S.next_state = repeated_fisher_yates(
@@ -305,39 +308,39 @@ void print_sparse(SKOP const& S0) {
 // =============================================================================
 /// WARNING: this function is not part of the public API.
 ///
-template <typename T, typename RNG>
+template <typename T, typename RNG, SignedInteger sint_t>
 static auto repeated_fisher_yates(
     const RNGState<RNG> &state,
     int64_t vec_nnz,
     int64_t dim_major,
     int64_t dim_minor,
-    int64_t *idxs_major,
-    int64_t *idxs_minor,
+    sint_t *idxs_major,
+    sint_t *idxs_minor,
     T *vals
 ) {
     randblas_error_if(vec_nnz > dim_major);
-    std::vector<int64_t> vec_work(dim_major);
-    for (int64_t j = 0; j < dim_major; ++j)
+    std::vector<sint_t> vec_work(dim_major);
+    for (sint_t j = 0; j < dim_major; ++j)
         vec_work[j] = j;
-    std::vector<int64_t> pivots(vec_nnz);
+    std::vector<sint_t> pivots(vec_nnz);
     RNG gen;
     auto [ctr, key] = state;
-    for (int64_t i = 0; i < dim_minor; ++i) {
-        int64_t offset = i * vec_nnz;
+    for (sint_t i = 0; i < dim_minor; ++i) {
+        sint_t offset = i * vec_nnz;
         auto ctri = ctr;
         ctri.incr(offset);
-        for (int64_t j = 0; j < vec_nnz; ++j) {
+        for (sint_t j = 0; j < vec_nnz; ++j) {
             // one step of Fisher-Yates shuffling
             auto rv = gen(ctri, key);
-            int64_t ell = j + rv[0] % (dim_major - j);
+            sint_t ell = j + rv[0] % (dim_major - j);
             pivots[j] = ell;
-            int64_t swap = vec_work[ell];
+            sint_t swap = vec_work[ell];
             vec_work[ell] = vec_work[j];
             vec_work[j] = swap;
             // update (rows, cols, vals)
-            idxs_major[j + offset] = swap;
+            idxs_major[j + offset] = (sint_t) swap;
             vals[j + offset] = (rv[1] % 2 == 0) ? 1.0 : -1.0;
-            idxs_minor[j + offset] = i;
+            idxs_minor[j + offset] = (sint_t) i;
             // increment counter
             ctri.incr();
         }
@@ -345,10 +348,10 @@ static auto repeated_fisher_yates(
         //      This isn't necessary from a statistical perspective,
         //      but it makes it easier to generate submatrices of
         //      a given SparseSkOp.
-        for (int64_t j = 1; j <= vec_nnz; ++j) {
-            int64_t jj = vec_nnz - j;
-            int64_t swap = idxs_major[jj + offset];
-            int64_t ell = pivots[jj];
+        for (sint_t j = 1; j <= vec_nnz; ++j) {
+            sint_t jj = vec_nnz - j;
+            sint_t swap = idxs_major[jj + offset];
+            sint_t ell = pivots[jj];
             vec_work[jj] = vec_work[ell];
             vec_work[ell] = swap;
         }
@@ -393,12 +396,12 @@ static int64_t nnz(
 }
 
 
-template <typename T, typename RNG>
-RandBLAS::sparse_data::COOMatrix<T> coo_view_of_skop(SparseSkOp<T,RNG> &S) {
+template <typename T, typename RNG, SignedInteger sint_t>
+RandBLAS::sparse_data::COOMatrix<T,sint_t> coo_view_of_skop(SparseSkOp<T,RNG,sint_t> &S) {
     if (!S.known_filled)
         fill_sparse(S);
     int64_t nnz = RandBLAS::sparse::nnz(S);
-    RandBLAS::sparse_data::COOMatrix<T> A(
+    RandBLAS::sparse_data::COOMatrix<T,sint_t> A(
         S.dist.n_rows, S.dist.n_cols, nnz,
         S.vals, S.rows, S.cols
     );
@@ -561,8 +564,9 @@ void lskges(
 ) {
     if (!S.known_filled)
         fill_sparse(S);
-    using RNG = typename SKOP::RNG_t;
-    auto Scoo = coo_view_of_skop<T,RNG>(S);
+    using RNG = SKOP::RNG_t;
+    using sint_t = typename SKOP::index_t;
+    auto Scoo = coo_view_of_skop<T,RNG,sint_t>(S);
     RandBLAS::sparse_data::coo::lspgemm(
         layout, opS, opA, d, n, m, alpha, Scoo, row_offset, col_offset,
         A, lda, beta, B, ldb
@@ -672,7 +676,7 @@ void lskges(
 ///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
 ///    - Refer to documentation for \math{\lda} for details. 
 ///
-template <typename T, typename RNG>
+template <typename T, typename SKOP>
 void rskges(
     blas::Layout layout,
     blas::Op opA,
@@ -683,7 +687,7 @@ void rskges(
     T alpha,
     const T *A,
     int64_t lda,
-    SparseSkOp<T,RNG> &S0,
+    SKOP &S0,
     int64_t i_off,
     int64_t j_off,
     T beta,
@@ -692,7 +696,9 @@ void rskges(
 ) { 
     if (!S0.known_filled)
         fill_sparse(S0);
-    auto Scoo = coo_view_of_skop<T,RNG>(S0);
+    using RNG = typename SKOP::RNG_t;
+    using sint = typename SKOP::index_t;
+    auto Scoo = coo_view_of_skop<T,RNG,sint>(S0);
     RandBLAS::sparse_data::coo::rspgemm(
         layout, opA, opS, m, d, n, alpha, A, lda, Scoo, i_off, j_off, beta, B, ldb
     );

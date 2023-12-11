@@ -90,7 +90,7 @@ static void apply_regular_csc_to_vector_from_left(
 
 
 
-template <typename T>
+template <typename T, RandBLAS::SignedInteger sint_t>
 static void apply_coo_left(
     T alpha,
     blas::Layout layout_B,
@@ -98,7 +98,7 @@ static void apply_coo_left(
     int64_t d,
     int64_t n,
     int64_t m,
-    COOMatrix<T> &A0,
+    COOMatrix<T, sint_t> &A0,
     int64_t row_offset,
     int64_t col_offset,
     const T *B,
@@ -122,8 +122,8 @@ static void apply_coo_left(
     //      of the matrix we just created.
     int64_t A_nnz;
     int64_t A0_nnz = A0.nnz;
-    std::vector<int64_t> A_rows(A0_nnz, 0);
-    std::vector<int64_t> A_colptr(std::max(A0_nnz, m + 1), 0);
+    std::vector<sint_t> A_rows(A0_nnz, 0);
+    std::vector<sint_t> A_colptr(std::max(A0_nnz, m + 1), 0);
     std::vector<T> A_vals(A0_nnz, 0.0);
     A_nnz = set_filtered_coo(
         A0.vals, A0.rows, A0.cols, A0.nnz,
