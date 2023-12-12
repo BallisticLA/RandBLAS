@@ -260,8 +260,7 @@ template <typename T, typename RNG, RandBLAS::SignedInteger sint_t>
 void sparseskop_to_dense(
     RandBLAS::SparseSkOp<T, RNG, sint_t> &S0,
     T *mat,
-    blas::Layout layout,
-    bool take_abs = false
+    blas::Layout layout
 ) {
     RandBLAS::SparseDist D = S0.dist;
     for (int64_t i = 0; i < D.n_rows * D.n_cols; ++i)
@@ -279,8 +278,6 @@ void sparseskop_to_dense(
         sint_t row = S0.rows[i];
         sint_t col = S0.cols[i];
         T val = S0.vals[i];
-        if (take_abs)
-            val = abs(val);
         mat[idx(row, col)] = val;
     }
 }
