@@ -268,12 +268,7 @@ void sparseskop_to_dense(
     auto idx = [D, layout](int64_t i, int64_t j) {
         return  (layout == blas::Layout::ColMajor) ? (i + j*D.n_rows) : (j + i*D.n_cols);
     };
-    int64_t nnz;
-    if (D.major_axis == RandBLAS::MajorAxis::Short) {
-        nnz = D.vec_nnz * MAX(D.n_rows, D.n_cols);
-    } else {
-        nnz = D.vec_nnz * MIN(D.n_rows, D.n_cols);
-    }
+    int64_t nnz = RandBLAS::sparse::nnz(S0);
     for (int64_t i = 0; i < nnz; ++i) {
         sint_t row = S0.rows[i];
         sint_t col = S0.cols[i];

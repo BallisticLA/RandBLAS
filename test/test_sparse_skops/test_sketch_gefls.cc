@@ -26,61 +26,10 @@ class TestLSKGES : public ::testing::Test
         int64_t nnz_index,
         int threads
     ) {
-#if !defined (RandBLAS_HAS_OpenMP)
-        UNUSED(threads);
-#endif
-        uint32_t a_seed = 99;
-
-        // construct test data: matrix A, SparseSkOp "S0", and dense representation S
-        T *a = new T[m * n];
-        T *B0 = new T[d * n]{};
-        RandBLAS::util::genmat(m, n, a, a_seed);  
         RandBLAS::SparseSkOp<T> S0({d, m, vec_nnzs[nnz_index], major_axis}, keys[key_index]);
-        RandBLAS::fill_sparse(S0);
-        int64_t lda, ldb;
-        if (layout == blas::Layout::RowMajor) {
-            lda = n; 
-            ldb = n;
-        } else {
-            lda = m;
-            ldb = d;
-        }
-
-        // compute S*A. 
-#if defined (RandBLAS_HAS_OpenMP)
-        int orig_threads = omp_get_num_threads();
-        omp_set_num_threads(threads);
-#endif
-        RandBLAS::sketch_general<T>(
-            layout, blas::Op::NoTrans, blas::Op::NoTrans,
-            d, n, m,
-            1.0, S0, 0, 0, a, lda,
-            0.0, B0, ldb 
+        test::common::test_left_apply_full_matrix<T>(
+            S0, n, layout, threads
         );
-#if defined (RandBLAS_HAS_OpenMP)
-        omp_set_num_threads(orig_threads);
-#endif
-
-        // compute expected result (B1) and allowable error (E)
-        T *B1 = new T[d * n]{};
-        T *E = new T[d * n]{};
-        test::common::reference_left_apply<T>(
-            layout, blas::Op::NoTrans, blas::Op::NoTrans,
-            d, n, m,
-            1.0, S0, 0, 0, a, lda,
-            0.0, B1, E, ldb
-        );
-
-        // check the result
-        RandBLAS_Testing::Util::buffs_approx_equal<T>(
-            B0, B1, E, d * n,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
-        );
-
-        delete [] a;
-        delete [] B0;
-        delete [] B1;
-        delete [] E;
     }
 
     template <typename T>
@@ -94,64 +43,11 @@ class TestLSKGES : public ::testing::Test
         int64_t S_co, // column offset for S in S0
         blas::Layout layout
     ) {
-        assert(d0 >= d1);
-        assert(m0 >= m1);
-        bool is_colmajor = layout == blas::Layout::ColMajor;
-        int64_t pos = (is_colmajor) ? (S_ro + d0 * S_co) : (S_ro * m0 + S_co);
-        assert(d0 * m0 >= pos + d1 * m1);
-
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
-        RandBLAS::SparseSkOp<T> S0(
-            {d0, m0, vec_nnz, RandBLAS::MajorAxis::Short}, seed
+        RandBLAS::SparseSkOp<T> S0({d0, m0, vec_nnz, RandBLAS::MajorAxis::Short}, seed);
+        test::common::test_left_apply_submatrix<T>(
+            S0, d1, m1, S_ro, S_co, layout, 1
         );
-        RandBLAS::fill_sparse(S0);
-        T *S0_dense = new T[d0 * m0];
-        RandBLAS_Testing::Util::sparseskop_to_dense<T>(S0, S0_dense, layout);
-        int64_t lda, ldb, lds0;
-        if (is_colmajor) {
-            lda = m1;
-            ldb = d1;
-            lds0 = d0;
-        } else {
-            lda = m1; 
-            ldb = m1;
-            lds0 = m0;
-        }
-
-        // define a matrix to be sketched, and create workspace for sketch.
-        std::vector<T> A(m1 * m1, 0.0);
-        for (int i = 0; i < m1; ++i)
-            A[i + m1*i] = 1.0;
-        std::vector<T> B(d1 * m1, 0.0);
-        
-        // Perform the sketch
-#if defined (RandBLAS_HAS_OpenMP)
-        int orig_threads = omp_get_num_threads();
-        omp_set_num_threads(1);
-#endif
-        RandBLAS::sketch_general<T>(
-            layout,
-            blas::Op::NoTrans,
-            blas::Op::NoTrans,
-            d1, m1, m1,
-            1.0, S0, S_ro, S_co,
-            A.data(), lda,
-            0.0, B.data(), ldb   
-        );
-#if defined (RandBLAS_HAS_OpenMP)
-        omp_set_num_threads(orig_threads);
-#endif
-
-        // Check the result
-        RandBLAS_Testing::Util::matrices_approx_equal(
-            layout, blas::Op::NoTrans,
-            d1, m1,
-            B.data(), ldb,
-            &S0_dense[pos], lds0,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
-        );
-
-        delete [] S0_dense;
     }
 
     template <typename T>
@@ -163,53 +59,10 @@ class TestLSKGES : public ::testing::Test
         int64_t d,
         blas::Layout layout
     ) {
-        bool is_colmajor = (layout == blas::Layout::ColMajor);
-        randblas_require(m > d);
         int64_t vec_nnz = d / 2;
         RandBLAS::SparseDist DS = {d, m, vec_nnz, RandBLAS::MajorAxis::Short};
         RandBLAS::SparseSkOp<T> S(DS, key);
-        RandBLAS::fill_sparse(S);
-    
-        // define a matrix to be sketched
-        std::vector<T> A(m * m, 0.0);
-        for (int i = 0; i < m; ++i)
-            A[i + m*i] = 1.0;
-
-        // create initialized workspace for the sketch
-        std::vector<T> B0(d * m);
-        RandBLAS::dense::DenseDist DB(d, m);
-        RandBLAS::dense::fill_dense(DB, B0.data(), RandBLAS::RNGState(42));
-        int64_t ldb = (is_colmajor) ? d : m;
-        std::vector<T> B1(d * m);
-        blas::copy(d * m, B0.data(), 1, B1.data(), 1);
-
-        // perform the sketch
-        RandBLAS::sketch_general<T>(
-            layout,
-            blas::Op::NoTrans,
-            blas::Op::NoTrans,
-            d, m, m,
-            alpha, S, 0, 0,
-            A.data(), m,
-            beta, B0.data(), ldb
-        );
-
-        // compute the reference result (B1) and error bound (E).
-        std::vector<T> E(d * m, 0.0);
-        test::common::reference_left_apply<T>(
-            layout,
-            blas::Op::NoTrans,
-            blas::Op::NoTrans,
-            d, m, m,
-            alpha, S, 0, 0,
-            A.data(), m,
-            beta, B1.data(), E.data(), ldb
-        );
-
-        RandBLAS_Testing::Util::buffs_approx_equal(
-            B0.data(), B1.data(), E.data(), d * m,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
-        );
+        test::common::test_left_apply_alpha_beta(S, alpha, beta, layout);
     }
 
     template <typename T>
