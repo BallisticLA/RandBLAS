@@ -12,25 +12,28 @@
 
 namespace test::common {
 
-// need functions that accept linear operators
-// and return dense matrix representations in row-major
-// or column-major format.
+using RandBLAS::sparse_data::COOMatrix;
+using RandBLAS::sparse_data::CSRMatrix;
+using RandBLAS::sparse_data::CSCMatrix;
+using RandBLAS::SparseSkOp;
+using RandBLAS::DenseSkOp;
+
 
 template <typename T>
-void to_explicit_buffer(RandBLAS::sparse_data::COOMatrix<T> &a, T *mat_a, blas::Layout layout) {
+void to_explicit_buffer(COOMatrix<T> &a, T *mat_a, blas::Layout layout) {
     RandBLAS::sparse_data::coo::coo_to_dense(a, layout, mat_a);
     return;
 }
 
 template <typename T>
-void to_explicit_buffer(RandBLAS::SparseSkOp<T> &a, T *mat_a, blas::Layout layout) {
+void to_explicit_buffer(SparseSkOp<T> &a, T *mat_a, blas::Layout layout) {
     auto a_coo = RandBLAS::sparse::coo_view_of_skop(a);
     to_explicit_buffer(a_coo, mat_a, layout);
     return;
 }
 
 template <typename T>
-void to_explicit_buffer(RandBLAS::DenseSkOp<T> &a, T *mat_a, blas::Layout layout) {
+void to_explicit_buffer(DenseSkOp<T> &a, T *mat_a, blas::Layout layout) {
     auto n_rows = a.dist.n_rows;
     auto n_cols = a.dist.n_cols;
     int64_t stride_row = (layout == blas::Layout::ColMajor) ? 1 : n_cols;
@@ -194,7 +197,7 @@ void reference_right_apply(
         mat_A_rows = n;
         mat_A_cols = m;
     }
-    if (layout == Layout::ColMajor) {
+    if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= mat_A_rows);
     } else {
         randblas_require(lda >= mat_A_cols);
@@ -212,7 +215,7 @@ void reference_right_apply(
     // compared to the layout for (A, B).
     // 
     auto trans_transS = (transS == Op::NoTrans) ? Op::Trans : Op::NoTrans;
-    auto trans_layout = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
+    auto trans_layout = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : blas::Layout::ColMajor;
     reference_left_apply(
         trans_layout, trans_transS, transA,
         d, m, n, alpha, S0, i_os, j_os, A, lda, beta, B, E, ldb
@@ -225,32 +228,32 @@ struct dims64_t {
 };
 
 template <typename T>
-dims64_t dimensions(RandBLAS::sparse_data::COOMatrix<T> &S) {return {S.n_rows, S.n_cols};}
+dims64_t dimensions(COOMatrix<T> &S) {return {S.n_rows, S.n_cols};}
 
 template <typename T>
-dims64_t dimensions(RandBLAS::sparse_data::CSCMatrix<T> &S) {return {S.n_rows, S.n_cols};}
+dims64_t dimensions(CSCMatrix<T> &S) {return {S.n_rows, S.n_cols};}
 
 template <typename T>
-dims64_t dimensions(RandBLAS::sparse_data::CSRMatrix<T> &S) {return {S.n_rows, S.n_cols}; }
+dims64_t dimensions(CSRMatrix<T> &S) {return {S.n_rows, S.n_cols}; }
 
 template <typename T>
-dims64_t dimensions(RandBLAS::SparseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols}; }
+dims64_t dimensions(SparseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols}; }
 
 template <typename T>
-dims64_t dimensions(RandBLAS::DenseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols};}
+dims64_t dimensions(DenseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols};}
 
 template <typename T>
-void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, RandBLAS::SparseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
+void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, SparseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
     return RandBLAS::sparse::lskges(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
 }
 
 template <typename T>
-void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, RandBLAS::DenseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
+void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, DenseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
     return RandBLAS::dense::lskge3(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
 }
 
 template <typename T>
-void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, RandBLAS::sparse_data::COOMatrix<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
+void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, COOMatrix<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
     return RandBLAS::sparse_data::coo::lspgemm(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
 }
 
