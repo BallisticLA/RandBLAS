@@ -1,8 +1,5 @@
-#include <RandBLAS/dense.hh>
-#include <RandBLAS/sparse_skops.hh>
-#include <RandBLAS/skge.hh>
-#include <RandBLAS/util.hh>
-#include <RandBLAS/test_util.hh>
+#include "../common.hh"
+#include "RandBLAS/skge.hh"
 #include <gtest/gtest.h>
 #include <math.h>
 
@@ -106,7 +103,7 @@ class TestRSKGES : public ::testing::Test
         // compute expected result (B1) and allowable error (E)
         T *B1 = new T[d * m]{};
         T *E = new T[d * m]{};
-        RandBLAS_Testing::Util::reference_rskges<T>(
+        test::common::reference_right_apply<T>(
             layout, blas::Op::NoTrans, blas::Op::NoTrans,
             m, d, n,
             1.0, a, lda,

@@ -1,8 +1,5 @@
-#include <RandBLAS/dense.hh>
-#include <RandBLAS/sparse_skops.hh>
-#include <RandBLAS/skge.hh>
-#include <RandBLAS/util.hh>
-#include <RandBLAS/test_util.hh>
+#include "../common.hh"
+#include "RandBLAS/skge.hh"
 #include <gtest/gtest.h>
 #include <math.h>
 
@@ -67,7 +64,7 @@ class TestLSKGES : public ::testing::Test
         // compute expected result (B1) and allowable error (E)
         T *B1 = new T[d * n]{};
         T *E = new T[d * n]{};
-        RandBLAS_Testing::Util::reference_lskges<T>(
+        test::common::reference_left_apply<T>(
             layout, blas::Op::NoTrans, blas::Op::NoTrans,
             d, n, m,
             1.0, S0, 0, 0, a, lda,
@@ -199,7 +196,7 @@ class TestLSKGES : public ::testing::Test
 
         // compute the reference result (B1) and error bound (E).
         std::vector<T> E(d * m, 0.0);
-        RandBLAS_Testing::Util::reference_lskges<T>(
+        test::common::reference_left_apply<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -320,7 +317,7 @@ class TestLSKGES : public ::testing::Test
         // Check the result
         std::vector<T> B1(d * n, 0.0);
         std::vector<T> E(d * n, 0.0);
-        RandBLAS_Testing::Util::reference_lskges<T>(
+        test::common::reference_left_apply<T>(
             layout,
             blas::Op::NoTrans,
             blas::Op::NoTrans,
@@ -381,7 +378,7 @@ class TestLSKGES : public ::testing::Test
         // Check the result
         std::vector<T> B1(d * n, 0.0);
         std::vector<T> E(d * n, 0.0);
-        RandBLAS_Testing::Util::reference_lskges<T>(
+        test::common::reference_left_apply<T>(
             layout, blas::Op::NoTrans, blas::Op::Trans,
             d, n, m,
             1.0, S0, 0, 0,

@@ -6,6 +6,7 @@
 #include "RandBLAS/config.h"
 #include "RandBLAS/random_gen.hh"
 
+#include <blas.hh>
 #include <tuple>
 #include <utility>
 #include <type_traits>
@@ -23,6 +24,19 @@
 
 /// code common across the project
 namespace RandBLAS {
+
+struct stride_64t {
+    int64_t inter_col_stride;
+    int64_t inter_row_stride;
+};
+
+static inline stride_64t layout_to_strides(blas::Layout layout, int64_t ldim) {
+    if (layout == blas::Layout::ColMajor) {
+        return stride_64t{ldim, (int64_t) 1};
+    } else {
+        return stride_64t{(int64_t) 1, ldim};
+    }
+}
 
 
 template<typename T>

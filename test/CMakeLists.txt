@@ -6,6 +6,7 @@ if (GTest_FOUND)
     set(tmp TRUE)
 
     add_executable(RandBLAS_tests
+        common.hh
         # dense sketching operators for dense data matrices
         test_dense/test_construction.cc
         test_dense/test_sketch_gefl3.cc

@@ -46,19 +46,6 @@ int64_t nnz_in_dense(
     return nnz;
 }
 
-struct stride_64t {
-    int64_t inter_col_stride;
-    int64_t intra_col_stride;
-};
-
-static inline stride_64t layout_to_strides(blas::Layout layout, int64_t ldim) {
-    if (layout == blas::Layout::ColMajor) {
-        return stride_64t{ldim, (int64_t) 1};
-    } else {
-        return stride_64t{(int64_t) 1, ldim};
-    }
-}
-
 template <RandBLAS::SignedInteger sint_t = int64_t>
 static inline void sorted_nonzero_locations_to_pointer_array(
     int64_t nnz,

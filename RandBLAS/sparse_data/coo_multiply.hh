@@ -140,11 +140,11 @@ static void apply_coo_left(
     // Step 3: Apply "A" to the left of B to get C += A*B.
     auto s = layout_to_strides(layout_B, ldb);
     auto B_inter_col_stride = s.inter_col_stride;
-    auto B_intra_col_stride = s.intra_col_stride;
+    auto B_inter_row_stride = s.inter_row_stride;
 
     s = layout_to_strides(layout_C, ldc);
     auto C_inter_col_stride = s.inter_col_stride;
-    auto C_intra_col_stride = s.intra_col_stride;
+    auto C_inter_row_stride = s.inter_row_stride;
 
 
     #pragma omp parallel default(shared)
@@ -158,14 +158,14 @@ static void apply_coo_left(
             if (fixed_nnz_per_col) {
                 apply_regular_csc_to_vector_from_left<T>(
                     A_vals.data(), A_rows.data(), A_colptr[1],
-                    m, B_col, B_intra_col_stride,
-                    C_col, C_intra_col_stride
+                    m, B_col, B_inter_row_stride,
+                    C_col, C_inter_row_stride
                 );
             } else {
                 apply_csc_to_vector_from_left<T>(
                     A_vals.data(), A_rows.data(), A_colptr.data(),
-                    m, B_col, B_intra_col_stride,
-                    C_col, C_intra_col_stride
+                    m, B_col, B_inter_row_stride,
+                    C_col, C_inter_row_stride
                 ); 
             }
         }
