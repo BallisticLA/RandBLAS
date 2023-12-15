@@ -8,6 +8,8 @@
 #include "RandBLAS/sparse_data/csr_matrix.hh"
 #include "RandBLAS/sparse_data/csc_matrix.hh"
 #include <functional>
+#include <vector>
+#include <tuple>
 
 
 namespace test::common {
@@ -17,6 +19,26 @@ using RandBLAS::sparse_data::CSRMatrix;
 using RandBLAS::sparse_data::CSCMatrix;
 using RandBLAS::SparseSkOp;
 using RandBLAS::DenseSkOp;
+using RandBLAS::RNGState;
+using RandBLAS::DenseDist;
+
+
+template <typename T>
+std::vector<T> eye(int64_t n) {
+    std::vector<T> A(n * n, 0.0);
+    for (int i = 0; i < n; ++i)
+        A[i + n*i] = 1.0;
+    return A;
+}
+
+template <typename T, typename RNG=r123::Philox4x32>
+auto random_matrix(int64_t m, int64_t n, RNGState<RNG> s) {
+    std::vector<T> A(m * n);
+    DenseDist DA(m, n);
+    auto [layout, next_state] = RandBLAS::fill_dense(DA, A.data(), s);
+    std::tuple<std::vector<T>, blas::Layout, RNGState<RNG>> t{A, layout, next_state};
+    return t;
+}
 
 
 struct dims64_t {
@@ -210,9 +232,9 @@ void test_left_apply_to_random(
             UNUSED(threads);
     #endif
     auto [d, m] = dimensions(S);
-    T *A = new T[m * n];
-    T *B0 = new T[d * n]{};
-    RandBLAS::util::genmat(m, n, A, 99);
+    auto A  = std::get<0>(random_matrix<T>(m, n, RandBLAS::RNGState(99)));
+    auto B0 = std::get<0>(random_matrix<T>(d, n, RandBLAS::RNGState(42)));
+    std::vector<T> B1(B0);
     int64_t lda, ldb;
     if (layout == blas::Layout::RowMajor) {
         lda = n; 
@@ -230,33 +252,28 @@ void test_left_apply_to_random(
     left_apply<T>(
         layout, blas::Op::NoTrans, blas::Op::NoTrans,
         d, n, m,
-        alpha, S, 0, 0, A, lda,
-        beta, B0, ldb 
+        alpha, S, 0, 0, A.data(), lda,
+        beta, B0.data(), ldb 
     );
     #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
     #endif
 
     // compute expected result (B1) and allowable error (E)
-    T *B1 = new T[d * n]{};
-    T *E = new T[d * n]{};
+    std::vector<T> E(d * n, 0.0);
     reference_left_apply<T>(
         layout, blas::Op::NoTrans, blas::Op::NoTrans,
         d, n, m,
-        alpha, S, 0, 0, A, lda,
-        beta, B1, E, ldb
+        alpha, S, 0, 0, A.data(), lda,
+        beta, B1.data(), E.data(), ldb
     );
 
     // check the result
     RandBLAS_Testing::Util::buffs_approx_equal<T>(
-        B0, B1, E, d * n,
+        B0.data(), B1.data(), E.data(), d * n,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
-
-    delete [] A;
-    delete [] B0;
-    delete [] B1;
-    delete [] E;
+    return;
 }
 
 template <typename T, typename LinOp>
@@ -281,14 +298,9 @@ static void test_left_apply_submatrix_to_eye(
     int64_t ldb = (is_colmajor) ? d1 : m1;
 
     // define a matrix to be sketched, and create workspace for sketch.
-    std::vector<T> A(m1 * m1, 0.0);
-    for (int i = 0; i < m1; ++i)
-        A[i + m1*i] = 1.0;
-    RandBLAS::DenseDist DB(d1, m1);
-    std::vector<T> B(d1 * m1);
-    RandBLAS::fill_dense(DB, B.data(), RandBLAS::RNGState(42));
-    std::vector<T> B_backup(d1 * m1);
-    blas::copy(d1 * m1, B.data(), 1, B_backup.data(), 1);
+    auto A = eye<T>(m1);
+    auto [B, _, __] = random_matrix<T>(d1, m1, RandBLAS::RNGState(42));
+    std::vector<T> B_backup(B);
 
     
     // Perform the sketch
@@ -309,14 +321,13 @@ static void test_left_apply_submatrix_to_eye(
     #endif
 
     // Check the result
-    auto [inter_col_stride_b, inter_row_stride_b] = RandBLAS::layout_to_strides(layout, ldb);
-    #define MAT_B(_i, _j) B_backup[(_i)*inter_row_stride_b + (_j)*inter_col_stride_b]
-
     T *expect = new T[d0 * m0];
     to_explicit_buffer(S0, expect, layout);
     int64_t ld_expect = (is_colmajor) ? d0 : m0; 
     auto [inter_col_stride_s, inter_row_stride_s] = RandBLAS::layout_to_strides(layout, ld_expect);
+    auto [inter_col_stride_b, inter_row_stride_b] = RandBLAS::layout_to_strides(layout, ldb);
     #define MAT_E(_i, _j) expect[pos + (_i)*inter_row_stride_s + (_j)*inter_col_stride_s]
+    #define MAT_B(_i, _j) B_backup[    (_i)*inter_row_stride_b + (_j)*inter_col_stride_b]
     for (int i = 0; i < d1; ++i) {
         for (int j = 0; j < m1; ++j) {
             MAT_E(i,j) = alpha * MAT_E(i,j) + beta * MAT_B(i, j);
