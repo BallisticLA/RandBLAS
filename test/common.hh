@@ -19,6 +19,26 @@ using RandBLAS::SparseSkOp;
 using RandBLAS::DenseSkOp;
 
 
+struct dims64_t {
+    int64_t n_rows;
+    int64_t n_cols;
+};
+
+template <typename T>
+dims64_t dimensions(COOMatrix<T> &S) {return {S.n_rows, S.n_cols};}
+
+template <typename T>
+dims64_t dimensions(CSCMatrix<T> &S) {return {S.n_rows, S.n_cols};}
+
+template <typename T>
+dims64_t dimensions(CSRMatrix<T> &S) {return {S.n_rows, S.n_cols}; }
+
+template <typename T>
+dims64_t dimensions(SparseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols}; }
+
+template <typename T>
+dims64_t dimensions(DenseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols};}
+
 template <typename T>
 void to_explicit_buffer(COOMatrix<T> &a, T *mat_a, blas::Layout layout) {
     RandBLAS::sparse_data::coo::coo_to_dense(a, layout, mat_a);
@@ -51,7 +71,6 @@ void to_explicit_buffer(DenseSkOp<T> &a, T *mat_a, blas::Layout layout) {
     return;
 }
 
-
 template <typename T, typename LinOp>
 void reference_left_apply(
     blas::Layout layout,
@@ -77,6 +96,7 @@ void reference_left_apply(
 
     // Dimensions of mat(A), rather than op(mat(A))
     int64_t rows_mat_A, cols_mat_A, rows_submat_S, cols_submat_S;
+    auto [rows_S, cols_S] = dimensions(S);
     if (transA == blas::Op::NoTrans) {
         rows_mat_A = m;
         cols_mat_A = n;
@@ -95,7 +115,7 @@ void reference_left_apply(
     // Sanity checks on dimensions and strides
     int64_t lds, s_row_stride, s_col_stride, pos, size_A, size_B;
     if (layout == blas::Layout::ColMajor) {
-        lds = S.dist.n_rows;
+        lds = rows_S;
         pos = i_os + lds * j_os;
         randblas_require(lds >= rows_submat_S);
         randblas_require(lda >= rows_mat_A);
@@ -105,7 +125,7 @@ void reference_left_apply(
         s_row_stride = 1;
         s_col_stride = lds;
     } else {
-        lds = S.dist.n_cols;
+        lds = cols_S;
         pos = i_os * lds + j_os;
         randblas_require(lds >= cols_submat_S);
         randblas_require(lda >= cols_mat_A);
@@ -116,12 +136,12 @@ void reference_left_apply(
         s_col_stride = 1;
     }
 
-    auto size_S = S.dist.n_rows * S.dist.n_cols;
+    auto size_S = rows_S * cols_S;
     std::vector<T> S_dense(size_S);
     std::vector<T> S_dense_abs(size_S);
     to_explicit_buffer(S, S_dense.data(), layout);
-    for (int64_t i = 0; i < S.dist.n_rows; ++i) {
-        for (int64_t j = 0; j < S.dist.n_cols; ++j) {
+    for (int64_t i = 0; i < rows_S; ++i) {
+        for (int64_t j = 0; j < cols_S; ++j) {
             auto ell = i * s_row_stride + j * s_col_stride;
             S_dense_abs[ell] = abs(S_dense[ell]);
         }
@@ -222,26 +242,6 @@ void reference_right_apply(
     );
 }
 
-struct dims64_t {
-    int64_t n_rows;
-    int64_t n_cols;
-};
-
-template <typename T>
-dims64_t dimensions(COOMatrix<T> &S) {return {S.n_rows, S.n_cols};}
-
-template <typename T>
-dims64_t dimensions(CSCMatrix<T> &S) {return {S.n_rows, S.n_cols};}
-
-template <typename T>
-dims64_t dimensions(CSRMatrix<T> &S) {return {S.n_rows, S.n_cols}; }
-
-template <typename T>
-dims64_t dimensions(SparseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols}; }
-
-template <typename T>
-dims64_t dimensions(DenseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols};}
-
 template <typename T>
 void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, SparseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
     return RandBLAS::sparse::lskges(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
@@ -268,7 +268,7 @@ void test_left_apply_full_matrix(
             UNUSED(threads);
     #endif
     auto [d, m] = dimensions(S);
-    T *A = new T[d * m];
+    T *A = new T[m * n];
     T *B0 = new T[d * n]{};
     RandBLAS::util::genmat(m, n, A, 99);
     int64_t lda, ldb;
@@ -436,6 +436,49 @@ void test_left_apply_alpha_beta(
 }
 
 
+template <typename T, typename LinOp>
+void test_left_apply_to_eye(
+    LinOp &S,
+    blas::Layout layout,
+    int threads = 0
+) {
+    #if !defined (RandBLAS_HAS_OpenMP)
+            UNUSED(threads);
+    #endif
+    auto [d, m] = dimensions(S);
+    T *B = new T[d * m];
+    T *A = new T[m * m]{};
+    for (int i = 0; i < m; ++i)
+        A[i + m*i] = 1.0;
+    // A = eye(m)
+    int64_t ldb = (layout == blas::Layout::ColMajor) ? d : m;
+
+    // compute S * eye(m)
+    #if defined (RandBLAS_HAS_OpenMP)
+        int orig_threads = omp_get_num_threads();
+        if (threads > 0)
+            omp_set_num_threads(threads);
+    #endif
+    left_apply<T>(
+        layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        d, m, m, 1.0, S, 0, 0, A, m,  0.0, B, ldb 
+    );
+    #if defined (RandBLAS_HAS_OpenMP)
+        omp_set_num_threads(orig_threads);
+    #endif
+
+    // check the result
+    auto size_S = d * m;
+    std::vector<T> S_dense(size_S);
+    to_explicit_buffer(S, S_dense.data(), layout);
+    RandBLAS_Testing::Util::buffs_approx_equal<T>(
+        B, S_dense.data(), size_S,
+        __PRETTY_FUNCTION__, __FILE__, __LINE__
+    );
+
+    delete [] A;
+    delete [] B;
+}
 
 } // end namespace test::common
 

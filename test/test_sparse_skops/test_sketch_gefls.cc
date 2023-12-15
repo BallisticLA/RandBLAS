@@ -3,6 +3,12 @@
 #include <gtest/gtest.h>
 #include <math.h>
 
+using RandBLAS::RNGState;
+using RandBLAS::DenseDist;
+using RandBLAS::SparseDist;
+using RandBLAS::SparseSkOp;
+using RandBLAS::MajorAxis;
+using RandBLAS::dense::DenseDistName;
 
 
 class TestLSKGES : public ::testing::Test
@@ -17,7 +23,7 @@ class TestLSKGES : public ::testing::Test
 
     template <typename T>
     static void apply(
-        RandBLAS::MajorAxis major_axis,
+        MajorAxis major_axis,
         int64_t d,
         int64_t m,
         int64_t n,
@@ -26,7 +32,7 @@ class TestLSKGES : public ::testing::Test
         int64_t nnz_index,
         int threads
     ) {
-        RandBLAS::SparseSkOp<T> S0({d, m, vec_nnzs[nnz_index], major_axis}, keys[key_index]);
+        SparseSkOp<T> S0({d, m, vec_nnzs[nnz_index], major_axis}, keys[key_index]);
         test::common::test_left_apply_full_matrix<T>(
             S0, n, layout, threads
         );
@@ -44,7 +50,7 @@ class TestLSKGES : public ::testing::Test
         blas::Layout layout
     ) {
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
-        RandBLAS::SparseSkOp<T> S0({d0, m0, vec_nnz, RandBLAS::MajorAxis::Short}, seed);
+        SparseSkOp<T> S0({d0, m0, vec_nnz, MajorAxis::Short}, seed);
         test::common::test_left_apply_submatrix<T>(
             S0, d1, m1, S_ro, S_co, layout, 1
         );
@@ -60,29 +66,29 @@ class TestLSKGES : public ::testing::Test
         blas::Layout layout
     ) {
         int64_t vec_nnz = d / 2;
-        RandBLAS::SparseDist DS = {d, m, vec_nnz, RandBLAS::MajorAxis::Short};
-        RandBLAS::SparseSkOp<T> S(DS, key);
+        SparseDist DS = {d, m, vec_nnz, MajorAxis::Short};
+        SparseSkOp<T> S(DS, key);
         test::common::test_left_apply_alpha_beta(S, alpha, beta, layout);
     }
 
     template <typename T>
     static void transpose_S(
-        RandBLAS::MajorAxis major_axis,
+        MajorAxis major_axis,
         uint32_t key,
         int64_t m,
         int64_t d,
         blas::Layout layout
     ) {
         randblas_require(m > d);
-        bool is_saso = (major_axis == RandBLAS::MajorAxis::Short);
+        bool is_saso = (major_axis == MajorAxis::Short);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
-        RandBLAS::SparseDist Dt = {
+        SparseDist Dt = {
             .n_rows = m,
             .n_cols = d,
             .vec_nnz = vec_nnz,
             .major_axis = major_axis
         };
-        RandBLAS::SparseSkOp<T> S0(Dt, key);
+        SparseSkOp<T> S0(Dt, key);
         RandBLAS::fill_sparse(S0);
 
         // define a matrix to be sketched, and create workspace for sketch.
@@ -118,7 +124,7 @@ class TestLSKGES : public ::testing::Test
 
     template <typename T>
     static void submatrix_A(
-        RandBLAS::MajorAxis major_axis,
+        MajorAxis major_axis,
         uint32_t seed_S0, // seed for S0
         int64_t d, // rows in S0
         int64_t m, // cols in S0, and rows in A.
@@ -134,22 +140,22 @@ class TestLSKGES : public ::testing::Test
         bool is_colmajor = (layout == blas::Layout::ColMajor);
 
         // Define the distribution for S0.
-        bool is_saso = (major_axis == RandBLAS::MajorAxis::Short);
+        bool is_saso = (major_axis == MajorAxis::Short);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
-        RandBLAS::SparseDist D = {
+        SparseDist D = {
             .n_rows = d,
             .n_cols = m,
             .vec_nnz = vec_nnz,
             .major_axis = major_axis
         };
-        RandBLAS::SparseSkOp<T> S0(D, seed_S0);
+        SparseSkOp<T> S0(D, seed_S0);
         RandBLAS::fill_sparse(S0);
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> A0(m0 * n0, 0.0);
         uint32_t seed_A0 = 42000;
-        RandBLAS::dense::DenseDist DA0(m0, n0, RandBLAS::dense::DenseDistName::Uniform);
-        RandBLAS::dense::fill_dense(DA0, A0.data(), RandBLAS::RNGState(seed_A0));
+        DenseDist DA0(m0, n0, DenseDistName::Uniform);
+        RandBLAS::fill_dense(DA0, A0.data(), RNGState(seed_A0));
         std::vector<T> B0(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
         int64_t ldb = (is_colmajor) ? d : n;
@@ -187,7 +193,7 @@ class TestLSKGES : public ::testing::Test
 
     template <typename T>
     static void transpose_A(
-        RandBLAS::MajorAxis major_axis,
+        MajorAxis major_axis,
         uint32_t seed_S0, // seed for S0
         int64_t d, // rows in S0
         int64_t m, // cols in S0, and rows in A.
@@ -197,22 +203,22 @@ class TestLSKGES : public ::testing::Test
         bool is_colmajor = (layout == blas::Layout::ColMajor);
 
         // Define the distribution for S0.
-        bool is_saso = (major_axis == RandBLAS::MajorAxis::Short);
+        bool is_saso = (major_axis == MajorAxis::Short);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
-        RandBLAS::SparseDist D = {
+        SparseDist D = {
             .n_rows = d,
             .n_cols = m,
             .vec_nnz = vec_nnz,
             .major_axis = major_axis
         };
-        RandBLAS::SparseSkOp<T> S0(D, seed_S0);
+        SparseSkOp<T> S0(D, seed_S0);
         RandBLAS::fill_sparse(S0);
 
         // define a matrix to be sketched, and create workspace for sketch.
         std::vector<T> At(m * n, 0.0);
         uint32_t seed_A = 42000;
-        RandBLAS::dense::DenseDist DAt(n, m, RandBLAS::dense::DenseDistName::Uniform);
-        RandBLAS::dense::fill_dense(DAt, At.data(), RandBLAS::RNGState(seed_A));
+        DenseDist DAt(n, m, DenseDistName::Uniform);
+        RandBLAS::fill_dense(DAt, At.data(), RNGState(seed_A));
         std::vector<T> B0(d * n, 0.0);
         int64_t lda = (is_colmajor) ? DAt.n_rows : DAt.n_cols;
         int64_t ldb = (is_colmajor) ? d : n;
@@ -258,10 +264,10 @@ TEST_F(TestLSKGES, sketch_saso_rowMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
-            apply<double>(RandBLAS::MajorAxis::Short,
+            apply<double>(MajorAxis::Short,
                 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1
             );
-            apply<float>(RandBLAS::MajorAxis::Short,
+            apply<float>(MajorAxis::Short,
                 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1
             );
         }
@@ -273,8 +279,8 @@ TEST_F(TestLSKGES, sketch_laso_rowMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
-            apply<double>(RandBLAS::MajorAxis::Long, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::MajorAxis::Long, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<double>(MajorAxis::Long, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<float>(MajorAxis::Long, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
         }
     }
 }
@@ -284,10 +290,10 @@ TEST_F(TestLSKGES, sketch_saso_rowMajor_FourThreads)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
-            apply<double>(RandBLAS::MajorAxis::Short,
+            apply<double>(MajorAxis::Short,
                 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4
             );
-            apply<float>(RandBLAS::MajorAxis::Short,
+            apply<float>(MajorAxis::Short,
                 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 4
             );
         }
@@ -299,8 +305,8 @@ TEST_F(TestLSKGES, sketch_saso_colMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
-            apply<double>(RandBLAS::MajorAxis::Short, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::MajorAxis::Short, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<double>(MajorAxis::Short, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(MajorAxis::Short, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
     }
 }
@@ -309,8 +315,8 @@ TEST_F(TestLSKGES, sketch_laso_colMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
-            apply<double>(RandBLAS::MajorAxis::Long, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::MajorAxis::Long, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<double>(MajorAxis::Long, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(MajorAxis::Long, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
     }
 }
@@ -320,8 +326,8 @@ TEST_F(TestLSKGES, sketch_saso_colMajor_fourThreads)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
-            apply<double>(RandBLAS::MajorAxis::Short, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 4);
-            apply<float>(RandBLAS::MajorAxis::Short, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 4);
+            apply<double>(MajorAxis::Short, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 4);
+            apply<float>(MajorAxis::Short, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 4);
         }
     }
 }
@@ -341,10 +347,10 @@ TEST_F(TestLSKGES, lift_saso_rowMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
-            apply<double>(RandBLAS::MajorAxis::Short,
+            apply<double>(MajorAxis::Short,
                 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1
             );
-            apply<float>(RandBLAS::MajorAxis::Short,
+            apply<float>(MajorAxis::Short,
                 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1
             );
         }
@@ -355,8 +361,8 @@ TEST_F(TestLSKGES, lift_laso_rowMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
-            apply<double>(RandBLAS::MajorAxis::Long, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::MajorAxis::Long, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<double>(MajorAxis::Long, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
+            apply<float>(MajorAxis::Long, 201, 19, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1);
         }
     }
 }
@@ -365,8 +371,8 @@ TEST_F(TestLSKGES, lift_saso_colMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
-            apply<double>(RandBLAS::MajorAxis::Short, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::MajorAxis::Short, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<double>(MajorAxis::Short, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(MajorAxis::Short, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
     }
 }
@@ -375,8 +381,8 @@ TEST_F(TestLSKGES, lift_laso_colMajor_oneThread)
 {
     for (int64_t k_idx : {0, 1, 2}) {
         for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
-            apply<double>(RandBLAS::MajorAxis::Long, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
-            apply<float>(RandBLAS::MajorAxis::Long, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<double>(MajorAxis::Long, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
+            apply<float>(MajorAxis::Long, 201, 19, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1);
         }
     }
 }
@@ -510,25 +516,25 @@ TEST_F(TestLSKGES, subset_cols_s_rowmajor2)
 TEST_F(TestLSKGES, transpose_saso_double_colmajor)
 {
     uint32_t seed = 0;
-    transpose_S<double>(RandBLAS::MajorAxis::Short, seed, 21, 4, blas::Layout::ColMajor);
+    transpose_S<double>(MajorAxis::Short, seed, 21, 4, blas::Layout::ColMajor);
 }
 
 TEST_F(TestLSKGES, transpose_laso_double_colmajor)
 {
     uint32_t seed = 0;
-    transpose_S<double>(RandBLAS::MajorAxis::Long, seed, 21, 4, blas::Layout::ColMajor);
+    transpose_S<double>(MajorAxis::Long, seed, 21, 4, blas::Layout::ColMajor);
 }
 
 TEST_F(TestLSKGES, transpose_saso_double_rowmajor)
 {
     uint32_t seed = 0;
-    transpose_S<double>(RandBLAS::MajorAxis::Short, seed, 21, 4, blas::Layout::RowMajor);
+    transpose_S<double>(MajorAxis::Short, seed, 21, 4, blas::Layout::RowMajor);
 }
 
 TEST_F(TestLSKGES, transpose_laso_double_rowmajor)
 {
     uint32_t seed = 0;
-    transpose_S<double>(RandBLAS::MajorAxis::Long, seed, 21, 4, blas::Layout::RowMajor);
+    transpose_S<double>(MajorAxis::Long, seed, 21, 4, blas::Layout::RowMajor);
 }
 
 
@@ -545,7 +551,7 @@ TEST_F(TestLSKGES, saso_submatrix_a_colmajor)
 {
     for (uint32_t seed : {0})
         submatrix_A<double>(
-            RandBLAS::MajorAxis::Short,
+            MajorAxis::Short,
             seed,
             3, // number of rows in sketch
             10, 5, // (rows, cols) in A.
@@ -560,7 +566,7 @@ TEST_F(TestLSKGES, saso_submatrix_a_rowmajor)
 {
     for (uint32_t seed : {0})
         submatrix_A<double>(
-            RandBLAS::MajorAxis::Short,
+            MajorAxis::Short,
             seed,
             3, // number of rows in sketch
             10, 5, // (rows, cols) in A.
@@ -575,7 +581,7 @@ TEST_F(TestLSKGES, laso_submatrix_a_colmajor)
 {
     for (uint32_t seed : {0})
         submatrix_A<double>(
-            RandBLAS::MajorAxis::Long,
+            MajorAxis::Long,
             seed,
             3, // number of rows in sketch
             10, 5, // (rows, cols) in A.
@@ -590,7 +596,7 @@ TEST_F(TestLSKGES, laso_submatrix_a_rowmajor)
 {
     for (uint32_t seed : {0})
         submatrix_A<double>(
-            RandBLAS::MajorAxis::Long,
+            MajorAxis::Long,
             seed,
             3, // number of rows in sketch
             10, 5, // (rows, cols) in A.
@@ -614,25 +620,25 @@ TEST_F(TestLSKGES, laso_submatrix_a_rowmajor)
 TEST_F(TestLSKGES, saso_times_trans_A_colmajor)
 {
     uint32_t seed = 0;
-    transpose_A<double>(RandBLAS::MajorAxis::Short, seed, 7, 22, 5, blas::Layout::ColMajor);
+    transpose_A<double>(MajorAxis::Short, seed, 7, 22, 5, blas::Layout::ColMajor);
 }
 
 TEST_F(TestLSKGES, laso_times_trans_A_colmajor)
 {
     uint32_t seed = 0;
-    transpose_A<double>(RandBLAS::MajorAxis::Long, seed, 7, 22, 5, blas::Layout::ColMajor);
+    transpose_A<double>(MajorAxis::Long, seed, 7, 22, 5, blas::Layout::ColMajor);
 }
 
 TEST_F(TestLSKGES, saso_times_trans_A_rowmajor)
 {
     uint32_t seed = 0;
-    transpose_A<double>(RandBLAS::MajorAxis::Short, seed, 7, 22, 5, blas::Layout::RowMajor);
+    transpose_A<double>(MajorAxis::Short, seed, 7, 22, 5, blas::Layout::RowMajor);
 }
 
 TEST_F(TestLSKGES, laso_times_trans_A_rowmajor)
 {
     uint32_t seed = 0;
-    transpose_A<double>(RandBLAS::MajorAxis::Long, seed, 7, 22, 5, blas::Layout::RowMajor);
+    transpose_A<double>(MajorAxis::Long, seed, 7, 22, 5, blas::Layout::RowMajor);
 }
 
 
