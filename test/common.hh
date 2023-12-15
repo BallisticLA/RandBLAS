@@ -71,6 +71,31 @@ void to_explicit_buffer(DenseSkOp<T> &a, T *mat_a, blas::Layout layout) {
     return;
 }
 
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      Multiply from the LEFT
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+
+template <typename T>
+void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, SparseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
+    return RandBLAS::sparse::lskges(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
+}
+
+template <typename T>
+void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, DenseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
+    return RandBLAS::dense::lskge3(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
+}
+
+template <typename T>
+void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, COOMatrix<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
+    return RandBLAS::sparse_data::coo::lspgemm(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
+}
+
 template <typename T, typename LinOp>
 void reference_left_apply(
     blas::Layout layout,
@@ -173,6 +198,187 @@ void reference_left_apply(
 }
 
 template <typename T, typename LinOp>
+void test_left_apply_to_random(
+    LinOp &S,
+    int64_t n,
+    blas::Layout layout,
+    int threads = 0
+) {
+    #if !defined (RandBLAS_HAS_OpenMP)
+            UNUSED(threads);
+    #endif
+    auto [d, m] = dimensions(S);
+    T *A = new T[m * n];
+    T *B0 = new T[d * n]{};
+    RandBLAS::util::genmat(m, n, A, 99);
+    int64_t lda, ldb;
+    if (layout == blas::Layout::RowMajor) {
+        lda = n; 
+        ldb = n;
+    } else {
+        lda = m;
+        ldb = d;
+    }
+    // compute S*A. 
+    #if defined (RandBLAS_HAS_OpenMP)
+        int orig_threads = omp_get_num_threads();
+        if (threads > 0)
+            omp_set_num_threads(threads);
+    #endif
+    left_apply<T>(
+        layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        d, n, m,
+        1.0, S, 0, 0, A, lda,
+        0.0, B0, ldb 
+    );
+    #if defined (RandBLAS_HAS_OpenMP)
+        omp_set_num_threads(orig_threads);
+    #endif
+
+    // compute expected result (B1) and allowable error (E)
+    T *B1 = new T[d * n]{};
+    T *E = new T[d * n]{};
+    reference_left_apply<T>(
+        layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        d, n, m,
+        1.0, S, 0, 0, A, lda,
+        0.0, B1, E, ldb
+    );
+
+    // check the result
+    RandBLAS_Testing::Util::buffs_approx_equal<T>(
+        B0, B1, E, d * n,
+        __PRETTY_FUNCTION__, __FILE__, __LINE__
+    );
+
+    delete [] A;
+    delete [] B0;
+    delete [] B1;
+    delete [] E;
+}
+
+template <typename T, typename LinOp>
+static void test_left_apply_to_eye(
+    LinOp &S0,
+    int64_t d1, // rows in sketch
+    int64_t m1, // size of identity matrix
+    int64_t S_ro, // row offset for S in S0
+    int64_t S_co, // column offset for S in S0
+    blas::Layout layout,
+    int threads = 0
+) {
+    auto [d0, m0] = dimensions(S0);
+    assert(d0 >= d1);
+    assert(m0 >= m1);
+    bool is_colmajor = layout == blas::Layout::ColMajor;
+    int64_t pos = (is_colmajor) ? (S_ro + d0 * S_co) : (S_ro * m0 + S_co);
+    assert(d0 * m0 >= pos + d1 * m1);
+
+    T *S0_dense = new T[d0 * m0];
+    to_explicit_buffer(S0, S0_dense, layout);
+    int64_t lda, ldb, lds0;
+    if (is_colmajor) {
+        lda = m1;
+        ldb = d1;
+        lds0 = d0;
+    } else {
+        lda = m1; 
+        ldb = m1;
+        lds0 = m0;
+    }
+
+    // define a matrix to be sketched, and create workspace for sketch.
+    std::vector<T> A(m1 * m1, 0.0);
+    for (int i = 0; i < m1; ++i)
+        A[i + m1*i] = 1.0;
+    std::vector<T> B(d1 * m1, 0.0);
+    
+    // Perform the sketch
+    #if defined (RandBLAS_HAS_OpenMP)
+        int orig_threads = omp_get_num_threads();
+        if (threads > 0)
+            omp_set_num_threads(1);
+    #endif
+    left_apply(
+        layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        d1, m1, m1,
+        1.0, S0, S_ro, S_co,
+        A.data(), lda,
+        0.0, B.data(), ldb   
+    );
+    #if defined (RandBLAS_HAS_OpenMP)
+        omp_set_num_threads(orig_threads);
+    #endif
+
+    // Check the result
+    RandBLAS_Testing::Util::matrices_approx_equal(
+        layout, blas::Op::NoTrans,
+        d1, m1,
+        B.data(), ldb,
+        &S0_dense[pos], lds0,
+        __PRETTY_FUNCTION__, __FILE__, __LINE__
+    );
+
+    delete [] S0_dense;
+}
+
+template <typename T, typename LinOp>
+void test_left_apply_alpha_beta(
+    LinOp &S,
+    T alpha, 
+    T beta,
+    blas::Layout layout
+) {
+    auto [d, m] = dimensions(S);
+    bool is_colmajor = (layout == blas::Layout::ColMajor);
+    std::vector<T> A(m * m, 0.0);
+    for (int i = 0; i < m; ++i)
+        A[i + m*i] = 1.0;
+
+    // create initialized workspace for the sketch
+    std::vector<T> B0(d * m);
+    RandBLAS::dense::DenseDist DB(d, m);
+    RandBLAS::dense::fill_dense(DB, B0.data(), RandBLAS::RNGState(42));
+    int64_t ldb = (is_colmajor) ? d : m;
+    std::vector<T> B1(d * m);
+    blas::copy(d * m, B0.data(), 1, B1.data(), 1);
+
+    // perform the sketch
+    left_apply<T>(
+        layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        d, m, m,
+        alpha, S, 0, 0,
+        A.data(), m,
+        beta, B0.data(), ldb
+    );
+
+    // compute the reference result (B1) and error bound (E).
+    std::vector<T> E(d * m, 0.0);
+    reference_left_apply<T>(
+        layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        d, m, m,
+        alpha, S, 0, 0,
+        A.data(), m,
+        beta, B1.data(), E.data(), ldb
+    );
+
+    RandBLAS_Testing::Util::buffs_approx_equal(
+        B0.data(), B1.data(), E.data(), d * m,
+        __PRETTY_FUNCTION__, __FILE__, __LINE__
+    );
+}
+
+
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      Multiply from the RIGHT
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+template <typename T, typename LinOp>
 void reference_right_apply(
     blas::Layout layout,
     blas::Op transA,
@@ -240,244 +446,6 @@ void reference_right_apply(
         trans_layout, trans_transS, transA,
         d, m, n, alpha, S0, i_os, j_os, A, lda, beta, B, E, ldb
     );
-}
-
-template <typename T>
-void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, SparseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
-    return RandBLAS::sparse::lskges(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
-}
-
-template <typename T>
-void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, DenseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
-    return RandBLAS::dense::lskge3(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
-}
-
-template <typename T>
-void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, COOMatrix<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
-    return RandBLAS::sparse_data::coo::lspgemm(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
-}
-
-template <typename T, typename LinOp>
-void test_left_apply_full_matrix(
-    LinOp &S,
-    int64_t n,
-    blas::Layout layout,
-    int threads = 0
-) {
-    #if !defined (RandBLAS_HAS_OpenMP)
-            UNUSED(threads);
-    #endif
-    auto [d, m] = dimensions(S);
-    T *A = new T[m * n];
-    T *B0 = new T[d * n]{};
-    RandBLAS::util::genmat(m, n, A, 99);
-    int64_t lda, ldb;
-    if (layout == blas::Layout::RowMajor) {
-        lda = n; 
-        ldb = n;
-    } else {
-        lda = m;
-        ldb = d;
-    }
-    // compute S*A. 
-    #if defined (RandBLAS_HAS_OpenMP)
-        int orig_threads = omp_get_num_threads();
-        if (threads > 0)
-            omp_set_num_threads(threads);
-    #endif
-    left_apply<T>(
-        layout, blas::Op::NoTrans, blas::Op::NoTrans,
-        d, n, m,
-        1.0, S, 0, 0, A, lda,
-        0.0, B0, ldb 
-    );
-    #if defined (RandBLAS_HAS_OpenMP)
-        omp_set_num_threads(orig_threads);
-    #endif
-
-    // compute expected result (B1) and allowable error (E)
-    T *B1 = new T[d * n]{};
-    T *E = new T[d * n]{};
-    reference_left_apply<T>(
-        layout, blas::Op::NoTrans, blas::Op::NoTrans,
-        d, n, m,
-        1.0, S, 0, 0, A, lda,
-        0.0, B1, E, ldb
-    );
-
-    // check the result
-    RandBLAS_Testing::Util::buffs_approx_equal<T>(
-        B0, B1, E, d * n,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__
-    );
-
-    delete [] A;
-    delete [] B0;
-    delete [] B1;
-    delete [] E;
-}
-
-template <typename T, typename LinOp>
-static void test_left_apply_submatrix(
-    LinOp &S0,
-    int64_t d1, // rows in sketch
-    int64_t m1, // size of identity matrix
-    int64_t S_ro, // row offset for S in S0
-    int64_t S_co, // column offset for S in S0
-    blas::Layout layout,
-    int threads = 0
-) {
-    auto [d0, m0] = dimensions(S0);
-    assert(d0 >= d1);
-    assert(m0 >= m1);
-    bool is_colmajor = layout == blas::Layout::ColMajor;
-    int64_t pos = (is_colmajor) ? (S_ro + d0 * S_co) : (S_ro * m0 + S_co);
-    assert(d0 * m0 >= pos + d1 * m1);
-
-    T *S0_dense = new T[d0 * m0];
-    to_explicit_buffer(S0, S0_dense, layout);
-    int64_t lda, ldb, lds0;
-    if (is_colmajor) {
-        lda = m1;
-        ldb = d1;
-        lds0 = d0;
-    } else {
-        lda = m1; 
-        ldb = m1;
-        lds0 = m0;
-    }
-
-    // define a matrix to be sketched, and create workspace for sketch.
-    std::vector<T> A(m1 * m1, 0.0);
-    for (int i = 0; i < m1; ++i)
-        A[i + m1*i] = 1.0;
-    std::vector<T> B(d1 * m1, 0.0);
-    
-    // Perform the sketch
-    #if defined (RandBLAS_HAS_OpenMP)
-        int orig_threads = omp_get_num_threads();
-        if (threads > 0)
-            omp_set_num_threads(1);
-    #endif
-    left_apply(
-        layout,
-        blas::Op::NoTrans,
-        blas::Op::NoTrans,
-        d1, m1, m1,
-        1.0, S0, S_ro, S_co,
-        A.data(), lda,
-        0.0, B.data(), ldb   
-    );
-    #if defined (RandBLAS_HAS_OpenMP)
-        omp_set_num_threads(orig_threads);
-    #endif
-
-    // Check the result
-    RandBLAS_Testing::Util::matrices_approx_equal(
-        layout, blas::Op::NoTrans,
-        d1, m1,
-        B.data(), ldb,
-        &S0_dense[pos], lds0,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__
-    );
-
-    delete [] S0_dense;
-}
-
-template <typename T, typename LinOp>
-void test_left_apply_alpha_beta(
-    LinOp &S,
-    T alpha, 
-    T beta,
-    blas::Layout layout
-) {
-    auto [d, m] = dimensions(S);
-    bool is_colmajor = (layout == blas::Layout::ColMajor);
-    // define a matrix to be sketched
-    std::vector<T> A(m * m, 0.0);
-    for (int i = 0; i < m; ++i)
-        A[i + m*i] = 1.0;
-
-    // create initialized workspace for the sketch
-    std::vector<T> B0(d * m);
-    RandBLAS::dense::DenseDist DB(d, m);
-    RandBLAS::dense::fill_dense(DB, B0.data(), RandBLAS::RNGState(42));
-    int64_t ldb = (is_colmajor) ? d : m;
-    std::vector<T> B1(d * m);
-    blas::copy(d * m, B0.data(), 1, B1.data(), 1);
-
-    // perform the sketch
-    left_apply<T>(
-        layout,
-        blas::Op::NoTrans,
-        blas::Op::NoTrans,
-        d, m, m,
-        alpha, S, 0, 0,
-        A.data(), m,
-        beta, B0.data(), ldb
-    );
-
-    // compute the reference result (B1) and error bound (E).
-    std::vector<T> E(d * m, 0.0);
-    reference_left_apply<T>(
-        layout,
-        blas::Op::NoTrans,
-        blas::Op::NoTrans,
-        d, m, m,
-        alpha, S, 0, 0,
-        A.data(), m,
-        beta, B1.data(), E.data(), ldb
-    );
-
-    RandBLAS_Testing::Util::buffs_approx_equal(
-        B0.data(), B1.data(), E.data(), d * m,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__
-    );
-}
-
-
-template <typename T, typename LinOp>
-void test_left_apply_to_eye(
-    LinOp &S,
-    blas::Layout layout,
-    int threads = 0
-) {
-    #if !defined (RandBLAS_HAS_OpenMP)
-            UNUSED(threads);
-    #endif
-    auto [d, m] = dimensions(S);
-    T *B = new T[d * m];
-    T *A = new T[m * m]{};
-    for (int i = 0; i < m; ++i)
-        A[i + m*i] = 1.0;
-    // A = eye(m)
-    int64_t ldb = (layout == blas::Layout::ColMajor) ? d : m;
-
-    // compute S * eye(m)
-    #if defined (RandBLAS_HAS_OpenMP)
-        int orig_threads = omp_get_num_threads();
-        if (threads > 0)
-            omp_set_num_threads(threads);
-    #endif
-    left_apply<T>(
-        layout, blas::Op::NoTrans, blas::Op::NoTrans,
-        d, m, m, 1.0, S, 0, 0, A, m,  0.0, B, ldb 
-    );
-    #if defined (RandBLAS_HAS_OpenMP)
-        omp_set_num_threads(orig_threads);
-    #endif
-
-    // check the result
-    auto size_S = d * m;
-    std::vector<T> S_dense(size_S);
-    to_explicit_buffer(S, S_dense.data(), layout);
-    RandBLAS_Testing::Util::buffs_approx_equal<T>(
-        B, S_dense.data(), size_S,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__
-    );
-
-    delete [] A;
-    delete [] B;
 }
 
 } // end namespace test::common

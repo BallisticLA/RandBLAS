@@ -33,7 +33,7 @@ class TestLSKGES : public ::testing::Test
         int threads
     ) {
         SparseSkOp<T> S0({d, m, vec_nnzs[nnz_index], major_axis}, keys[key_index]);
-        test::common::test_left_apply_full_matrix<T>(
+        test::common::test_left_apply_to_random<T>(
             S0, n, layout, threads
         );
     }
@@ -51,7 +51,7 @@ class TestLSKGES : public ::testing::Test
     ) {
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
         SparseSkOp<T> S0({d0, m0, vec_nnz, MajorAxis::Short}, seed);
-        test::common::test_left_apply_submatrix<T>(
+        test::common::test_left_apply_to_eye<T>(
             S0, d1, m1, S_ro, S_co, layout, 1
         );
     }
