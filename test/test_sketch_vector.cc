@@ -71,7 +71,7 @@ class TestSketchVector : public ::testing::Test
         int64_t lds = (S.layout == blas::Layout::RowMajor) ? d : m;
 
         // Perform tall sketch with Op::Trans
-        RandBLAS::sketch_vector<T>(blas::Op::Trans, d, m, 1.0, S, 0, 0, x, incx, 0, y_actual, incy);
+        RandBLAS::sketch_vector<T>(blas::Op::Trans, m, d, 1.0, S, 0, 0, x, incx, 0, y_actual, incy);
         blas::gemv(S.layout, blas::Op::Trans, m, d, 1.0, S.buff, lds, x, incx, 0, y_expect, incy); 
         
         // Compare entrywise results of sketching with sketch_vector and using gemv
@@ -107,7 +107,7 @@ class TestSketchVector : public ::testing::Test
 
         // Perform wide sketch with Op::NoTrans and tall sketch with Op::Trans. Should be the same operation
         RandBLAS::sketch_vector<T>(blas::Op::NoTrans, d, m, 1.0, S_wide, 0, 0, x, incx, 0.0, y_wide, incy);
-        RandBLAS::sketch_vector<T>(blas::Op::Trans, d, m, 1.0, S_tall, 0, 0, x, incx, 0.0, y_tall, incy);
+        RandBLAS::sketch_vector<T>(blas::Op::Trans, m, d, 1.0, S_tall, 0, 0, x, incx, 0.0, y_tall, incy);
         
         RandBLAS_Testing::Util::buffs_approx_equal(d, y_wide, incy, y_tall, incy,
                 __PRETTY_FUNCTION__, __FILE__, __LINE__

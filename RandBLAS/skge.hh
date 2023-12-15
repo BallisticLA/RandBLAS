@@ -49,7 +49,7 @@ using namespace RandBLAS::sparse;
 /// What are :math:`\mat(A)` and :math:`\mat(B)`?
 ///     Their shapes are defined implicitly by :math:`(d, m, n, \opA)`.
 ///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
-///     and "layout", following the same convention as BLAS.
+///     and "layout", following the same convention as the Level 3 BLAS function "GEMM."
 ///
 /// What is :math:`\submat(S)`?
 ///     Its shape is defined implicitly by :math:`(\opS, d, m)`.
@@ -221,7 +221,7 @@ void sketch_general(
 /// What are :math:`\mat(A)` and :math:`\mat(B)`?
 ///     Their shapes are defined implicitly by :math:`(m, d, n, \opA)`.
 ///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
-///     and "layout", following the same convention as BLAS.
+///     and "layout", following the same convention as the Level 3 BLAS function "GEMM."
 ///
 /// What is :math:`\submat(S)`?
 ///     Its shape is defined implicitly by :math:`(\opS, n, d)`.
@@ -401,7 +401,7 @@ void sketch_general(
 /// What are :math:`\mat(A)` and :math:`\mat(B)`?
 ///     Their shapes are defined implicitly by :math:`(d, m, n, \opA)`.
 ///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
-///     and "layout", following the same convention as BLAS.
+///     and "layout", following the same convention as the Level 3 BLAS function "GEMM."
 /// @endverbatim
 /// @param[in] layout
 ///     Layout::ColMajor or Layout::RowMajor
@@ -488,6 +488,13 @@ void sketch_general(
     T *B,
     int64_t ldb
 ) {
+    if (opS == blas::Op::NoTrans) {
+        randblas_require(S.dist.n_rows == d);
+        randblas_require(S.dist.n_cols == m);
+    } else {
+        randblas_require(S.dist.n_rows == m);
+        randblas_require(S.dist.n_cols == d);
+    }
     return sketch_general(layout, opS, opA, d, n, m, alpha, S, 0, 0, A, lda, beta, B, ldb);
 };
 
@@ -507,7 +514,7 @@ void sketch_general(
 /// What are :math:`\mat(A)` and :math:`\mat(B)`?
 ///     Their shapes are defined implicitly by :math:`(m, d, n, \opA)`.
 ///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
-///     and "layout", following the same convention as BLAS.
+///     and "layout", following the same convention as the Level 3 BLAS function "GEMM."
 /// @endverbatim
 /// @param[in] layout
 ///     Layout::ColMajor or Layout::RowMajor
@@ -595,6 +602,13 @@ void sketch_general(
     T *B,
     int64_t ldb
 ) {
+    if (opS == blas::Op::NoTrans) {
+        randblas_require(S.dist.n_rows == n);
+        randblas_require(S.dist.n_cols == d);
+    } else {
+        randblas_require(S.dist.n_rows == d);
+        randblas_require(S.dist.n_cols == n);
+    }
     return sketch_general(layout, opA, opS, m, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);
 };
 
@@ -602,17 +616,23 @@ void sketch_general(
 /// \fn sketch_vector(blas::Op opS, int64_t d, int64_t m, T alpha, SKOP &S,
 ///    int64_t i_off, int64_t j_off, const T *x, incx, T beta, T *y, incy
 /// )
-/// Perform a GEMV-like operation
+/// Perform a GEMV-like operation. If :math:`{\opS} = \texttt{NoTrans}`, then we perform
 /// @verbatim embed:rst:leading-slashes
 /// .. math::
-///     \mat(y) = \alpha \cdot \underbrace{\op(\submat(S))}_{d \times m} \cdot \underbrace{\mat(x)}_{m \times 1} + \beta \cdot \underbrace{\mat(y)}_{d \times 1},    \tag{$\star$}
+///     \mat(y) = \alpha \cdot \underbrace{\submat(S)}_{d \times m} \cdot \underbrace{\mat(x)}_{m \times 1} + \beta \cdot \underbrace{\mat(y)}_{d \times 1},    \tag{$\star$}
+/// @endverbatim
+/// otherwise, we perform
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     \mat(y) = \alpha \cdot \underbrace{\submat(S)^T}_{m \times d} \cdot \underbrace{\mat(x)}_{d \times 1} + \beta \cdot \underbrace{\mat(y)}_{m \times 1},    \tag{$\diamond$}
 /// @endverbatim
 /// where \math{\alpha} and \math{\beta} are real scalars and \math{S} is a sketching operator.
 /// 
 /// @verbatim embed:rst:leading-slashes
 /// What are :math:`\mat(x)` and :math:`\mat(y)`?
-///     Their shapes are defined as tall vectors of dimension :math:`(\mat(x), m \times 1)`, :math:`(\mat(y), d \times 1)`.
-///     Their precise contents are determined by :math:`(x, incx)`, :math:`(y, incy)`, in a way that is identical to BLAS.
+///     Their shapes are defined as tall vectors of dimension :math:`(\mat(x), L_x \times 1)`, :math:`(\mat(y), L_y \times 1)`,
+///     where :math:`(L_x, L_y)` are lengths so that :math:`\opS(\submat(S)) \mat(x)` is well-defined and the same shape as :math:`\mat(y)`. 
+///     Their precise contents are determined in a way that is identical to the Level 2 BLAS function "GEMV."
 ///
 /// Why no "layout" argument?
 ///     The GEMV in CBLAS accepts a parameter that specifies row-major or column-major layout of the matrix.
@@ -620,16 +640,16 @@ void sketch_general(
 /// @endverbatim
 ///
 /// @param[in] opS
-///      - If \math{\opS} = NoTrans, then \math{ \op(S) = S}.
-///      - If \math{\opS} = Trans, then \math{\op(S) = S^T }.
+///      - If \math{\opS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
+///      - If \math{\opS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
 ///
 /// @param[in] d
 ///     A nonnegative integer.
-///     - The number of elements of \math{\mat(x)}.
+///     - The number of rows in \math{\submat(S)}.
 ///
 /// @param[in] m
 ///     A nonnegative integer.
-///     - The number of elements of \math{\mat(y)}
+///     - The number of columns in \math{\submat(S)}.
 ///
 /// @param[in] alpha
 ///     A real scalar.
@@ -641,13 +661,11 @@ void sketch_general(
 ///
 /// @param[in] i_off
 ///     A nonnegative integer.
-///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_off}, :]}.
+///     - \math{\submat(S)} is a contiguous submatrix of \math{S[\texttt{i_off}:(\texttt{i_off} + d), :]}.
 ///
 /// @param[in] j_off
 ///     A nonnnegative integer.
-///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_off}]}. 
+///     - \math{\submat(S)} is a contiguous submatrix of \math{S[:,\texttt{j_off}:(\texttt{j_off} + m)]}. 
 ///
 /// @param[in] x
 ///     Pointer to a 1D array of real scalars.
@@ -664,23 +682,25 @@ void sketch_general(
 ///
 /// @param[in, out] y
 ///    Pointer to 1D array of real scalars.
-///    - On entry, defines \math{\mat(y)}
-///      on the RIGHT-hand side of \math{(\star)}.
-///    - On exit, defines \math{\mat(y)}
-///      on the LEFT-hand side of \math{(\star)}.
+///    - On entry, defines \math{\mat(y)} on the RIGHT-hand side of
+///      \math{(\star)} (if \math{\opS = \texttt{NoTrans}}) or
+///      \math{(\diamond)} (if \math{\opS = \texttt{Trans}})
+///    - On exit, defines \math{\mat(y)} on the LEFT-hand side of
+///      \math{(\star)} (if \math{\opS = \texttt{NoTrans}}) or
+///      \math{(\diamond)} (if \math{\opS = \texttt{Trans}})
 ///
 /// @param[in] incy
-///     A nonnegative integer.
+///     A positive integer.
 ///     * Stride between elements of y. incy must not be zero.
 ///     * RandBLAS currently does not support negative values for LDA, so incy cannot be negative unlike GEMV in the BLAS.
 ///
 template <typename T, typename SKOP>
 void sketch_vector(
     blas::Op opS,
-    int64_t d, // length of y
-    int64_t m, // length of x
+    int64_t d, // rows in \submat(S)
+    int64_t m, // cols in \submat(S)
     T alpha,
-    SKOP &S,   // op(submat(S)) has dim d by m
+    SKOP &S,
     int64_t i_off,
     int64_t j_off,
     const T *x,
@@ -689,23 +709,38 @@ void sketch_vector(
     T *y,
     int64_t incy
 ) {
-    return sketch_general(blas::Layout::RowMajor, opS, blas::Op::NoTrans, d, 1, m, alpha, S, i_off, j_off, x, incx, beta, y, incy);
+    int64_t _d, _m;
+    if (opS == blas::Op::Trans) {
+        _d = m;
+        _m = d;
+    } else {
+        _d = d;
+        _m = m;
+    }
+    return sketch_general(blas::Layout::RowMajor, opS, blas::Op::NoTrans, _d, 1, _m, alpha, S, i_off, j_off, x, incx, beta, y, incy);
 }
 
 // =============================================================================
-/// \fn sketch_vector(blas::Op opS, int64_t d, int64_t m, T alpha, SKOP &S, const T *x, incx, T beta, T *y, incy
+/// \fn sketch_vector(blas::Op opS, int64_t d, int64_t m, T alpha, SKOP &S,
+///    int64_t i_off, int64_t j_off, const T *x, incx, T beta, T *y, incy
 /// )
-/// Perform a GEMV-like operation
+/// Perform a GEMV-like operation. If :math:`{\opS} = \texttt{NoTrans}`, then we perform
 /// @verbatim embed:rst:leading-slashes
 /// .. math::
-///     \mat(y) = \alpha \cdot \underbrace{\op(S)}_{d \times m} \cdot \underbrace{\mat(x)}_{m \times 1} + \beta \cdot \underbrace{\mat(y)}_{d \times 1},    \tag{$\star$}
+///     \mat(y) = \alpha \cdot \underbrace{S}_{d \times m} \cdot \underbrace{\mat(x)}_{m \times 1} + \beta \cdot \underbrace{\mat(y)}_{d \times 1},    \tag{$\star$}
+/// @endverbatim
+/// otherwise, we perform
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     \mat(y) = \alpha \cdot \underbrace{S^T}_{m \times d} \cdot \underbrace{\mat(x)}_{d \times 1} + \beta \cdot \underbrace{\mat(y)}_{m \times 1},    \tag{$\diamond$}
 /// @endverbatim
 /// where \math{\alpha} and \math{\beta} are real scalars and \math{S} is a sketching operator.
 /// 
 /// @verbatim embed:rst:leading-slashes
 /// What are :math:`\mat(x)` and :math:`\mat(y)`?
-///     Their shapes are defined as tall vectors of dimension :math:`(\mat(x), m \times 1)`, :math:`(\mat(y), d \times 1)`.
-///     Their precise contents are determined by :math:`(x, incx)`, :math:`(y, incy)`, in a way that is identical to BLAS.
+///     Their shapes are defined as tall vectors of dimension :math:`(\mat(x), L_x \times 1)`, :math:`(\mat(y), L_y \times 1)`,
+///     where :math:`(L_x, L_y)` are lengths so that :math:`\opS(S) \mat(x)` is well-defined and the same shape as :math:`\mat(y)`. 
+///     Their precise contents are determined in a way that is identical to the Level 2 BLAS function "GEMV."
 ///
 /// Why no "layout" argument?
 ///     The GEMV in CBLAS accepts a parameter that specifies row-major or column-major layout of the matrix.
@@ -715,14 +750,6 @@ void sketch_vector(
 /// @param[in] opS
 ///      - If \math{\opS} = NoTrans, then \math{ \op(S) = S}.
 ///      - If \math{\opS} = Trans, then \math{\op(S) = S^T }.
-///
-/// @param[in] d
-///     A nonnegative integer.
-///     - The number of elements of \math{\mat(x)}.
-///
-/// @param[in] m
-///     A nonnegative integer.
-///     - The number of elements of \math{\mat(y)}
 ///
 /// @param[in] alpha
 ///     A real scalar.
@@ -747,29 +774,31 @@ void sketch_vector(
 ///
 /// @param[in, out] y
 ///    Pointer to 1D array of real scalars.
-///    - On entry, defines \math{\mat(y)}
-///      on the RIGHT-hand side of \math{(\star)}.
-///    - On exit, defines \math{\mat(y)}
-///      on the LEFT-hand side of \math{(\star)}.
+///    - On entry, defines \math{\mat(y)} on the RIGHT-hand side of
+///      \math{(\star)} (if \math{\opS = \texttt{NoTrans}}) or
+///      \math{(\diamond)} (if \math{\opS = \texttt{Trans}})
+///    - On exit, defines \math{\mat(y)} on the LEFT-hand side of
+///      \math{(\star)} (if \math{\opS = \texttt{NoTrans}}) or
+///      \math{(\diamond)} (if \math{\opS = \texttt{Trans}})
 ///
 /// @param[in] incy
-///     A nonnegative integer.
+///     A positive integer.
 ///     * Stride between elements of y. incy must not be zero.
 ///     * RandBLAS currently does not support negative values for LDA, so incy cannot be negative unlike GEMV in the BLAS.
 ///
 template <typename T, typename SKOP>
 void sketch_vector(
     blas::Op opS,
-    int64_t d, // length of y
-    int64_t m, // length of x
     T alpha,
-    SKOP &S,   // op(submat(S)) has dim d by m
+    SKOP &S,
     const T *x,
     int64_t incx,
     T beta,
     T *y,
     int64_t incy
 ) {
+    int64_t d = S.dist.n_rows;
+    int64_t m = S.dist.n_cols;
     return sketch_vector(opS, d, m, alpha, S, 0, 0, x, incx, beta, y, incy);
 }
 
