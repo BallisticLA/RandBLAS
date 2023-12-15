@@ -104,18 +104,51 @@ void to_explicit_buffer(DenseSkOp<T> &a, T *mat_a, blas::Layout layout) {
 
 
 template <typename T>
-void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, SparseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
-    return RandBLAS::sparse::lskges(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
+void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, SparseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
+    #if defined (RandBLAS_HAS_OpenMP)
+        int orig_threads = omp_get_num_threads();
+        if (threads > 0)
+            omp_set_num_threads(threads);
+    #else
+        UNUSED(threads);
+    #endif
+    RandBLAS::sparse::lskges(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
+    #if defined (RandBLAS_HAS_OpenMP)
+        omp_set_num_threads(orig_threads);
+    #endif
+    return;
 }
 
 template <typename T>
-void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, DenseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
-    return RandBLAS::dense::lskge3(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
+void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, DenseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
+    #if defined (RandBLAS_HAS_OpenMP)
+        int orig_threads = omp_get_num_threads();
+        if (threads > 0)
+            omp_set_num_threads(threads);
+    #else
+        UNUSED(threads);
+    #endif
+    RandBLAS::dense::lskge3(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
+    #if defined (RandBLAS_HAS_OpenMP)
+        omp_set_num_threads(orig_threads);
+    #endif
+    return;
 }
 
 template <typename T>
-void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, COOMatrix<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb) {
-    return RandBLAS::sparse_data::coo::lspgemm(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
+void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, COOMatrix<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
+    #if defined (RandBLAS_HAS_OpenMP)
+        int orig_threads = omp_get_num_threads();
+        if (threads > 0)
+            omp_set_num_threads(threads);
+    #else
+        UNUSED(threads);
+    #endif
+    RandBLAS::sparse_data::coo::lspgemm(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
+    #if defined (RandBLAS_HAS_OpenMP)
+        omp_set_num_threads(orig_threads);
+    #endif
+    return;
 }
 
 template <typename T, typename LinOp>
@@ -228,36 +261,21 @@ void test_left_apply_to_random(
     blas::Layout layout,
     int threads = 0
 ) {
-    #if !defined (RandBLAS_HAS_OpenMP)
-            UNUSED(threads);
-    #endif
     auto [d, m] = dimensions(S);
     auto A  = std::get<0>(random_matrix<T>(m, n, RandBLAS::RNGState(99)));
     auto B0 = std::get<0>(random_matrix<T>(d, n, RandBLAS::RNGState(42)));
     std::vector<T> B1(B0);
-    int64_t lda, ldb;
-    if (layout == blas::Layout::RowMajor) {
-        lda = n; 
-        ldb = n;
-    } else {
-        lda = m;
-        ldb = d;
-    }
+    bool is_colmajor = layout == blas::Layout::ColMajor;
+    int64_t lda = (is_colmajor) ? m : n;
+    int64_t ldb = (is_colmajor) ? d : n;
+
     // compute S*A. 
-    #if defined (RandBLAS_HAS_OpenMP)
-        int orig_threads = omp_get_num_threads();
-        if (threads > 0)
-            omp_set_num_threads(threads);
-    #endif
     left_apply<T>(
         layout, blas::Op::NoTrans, blas::Op::NoTrans,
         d, n, m,
         alpha, S, 0, 0, A.data(), lda,
-        beta, B0.data(), ldb 
+        beta, B0.data(), ldb, threads 
     );
-    #if defined (RandBLAS_HAS_OpenMP)
-        omp_set_num_threads(orig_threads);
-    #endif
 
     // compute expected result (B1) and allowable error (E)
     std::vector<T> E(d * n, 0.0);
@@ -292,33 +310,22 @@ static void test_left_apply_submatrix_to_eye(
     assert(d0 >= d1);
     assert(m0 >= m1);
     bool is_colmajor = layout == blas::Layout::ColMajor;
-    int64_t pos = (is_colmajor) ? (S_ro + d0 * S_co) : (S_ro * m0 + S_co);
-    assert(d0 * m0 >= pos + d1 * m1);
     int64_t lda = m1;
     int64_t ldb = (is_colmajor) ? d1 : m1;
 
     // define a matrix to be sketched, and create workspace for sketch.
     auto A = eye<T>(m1);
-    auto [B, _, __] = random_matrix<T>(d1, m1, RandBLAS::RNGState(42));
+    auto B = std::get<0>(random_matrix<T>(d1, m1, RandBLAS::RNGState(42)));
     std::vector<T> B_backup(B);
 
-    
     // Perform the sketch
-    #if defined (RandBLAS_HAS_OpenMP)
-        int orig_threads = omp_get_num_threads();
-        if (threads > 0)
-            omp_set_num_threads(1);
-    #endif
     left_apply(
         layout, blas::Op::NoTrans, blas::Op::NoTrans,
         d1, m1, m1,
         alpha, S0, S_ro, S_co,
         A.data(), lda,
-        beta, B.data(), ldb   
+        beta, B.data(), ldb, threads   
     );
-    #if defined (RandBLAS_HAS_OpenMP)
-        omp_set_num_threads(orig_threads);
-    #endif
 
     // Check the result
     T *expect = new T[d0 * m0];
@@ -326,8 +333,9 @@ static void test_left_apply_submatrix_to_eye(
     int64_t ld_expect = (is_colmajor) ? d0 : m0; 
     auto [inter_col_stride_s, inter_row_stride_s] = RandBLAS::layout_to_strides(layout, ld_expect);
     auto [inter_col_stride_b, inter_row_stride_b] = RandBLAS::layout_to_strides(layout, ldb);
-    #define MAT_E(_i, _j) expect[pos + (_i)*inter_row_stride_s + (_j)*inter_col_stride_s]
-    #define MAT_B(_i, _j) B_backup[    (_i)*inter_row_stride_b + (_j)*inter_col_stride_b]
+    int64_t offset = inter_row_stride_s * S_ro + inter_col_stride_s * S_co;
+    #define MAT_E(_i, _j) expect[offset + (_i)*inter_row_stride_s + (_j)*inter_col_stride_s]
+    #define MAT_B(_i, _j) B_backup[       (_i)*inter_row_stride_b + (_j)*inter_col_stride_b]
     for (int i = 0; i < d1; ++i) {
         for (int j = 0; j < m1; ++j) {
             MAT_E(i,j) = alpha * MAT_E(i,j) + beta * MAT_B(i, j);
@@ -338,13 +346,133 @@ static void test_left_apply_submatrix_to_eye(
         layout, blas::Op::NoTrans,
         d1, m1,
         B.data(), ldb,
-        &expect[pos], ld_expect,
+        &expect[offset], ld_expect,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
 
     delete [] expect;
 }
 
+template <typename T, typename LinOp>
+static void test_left_apply_transpose_to_eye(
+    LinOp &S,
+    blas::Layout layout,
+    int threads = 0
+) {
+    auto [m, d] = dimensions(S);
+    auto A = eye<T>(m);
+    std::vector<T> B(d * m, 0.0);
+    bool is_colmajor = (blas::Layout::ColMajor == layout);
+    int64_t ldb = (is_colmajor) ? d : m;
+    int64_t lds = (is_colmajor) ? m : d;
+
+    left_apply<T>(
+        layout,
+        blas::Op::Trans,
+        blas::Op::NoTrans,
+        d, m, m,
+        1.0, S, 0, 0, A.data(), m,
+        0.0, B.data(), ldb, threads   
+    );
+
+    std::vector<T> S_dense(m * d, 0.0);
+    to_explicit_buffer(S, S_dense.data(), layout);
+    RandBLAS_Testing::Util::matrices_approx_equal(
+        layout, blas::Op::Trans, d, m,
+        B.data(), ldb, S_dense.data(), lds,
+        __PRETTY_FUNCTION__, __FILE__, __LINE__
+    );
+}
+
+template <typename T, typename LinOp>
+static void test_left_apply_to_submatrix(
+    LinOp &S,
+    int64_t n,
+    int64_t m0,
+    int64_t n0,
+    int64_t A_ro,
+    int64_t A_co,
+    blas::Layout layout,
+    int threads = 0
+) {
+    auto [d, m] = dimensions(S);
+    randblas_require(m0 > m);
+    randblas_require(n0 > n);
+
+    auto A = std::get<0>(random_matrix<T>(m0, n0, RNGState(13)));
+    std::vector<T> B0(d * n, 0.0);
+    bool is_colmajor = (layout == blas::Layout::ColMajor);
+    int64_t lda = (is_colmajor) ? m0 : n0;
+    int64_t ldb = (is_colmajor) ? d : n;
+
+    int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
+    T *A_ptr = &A.data()[a_offset]; 
+    left_apply<T>(
+        layout,
+        blas::Op::NoTrans,
+        blas::Op::NoTrans,
+        d, n, m,
+        1.0, S, 0, 0,
+        A_ptr, lda,
+        0.0, B0.data(), ldb, threads   
+    );
+
+    std::vector<T> B1(d * n, 0.0);
+    std::vector<T> E(d * n, 0.0);
+    reference_left_apply<T>(
+        layout,
+        blas::Op::NoTrans,
+        blas::Op::NoTrans,
+        d, n, m,
+        1.0, S, 0, 0,
+        A_ptr, lda,
+        0.0, B1.data(), E.data(), ldb
+    );
+    RandBLAS_Testing::Util::buffs_approx_equal(
+        B0.data(), B1.data(), E.data(), d * n,
+        __PRETTY_FUNCTION__, __FILE__, __LINE__
+    );
+}
+
+template <typename T, typename LinOp>
+static void test_left_apply_to_transposed(
+    LinOp &S,
+    int64_t n,
+    blas::Layout layout,
+    int threads = 0
+) {
+    auto [d, m] = dimensions(S);
+    auto At = std::get<0>(random_matrix<T>(n, m, RNGState(101)));
+    std::vector<T> B0(d * n, 0.0);
+    bool is_colmajor = layout == blas::Layout::ColMajor;
+    int64_t lda = (is_colmajor) ? n : m;
+    int64_t ldb = (is_colmajor) ? d : n;
+
+    left_apply<T>(
+        layout,
+        blas::Op::NoTrans,
+        blas::Op::Trans,
+        d, n, m,
+        1.0, S, 0, 0,
+        At.data(), lda,
+        0.0, B0.data(), ldb, threads   
+    );
+
+    std::vector<T> B1(d * n, 0.0);
+    std::vector<T> E(d * n, 0.0);
+    reference_left_apply<T>(
+        layout, blas::Op::NoTrans, blas::Op::Trans,
+        d, n, m,
+        1.0, S, 0, 0,
+        At.data(), lda,
+        0.0, B1.data(), E.data(), ldb
+    );
+    RandBLAS_Testing::Util::buffs_approx_equal(
+        B0.data(), B1.data(), E.data(), d * n,
+        __PRETTY_FUNCTION__, __FILE__, __LINE__
+    );
+
+}
 
 
 ////////////////////////////////////////////////////////////////////////

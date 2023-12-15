@@ -91,35 +91,7 @@ class TestLSKGES : public ::testing::Test
         SparseSkOp<T> S0(Dt, key);
         RandBLAS::fill_sparse(S0);
 
-        // define a matrix to be sketched, and create workspace for sketch.
-        std::vector<T> A(m * m, 0.0);
-        for (int i = 0; i < m; ++i)
-            A[i + m*i] = 1.0;
-        std::vector<T> B(d * m, 0.0);
-        bool is_colmajor = (blas::Layout::ColMajor == layout);
-        int64_t ldb = (is_colmajor) ? d : m;
-        int64_t lds = (is_colmajor) ? m : d;
-
-        // perform the sketch
-        //  S0 is tall.
-        //  We apply S0.T, which is wide.
-        RandBLAS::sketch_general<T>(
-            layout,
-            blas::Op::Trans,
-            blas::Op::NoTrans,
-            d, m, m,
-            1.0, S0, 0, 0, A.data(), m,
-            0.0, B.data(), ldb   
-        );
-
-        // check that B == S.T
-        std::vector<T> S0_dense(m * d);
-        RandBLAS_Testing::Util::sparseskop_to_dense<T>(S0, S0_dense.data(), layout);
-        RandBLAS_Testing::Util::matrices_approx_equal(
-            layout, blas::Op::Trans, d, m,
-            B.data(), ldb, S0_dense.data(), lds,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
-        );
+        test::common::test_left_apply_transpose_to_eye<T>(S0, layout);
     }
 
     template <typename T>
@@ -135,10 +107,6 @@ class TestLSKGES : public ::testing::Test
         int64_t A_co, // column offset for A in A0
         blas::Layout layout
     ) {
-        assert(m0 > m);
-        assert(n0 > n);
-        bool is_colmajor = (layout == blas::Layout::ColMajor);
-
         // Define the distribution for S0.
         bool is_saso = (major_axis == MajorAxis::Short);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
@@ -151,44 +119,7 @@ class TestLSKGES : public ::testing::Test
         SparseSkOp<T> S0(D, seed_S0);
         RandBLAS::fill_sparse(S0);
 
-        // define a matrix to be sketched, and create workspace for sketch.
-        std::vector<T> A0(m0 * n0, 0.0);
-        uint32_t seed_A0 = 42000;
-        DenseDist DA0(m0, n0, DenseDistName::Uniform);
-        RandBLAS::fill_dense(DA0, A0.data(), RNGState(seed_A0));
-        std::vector<T> B0(d * n, 0.0);
-        int64_t lda = (is_colmajor) ? DA0.n_rows : DA0.n_cols;
-        int64_t ldb = (is_colmajor) ? d : n;
-        
-        // Perform the sketch
-        int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
-        T *A_ptr = &A0.data()[a_offset]; 
-        RandBLAS::sketch_general<T>(
-            layout,
-            blas::Op::NoTrans,
-            blas::Op::NoTrans,
-            d, n, m,
-            1.0, S0, 0, 0,
-            A_ptr, lda,
-            0.0, B0.data(), ldb   
-        );
-
-        // Check the result
-        std::vector<T> B1(d * n, 0.0);
-        std::vector<T> E(d * n, 0.0);
-        test::common::reference_left_apply<T>(
-            layout,
-            blas::Op::NoTrans,
-            blas::Op::NoTrans,
-            d, n, m,
-            1.0, S0, 0, 0,
-            A_ptr, lda,
-            0.0, B1.data(), E.data(), ldb
-        );
-        RandBLAS_Testing::Util::buffs_approx_equal(
-            B0.data(), B1.data(), E.data(), d * n,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
-        );
+        test::common::test_left_apply_to_submatrix<T>(S0, n, m0, n0, A_ro, A_co, layout);
     }
 
     template <typename T>
@@ -200,8 +131,6 @@ class TestLSKGES : public ::testing::Test
         int64_t n, // cols in A
         blas::Layout layout
     ) {
-        bool is_colmajor = (layout == blas::Layout::ColMajor);
-
         // Define the distribution for S0.
         bool is_saso = (major_axis == MajorAxis::Short);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
@@ -214,40 +143,7 @@ class TestLSKGES : public ::testing::Test
         SparseSkOp<T> S0(D, seed_S0);
         RandBLAS::fill_sparse(S0);
 
-        // define a matrix to be sketched, and create workspace for sketch.
-        std::vector<T> At(m * n, 0.0);
-        uint32_t seed_A = 42000;
-        DenseDist DAt(n, m, DenseDistName::Uniform);
-        RandBLAS::fill_dense(DAt, At.data(), RNGState(seed_A));
-        std::vector<T> B0(d * n, 0.0);
-        int64_t lda = (is_colmajor) ? DAt.n_rows : DAt.n_cols;
-        int64_t ldb = (is_colmajor) ? d : n;
-        
-        // Perform the sketch
-        RandBLAS::sketch_general<T>(
-            layout,
-            blas::Op::NoTrans,
-            blas::Op::Trans,
-            d, n, m,
-            1.0, S0, 0, 0,
-            At.data(), lda,
-            0.0, B0.data(), ldb   
-        );
-
-        // Check the result
-        std::vector<T> B1(d * n, 0.0);
-        std::vector<T> E(d * n, 0.0);
-        test::common::reference_left_apply<T>(
-            layout, blas::Op::NoTrans, blas::Op::Trans,
-            d, n, m,
-            1.0, S0, 0, 0,
-            At.data(), lda,
-            0.0, B1.data(), E.data(), ldb
-        );
-        RandBLAS_Testing::Util::buffs_approx_equal(
-            B0.data(), B1.data(), E.data(), d * n,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
-        );
+        test::common::test_left_apply_to_transposed<T>(S0, n, layout);
     }
 };
 
