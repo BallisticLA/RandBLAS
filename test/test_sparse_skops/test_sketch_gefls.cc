@@ -34,7 +34,7 @@ class TestLSKGES : public ::testing::Test
     ) {
         SparseSkOp<T> S0({d, m, vec_nnzs[nnz_index], major_axis}, keys[key_index]);
         test::common::test_left_apply_to_random<T>(
-            S0, n, layout, threads
+            1.0, S0, n, 0.0, layout, threads
         );
     }
 
@@ -51,8 +51,8 @@ class TestLSKGES : public ::testing::Test
     ) {
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
         SparseSkOp<T> S0({d0, m0, vec_nnz, MajorAxis::Short}, seed);
-        test::common::test_left_apply_to_eye<T>(
-            S0, d1, m1, S_ro, S_co, layout, 1
+        test::common::test_left_apply_submatrix_to_eye<T>(
+            1.0, S0, d1, m1, S_ro, S_co, layout, 0.0
         );
     }
 
@@ -68,7 +68,7 @@ class TestLSKGES : public ::testing::Test
         int64_t vec_nnz = d / 2;
         SparseDist DS = {d, m, vec_nnz, MajorAxis::Short};
         SparseSkOp<T> S(DS, key);
-        test::common::test_left_apply_alpha_beta(S, alpha, beta, layout);
+        test::common::test_left_apply_submatrix_to_eye(alpha, S, d, m, 0, 0, layout, beta);
     }
 
     template <typename T>

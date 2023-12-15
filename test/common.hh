@@ -199,8 +199,10 @@ void reference_left_apply(
 
 template <typename T, typename LinOp>
 void test_left_apply_to_random(
+    T alpha,
     LinOp &S,
     int64_t n,
+    T beta,
     blas::Layout layout,
     int threads = 0
 ) {
@@ -228,8 +230,8 @@ void test_left_apply_to_random(
     left_apply<T>(
         layout, blas::Op::NoTrans, blas::Op::NoTrans,
         d, n, m,
-        1.0, S, 0, 0, A, lda,
-        0.0, B0, ldb 
+        alpha, S, 0, 0, A, lda,
+        beta, B0, ldb 
     );
     #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
@@ -241,8 +243,8 @@ void test_left_apply_to_random(
     reference_left_apply<T>(
         layout, blas::Op::NoTrans, blas::Op::NoTrans,
         d, n, m,
-        1.0, S, 0, 0, A, lda,
-        0.0, B1, E, ldb
+        alpha, S, 0, 0, A, lda,
+        beta, B1, E, ldb
     );
 
     // check the result
@@ -258,13 +260,15 @@ void test_left_apply_to_random(
 }
 
 template <typename T, typename LinOp>
-static void test_left_apply_to_eye(
+static void test_left_apply_submatrix_to_eye(
+    T alpha,
     LinOp &S0,
     int64_t d1, // rows in sketch
     int64_t m1, // size of identity matrix
     int64_t S_ro, // row offset for S in S0
     int64_t S_co, // column offset for S in S0
     blas::Layout layout,
+    T beta = 0.0,
     int threads = 0
 ) {
     auto [d0, m0] = dimensions(S0);
@@ -273,25 +277,19 @@ static void test_left_apply_to_eye(
     bool is_colmajor = layout == blas::Layout::ColMajor;
     int64_t pos = (is_colmajor) ? (S_ro + d0 * S_co) : (S_ro * m0 + S_co);
     assert(d0 * m0 >= pos + d1 * m1);
-
-    T *S0_dense = new T[d0 * m0];
-    to_explicit_buffer(S0, S0_dense, layout);
-    int64_t lda, ldb, lds0;
-    if (is_colmajor) {
-        lda = m1;
-        ldb = d1;
-        lds0 = d0;
-    } else {
-        lda = m1; 
-        ldb = m1;
-        lds0 = m0;
-    }
+    int64_t lda = m1;
+    int64_t ldb = (is_colmajor) ? d1 : m1;
 
     // define a matrix to be sketched, and create workspace for sketch.
     std::vector<T> A(m1 * m1, 0.0);
     for (int i = 0; i < m1; ++i)
         A[i + m1*i] = 1.0;
-    std::vector<T> B(d1 * m1, 0.0);
+    RandBLAS::DenseDist DB(d1, m1);
+    std::vector<T> B(d1 * m1);
+    RandBLAS::fill_dense(DB, B.data(), RandBLAS::RNGState(42));
+    std::vector<T> B_backup(d1 * m1);
+    blas::copy(d1 * m1, B.data(), 1, B_backup.data(), 1);
+
     
     // Perform the sketch
     #if defined (RandBLAS_HAS_OpenMP)
@@ -302,70 +300,38 @@ static void test_left_apply_to_eye(
     left_apply(
         layout, blas::Op::NoTrans, blas::Op::NoTrans,
         d1, m1, m1,
-        1.0, S0, S_ro, S_co,
+        alpha, S0, S_ro, S_co,
         A.data(), lda,
-        0.0, B.data(), ldb   
+        beta, B.data(), ldb   
     );
     #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
     #endif
 
     // Check the result
+    auto [inter_col_stride_b, inter_row_stride_b] = RandBLAS::layout_to_strides(layout, ldb);
+    #define MAT_B(_i, _j) B_backup[(_i)*inter_row_stride_b + (_j)*inter_col_stride_b]
+
+    T *expect = new T[d0 * m0];
+    to_explicit_buffer(S0, expect, layout);
+    int64_t ld_expect = (is_colmajor) ? d0 : m0; 
+    auto [inter_col_stride_s, inter_row_stride_s] = RandBLAS::layout_to_strides(layout, ld_expect);
+    #define MAT_E(_i, _j) expect[pos + (_i)*inter_row_stride_s + (_j)*inter_col_stride_s]
+    for (int i = 0; i < d1; ++i) {
+        for (int j = 0; j < m1; ++j) {
+            MAT_E(i,j) = alpha * MAT_E(i,j) + beta * MAT_B(i, j);
+        }
+    }
+
     RandBLAS_Testing::Util::matrices_approx_equal(
         layout, blas::Op::NoTrans,
         d1, m1,
         B.data(), ldb,
-        &S0_dense[pos], lds0,
+        &expect[pos], ld_expect,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
 
-    delete [] S0_dense;
-}
-
-template <typename T, typename LinOp>
-void test_left_apply_alpha_beta(
-    LinOp &S,
-    T alpha, 
-    T beta,
-    blas::Layout layout
-) {
-    auto [d, m] = dimensions(S);
-    bool is_colmajor = (layout == blas::Layout::ColMajor);
-    std::vector<T> A(m * m, 0.0);
-    for (int i = 0; i < m; ++i)
-        A[i + m*i] = 1.0;
-
-    // create initialized workspace for the sketch
-    std::vector<T> B0(d * m);
-    RandBLAS::dense::DenseDist DB(d, m);
-    RandBLAS::dense::fill_dense(DB, B0.data(), RandBLAS::RNGState(42));
-    int64_t ldb = (is_colmajor) ? d : m;
-    std::vector<T> B1(d * m);
-    blas::copy(d * m, B0.data(), 1, B1.data(), 1);
-
-    // perform the sketch
-    left_apply<T>(
-        layout, blas::Op::NoTrans, blas::Op::NoTrans,
-        d, m, m,
-        alpha, S, 0, 0,
-        A.data(), m,
-        beta, B0.data(), ldb
-    );
-
-    // compute the reference result (B1) and error bound (E).
-    std::vector<T> E(d * m, 0.0);
-    reference_left_apply<T>(
-        layout, blas::Op::NoTrans, blas::Op::NoTrans,
-        d, m, m,
-        alpha, S, 0, 0,
-        A.data(), m,
-        beta, B1.data(), E.data(), ldb
-    );
-
-    RandBLAS_Testing::Util::buffs_approx_equal(
-        B0.data(), B1.data(), E.data(), d * m,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__
-    );
+    delete [] expect;
 }
 
 
