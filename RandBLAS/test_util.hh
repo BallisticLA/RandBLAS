@@ -164,6 +164,30 @@ void buffs_approx_equal(
 
 template <typename T>
 void buffs_approx_equal(
+    int64_t size,
+    const T *actual_ptr,
+    int64_t inc_actual,
+    const T *expect_ptr,
+    int64_t inc_expect,
+    const char *testName,
+    const char *fileName,
+    int lineNo,
+    T atol = T(10)*std::numeric_limits<T>::epsilon(),
+    T rtol = std::numeric_limits<T>::epsilon()
+) {
+    std::ostringstream oss;
+    for (int64_t i = 0; i < size; ++i) {
+        if (!approx_equal(actual_ptr[i*inc_actual], expect_ptr[i*inc_expect], oss, atol, rtol)) {
+            FAIL() << std::endl << fileName << ":" << lineNo << std::endl
+                << testName << std::endl << "Test failed at index " << i
+                << " " << oss.str() << std::endl;
+            oss.str("");
+        }
+    }
+}
+
+template <typename T>
+void buffs_approx_equal(
     const T *actual_ptr,
     const T *expect_ptr,
     const T *bounds_ptr,
