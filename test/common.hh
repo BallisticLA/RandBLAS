@@ -75,19 +75,20 @@ void to_explicit_buffer(SparseSkOp<T> &a, T *mat_a, blas::Layout layout) {
 }
 
 template <typename T>
-void to_explicit_buffer(DenseSkOp<T> &a, T *mat_a, blas::Layout layout) {
+void to_explicit_buffer(DenseSkOp<T> &s, T *mat_s, blas::Layout layout) {
+    DenseSkOp<T> a(s.dist, s.seed_state);
     auto n_rows = a.dist.n_rows;
     auto n_cols = a.dist.n_cols;
     int64_t stride_row = (layout == blas::Layout::ColMajor) ? 1 : n_cols;
     int64_t stride_col = (layout == blas::Layout::ColMajor) ? n_rows : 1;
-    #define MAT_A(_i, _j) mat_a[(_i) * stride_row * (_j) * stride_col ]
+    #define MAT_S(_i, _j) mat_s[(_i) * stride_row + (_j) * stride_col ]
     RandBLAS::dense::fill_dense(a);
     int64_t buff_stride_row = (a.layout == blas::Layout::ColMajor) ? 1 : n_cols;
     int64_t buff_stride_col = (a.layout == blas::Layout::ColMajor) ? n_rows : 1;
     #define BUFF(_i, _j) a.buff[(_i) * buff_stride_row + (_j) * buff_stride_col]
     for (int64_t i = 0; i < n_rows; ++i) {
         for (int64_t j = 0; j < n_cols; ++j) {
-            MAT_A(i, j) = BUFF(i, j);
+            MAT_S(i, j) = BUFF(i, j);
         }
     }
     return;
@@ -331,11 +332,11 @@ static void test_left_apply_submatrix_to_eye(
     T *expect = new T[d0 * m0];
     to_explicit_buffer(S0, expect, layout);
     int64_t ld_expect = (is_colmajor) ? d0 : m0; 
-    auto [inter_col_stride_s, inter_row_stride_s] = RandBLAS::layout_to_strides(layout, ld_expect);
-    auto [inter_col_stride_b, inter_row_stride_b] = RandBLAS::layout_to_strides(layout, ldb);
-    int64_t offset = inter_row_stride_s * S_ro + inter_col_stride_s * S_co;
-    #define MAT_E(_i, _j) expect[offset + (_i)*inter_row_stride_s + (_j)*inter_col_stride_s]
-    #define MAT_B(_i, _j) B_backup[       (_i)*inter_row_stride_b + (_j)*inter_col_stride_b]
+    auto [row_stride_s, col_stride_s] = RandBLAS::layout_to_strides(layout, ld_expect);
+    auto [row_stride_b, col_stride_b] = RandBLAS::layout_to_strides(layout, ldb);
+    int64_t offset = row_stride_s * S_ro + col_stride_s * S_co;
+    #define MAT_E(_i, _j) expect[offset + (_i)*row_stride_s + (_j)*col_stride_s]
+    #define MAT_B(_i, _j) B_backup[       (_i)*row_stride_b + (_j)*col_stride_b]
     for (int i = 0; i < d1; ++i) {
         for (int j = 0; j < m1; ++j) {
             MAT_E(i,j) = alpha * MAT_E(i,j) + beta * MAT_B(i, j);

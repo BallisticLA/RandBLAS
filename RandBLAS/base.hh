@@ -26,15 +26,15 @@
 namespace RandBLAS {
 
 struct stride_64t {
-    int64_t inter_col_stride;
     int64_t inter_row_stride;
+    int64_t inter_col_stride;
 };
 
 static inline stride_64t layout_to_strides(blas::Layout layout, int64_t ldim) {
     if (layout == blas::Layout::ColMajor) {
-        return stride_64t{ldim, (int64_t) 1};
-    } else {
         return stride_64t{(int64_t) 1, ldim};
+    } else {
+        return stride_64t{ldim, (int64_t) 1};
     }
 }
 
