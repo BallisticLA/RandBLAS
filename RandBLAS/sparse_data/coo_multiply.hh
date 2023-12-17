@@ -138,6 +138,9 @@ static void apply_coo_left(
         fixed_nnz_per_col = (A_colptr[1] == A_colptr[ell]);
 
     // Step 3: Apply "A" to the left of B to get C += A*B.
+    //      3.1: set stride information (we can't use structured bindings because of an OpenMP bug)
+    //      3.2: iterate over the columns of the matrix B.
+    //      3.3: compute the matrix-vector products
     auto s = layout_to_strides(layout_B, ldb);
     auto B_inter_col_stride = s.inter_col_stride;
     auto B_inter_row_stride = s.inter_row_stride;
@@ -145,7 +148,6 @@ static void apply_coo_left(
     s = layout_to_strides(layout_C, ldc);
     auto C_inter_col_stride = s.inter_col_stride;
     auto C_inter_row_stride = s.inter_row_stride;
-
 
     #pragma omp parallel default(shared)
     {

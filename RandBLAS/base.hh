@@ -38,6 +38,19 @@ static inline stride_64t layout_to_strides(blas::Layout layout, int64_t ldim) {
     }
 }
 
+struct dims64_t {
+    int64_t n_rows;
+    int64_t n_cols;
+};
+
+static inline dims64_t dims_before_op(int64_t m, int64_t n, blas::Op op) {
+    if (op == blas::Op::NoTrans) {
+        return {m, n};
+    } else {
+        return {n, m};
+    }
+}
+
 
 template<typename T>
 concept SignedInteger = (std::numeric_limits<T>::is_signed && std::numeric_limits<T>::is_integer);

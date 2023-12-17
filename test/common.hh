@@ -21,6 +21,8 @@ using RandBLAS::SparseSkOp;
 using RandBLAS::DenseSkOp;
 using RandBLAS::RNGState;
 using RandBLAS::DenseDist;
+using RandBLAS::dims_before_op;
+using RandBLAS::dims64_t;
 
 
 template <typename T>
@@ -39,12 +41,6 @@ auto random_matrix(int64_t m, int64_t n, RNGState<RNG> s) {
     std::tuple<std::vector<T>, blas::Layout, RNGState<RNG>> t{A, layout, next_state};
     return t;
 }
-
-
-struct dims64_t {
-    int64_t n_rows;
-    int64_t n_cols;
-};
 
 template <typename T>
 dims64_t dimensions(COOMatrix<T> &S) {return {S.n_rows, S.n_cols};}
@@ -82,7 +78,7 @@ void to_explicit_buffer(DenseSkOp<T> &s, T *mat_s, blas::Layout layout) {
     int64_t stride_row = (layout == blas::Layout::ColMajor) ? 1 : n_cols;
     int64_t stride_col = (layout == blas::Layout::ColMajor) ? n_rows : 1;
     #define MAT_S(_i, _j) mat_s[(_i) * stride_row + (_j) * stride_col ]
-    RandBLAS::dense::fill_dense(a);
+    RandBLAS::fill_dense(a);
     int64_t buff_stride_row = (a.layout == blas::Layout::ColMajor) ? 1 : n_cols;
     int64_t buff_stride_col = (a.layout == blas::Layout::ColMajor) ? n_rows : 1;
     #define BUFF(_i, _j) a.buff[(_i) * buff_stride_row + (_j) * buff_stride_col]
@@ -176,23 +172,10 @@ void reference_left_apply(
     randblas_require(n > 0);
 
     // Dimensions of mat(A), rather than op(mat(A))
-    int64_t rows_mat_A, cols_mat_A, rows_submat_S, cols_submat_S;
     auto [rows_S, cols_S] = dimensions(S);
-    if (transA == blas::Op::NoTrans) {
-        rows_mat_A = m;
-        cols_mat_A = n;
-    } else {
-        rows_mat_A = n;
-        cols_mat_A = m;
-    }
-    // Dimensions of submat(S), rather than op(submat(S))
-    if (transS == blas::Op::NoTrans) {
-        rows_submat_S = d;
-        cols_submat_S = m;
-    } else {
-        rows_submat_S = m;
-        cols_submat_S = d;
-    }
+    auto [rows_mat_A   , cols_mat_A   ] = RandBLAS::dims_before_op(m, n, transA);
+    auto [rows_submat_S, cols_submat_S] = RandBLAS::dims_before_op(d, m, transS);
+
     // Sanity checks on dimensions and strides
     int64_t lds, s_row_stride, s_col_stride, pos, size_A, size_B;
     if (layout == blas::Layout::ColMajor) {
@@ -505,37 +488,20 @@ void reference_right_apply(
 ) { 
     using blas::Layout;
     using blas::Op;
-    //
     // Check dimensions of submat(S).
-    //
-    int64_t submat_S_rows, submat_S_cols;
-    if (transS == Op::NoTrans) {
-        submat_S_rows = n;
-        submat_S_cols = d;
-    } else {
-        submat_S_rows = d;
-        submat_S_cols = n;
-    }
-    randblas_require(submat_S_rows <= S0.dist.n_rows);
-    randblas_require(submat_S_cols <= S0.dist.n_cols);
-    //
+    auto [submat_S_rows, submat_S_cols] = RandBLAS::dims_before_op(n, d, transS);
+    auto [rows_S, cols_S] = dimensions(S0);
+    randblas_require(submat_S_rows <= rows_S);
+    randblas_require(submat_S_cols <= cols_S);
     // Check dimensions of mat(A).
-    //
-    int64_t mat_A_rows, mat_A_cols;
-    if (transA == Op::NoTrans) {
-        mat_A_rows = m;
-        mat_A_cols = n;
-    } else {
-        mat_A_rows = n;
-        mat_A_cols = m;
-    }
-    if (layout == blas::Layout::ColMajor) {
+    auto [mat_A_rows, mat_A_cols] = RandBLAS::dims_before_op(m, n, transA);
+    if (layout == Layout::ColMajor) {
         randblas_require(lda >= mat_A_rows);
     } else {
         randblas_require(lda >= mat_A_cols);
     }
     //
-    // Compute B = op(A) op(submat(S)) by LSKGES. We start with the identity
+    // Compute B = op(A) op(submat(S)) by left_apply. We start with the identity
     //
     //      B^T = op(submat(S))^T op(A)^T
     //
@@ -543,11 +509,11 @@ void reference_right_apply(
     //
     //      B^T = op(submat(S))^T op(A^T)
     //
-    // We tell LSKGES to process (B^T) and (A^T) in the opposite memory layout
+    // We tell left_apply to process (B^T) and (A^T) in the opposite memory layout
     // compared to the layout for (A, B).
     // 
     auto trans_transS = (transS == Op::NoTrans) ? Op::Trans : Op::NoTrans;
-    auto trans_layout = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : blas::Layout::ColMajor;
+    auto trans_layout = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
     reference_left_apply(
         trans_layout, trans_transS, transA,
         d, m, n, alpha, S0, i_os, j_os, A, lda, beta, B, E, ldb
