@@ -1,8 +1,6 @@
 #include "../common.hh"
 #include <gtest/gtest.h>
 
-
-using RandBLAS::RNGState;
 using RandBLAS::DenseDist;
 using RandBLAS::DenseSkOp;
 

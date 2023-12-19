@@ -1,12 +1,9 @@
 #include "../common.hh"
 #include <gtest/gtest.h>
 
-using RandBLAS::RNGState;
-using RandBLAS::DenseDist;
 using RandBLAS::SparseDist;
 using RandBLAS::SparseSkOp;
 using RandBLAS::MajorAxis;
-using RandBLAS::dense::DenseDistName;
 
 
 class TestLSKGES : public ::testing::Test
