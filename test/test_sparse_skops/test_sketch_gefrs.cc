@@ -66,8 +66,8 @@ class TestRSKGES : public ::testing::Test
         int64_t S_co, // column offset for S in S0
         blas::Layout layout
     ) {
-        assert(d0 >= d1);
-        assert(n0 >= n1);
+        randblas_require(d0 >= d1);
+        randblas_require(n0 >= n1);
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
         RandBLAS::SparseSkOp<T> S0(
             {n0, d0, vec_nnz, RandBLAS::MajorAxis::Short}, seed

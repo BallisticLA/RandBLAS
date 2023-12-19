@@ -58,8 +58,8 @@ class TestLSKGE3 : public ::testing::Test
         int64_t S_co, // column offset for S in S0
         blas::Layout layout
     ) {
-        assert(d0 > d);
-        assert(m0 > m);
+        randblas_require(d0 > d);
+        randblas_require(m0 > m);
         DenseDist D(d0, m0);
         DenseSkOp<T> S0(D, seed);
         test::common::test_left_apply_submatrix_to_eye<T>(1.0, S0, d, m, S_ro, S_co, layout, 0.0);
@@ -77,8 +77,8 @@ class TestLSKGE3 : public ::testing::Test
         int64_t A_co, // column offset for A in A0
         blas::Layout layout
     ) {
-        assert(m0 > m);
-        assert(n0 > n);
+        randblas_require(m0 > m);
+        randblas_require(n0 > n);
         DenseDist D(d, m);
         DenseSkOp<T> S0(D, seed_S0, nullptr);
         test::common::test_left_apply_to_submatrix<T>(S0, n, m0, n0, A_ro, A_co, layout);
