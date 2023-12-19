@@ -223,6 +223,7 @@ void reference_left_apply(
 
 template <typename T, typename LinOp>
 void test_left_apply_to_random(
+    // B = alpha * S * A + beta*B, where A is m-by-n and random, S is m-by-d, and B is d-by-n and random
     T alpha, LinOp &S, int64_t n, T beta, blas::Layout layout, int threads = 0
 ) {
     auto [d, m] = dimensions(S);
@@ -260,11 +261,12 @@ void test_left_apply_to_random(
 
 template <typename T, typename LinOp>
 void test_left_apply_submatrix_to_eye(
+    // B = alpha * submat(S0) * eye + beta*B, where S = submat(S) is d1-by-m1 offset by (S_ro, S_co) in S0, and B is random.
     T alpha, LinOp &S0, int64_t d1, int64_t m1, int64_t S_ro, int64_t S_co, blas::Layout layout, T beta = 0.0, int threads = 0
 ) {
     auto [d0, m0] = dimensions(S0);
-    assert(d0 >= d1);
-    assert(m0 >= m1);
+    randblas_require(d0 >= d1);
+    randblas_require(m0 >= m1);
     bool is_colmajor = layout == blas::Layout::ColMajor;
     int64_t lda = m1;
     int64_t ldb = (is_colmajor) ? d1 : m1;
@@ -311,6 +313,7 @@ void test_left_apply_submatrix_to_eye(
 
 template <typename T, typename LinOp>
 void test_left_apply_transpose_to_eye(
+    // B = S^T * eye, where S is m-by-d, B is d-by-m
     LinOp &S, blas::Layout layout, int threads = 0
 ) {
     auto [m, d] = dimensions(S);
@@ -340,6 +343,7 @@ void test_left_apply_transpose_to_eye(
 
 template <typename T, typename LinOp>
 void test_left_apply_to_submatrix(
+    // B = S * A, where S is d-by-m, A = A0[A_ro:(A_ro + m), A_co:(A_co + n)], and A0 is random m0-by-n0.
     LinOp &S, int64_t n, int64_t m0, int64_t n0, int64_t A_ro, int64_t A_co, blas::Layout layout, int threads = 0
 ) {
     auto [d, m] = dimensions(S);
@@ -383,6 +387,7 @@ void test_left_apply_to_submatrix(
 
 template <typename T, typename LinOp>
 void test_left_apply_to_transposed(
+    // B = S * A^T, where S is d-by-m, A is m-by-n and random
     LinOp &S, int64_t n, blas::Layout layout, int threads = 0
 ) {
     auto [d, m] = dimensions(S);
@@ -512,6 +517,7 @@ void reference_right_apply(
 
 template <typename T, typename LinOp>
 void test_right_apply_to_random(
+    // B = alpha * A * S + beta * B, where A is m-by-n, S is n-by-d, B is m-by-d and random
     T alpha, LinOp &S, int64_t m, blas::Layout layout, T beta, int threads = 0
 ) {
     auto [n, d] = dimensions(S);
@@ -544,12 +550,12 @@ void test_right_apply_to_random(
 
 template <typename T, typename LinOp>
 void test_right_apply_submatrix_to_eye(
-    // B = alpha * eye * submat(S) + beta*B : submat(S) is n-by-d, eye is n-by-n, B is n-by-d
+    // B = alpha * eye * submat(S) + beta*B : submat(S) is n-by-d, eye is n-by-n, B is n-by-d and random
     T alpha, LinOp &S0, int64_t n, int64_t d, int64_t S_ro, int64_t S_co, blas::Layout layout, T beta = 0.0, int threads = 0
 ) {
     auto [n0, d0] = dimensions(S0);
-    assert(n0 >= n);
-    assert(d0 >= d);
+    randblas_require(n0 >= n);
+    randblas_require(d0 >= d);
     bool is_colmajor = layout == blas::Layout::ColMajor;
     int64_t lda = n;
     int64_t ldb = (is_colmajor) ? n : d;
