@@ -3,14 +3,6 @@
 #include <gtest/gtest.h>
 #include <math.h>
 
-#include <cmath>
-#include <numeric>
-#include <thread>
-#include "RandBLAS/random_gen.hh"
-#include "RandBLAS/skge.hh"
-
-
-
 
 class TestRSKGE3 : public ::testing::Test
 {
@@ -28,8 +20,6 @@ class TestRSKGE3 : public ::testing::Test
         bool preallocate,
         blas::Layout layout
     ) {
-        // Define the distribution for S0, and S0 itself.
-        // Create a copy that we always realize explicitly.
         RandBLAS::DenseDist D(m, d);
         RandBLAS::DenseSkOp<T> S0(D, seed, nullptr);
         if (preallocate)
@@ -60,10 +50,6 @@ class TestRSKGE3 : public ::testing::Test
         int64_t S_co, // column offset for S in S0
         blas::Layout layout
     ) {
-        assert(d0 > d);
-        assert(m0 > m);
-
-        // Define the distribution for S0, and S0 itself.
         RandBLAS::DenseDist D(m0, d0);
         RandBLAS::DenseSkOp<T> S0(D, seed);
         test::common::test_right_apply_submatrix_to_eye<T>(1.0, S0, m, d, S_ro, S_co, layout, 0.0, 0);
@@ -81,8 +67,6 @@ class TestRSKGE3 : public ::testing::Test
         int64_t A_co, // column offset for A in A0
         blas::Layout layout
     ) {
-        assert(m0 > m);
-        assert(n0 > n);
         RandBLAS::DenseDist D(n, d);
         RandBLAS::DenseSkOp<T> S0(D, seed_S0, nullptr);
         test::common::test_right_apply_to_submatrix<T>(S0, m, m0, n0, A_ro, A_co, layout);
