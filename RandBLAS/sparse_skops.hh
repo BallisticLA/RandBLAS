@@ -564,7 +564,7 @@ void lskges(
 ) {
     if (!S.known_filled)
         fill_sparse(S);
-    using RNG = SKOP::RNG_t;
+    using RNG = typename SKOP::RNG_t;
     using sint_t = typename SKOP::index_t;
     auto Scoo = coo_view_of_skop<T,RNG,sint_t>(S);
     RandBLAS::sparse_data::coo::lspgemm(
