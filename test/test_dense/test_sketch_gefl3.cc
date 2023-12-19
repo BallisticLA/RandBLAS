@@ -1,11 +1,6 @@
 #include "../common.hh"
-#include "RandBLAS/skge.hh"
 #include <gtest/gtest.h>
-#include <math.h>
 
-#include <cmath>
-#include <numeric>
-#include <thread>
 
 using RandBLAS::RNGState;
 using RandBLAS::DenseDist;

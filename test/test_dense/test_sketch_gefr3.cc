@@ -1,7 +1,5 @@
 #include "../common.hh"
-#include "RandBLAS/skge.hh"
 #include <gtest/gtest.h>
-#include <math.h>
 
 
 class TestRSKGE3 : public ::testing::Test
