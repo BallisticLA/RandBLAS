@@ -85,7 +85,7 @@ an additional flag to CMake
      -DCMAKE_CXX_FLAGS="-D __APPLE__"
 ```
 This flag is needed to avoid compiler errors with the "sincosf" and "sincos"
-functions in "dense_op.cc".
+functions in "random_gen.hh".
 
 Here are the conceptual meanings of the recipe's other build flags:
 
