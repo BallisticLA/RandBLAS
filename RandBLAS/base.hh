@@ -77,6 +77,15 @@ template <typename RNG = r123::Philox4x32>
 struct RNGState
 {
     using generator = RNG;
+    using ctr_value_type = typename RNG::ctr_type::value_type;
+    using key_value_type = typename RNG::ukey_type::value_type;
+    using ctr_type = typename RNG::ctr_type;
+    using key_type = typename RNG::key_type;
+
+    const static int len_c = RNG::ctr_type::static_size;
+    const static int len_k = RNG::key_type::static_size;
+    ctr_type counter; ///< the counter
+    key_type key;     ///< the key
 
     /// default construct both counter and key are zero'd
     RNGState() : counter{{}}, key(typename RNG::ukey_type{{}}) {}
@@ -95,19 +104,48 @@ struct RNGState
     /// construct from an integer key
     RNGState(typename RNG::ukey_type::value_type k) : counter{{0}}, key{{k}} {}
 
-    typename RNG::ctr_type counter; ///< the counter
-    typename RNG::key_type key;     ///< the key
+    ~RNGState() {};
+
+    RNGState(const RNGState<RNG> &s);
+
+    RNGState<RNG> &operator=(const RNGState<RNG> &s);
+
 };
 
 
-/// serialize the state to a stream
+template <typename RNG>
+RNGState<RNG>::RNGState(
+    const RNGState<RNG> &s
+) {
+    std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_value_type));
+    std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_value_type));
+}
+
+template <typename RNG>
+RNGState<RNG> &RNGState<RNG>::operator=(
+    const RNGState &s
+) {
+    std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_value_type));
+    std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_value_type));
+    return *this;
+}
+
 template <typename RNG>
 std::ostream &operator<<(
     std::ostream &out,
     const RNGState<RNG> &s
 ) {
-    out << "counter : {" << s.counter << "}" << std::endl
-        << "key     : {" << s.key << "}" << std::endl;
+    int i;
+    out << "counter : {";
+    for (i = 0; i < s.len_c - 1; ++i) {
+        out << s.counter[i] << ", ";
+    }
+    out << s.counter[i] << "}\n";
+    out << "key     : {";
+    for (i = 0; i < s.len_k - 1; ++i) {
+        out << s.key[i] << ", ";
+    }
+    out << s.key[i] << "}";
     return out;
 }
 
