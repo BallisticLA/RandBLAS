@@ -16,7 +16,8 @@ enum class NonzeroSort : char {
     None = 'N'
 };
 
-static inline bool increasing_by_csr(int64_t i0, int64_t j0, int64_t i1, int64_t j1) {
+template <RandBLAS::SignedInteger sint_t>
+static inline bool increasing_by_csr(sint_t i0, sint_t j0, sint_t i1, sint_t j1) {
     if (i0 > i1) {
         return false;
     } else if (i0 == i1) {
@@ -26,7 +27,8 @@ static inline bool increasing_by_csr(int64_t i0, int64_t j0, int64_t i1, int64_t
     }
 }
 
-static inline bool increasing_by_csc(int64_t i0, int64_t j0, int64_t i1, int64_t j1) {
+template <RandBLAS::SignedInteger sint_t>
+static inline bool increasing_by_csc(sint_t i0, sint_t j0, sint_t i1, sint_t j1) {
     if (j0 > j1) {
         return false;
     } else if (j0 == j1) {
@@ -36,7 +38,8 @@ static inline bool increasing_by_csc(int64_t i0, int64_t j0, int64_t i1, int64_t
     }
 }
 
-static inline NonzeroSort coo_sort_type(int64_t nnz, int64_t *rows, int64_t *cols) {
+template <RandBLAS::SignedInteger sint_t>
+static inline NonzeroSort coo_sort_type(int64_t nnz, sint_t *rows, sint_t *cols) {
     bool csc_okay = true;
     bool csr_okay = true;
     for (int64_t ell = 1; ell < nnz; ++ell) {
@@ -60,10 +63,9 @@ static inline NonzeroSort coo_sort_type(int64_t nnz, int64_t *rows, int64_t *col
     } else {
         return NonzeroSort::None;
     }
-    
 }
 
-template <typename T>
+template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 struct COOMatrix {
     const int64_t n_rows;
     const int64_t n_cols;
@@ -71,10 +73,9 @@ struct COOMatrix {
     const bool own_memory;
     int64_t nnz;
     T *vals;
-    int64_t *rows;
-    int64_t *cols;
+    sint_t *rows;
+    sint_t *cols;
     NonzeroSort sort;
-    int64_t *_sortptr;
     bool _can_reserve = true;
 
     COOMatrix(
@@ -94,8 +95,8 @@ struct COOMatrix {
         int64_t n_cols,
         int64_t nnz,
         T *vals,
-        int64_t *rows,
-        int64_t *cols,
+        sint_t *rows,
+        sint_t *cols,
         bool compute_sort_type = true,
         IndexBase index_base = IndexBase::Zero
     ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(false) {
@@ -124,15 +125,15 @@ struct COOMatrix {
         randblas_require(this->own_memory);
         this->nnz = nnz;
         this->vals = new T[nnz];
-        this->rows = new int64_t[nnz];
-        this->cols = new int64_t[nnz];
+        this->rows = new sint_t[nnz];
+        this->cols = new sint_t[nnz];
         this->_can_reserve = false;
     }
 
 };
 
-template <typename T>
-void sort_coo_data(NonzeroSort s, int64_t nnz, T *vals, int64_t *rows, int64_t *cols) {
+template <typename T, RandBLAS::SignedInteger sint_t>
+void sort_coo_data(NonzeroSort s, int64_t nnz, T *vals, sint_t *rows, sint_t *cols) {
     if (s == NonzeroSort::None)
         return;
     auto curr_s = coo_sort_type(nnz, rows, cols);
@@ -142,7 +143,7 @@ void sort_coo_data(NonzeroSort s, int64_t nnz, T *vals, int64_t *rows, int64_t *
     //  (right now we make expensive copies)
 
     // get a vector-of-triples representation of the matrix
-    using tuple_type = std::tuple<int64_t, int64_t, T>;
+    using tuple_type = std::tuple<sint_t, sint_t, T>;
     std::vector<tuple_type> nonzeros;
     nonzeros.reserve(nnz);
     for (int64_t ell = 0; ell < nnz; ++ell)

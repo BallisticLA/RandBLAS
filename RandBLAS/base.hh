@@ -6,6 +6,7 @@
 #include "RandBLAS/config.h"
 #include "RandBLAS/random_gen.hh"
 
+#include <blas.hh>
 #include <tuple>
 #include <utility>
 #include <type_traits>
@@ -18,9 +19,42 @@
 #endif
 
 #include<iostream>
+#include<numeric>
+
 
 /// code common across the project
 namespace RandBLAS {
+
+struct stride_64t {
+    int64_t inter_row_stride;
+    int64_t inter_col_stride;
+};
+
+static inline stride_64t layout_to_strides(blas::Layout layout, int64_t ldim) {
+    if (layout == blas::Layout::ColMajor) {
+        return stride_64t{(int64_t) 1, ldim};
+    } else {
+        return stride_64t{ldim, (int64_t) 1};
+    }
+}
+
+struct dims64_t {
+    int64_t n_rows;
+    int64_t n_cols;
+};
+
+static inline dims64_t dims_before_op(int64_t m, int64_t n, blas::Op op) {
+    if (op == blas::Op::NoTrans) {
+        return {m, n};
+    } else {
+        return {n, m};
+    }
+}
+
+
+template<typename T>
+concept SignedInteger = (std::numeric_limits<T>::is_signed && std::numeric_limits<T>::is_integer);
+
 
 enum class MajorAxis : char {
     // ---------------------------------------------------------------------------

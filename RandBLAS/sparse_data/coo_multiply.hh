@@ -9,12 +9,12 @@
 
 namespace RandBLAS::sparse_data::coo {
 
-template <typename T>
+template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 static int64_t set_filtered_coo(
     // COO-format matrix data
     const T       *vals,
-    const int64_t *rowidxs,
-    const int64_t *colidxs,
+    const sint_t *rowidxs,
+    const sint_t *colidxs,
     int64_t nnz,
     // submatrix bounds
     int64_t col_start,
@@ -23,8 +23,8 @@ static int64_t set_filtered_coo(
     int64_t row_end,
     // COO-format submatrix data
     T       *new_vals,
-    int64_t *new_rowidxs,
-    int64_t *new_colidxs
+    sint_t *new_rowidxs,
+    sint_t *new_colidxs
 ) {
     int64_t new_nnz = 0;
     for (int64_t ell = 0; ell < nnz; ++ell) {
@@ -41,12 +41,12 @@ static int64_t set_filtered_coo(
     return new_nnz;
 }
 
-template <typename T>
+template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 static void apply_csc_to_vector_from_left(
     // CSC-format data
     const T *vals,
-    int64_t *rowidxs,
-    int64_t *colptr,
+    sint_t *rowidxs,
+    sint_t *colptr,
     // input-output vector data
     int64_t len_v,
     const T *v,
@@ -65,12 +65,12 @@ static void apply_csc_to_vector_from_left(
     }
 }
 
-template <typename T>
+template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 static void apply_regular_csc_to_vector_from_left(
     // data for "regular CSC": CSC with fixed nnz per col,
     // which obviates the requirement for colptr.
     const T *vals,
-    int64_t *rowidxs,
+    sint_t *rowidxs,
     int64_t col_nnz,
     // input-output vector data
     int64_t len_v,
@@ -90,7 +90,7 @@ static void apply_regular_csc_to_vector_from_left(
 
 
 
-template <typename T>
+template <typename T, RandBLAS::SignedInteger sint_t>
 static void apply_coo_left(
     T alpha,
     blas::Layout layout_B,
@@ -98,7 +98,7 @@ static void apply_coo_left(
     int64_t d,
     int64_t n,
     int64_t m,
-    COOMatrix<T> &A0,
+    COOMatrix<T, sint_t> &A0,
     int64_t row_offset,
     int64_t col_offset,
     const T *B,
@@ -122,8 +122,8 @@ static void apply_coo_left(
     //      of the matrix we just created.
     int64_t A_nnz;
     int64_t A0_nnz = A0.nnz;
-    std::vector<int64_t> A_rows(A0_nnz, 0);
-    std::vector<int64_t> A_colptr(std::max(A0_nnz, m + 1), 0);
+    std::vector<sint_t> A_rows(A0_nnz, 0);
+    std::vector<sint_t> A_colptr(std::max(A0_nnz, m + 1), 0);
     std::vector<T> A_vals(A0_nnz, 0.0);
     A_nnz = set_filtered_coo(
         A0.vals, A0.rows, A0.cols, A0.nnz,
@@ -138,14 +138,16 @@ static void apply_coo_left(
         fixed_nnz_per_col = (A_colptr[1] == A_colptr[ell]);
 
     // Step 3: Apply "A" to the left of B to get C += A*B.
+    //      3.1: set stride information (we can't use structured bindings because of an OpenMP bug)
+    //      3.2: iterate over the columns of the matrix B.
+    //      3.3: compute the matrix-vector products
     auto s = layout_to_strides(layout_B, ldb);
     auto B_inter_col_stride = s.inter_col_stride;
-    auto B_intra_col_stride = s.intra_col_stride;
+    auto B_inter_row_stride = s.inter_row_stride;
 
     s = layout_to_strides(layout_C, ldc);
     auto C_inter_col_stride = s.inter_col_stride;
-    auto C_intra_col_stride = s.intra_col_stride;
-
+    auto C_inter_row_stride = s.inter_row_stride;
 
     #pragma omp parallel default(shared)
     {
@@ -158,14 +160,14 @@ static void apply_coo_left(
             if (fixed_nnz_per_col) {
                 apply_regular_csc_to_vector_from_left<T>(
                     A_vals.data(), A_rows.data(), A_colptr[1],
-                    m, B_col, B_intra_col_stride,
-                    C_col, C_intra_col_stride
+                    m, B_col, B_inter_row_stride,
+                    C_col, C_inter_row_stride
                 );
             } else {
                 apply_csc_to_vector_from_left<T>(
                     A_vals.data(), A_rows.data(), A_colptr.data(),
-                    m, B_col, B_intra_col_stride,
-                    C_col, C_intra_col_stride
+                    m, B_col, B_inter_row_stride,
+                    C_col, C_inter_row_stride
                 ); 
             }
         }

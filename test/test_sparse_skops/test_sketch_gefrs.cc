@@ -1,10 +1,5 @@
-#include <RandBLAS/dense.hh>
-#include <RandBLAS/sparse_skops.hh>
-#include <RandBLAS/skge.hh>
-#include <RandBLAS/util.hh>
-#include <RandBLAS/test_util.hh>
+#include "../common.hh"
 #include <gtest/gtest.h>
-#include <math.h>
 
 
 class TestRSKGES : public ::testing::Test
@@ -34,28 +29,7 @@ class TestRSKGES : public ::testing::Test
         };
         RandBLAS::SparseSkOp<T> S0(D, seed);
         RandBLAS::fill_sparse(S0);
-        std::vector<T> S0_dense(m * d, 0.0);
-        RandBLAS_Testing::Util::sparseskop_to_dense<T>(S0, S0_dense.data(), layout);
-
-        std::vector<T> eye(m * m, 0.0);
-        for (int i = 0; i < m; ++i)
-            eye[i + i*m] = 1.0;
-        std::vector<T> B(m * d, 0.0);
-        int64_t ldb = (layout == blas::Layout::ColMajor) ? m : d;
-
-        RandBLAS::sketch_general<T>(
-            layout,
-            blas::Op::NoTrans,
-            blas::Op::NoTrans,
-            m, d, m,
-            1.0, eye.data(), m,
-            S0, 0, 0,
-            0.0, B.data(), ldb
-        );
-
-        RandBLAS_Testing::Util::buffs_approx_equal(B.data(), S0_dense.data(), d*m,
-             __PRETTY_FUNCTION__, __FILE__, __LINE__
-        );
+        test::common::test_right_apply_submatrix_to_eye<T>(1.0, S0, m, d, 0, 0, layout, 0.0, 0);
     }
 
     template <typename T>
@@ -69,61 +43,14 @@ class TestRSKGES : public ::testing::Test
         int64_t nnz_index,
         int threads
     ) {
-#if !defined (RandBLAS_HAS_OpenMP)
-        UNUSED(threads);
-#endif
-        uint32_t a_seed = 99;
-        bool is_colmajor = layout == blas::Layout::ColMajor;
-
-        // construct test data: matrix A, SparseSkOp "S0", and dense representation S
-        T *a = new T[m * n];
-        T *B0 = new T[m * d]{};
-        RandBLAS::util::genmat(m, n, a, a_seed);  
         RandBLAS::SparseDist D = {
             .n_rows=n, .n_cols=d, .vec_nnz=vec_nnzs[nnz_index], .major_axis=major_axis
         };
         RandBLAS::SparseSkOp<T> S0(D, keys[key_index]);
         RandBLAS::fill_sparse(S0);
-        int64_t lda = (is_colmajor) ? m : n;
-        int64_t ldb = (is_colmajor) ? m : d;
+        test::common::test_right_apply_to_random<T>(1.0, S0, m, layout, 0.0, threads);
+        
 
-        // compute S*A. 
-#if defined (RandBLAS_HAS_OpenMP)
-        int orig_threads = omp_get_num_threads();
-        omp_set_num_threads(threads);
-#endif
-        RandBLAS::sketch_general<T>(
-            layout, blas::Op::NoTrans, blas::Op::NoTrans,
-            m, d, n,
-            1.0, a, lda,
-            S0, 0, 0,
-            0.0, B0, ldb 
-        );
-#if defined (RandBLAS_HAS_OpenMP)
-        omp_set_num_threads(orig_threads);
-#endif
-
-        // compute expected result (B1) and allowable error (E)
-        T *B1 = new T[d * m]{};
-        T *E = new T[d * m]{};
-        RandBLAS_Testing::Util::reference_rskges<T>(
-            layout, blas::Op::NoTrans, blas::Op::NoTrans,
-            m, d, n,
-            1.0, a, lda,
-            S0, 0, 0,
-            0.0, B1, E, ldb
-        );
-
-        // check the result
-        RandBLAS_Testing::Util::buffs_approx_equal<T>(
-            B0, B1, E, m * d,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
-        );
-
-        delete [] a;
-        delete [] B0;
-        delete [] B1;
-        delete [] E;
     }
 
     template <typename T>
@@ -137,57 +64,14 @@ class TestRSKGES : public ::testing::Test
         int64_t S_co, // column offset for S in S0
         blas::Layout layout
     ) {
-        assert(d0 >= d1);
-        assert(n0 >= n1);
-        bool is_colmajor = layout == blas::Layout::ColMajor;
-        int64_t pos = (is_colmajor) ? (S_ro + n0 * S_co) : (S_ro * d0 + S_co);
-        assert(d0 * n0 >= pos + d1 * n1);
-
+        randblas_require(d0 >= d1);
+        randblas_require(n0 >= n1);
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
         RandBLAS::SparseSkOp<T> S0(
             {n0, d0, vec_nnz, RandBLAS::MajorAxis::Short}, seed
         );
         RandBLAS::fill_sparse(S0);
-        T *S0_dense = new T[n0 * d0];
-        RandBLAS_Testing::Util::sparseskop_to_dense<T>(S0, S0_dense, layout);
-        int64_t ldb = (is_colmajor) ? n1 : d1;
-        int64_t lds0 = (is_colmajor) ? n0 : d0;
-
-
-        // define a matrix to be sketched, and create workspace for sketch.
-        std::vector<T> A(n1 * n1, 0.0);
-        for (int i = 0; i < n1; ++i)
-            A[i + n1*i] = 1.0;
-        std::vector<T> B(n1 * d1, 0.0);
-        
-        // Perform the sketch
-#if defined (RandBLAS_HAS_OpenMP)
-        int orig_threads = omp_get_num_threads();
-        omp_set_num_threads(1);
-#endif
-        RandBLAS::sketch_general<T>(
-            layout,
-            blas::Op::NoTrans,
-            blas::Op::NoTrans,
-            n1, d1, n1,
-            1.0, A.data(), n1,
-            S0, S_ro, S_co,
-            0.0, B.data(), ldb   
-        );
-#if defined (RandBLAS_HAS_OpenMP)
-        omp_set_num_threads(orig_threads);
-#endif
-
-        // Check the result
-        RandBLAS_Testing::Util::matrices_approx_equal(
-            layout, blas::Op::NoTrans,
-            n1, d1,
-            B.data(), ldb,
-            &S0_dense[pos], lds0,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
-        );
-
-        delete [] S0_dense;
+        test::common::test_right_apply_submatrix_to_eye<T>(1.0, S0, n1, d1, S_ro, S_co, layout, 0.0, 0);
     }
 };
 
