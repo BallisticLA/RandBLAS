@@ -30,6 +30,7 @@ if (GTest_FOUND)
         test_sparse_data/test_csc.cc
         test_sparse_data/test_csr.cc
         test_sparse_data/test_coo.cc
+        test_sparse_data/test_multiply.cc
     )
     target_link_libraries(SparseRandBLAS_tests
         RandBLAS

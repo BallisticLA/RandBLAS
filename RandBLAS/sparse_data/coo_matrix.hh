@@ -192,6 +192,14 @@ void sort_coo_data(NonzeroSort s, COOMatrix<T> &spmat) {
     return;
 }
 
+} // end namespace RandBLAS::sparse_data
+
+
+namespace RandBLAS::sparse_data::coo {
+
+using namespace RandBLAS::sparse_data;
+using blas::Layout;
+
 template <typename T>
 static auto transpose(COOMatrix<T> &S) {
     COOMatrix<T> St(S.n_cols, S.n_rows, S.nnz, S.vals, S.cols, S.rows, false, S.index_base);
@@ -202,14 +210,6 @@ static auto transpose(COOMatrix<T> &S) {
     }
     return St;
 }
-
-} // end namespace RandBLAS::sparse_data
-
-
-namespace RandBLAS::sparse_data::coo {
-
-using namespace RandBLAS::sparse_data;
-using blas::Layout;
 
 template <typename T>
 void dense_to_coo(int64_t stride_row, int64_t stride_col, T *mat, T abs_tol, COOMatrix<T> &spmat) {
@@ -271,7 +271,13 @@ void coo_to_dense(const COOMatrix<T> &spmat, Layout layout, T *mat) {
     }
 }
 
-
 } // end namespace RandBLAS::sparse_data::coo
+
+
+namespace RandBLAS {
+    using RandBLAS::sparse_data::COOMatrix;
+    using RandBLAS::sparse_data::NonzeroSort;
+    using RandBLAS::sparse_data::coo::transpose;
+}
 
 #endif
