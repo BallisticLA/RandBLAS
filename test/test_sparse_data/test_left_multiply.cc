@@ -23,6 +23,8 @@ COOMatrix<T> make_test_matrix(int64_t m, int64_t n, T nonzero_prob, uint32_t key
 
 class TestLeftMultiply : public ::testing::Test
 {
+    // C = alpha * opA(submat(A)) @ opB(B) + beta * C
+    // In what follows, "self" refers to A and "other" refers to B.
     protected:
     
     virtual void SetUp(){};
@@ -43,13 +45,13 @@ class TestLeftMultiply : public ::testing::Test
     }
 
     template <typename T>
-    static void transpose_sparse(uint32_t key, int64_t m, int64_t n, Layout layout, T p) {
+    static void transpose_self(uint32_t key, int64_t m, int64_t n, Layout layout, T p) {
         auto A = make_test_matrix<T>(m, n, p, key);
         test_left_apply_transpose_to_eye<T>(A, layout);
     }
 
     template <typename T>
-    static void submatrix_sparse(
+    static void submatrix_self(
         uint32_t key,   // key for RNG that generates sparse A
         int64_t d,      // rows in A
         int64_t m,      // columns in A, rows in B = eye(m)
@@ -176,58 +178,58 @@ TEST_F(TestLeftMultiply, nontrivial_scales_rowmajor2) {
 
 ////////////////////////////////////////////////////////////////////////
 //
-//      transpose of sparse operator
+//      transpose of self (sparse operator)
 //
 ////////////////////////////////////////////////////////////////////////
 
-TEST_F(TestLeftMultiply, transpose_sparse_double_colmajor) {
+TEST_F(TestLeftMultiply, transpose_self_double_colmajor) {
     for (uint32_t key : {0}) {
-        transpose_sparse<double>(key, 200, 30, Layout::ColMajor, 0.01);
-        transpose_sparse<double>(key, 200, 30, Layout::ColMajor, 0.10);
-        transpose_sparse<double>(key, 200, 30, Layout::ColMajor, 0.80);
+        transpose_self<double>(key, 200, 30, Layout::ColMajor, 0.01);
+        transpose_self<double>(key, 200, 30, Layout::ColMajor, 0.10);
+        transpose_self<double>(key, 200, 30, Layout::ColMajor, 0.80);
     }
 }
 
-TEST_F(TestLeftMultiply, transpose_sparse_double_rowmajor) {
+TEST_F(TestLeftMultiply, transpose_self_double_rowmajor) {
     for (uint32_t key : {0}) {
-        transpose_sparse<double>(key, 200, 30, Layout::RowMajor, 0.01);
-        transpose_sparse<double>(key, 200, 30, Layout::RowMajor, 0.10);
-        transpose_sparse<double>(key, 200, 30, Layout::RowMajor, 0.80);
+        transpose_self<double>(key, 200, 30, Layout::RowMajor, 0.01);
+        transpose_self<double>(key, 200, 30, Layout::RowMajor, 0.10);
+        transpose_self<double>(key, 200, 30, Layout::RowMajor, 0.80);
     }
 }
 
-TEST_F(TestLeftMultiply, transpose_sparse_single) {
+TEST_F(TestLeftMultiply, transpose_self_single) {
     for (uint32_t key : {0}) {
-        transpose_sparse<float>(key, 200, 30, Layout::ColMajor, 0.01);
-        transpose_sparse<float>(key, 200, 30, Layout::ColMajor, 0.10);
-        transpose_sparse<float>(key, 200, 30, Layout::ColMajor, 0.80);
+        transpose_self<float>(key, 200, 30, Layout::ColMajor, 0.01);
+        transpose_self<float>(key, 200, 30, Layout::ColMajor, 0.10);
+        transpose_self<float>(key, 200, 30, Layout::ColMajor, 0.80);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////
 //
-//      Submatrices of sparse operator
+//      Submatrices of self (sparse operator)
 //
 ////////////////////////////////////////////////////////////////////////
 
-TEST_F(TestLeftMultiply, submatrix_sparse_double_colmajor) {
+TEST_F(TestLeftMultiply, submatrix_self_double_colmajor) {
     for (uint32_t key : {0}) {
-        submatrix_sparse<double>(key, 3, 10, 8, 12, 3, 1, Layout::ColMajor, 0.1);
-        submatrix_sparse<double>(key, 3, 10, 8, 12, 3, 1, Layout::ColMajor, 1.0);
+        submatrix_self<double>(key, 3, 10, 8, 12, 3, 1, Layout::ColMajor, 0.1);
+        submatrix_self<double>(key, 3, 10, 8, 12, 3, 1, Layout::ColMajor, 1.0);
     }
 }
 
-TEST_F(TestLeftMultiply, submatrix_sparse_double_rowmajor) {
+TEST_F(TestLeftMultiply, submatrix_self_double_rowmajor) {
     for (uint32_t key : {0}) {
-        submatrix_sparse<double>(key, 3, 10, 8, 12, 3, 1, Layout::RowMajor, 0.1);
-        submatrix_sparse<double>(key, 3, 10, 8, 12, 3, 1, Layout::RowMajor, 1.0);
+        submatrix_self<double>(key, 3, 10, 8, 12, 3, 1, Layout::RowMajor, 0.1);
+        submatrix_self<double>(key, 3, 10, 8, 12, 3, 1, Layout::RowMajor, 1.0);
     }
 }
 
-TEST_F(TestLeftMultiply, submatrix_sparse_single) {
+TEST_F(TestLeftMultiply, submatrix_self_single) {
     for (uint32_t key : {0}) {
-        submatrix_sparse<float>(key, 3, 10, 8, 12, 3, 1, Layout::ColMajor, 0.1);
-        submatrix_sparse<float>(key, 3, 10, 8, 12, 3, 1, Layout::ColMajor, 1.0);
+        submatrix_self<float>(key, 3, 10, 8, 12, 3, 1, Layout::ColMajor, 0.1);
+        submatrix_self<float>(key, 3, 10, 8, 12, 3, 1, Layout::ColMajor, 1.0);
     }
 }
 

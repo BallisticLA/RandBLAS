@@ -22,10 +22,7 @@ class TestRSKGES : public ::testing::Test
         blas::Layout layout
     ) {
         RandBLAS::SparseDist D = {
-            .n_rows = m,
-            .n_cols = d,
-            .vec_nnz = vec_nnz,
-            .major_axis = major_axis
+            .n_rows = m, .n_cols = d, .vec_nnz = vec_nnz, .major_axis = major_axis
         };
         RandBLAS::SparseSkOp<T> S0(D, seed);
         RandBLAS::fill_sparse(S0);

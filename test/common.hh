@@ -658,7 +658,7 @@ void test_right_apply_to_transposed(
     int64_t lda = (is_colmajor) ? n : m;
     int64_t ldb = (is_colmajor) ? m : d;
 
-    right_apply<T>(layout, blas::Op::Trans, blas::Op::NoTrans, m, d, n, 1.0, At, lda, S, 0, 0, 0.0, B0.data(), ldb, threads);
+    right_apply<T>(layout, blas::Op::Trans, blas::Op::NoTrans, m, d, n, 1.0, At.data(), lda, S, 0, 0, 0.0, B0.data(), ldb, threads);
 
     std::vector<T> B1(m * d, 0.0);
     std::vector<T> E(m * d, 0.0);
