@@ -2,7 +2,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/dense.hh"
 #include "RandBLAS/util.hh"
-#include "RandBLAS/test_util.hh"
+#include "comparison.hh"
 #include "RandBLAS/sparse_skops.hh"
 #include "RandBLAS/sparse_data/coo_matrix.hh"
 #include "RandBLAS/sparse_data/csr_matrix.hh"
@@ -12,9 +12,9 @@
 #include <tuple>
 
 
-namespace test::common {
+namespace test::linop_common {
 
-using RandBLAS::sparse_data::COOMatrix;
+using RandBLAS::COOMatrix;
 using RandBLAS::sparse_data::CSRMatrix;
 using RandBLAS::sparse_data::CSCMatrix;
 using RandBLAS::SparseSkOp;
@@ -252,7 +252,7 @@ void test_left_apply_to_random(
     );
 
     // check the result
-    RandBLAS_Testing::Util::buffs_approx_equal<T>(
+    test::comparison::buffs_approx_equal<T>(
         B0.data(), B1.data(), E.data(), d * n,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
@@ -300,7 +300,7 @@ void test_left_apply_submatrix_to_eye(
         }
     }
 
-    RandBLAS_Testing::Util::matrices_approx_equal(
+    test::comparison::matrices_approx_equal(
         layout, blas::Op::NoTrans,
         d1, m1,
         B.data(), ldb,
@@ -334,7 +334,7 @@ void test_left_apply_transpose_to_eye(
 
     std::vector<T> S_dense(m * d, 0.0);
     to_explicit_buffer(S, S_dense.data(), layout);
-    RandBLAS_Testing::Util::matrices_approx_equal(
+    test::comparison::matrices_approx_equal(
         layout, blas::Op::Trans, d, m,
         B.data(), ldb, S_dense.data(), lds,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
@@ -379,7 +379,7 @@ void test_left_apply_to_submatrix(
         A_ptr, lda,
         0.0, B1.data(), E.data(), ldb
     );
-    RandBLAS_Testing::Util::buffs_approx_equal(
+    test::comparison::buffs_approx_equal(
         B0.data(), B1.data(), E.data(), d * n,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
@@ -416,7 +416,7 @@ void test_left_apply_to_transposed(
         At.data(), lda,
         0.0, B1.data(), E.data(), ldb
     );
-    RandBLAS_Testing::Util::buffs_approx_equal(
+    test::comparison::buffs_approx_equal(
         B0.data(), B1.data(), E.data(), d * n,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
@@ -541,7 +541,7 @@ void test_right_apply_to_random(
         beta, B1.data(), E.data(), ldb
     );
 
-    RandBLAS_Testing::Util::buffs_approx_equal<T>(
+    test::comparison::buffs_approx_equal<T>(
         B0.data(), B1.data(), E.data(), m * d,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
@@ -579,7 +579,7 @@ void test_right_apply_submatrix_to_eye(
         }
     }
 
-    RandBLAS_Testing::Util::matrices_approx_equal(
+    test::comparison::matrices_approx_equal(
         layout, blas::Op::NoTrans, n, d, B.data(), ldb, &expect[offset], ld_expect,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
@@ -603,7 +603,7 @@ void test_right_apply_tranpose_to_eye(
 
     std::vector<T> S_dense(n * d, 0.0);
     to_explicit_buffer(S, S_dense.data(), layout);
-    RandBLAS_Testing::Util::matrices_approx_equal(
+    test::comparison::matrices_approx_equal(
         layout, blas::Op::Trans, n, d, 
         B.data(), ldb, S_dense.data(), lds,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
@@ -639,7 +639,7 @@ void test_right_apply_to_submatrix(
         1.0, A_ptr, lda, S, 0, 0,
         0.0, B1.data(), E.data(), ldb
     );
-    RandBLAS_Testing::Util::buffs_approx_equal(
+    test::comparison::buffs_approx_equal(
         B0.data(), B1.data(), E.data(), d * m,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
@@ -658,7 +658,7 @@ void test_right_apply_to_transposed(
     int64_t lda = (is_colmajor) ? n : m;
     int64_t ldb = (is_colmajor) ? m : d;
 
-    right_apply<T>(layout, blas::Op::Trans, blas::Op::NoTrans, m, d, n, 1.0, At, lda, S, 0, 0, 0.0, B0.data(), ldb, threads);
+    right_apply<T>(layout, blas::Op::Trans, blas::Op::NoTrans, m, d, n, 1.0, At.data(), lda, S, 0, 0, 0.0, B0.data(), ldb, threads);
 
     std::vector<T> B1(m * d, 0.0);
     std::vector<T> E(m * d, 0.0);
@@ -668,12 +668,12 @@ void test_right_apply_to_transposed(
         1.0, At.data(), lda, S, 0, 0,
         0.0, B1.data(), E.data(), ldb
     );
-    RandBLAS_Testing::Util::buffs_approx_equal(
+    test::comparison::buffs_approx_equal(
         B0.data(), B1.data(), E.data(), m * d,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
 }
 
 
-} // end namespace test::common
+} // end namespace test::linop_common
 

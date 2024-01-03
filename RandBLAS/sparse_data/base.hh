@@ -17,16 +17,6 @@ enum class IndexBase : char {
 };
 
 template <typename T>
-struct SparseMatrix {
-    const int64_t n_rows;
-    const int64_t n_cols;
-    const IndexBase index_base;
-    const bool own_memory;
-    int64_t nnz;
-    T *vals;
-};
-
-template <typename T>
 int64_t nnz_in_dense(
     int64_t n_rows,
     int64_t n_cols,
@@ -72,5 +62,9 @@ static inline void sorted_nonzero_locations_to_pointer_array(
 }
 
 } // end namespace RandBLAS::sparse_data
+
+namespace RandBLAS {
+    using RandBLAS::sparse_data::IndexBase;
+}
 
 #endif

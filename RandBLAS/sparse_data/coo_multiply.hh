@@ -281,7 +281,22 @@ void rspgemm(
     );
 }
 
-
 } // end namespace
+
+namespace RandBLAS {
+
+template <typename T>
+void multiply_general(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, COOMatrix<T> &A, int64_t i_off, int64_t j_off, const T *B, int64_t ldb, T beta, T *C, int64_t ldc) {
+    RandBLAS::sparse_data::coo::lspgemm(layout, opA, opB, m, n, k, alpha, A, i_off, j_off, B, ldb, beta, C, ldc);
+    return;
+};
+
+template <typename T>
+void multiply_general(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T *A, int64_t lda, COOMatrix<T> &B, int64_t i_off, int64_t j_off, T beta, T *C, int64_t ldc) {
+    RandBLAS::sparse_data::coo::rspgemm(layout, opA, opB, m, n, k, alpha, A, lda, B, i_off, j_off, B, beta, C, ldc);
+    return;
+}
+
+}
 
 #endif

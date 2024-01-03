@@ -1,6 +1,10 @@
-#include "../common.hh"
+#include "../linop_common.hh"
 #include <gtest/gtest.h>
 
+using namespace test::linop_common;
+using RandBLAS::DenseDist;
+using RandBLAS::DenseSkOp;
+using blas::Layout;
 
 class TestRSKGE3 : public ::testing::Test
 {
@@ -16,13 +20,13 @@ class TestRSKGE3 : public ::testing::Test
         int64_t m,
         int64_t d,
         bool preallocate,
-        blas::Layout layout
+        Layout layout
     ) {
-        RandBLAS::DenseDist D(m, d);
-        RandBLAS::DenseSkOp<T> S0(D, seed, nullptr);
+        DenseDist D(m, d);
+        DenseSkOp<T> S0(D, seed, nullptr);
         if (preallocate)
             RandBLAS::fill_dense(S0);
-        test::common::test_right_apply_submatrix_to_eye<T>(1.0, S0, m, d, 0, 0, layout, 0.0, 0);
+        test_right_apply_submatrix_to_eye<T>(1.0, S0, m, d, 0, 0, layout, 0.0, 0);
     }
 
     template <typename T>
@@ -30,11 +34,11 @@ class TestRSKGE3 : public ::testing::Test
         uint32_t seed,
         int64_t m,
         int64_t d,
-        blas::Layout layout
+        Layout layout
     ) {
-        RandBLAS::DenseDist Dt(d, m);
-        RandBLAS::DenseSkOp<T> S0(Dt, seed, nullptr);
-        test::common::test_right_apply_tranpose_to_eye<T>(S0, layout);
+        DenseDist Dt(d, m);
+        DenseSkOp<T> S0(Dt, seed, nullptr);
+        test_right_apply_tranpose_to_eye<T>(S0, layout);
     }
 
     template <typename T>
@@ -46,11 +50,11 @@ class TestRSKGE3 : public ::testing::Test
         int64_t m0, // rows in S0
         int64_t S_ro, // row offset for S in S0
         int64_t S_co, // column offset for S in S0
-        blas::Layout layout
+        Layout layout
     ) {
-        RandBLAS::DenseDist D(m0, d0);
-        RandBLAS::DenseSkOp<T> S0(D, seed);
-        test::common::test_right_apply_submatrix_to_eye<T>(1.0, S0, m, d, S_ro, S_co, layout, 0.0, 0);
+        DenseDist D(m0, d0);
+        DenseSkOp<T> S0(D, seed);
+        test_right_apply_submatrix_to_eye<T>(1.0, S0, m, d, S_ro, S_co, layout, 0.0, 0);
     }
 
     template <typename T>
@@ -63,11 +67,11 @@ class TestRSKGE3 : public ::testing::Test
         int64_t n0, // cols in A0
         int64_t A_ro, // row offset for A in A0
         int64_t A_co, // column offset for A in A0
-        blas::Layout layout
+        Layout layout
     ) {
-        RandBLAS::DenseDist D(n, d);
-        RandBLAS::DenseSkOp<T> S0(D, seed_S0, nullptr);
-        test::common::test_right_apply_to_submatrix<T>(S0, m, m0, n0, A_ro, A_co, layout);
+        DenseDist D(n, d);
+        DenseSkOp<T> S0(D, seed_S0, nullptr);
+        test_right_apply_to_submatrix<T>(S0, m, m0, n0, A_ro, A_co, layout);
     }
 
 };
@@ -84,37 +88,37 @@ class TestRSKGE3 : public ::testing::Test
 TEST_F(TestRSKGE3, right_sketch_eye_double_preallocate_colmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 200, 30, true, blas::Layout::ColMajor);
+        sketch_eye<double>(seed, 200, 30, true, Layout::ColMajor);
 }
 
 TEST_F(TestRSKGE3, right_sketch_eye_double_preallocate_rowmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 200, 30, true, blas::Layout::RowMajor);
+        sketch_eye<double>(seed, 200, 30, true, Layout::RowMajor);
 }
 
 TEST_F(TestRSKGE3, right_sketch_eye_double_null_colmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 200, 30, false, blas::Layout::ColMajor);
+        sketch_eye<double>(seed, 200, 30, false, Layout::ColMajor);
 }
 
 TEST_F(TestRSKGE3, right_sketch_eye_double_null_rowmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 200, 30, false, blas::Layout::RowMajor);
+        sketch_eye<double>(seed, 200, 30, false, Layout::RowMajor);
 }
 
 TEST_F(TestRSKGE3, right_sketch_eye_single_preallocate)
 {
     for (uint32_t seed : {0})
-        sketch_eye<float>(seed, 200, 30, true, blas::Layout::ColMajor);
+        sketch_eye<float>(seed, 200, 30, true, Layout::ColMajor);
 }
 
 TEST_F(TestRSKGE3, right_sketch_eye_single_null)
 {
     for (uint32_t seed : {0})
-        sketch_eye<float>(seed, 200, 30, false, blas::Layout::ColMajor);
+        sketch_eye<float>(seed, 200, 30, false, Layout::ColMajor);
 }
 
 
@@ -129,25 +133,25 @@ TEST_F(TestRSKGE3, right_sketch_eye_single_null)
 TEST_F(TestRSKGE3, right_lift_eye_double_preallocate_colmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 10, 51, true, blas::Layout::ColMajor);
+        sketch_eye<double>(seed, 10, 51, true, Layout::ColMajor);
 }
 
 TEST_F(TestRSKGE3, right_lift_eye_double_preallocate_rowmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 10, 51, true, blas::Layout::RowMajor);
+        sketch_eye<double>(seed, 10, 51, true, Layout::RowMajor);
 }
 
 TEST_F(TestRSKGE3, right_lift_eye_double_null_colmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 10, 51, false, blas::Layout::ColMajor);
+        sketch_eye<double>(seed, 10, 51, false, Layout::ColMajor);
 }
 
 TEST_F(TestRSKGE3, right_lift_eye_double_null_rowmajor)
 {
     for (uint32_t seed : {0})
-        sketch_eye<double>(seed, 10, 51, false, blas::Layout::RowMajor);
+        sketch_eye<double>(seed, 10, 51, false, Layout::RowMajor);
 }
 
 
@@ -162,19 +166,19 @@ TEST_F(TestRSKGE3, right_lift_eye_double_null_rowmajor)
 TEST_F(TestRSKGE3, transpose_double_colmajor)
 {
     for (uint32_t seed : {0})
-        transpose_S<double>(seed, 200, 30, blas::Layout::ColMajor);
+        transpose_S<double>(seed, 200, 30, Layout::ColMajor);
 }
 
 TEST_F(TestRSKGE3, transpose_double_rowmajor)
 {
     for (uint32_t seed : {0})
-        transpose_S<double>(seed, 200, 30, blas::Layout::RowMajor);
+        transpose_S<double>(seed, 200, 30, Layout::RowMajor);
 }
 
 TEST_F(TestRSKGE3, transpose_single)
 {
     for (uint32_t seed : {0})
-        transpose_S<float>(seed, 200, 30, blas::Layout::ColMajor);
+        transpose_S<float>(seed, 200, 30, Layout::ColMajor);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -193,7 +197,7 @@ TEST_F(TestRSKGE3, submatrix_s_double_colmajor)
             8, 12, // (cols, rows) in S0.
             2, // The first row of S is in the third row of S0
             1, // The first col of S is in the second col of S0
-            blas::Layout::ColMajor
+            Layout::ColMajor
         );
 }
 
@@ -205,7 +209,7 @@ TEST_F(TestRSKGE3, submatrix_s_double_rowmajor)
             8, 12, // (cols, rows) in S0.
             2, // The first row of S is in the third row of S0
             1, // The first col of S is in the second col of S0
-            blas::Layout::RowMajor
+            Layout::RowMajor
         );
 }
 
@@ -217,7 +221,7 @@ TEST_F(TestRSKGE3, submatrix_s_single)
             8, 12, // (cols, rows) in S0.
             2, // The first row of S is in the third row of S0
             1, // The first col of S is in the second col of S0
-            blas::Layout::ColMajor
+            Layout::ColMajor
         );
 }
 
@@ -238,7 +242,7 @@ TEST_F(TestRSKGE3, submatrix_a_double_colmajor)
             12, 8, // (rows, cols) in A0.
             2, // The first row of A is in the third row of A0.
             1, // The first col of A is in the second col of A0.
-            blas::Layout::ColMajor
+            Layout::ColMajor
         );
 }
 
@@ -251,7 +255,7 @@ TEST_F(TestRSKGE3, submatrix_a_double_rowmajor)
             12, 8, // (rows, cols) in A0.
             2, // The first row of A is in the third row of A0.
             1, // The first col of A is in the second col of A0.
-            blas::Layout::RowMajor
+            Layout::RowMajor
         );
 }
 
@@ -264,6 +268,6 @@ TEST_F(TestRSKGE3, submatrix_a_single)
             12, 8, // (rows, cols) in A0.
             2, // The first row of A is in the third row of A0.
             1, // The first col of A is in the second col of A0.
-            blas::Layout::ColMajor
+            Layout::ColMajor
         );
 }

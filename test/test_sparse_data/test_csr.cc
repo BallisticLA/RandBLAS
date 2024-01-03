@@ -1,5 +1,5 @@
 #include "test/test_sparse_data/common.hh"
-#include "RandBLAS/test_util.hh"
+#include "../comparison.hh"
 #include <gtest/gtest.h>
 #include <algorithm>
 
@@ -33,7 +33,7 @@ class TestCSR_Conversions : public ::testing::Test
         T *eye = new T[n*n]{0.0};
         for (int i = 0; i < n; ++i)
             eye[i + n*i] = 1.0 + (T) i;
-        RandBLAS_Testing::Util::buffs_approx_equal(mat, eye, n * n,
+        test::comparison::buffs_approx_equal(mat, eye, n * n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         
@@ -58,7 +58,7 @@ class TestCSR_Conversions : public ::testing::Test
         csr_to_dense(spmat, layout, dn_mat_recon);
 
         // check equivalence of dn_mat and dn_mat_recon
-        RandBLAS_Testing::Util::buffs_approx_equal(dn_mat, dn_mat_recon, m * n,
+        test::comparison::buffs_approx_equal(dn_mat, dn_mat_recon, m * n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
 
@@ -90,7 +90,7 @@ class TestCSR_Conversions : public ::testing::Test
         T *mat_actual = new T[m * n]{0.0};
         csr_to_dense(csr, Layout::ColMajor, mat_actual);
 
-        RandBLAS_Testing::Util::matrices_approx_equal(
+        test::comparison::matrices_approx_equal(
             Layout::ColMajor, Layout::ColMajor, blas::Op::NoTrans,
             m, n, mat_expect, m, mat_actual, m,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
