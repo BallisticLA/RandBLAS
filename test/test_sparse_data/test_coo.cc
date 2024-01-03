@@ -1,5 +1,5 @@
 #include "test/test_sparse_data/common.hh"
-#include "RandBLAS/test_util.hh"
+#include "../comparison.hh"
 #include <gtest/gtest.h>
 #include <vector>
 
@@ -28,7 +28,7 @@ class TestCOO : public ::testing::Test
         std::vector<T> expect(n * n);
         coo_to_dense(A, 1, n, expect.data());
 
-        RandBLAS_Testing::Util::buffs_approx_equal(actual.data(), expect.data(), n * n,
+        test::comparison::buffs_approx_equal(actual.data(), expect.data(), n * n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         EXPECT_GT(A.nnz, 0);
@@ -98,11 +98,11 @@ class Test_SkOp_to_COO : public ::testing::Test
         EXPECT_EQ(RandBLAS::sparse::nnz(S), A.nnz);
 
         std::vector<T> S_dense(d * m);
-        RandBLAS_Testing::Util::sparseskop_to_dense(S, S_dense.data(), Layout::ColMajor);
+        sparseskop_to_dense(S, S_dense.data(), Layout::ColMajor);
         std::vector<T> A_dense(d * m);
         coo_to_dense(A, Layout::ColMajor, A_dense.data());
     
-        RandBLAS_Testing::Util::buffs_approx_equal(S_dense.data(), A_dense.data(), d * m,
+        test::comparison::buffs_approx_equal(S_dense.data(), A_dense.data(), d * m,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         return;

@@ -1,11 +1,11 @@
-#include "../common.hh"
+#include "../linop_common.hh"
 #include "common.hh"
 #include <gtest/gtest.h>
 #include <vector>
 
 using RandBLAS::sparse_data::coo::dense_to_coo;
 using namespace test::sparse_data::common;
-using namespace test::common;
+using namespace test::linop_common;
 using blas::Layout;
 
 template <typename T>
@@ -26,7 +26,6 @@ class TestRightMultiply : public ::testing::Test
     //
     //  In what follows, "self" refers to A and "other" refers to B.
     //
-    //  C is m-by-d (TODO: verify)
     protected:
     virtual void SetUp(){};
     virtual void TearDown(){};

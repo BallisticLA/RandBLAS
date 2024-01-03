@@ -1,8 +1,9 @@
-#include "../common.hh"
+#include "../linop_common.hh"
 #include <gtest/gtest.h>
 
 using RandBLAS::DenseDist;
 using RandBLAS::DenseSkOp;
+using namespace test::linop_common;
 
 class TestLSKGE3 : public ::testing::Test
 {
@@ -24,7 +25,7 @@ class TestLSKGE3 : public ::testing::Test
         DenseSkOp<T> S0(D, seed, nullptr);
         if (preallocate)
             RandBLAS::fill_dense(S0);
-        test::common::test_left_apply_submatrix_to_eye<T>(1.0, S0, d, m, 0, 0, layout, 0.0);
+        test_left_apply_submatrix_to_eye<T>(1.0, S0, d, m, 0, 0, layout, 0.0);
     }
 
     template <typename T>
@@ -37,7 +38,7 @@ class TestLSKGE3 : public ::testing::Test
         DenseDist Dt(m, d);
         DenseSkOp<T> S0(Dt, seed, nullptr);
         RandBLAS::fill_dense(S0);
-        test::common::test_left_apply_transpose_to_eye<T>(S0, layout);
+        test_left_apply_transpose_to_eye<T>(S0, layout);
     }
 
     template <typename T>
@@ -55,7 +56,7 @@ class TestLSKGE3 : public ::testing::Test
         randblas_require(m0 > m);
         DenseDist D(d0, m0);
         DenseSkOp<T> S0(D, seed);
-        test::common::test_left_apply_submatrix_to_eye<T>(1.0, S0, d, m, S_ro, S_co, layout, 0.0);
+        test_left_apply_submatrix_to_eye<T>(1.0, S0, d, m, S_ro, S_co, layout, 0.0);
     }
 
     template <typename T>
@@ -74,7 +75,7 @@ class TestLSKGE3 : public ::testing::Test
         randblas_require(n0 > n);
         DenseDist D(d, m);
         DenseSkOp<T> S0(D, seed_S0, nullptr);
-        test::common::test_left_apply_to_submatrix<T>(S0, n, m0, n0, A_ro, A_co, layout);
+        test_left_apply_to_submatrix<T>(S0, n, m0, n0, A_ro, A_co, layout);
     }
 
 };

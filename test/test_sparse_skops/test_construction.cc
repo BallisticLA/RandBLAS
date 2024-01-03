@@ -1,7 +1,7 @@
 #include <RandBLAS/dense.hh>
 #include <RandBLAS/sparse_skops.hh>
 #include <RandBLAS/util.hh>
-#include <RandBLAS/test_util.hh>
+#include "../comparison.hh"
 #include <gtest/gtest.h>
 #include <math.h>
 

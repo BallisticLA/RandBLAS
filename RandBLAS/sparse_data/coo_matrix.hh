@@ -10,6 +10,10 @@
 
 namespace RandBLAS::sparse_data {
 
+// =============================================================================
+/// Indicates whether the (rows, cols, vals) data of a COO-format sparse matrix
+/// are known to be sorted in CSC order, CSR order, or neither of those orders.
+///
 enum class NonzeroSort : char {
     CSC = 'C',
     CSR = 'R',
@@ -65,18 +69,44 @@ static inline NonzeroSort coo_sort_type(int64_t nnz, sint_t *rows, sint_t *cols)
     }
 }
 
+// =============================================================================
+/// A sparse matrix stored in COO format.
+///
 template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 struct COOMatrix {
+    // ---------------------------------------------------------------------------
+    ///  The number of rows in this sparse matrix.
     const int64_t n_rows;
+    // ---------------------------------------------------------------------------
+    ///  The number of columns in this sparse matrix.
     const int64_t n_cols;
+    // ---------------------------------------------------------------------------
+    ///  Whether data in (rows, cols) is zero-indexed or one-indexed.
     const IndexBase index_base;
+    // ---------------------------------------------------------------------------
+    ///  A flag to indicate if this object is responsible for allocating and 
+    ///  deallocating memory for (rows, cols, vals).
     const bool own_memory;
+    // ---------------------------------------------------------------------------
+    ///  The number of entries in (rows, cols, vals).
     int64_t nnz;
+    // ---------------------------------------------------------------------------
+    ///  Values of the nonzeros.
     T *vals;
+    // ---------------------------------------------------------------------------
+    ///  Row indicies for nonzeros (interpreted with respect to index_base).
     sint_t *rows;
+    // ---------------------------------------------------------------------------
+    ///  Column indicies for nonzeros (interpreted with respect to index_base).
     sint_t *cols;
+    // ---------------------------------------------------------------------------
+    ///  A flag to indicate if the data in (rows, cols, vals) is sorted in a 
+    ///  CSC-like order, a CSR-like order, or neither order.
     NonzeroSort sort;
+
     bool _can_reserve = true;
+    // ^ A flag to indicate if we're allowed to allocate new memory for 
+    //   (rows, cols, vals). Set to false after COOMatrix.reserve(...) is called.
 
     COOMatrix(
         int64_t n_rows,

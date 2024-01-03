@@ -6,14 +6,6 @@
 #include <numeric>
 #include <iostream>
 
-#include <type_traits>
-#include <typeinfo>
-#ifndef _MSC_VER
-#   include <cxxabi.h>
-#endif
-#include <memory>
-#include <string>
-#include <cstdlib>
 
 #include <RandBLAS/dense.hh>
 #include <RandBLAS/sparse_skops.hh>
@@ -21,71 +13,7 @@
 #include <math.h>
 
 
-namespace RandBLAS_Testing::Util {
-
-
-//Function that fills in a random matrix and truncates at the end of each row so that each row starts with a fresh counter.
-template<typename T, typename RNG, typename OP>
-static void fill_dense_rmat_trunc(
-    T* mat,
-    int64_t n_rows,
-    int64_t n_cols,
-    const RandBLAS::RNGState<RNG> & seed
-) {
-
-    RNG rng;
-    typename RNG::ctr_type c = seed.counter;
-    typename RNG::key_type k = seed.key;
-    
-    int ind = 0;
-    int cts = n_cols / RNG::ctr_type::static_size; //number of counters per row, where all the random numbers are to be filled in the array.
-    int res = n_cols % RNG::ctr_type::static_size; //Number of random numbers to be filled at the end of each row the the last counter of the row
-
-    for (int i = 0; i < n_rows; i++) {
-        for (int ctr = 0; ctr < cts; ctr++){
-            auto rv = OP::generate(rng, c, k);
-            for (int j = 0; j < RNG::ctr_type::static_size; j++) {
-                mat[ind] = rv[j];
-                ind++;
-            }
-            c.incr();
-        }
-        if (res != 0) { 
-            for (int j = 0; j < res; j++) {
-                auto rv = OP::generate(rng, c, k);
-                mat[ind] = rv[j];
-                ind++;
-            }
-            c.incr();
-        }
-    }
-}
-
-
-template <class T>
-std::string type_name() { // call as type_name<obj>()
-    typedef typename std::remove_reference<T>::type TR;
-    std::unique_ptr<char, void(*)(void*)> own
-           (
-#ifndef _MSC_VER
-                abi::__cxa_demangle(typeid(TR).name(), nullptr,
-                                           nullptr, nullptr),
-#else
-                nullptr,
-#endif
-                std::free
-           );
-    std::string r = own != nullptr ? own.get() : typeid(TR).name();
-    if (std::is_const<TR>::value)
-        r += " const";
-    if (std::is_volatile<TR>::value)
-        r += " volatile";
-    if (std::is_lvalue_reference<T>::value)
-        r += "&";
-    else if (std::is_rvalue_reference<T>::value)
-        r += "&&";
-    return r;
-}
+namespace test::comparison {
 
 
 /** Tests two floating point numbers for approximate equality.
@@ -280,26 +208,5 @@ void matrices_approx_equal(
     matrices_approx_equal(layout, layout, transB, m, n, A, lda, B, ldb, testName, fileName, lineNo, atol, rtol);
 }
 
-template <typename T, typename RNG, RandBLAS::SignedInteger sint_t>
-void sparseskop_to_dense(
-    RandBLAS::SparseSkOp<T, RNG, sint_t> &S0,
-    T *mat,
-    blas::Layout layout
-) {
-    RandBLAS::SparseDist D = S0.dist;
-    for (int64_t i = 0; i < D.n_rows * D.n_cols; ++i)
-        mat[i] = 0.0;
-    auto idx = [D, layout](int64_t i, int64_t j) {
-        return  (layout == blas::Layout::ColMajor) ? (i + j*D.n_rows) : (j + i*D.n_cols);
-    };
-    int64_t nnz = RandBLAS::sparse::nnz(S0);
-    for (int64_t i = 0; i < nnz; ++i) {
-        sint_t row = S0.rows[i];
-        sint_t col = S0.cols[i];
-        T val = S0.vals[i];
-        mat[idx(row, col)] = val;
-    }
-}
-
-} // end namespace RandBLAS_Testing::Util
+} // end namespace test::comparison
 #endif

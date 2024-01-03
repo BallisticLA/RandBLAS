@@ -1,11 +1,11 @@
-#include "../common.hh"
+#include "../linop_common.hh"
 #include "common.hh"
 #include <gtest/gtest.h>
 #include <vector>
 
 using RandBLAS::sparse_data::coo::dense_to_coo;
 using namespace test::sparse_data::common;
-using namespace test::common;
+using namespace test::linop_common;
 using blas::Layout;
 
 template <typename T>
@@ -102,7 +102,6 @@ class TestLeftMultiply : public ::testing::Test
 
 };
 
-
 ////////////////////////////////////////////////////////////////////////
 //
 //
@@ -174,7 +173,6 @@ TEST_F(TestLeftMultiply, nontrivial_scales_rowmajor2) {
     alpha_beta<double>(0, alpha, beta, 21, 4, Layout::RowMajor, 0.10);
     alpha_beta<double>(0, alpha, beta, 21, 4, Layout::RowMajor, 0.80);
 }
-
 
 ////////////////////////////////////////////////////////////////////////
 //

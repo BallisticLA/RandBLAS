@@ -1,5 +1,5 @@
 #include "test/test_sparse_data/common.hh"
-#include "RandBLAS/test_util.hh"
+#include "../comparison.hh"
 #include <gtest/gtest.h>
 #include <algorithm>
 
@@ -34,7 +34,7 @@ class TestCSC_Conversions : public ::testing::Test
         csc_to_dense(spmat, layout, dn_mat_recon);
 
         // check equivalence of dn_mat and dn_mat_recon
-        RandBLAS_Testing::Util::buffs_approx_equal(dn_mat, dn_mat_recon, m * n,
+        test::comparison::buffs_approx_equal(dn_mat, dn_mat_recon, m * n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
 
@@ -66,7 +66,7 @@ class TestCSC_Conversions : public ::testing::Test
         T *mat_actual = new T[m * n]{0.0};
         csc_to_dense(csc, Layout::ColMajor, mat_actual);
 
-        RandBLAS_Testing::Util::matrices_approx_equal(
+        test::comparison::matrices_approx_equal(
             Layout::ColMajor, Layout::ColMajor, blas::Op::NoTrans,
             m, n, mat_expect, m, mat_actual, m,
             __PRETTY_FUNCTION__, __FILE__, __LINE__

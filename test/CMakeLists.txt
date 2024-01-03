@@ -6,7 +6,8 @@ if (GTest_FOUND)
     set(tmp TRUE)
 
     add_executable(RandBLAS_tests
-        common.hh
+        linop_common.hh
+        comparison.hh
         test_sketch_vector.cc
         # dense sketching operators for dense data matrices
         test_dense/test_construction.cc
@@ -26,6 +27,7 @@ if (GTest_FOUND)
 
     add_executable(SparseRandBLAS_tests
         # dense sketching operators for sparse matrices
+        comparison.hh
         test_sparse_data/common.hh
         test_sparse_data/test_csc.cc
         test_sparse_data/test_csr.cc

@@ -3,7 +3,7 @@
 #include "RandBLAS/random_gen.hh"
 #include "RandBLAS/dense.hh"
 #include "RandBLAS/util.hh"
-#include "RandBLAS/test_util.hh"
+#include "comparison.hh"
 #include "RandBLAS/skge.hh"
 
 #include <gtest/gtest.h>
@@ -43,7 +43,7 @@ class TestSketchVector : public ::testing::Test
         RandBLAS::sketch_vector<T>(blas::Op::NoTrans, d, m, 1.0, S, 0, 0, x, incx, 0.0, y_actual, incy);
         blas::gemv(S.layout, blas::Op::NoTrans, d, m, 1.0, S.buff, lds, x, incx, 0.0, y_expect, incy); 
 
-        RandBLAS_Testing::Util::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
+        test::comparison::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
                 __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         delete [] x;
@@ -75,7 +75,7 @@ class TestSketchVector : public ::testing::Test
         blas::gemv(S.layout, blas::Op::Trans, m, d, 1.0, S.buff, lds, x, incx, 0, y_expect, incy); 
         
         // Compare entrywise results of sketching with sketch_vector and using gemv
-        RandBLAS_Testing::Util::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
+        test::comparison::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
                 __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         delete [] x;
@@ -109,7 +109,7 @@ class TestSketchVector : public ::testing::Test
         RandBLAS::sketch_vector<T>(blas::Op::NoTrans, d, m, 1.0, S_wide, 0, 0, x, incx, 0.0, y_wide, incy);
         RandBLAS::sketch_vector<T>(blas::Op::Trans, m, d, 1.0, S_tall, 0, 0, x, incx, 0.0, y_tall, incy);
         
-        RandBLAS_Testing::Util::buffs_approx_equal(d, y_wide, incy, y_tall, incy,
+        test::comparison::buffs_approx_equal(d, y_wide, incy, y_tall, incy,
                 __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         delete [] x;
@@ -142,7 +142,7 @@ class TestSketchVector : public ::testing::Test
         blas::gemv(S.layout, blas::Op::NoTrans, d, m, 1, S.buff, lds, x, incx, 0, y_expect, incy); 
 
         // Compare entrywise results of sketching with sketch_vector and using gemv
-        RandBLAS_Testing::Util::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
+        test::comparison::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
                 __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         delete [] x;

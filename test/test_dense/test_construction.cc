@@ -3,13 +3,53 @@
 #include "RandBLAS/random_gen.hh"
 #include "RandBLAS/dense.hh"
 #include "RandBLAS/util.hh"
-#include "RandBLAS/test_util.hh"
+#include "../comparison.hh"
 
 #include <gtest/gtest.h>
 
 #include <cmath>
 #include <numeric>
 #include <thread>
+
+// Fill a random matrix and truncate at the end of each row so that each row starts with a fresh counter.
+template<typename T, typename RNG, typename OP>
+static void fill_dense_rmat_trunc(
+    T* mat,
+    int64_t n_rows,
+    int64_t n_cols,
+    const RandBLAS::RNGState<RNG> & seed
+) {
+
+    RNG rng;
+    typename RNG::ctr_type c = seed.counter;
+    typename RNG::key_type k = seed.key;
+    
+    int ind = 0;
+    int cts = n_cols / RNG::ctr_type::static_size;
+    // ^ number of counters per row, where all the random numbers are to be filled in the array.
+    int res = n_cols % RNG::ctr_type::static_size;
+    // ^ Number of random numbers to be filled at the end of each row the the last counter of the row
+
+    for (int i = 0; i < n_rows; i++) {
+        for (int ctr = 0; ctr < cts; ctr++){
+            auto rv = OP::generate(rng, c, k);
+            for (int j = 0; j < RNG::ctr_type::static_size; j++) {
+                mat[ind] = rv[j];
+                ind++;
+            }
+            c.incr();
+        }
+        if (res != 0) { 
+            for (int j = 0; j < res; j++) {
+                auto rv = OP::generate(rng, c, k);
+                mat[ind] = rv[j];
+                ind++;
+            }
+            c.incr();
+        }
+    }
+}
+
 
 template <typename T>
 std::ostream &operator<<(std::ostream &os, std::vector<T> &v) {
@@ -111,7 +151,7 @@ class TestSubmatGeneration : public ::testing::Test
         int stride = n_cols / 50; 
         T* mat  = new T[n_rows * n_cols];      
         T* smat = new T[n_srows * n_scols];
-        RandBLAS_Testing::Util::fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
+        fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
         int ind = 0; // used for indexing smat when comparing to rmat
         T total_error = 0;
         for (int nptr = ptr; nptr < n_cols*(n_rows-n_srows-1); nptr += stride*n_cols) {
@@ -143,7 +183,7 @@ class TestSubmatGeneration : public ::testing::Test
         int stride = n_cols / 50;
         T* mat  = new T[n_rows * n_cols];      
         T* smat = new T[n_srows * n_scols];
-        RandBLAS_Testing::Util::fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
+        fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
         int ind = 0; // variable used for indexing smat when comparing to rmat
         T total_error = 0;
         for (int nptr = ptr; nptr < (n_cols - n_scols - 1); nptr += stride) {
@@ -171,7 +211,7 @@ class TestSubmatGeneration : public ::testing::Test
     ) {
         T* mat  = new T[n_rows * n_cols];
         T* smat = new T[n_rows * n_cols]{};
-        RandBLAS_Testing::Util::fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
+        fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
         int ind = 0;
         T total_error = 0;
         int64_t n_scols = 1;
@@ -300,7 +340,7 @@ class TestFillAxis : public::testing::Test
         // check that buffers reflect transposed data : S_wide == S_tall.T
         auto lds_wide = (S_wide.layout == blas::Layout::ColMajor) ? short_dim : long_dim;
         auto lds_tall = (S_tall.layout == blas::Layout::ColMajor) ? long_dim  : short_dim;
-        RandBLAS_Testing::Util::matrices_approx_equal(
+        test::comparison::matrices_approx_equal(
             S_wide.layout, S_tall.layout, blas::Op::Trans, short_dim, long_dim,
             S_wide.buff, lds_wide, S_tall.buff, lds_tall,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
