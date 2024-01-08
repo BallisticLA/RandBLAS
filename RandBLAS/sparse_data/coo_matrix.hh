@@ -230,8 +230,12 @@ namespace RandBLAS::sparse_data::coo {
 using namespace RandBLAS::sparse_data;
 using blas::Layout;
 
+// consider:
+//      1. Adding optional share_memory flag that defaults to true.
+//      2. renaming to transpose_as_coo, making a transpose dispatcher function like
+//          I did for transposing CSC matrices.
 template <typename T>
-static auto transpose(COOMatrix<T> &S) {
+COOMatrix<T> transpose(COOMatrix<T> &S) {
     COOMatrix<T> St(S.n_cols, S.n_rows, S.nnz, S.vals, S.cols, S.rows, false, S.index_base);
     if (S.sort == NonzeroSort::CSC) {
         St.sort = NonzeroSort::CSR;

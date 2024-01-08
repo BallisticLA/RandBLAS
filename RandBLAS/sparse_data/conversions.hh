@@ -84,7 +84,57 @@ void csr_to_coo(CSRMatrix<T, sint_t1> &csr, COOMatrix<T, sint_t2> &coo) {
     return;
 }
 
+template <typename T>
+CSRMatrix<T> transpose_as_csr(CSCMatrix<T> &A, bool share_memory = true) {
+    if (share_memory) {
+        CSRMatrix<T> At(A.n_cols, A.n_rows, A.nnz, A.vals, A.colptr, A.rowidxs, A.index_base);
+        return At;
+    } else {
+        CSRMatrix<T> At(A.n_cols, A.n_rows, A.index_base);
+        At.reserve(A.nnz);
+        for (int64_t i = 0; i < A.nnz; ++i) {
+            At.colidxs[i] = A.rowidxs[i];
+            At.vals[i] = A.vals[i];
+        }
+        for (int64_t i = 0; i < A.n_cols + 1; ++i)
+            At.rowptr[i] = A.colptr[i];
+        return At;
+    }
+}
 
-} // end namespace 
+template <typename T>
+CSCMatrix<T> transpose_as_csc(CSRMatrix<T> &A, bool share_memory = true) {
+    if (share_memory) {
+        CSCMatrix<T> At(A.n_cols, A.n_rows, A.nnz, A.vals, A.colidxs, A.rowptr, A.index_base);
+        return At;
+    } else {
+        CSCMatrix<T> At(A.n_cols, A.n_rows, A.index_base);
+        At.reserve(A.nnz);
+        for (int64_t i = 0; i < A.nnz; ++i) {
+            At.rowidxs[i] = A.colidxs[i];
+            At.vals[i] = A.vals[i];
+        }
+        for (int64_t i = 0; i < A.n_rows + 1; ++i)
+            At.colptr[i] = A.rowptr[i];
+        return At;
+    }
+}
+
+template <typename T, typename SpMatrix>
+SpMatrix transpose(CSCMatrix<T> &A, bool share_memory) {
+    constexpr bool implemented = std::is_same_v<SpMatrix, CSRMatrix<T>>;
+    randblas_require(implemented);
+    return transpose_as_csr(A, share_memory);
+}
+
+template <typename T, typename SpMatrix>
+SpMatrix transpose(CSRMatrix<T> &A, bool share_memory) {
+    constexpr bool implemented = std::is_same_v<SpMatrix, CSCMatrix<T>>;
+    randblas_require(implemented);
+    return transpose_as_csc(A, share_memory);
+}
+
+
+} // end namespace RandBLAS::sparse_data::conversions
 
 #endif

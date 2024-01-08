@@ -40,8 +40,8 @@ struct CSCMatrix {
     ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(false) {
         this->nnz = nnz;
         this->vals = vals;
-        this->rowptr = rowidxs;
-        this->colidxs = colptr;
+        this->rowidxs = rowidxs;
+        this->colptr = colptr;
     };
 
     ~CSCMatrix() {

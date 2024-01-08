@@ -1,6 +1,5 @@
 #include "test/test_sparse_data/common.hh"
 #include "../comparison.hh"
-#include <gtest/gtest.h>
 #include <vector>
 
 using namespace RandBLAS::sparse_data;
