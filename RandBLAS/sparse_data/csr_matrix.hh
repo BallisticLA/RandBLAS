@@ -62,6 +62,35 @@ struct CSRMatrix {
         this->_can_reserve = false;
     };
 
+    // move constructor
+    CSRMatrix(CSRMatrix<T> &&other)
+    : n_rows(other.n_rows), n_cols(other.n_cols), index_base(other.index_base), own_memory(true)  {
+        randblas_require(other.own_memory);
+        randblas_require(!other._can_reserve);
+        this->nnz = other.nnz;
+        std::swap(this->colidxs, other.colidxs);
+        std::swap(this->rowptr , other.rowptr );
+        std::swap(this->vals   , other.vals   );
+        this->_can_reserve = false;
+        other.nnz = 0;
+    };
+
+    // move assignment operator
+    // CSRMatrix<T> &operator=(CSRMatrix<T> &&other)
+    // : n_rows(other.n_rows), n_cols(other.n_cols), index_base(other.index_base), own_memory(true)  {
+    //     if (this != &other) {
+    //         randblas_require(other.own_memory);
+    //         randblas_require(!other._can_reserve);
+    //         this->nnz = other.nnz;
+    //         std::swap(this->colidxs, other.colidxs);
+    //         std::swap(this->rowptr , other.rowptr );
+    //         std::swap(this->vals   , other.vals   );
+    //         this->_can_reserve = false;
+    //         other.nnz = 0;
+    //     }
+    //     return *this;
+    // };
+
 };
 
 } // end namespace RandBLAS::sparse_data
