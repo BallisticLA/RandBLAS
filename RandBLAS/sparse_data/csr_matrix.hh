@@ -3,6 +3,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
+#include <algorithm>
 
 namespace RandBLAS::sparse_data {
 
@@ -12,22 +13,17 @@ struct CSRMatrix {
     const int64_t n_cols;
     const IndexBase index_base;
     const bool own_memory;
-    int64_t nnz;
-    T *vals;
-    sint_t *rowptr;
-    sint_t *colidxs;
+    int64_t nnz = 0;
+    T *vals = nullptr;
+    sint_t *rowptr = nullptr;
+    sint_t *colidxs = nullptr;
     bool _can_reserve = true;
 
     CSRMatrix(
         int64_t n_rows,
         int64_t n_cols,
         IndexBase index_base = IndexBase::Zero
-    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) {
-        this->nnz = 0;
-        this->vals = nullptr;
-        this->rowptr = nullptr;
-        this->colidxs = nullptr;
-    };
+    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) {};
 
     CSRMatrix(
         int64_t n_rows,
@@ -63,33 +59,15 @@ struct CSRMatrix {
     };
 
     // move constructor
-    CSRMatrix(CSRMatrix<T> &&other)
-    : n_rows(other.n_rows), n_cols(other.n_cols), index_base(other.index_base), own_memory(true)  {
-        randblas_require(other.own_memory);
-        randblas_require(!other._can_reserve);
+    CSRMatrix(CSRMatrix<T, sint_t> &&other)
+    : n_rows(other.n_rows), n_cols(other.n_cols), index_base(other.index_base), own_memory(other.own_memory)  {
         this->nnz = other.nnz;
         std::swap(this->colidxs, other.colidxs);
         std::swap(this->rowptr , other.rowptr );
         std::swap(this->vals   , other.vals   );
-        this->_can_reserve = false;
+        this->_can_reserve = other._can_reserve;
         other.nnz = 0;
     };
-
-    // move assignment operator
-    // CSRMatrix<T> &operator=(CSRMatrix<T> &&other)
-    // : n_rows(other.n_rows), n_cols(other.n_cols), index_base(other.index_base), own_memory(true)  {
-    //     if (this != &other) {
-    //         randblas_require(other.own_memory);
-    //         randblas_require(!other._can_reserve);
-    //         this->nnz = other.nnz;
-    //         std::swap(this->colidxs, other.colidxs);
-    //         std::swap(this->rowptr , other.rowptr );
-    //         std::swap(this->vals   , other.vals   );
-    //         this->_can_reserve = false;
-    //         other.nnz = 0;
-    //     }
-    //     return *this;
-    // };
 
 };
 

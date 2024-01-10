@@ -1,8 +1,9 @@
 #ifndef randblas_sparse_data_csc
 #define randblas_sparse_data_csc
 #include "RandBLAS/base.hh"
+#include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
-
+#include <algorithm>
 
 namespace RandBLAS::sparse_data {
 
@@ -12,22 +13,17 @@ struct CSCMatrix {
     const int64_t n_cols;
     const IndexBase index_base;
     const bool own_memory;
-    int64_t nnz;
-    T *vals;
-    sint_t *rowidxs;
-    sint_t *colptr;
+    int64_t nnz = 0;
+    T *vals = nullptr;
+    sint_t *rowidxs = nullptr;
+    sint_t *colptr = nullptr;
     bool _can_reserve = true;
 
     CSCMatrix(
         int64_t n_rows,
         int64_t n_cols,
         IndexBase index_base = IndexBase::Zero
-    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) {
-        this->nnz = 0;
-        this->vals = nullptr;
-        this->rowidxs = nullptr;
-        this->colptr = nullptr;
-    };
+    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) { };
 
     CSCMatrix(
         int64_t n_rows,
@@ -62,6 +58,15 @@ struct CSCMatrix {
         this->_can_reserve = false;
     };
 
+    CSCMatrix(CSCMatrix<T, sint_t> &&other) 
+    : n_rows(other.n_rows), n_cols(other.n_cols), index_base(other.index_base), own_memory(other.own_memory) {
+        this->nnz = other.nnz;
+        std::swap(this->rowidxs, other.rowidxs);
+        std::swap(this->colptr , other.colptr );
+        std::swap(this->vals   , other.vals   );
+        this->_can_reserve = other._can_reserve;
+        other.nnz = 0;
+    };
 };
 
 } // end namespace RandBLAS::sparse_data
