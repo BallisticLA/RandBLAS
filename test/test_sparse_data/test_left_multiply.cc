@@ -10,7 +10,7 @@ using blas::Layout;
 
 
 template <typename SpMatrix>
-class TestLeftMultiply : public ::testing::Test
+class TestLeftMultiply_Sparse : public ::testing::Test
 {
     using T = typename SpMatrix::scalar_t;
     // C = alpha * opA(submat(A)) @ opB(B) + beta * C
@@ -21,7 +21,6 @@ class TestLeftMultiply : public ::testing::Test
 
     virtual void TearDown(){};
 
-    // template <typename T>
     virtual SpMatrix make_test_matrix(int64_t m, int64_t n, T nonzero_prob, uint32_t key = 0) = 0;
 
     void multiply_eye(uint32_t key, int64_t m, int64_t n, Layout layout, T p) {
@@ -91,7 +90,7 @@ class TestLeftMultiply : public ::testing::Test
 
 
 template <typename T>
-class TestLeftMultiplyCOO : public TestLeftMultiply<COOMatrix<T>> {
+class TestLeftMultiply_COO : public TestLeftMultiply_Sparse<COOMatrix<T>> {
     COOMatrix<T> make_test_matrix(int64_t m, int64_t n, T nonzero_prob, uint32_t key = 0) {
         randblas_require(nonzero_prob >= 0);
         randblas_require(nonzero_prob <= 1);
@@ -104,9 +103,9 @@ class TestLeftMultiplyCOO : public TestLeftMultiply<COOMatrix<T>> {
     }
 };
 
-class TestLeftMultiplyCOO_double : public TestLeftMultiplyCOO<double> {};
+class TestLeftMultiply_COO_double : public TestLeftMultiply_COO<double> {};
 
-class TestLeftMultiplyCOO_single : public TestLeftMultiplyCOO<float> {};
+class TestLeftMultiply_COO_single : public TestLeftMultiply_COO<float> {};
 
 
 ////////////////////////////////////////////////////////////////////////
@@ -117,7 +116,7 @@ class TestLeftMultiplyCOO_single : public TestLeftMultiplyCOO<float> {};
 //
 ////////////////////////////////////////////////////////////////////////
 
-TEST_F(TestLeftMultiplyCOO_double, tall_multiply_eye_colmajor) {
+TEST_F(TestLeftMultiply_COO_double, tall_multiply_eye_colmajor) {
     for (uint32_t key : {0}) {
         multiply_eye(key, 200, 30, Layout::ColMajor, 0.01);
         multiply_eye(key, 200, 30, Layout::ColMajor, 0.10);
@@ -125,7 +124,7 @@ TEST_F(TestLeftMultiplyCOO_double, tall_multiply_eye_colmajor) {
     }
 }
 
-TEST_F(TestLeftMultiplyCOO_double, tall_multiply_eye_rowmajor) {
+TEST_F(TestLeftMultiply_COO_double, tall_multiply_eye_rowmajor) {
     for (uint32_t key : {0}) {
         multiply_eye(key, 200, 30, Layout::RowMajor, 0.01);
         multiply_eye(key, 200, 30, Layout::RowMajor, 0.10);
@@ -133,7 +132,7 @@ TEST_F(TestLeftMultiplyCOO_double, tall_multiply_eye_rowmajor) {
     }
 }
 
-TEST_F(TestLeftMultiplyCOO_double, wide_multiply_eye_colmajor) {
+TEST_F(TestLeftMultiply_COO_double, wide_multiply_eye_colmajor) {
     for (uint32_t key : {0}) {
         multiply_eye(key, 51, 101, Layout::ColMajor, 0.01);
         multiply_eye(key, 51, 101, Layout::ColMajor, 0.10);
@@ -141,7 +140,7 @@ TEST_F(TestLeftMultiplyCOO_double, wide_multiply_eye_colmajor) {
     }
 }
 
-TEST_F(TestLeftMultiplyCOO_double, wide_multiply_eye_rowmajor) {
+TEST_F(TestLeftMultiply_COO_double, wide_multiply_eye_rowmajor) {
     for (uint32_t key : {0}) {
         multiply_eye(key, 51, 101, Layout::RowMajor, 0.01);
         multiply_eye(key, 51, 101, Layout::RowMajor, 0.10);
@@ -149,7 +148,7 @@ TEST_F(TestLeftMultiplyCOO_double, wide_multiply_eye_rowmajor) {
     }
 }
 
-TEST_F(TestLeftMultiplyCOO_double, nontrivial_scales_colmajor1) {
+TEST_F(TestLeftMultiply_COO_double, nontrivial_scales_colmajor1) {
     double alpha = 5.5;
     double beta = 0.0;
     alpha_beta(0, alpha, beta, 21, 4, Layout::ColMajor, 0.05);
@@ -157,7 +156,7 @@ TEST_F(TestLeftMultiplyCOO_double, nontrivial_scales_colmajor1) {
     alpha_beta(0, alpha, beta, 21, 4, Layout::ColMajor, 0.80);
 }
 
-TEST_F(TestLeftMultiplyCOO_double, nontrivial_scales_colmajor2) {
+TEST_F(TestLeftMultiply_COO_double, nontrivial_scales_colmajor2) {
     double alpha = 5.5;
     double beta = -1.0;
     alpha_beta(0, alpha, beta, 21, 4, Layout::ColMajor, 0.05);
@@ -165,7 +164,7 @@ TEST_F(TestLeftMultiplyCOO_double, nontrivial_scales_colmajor2) {
     alpha_beta(0, alpha, beta, 21, 4, Layout::ColMajor, 0.80);
 }
 
-TEST_F(TestLeftMultiplyCOO_double, nontrivial_scales_rowmajor1) {
+TEST_F(TestLeftMultiply_COO_double, nontrivial_scales_rowmajor1) {
     double alpha = 5.5;
     double beta = 0.0;
     alpha_beta(0, alpha, beta, 21, 4, Layout::RowMajor, 0.05);
@@ -173,7 +172,7 @@ TEST_F(TestLeftMultiplyCOO_double, nontrivial_scales_rowmajor1) {
     alpha_beta(0, alpha, beta, 21, 4, Layout::RowMajor, 0.80);
 }
 
-TEST_F(TestLeftMultiplyCOO_double, nontrivial_scales_rowmajor2) {
+TEST_F(TestLeftMultiply_COO_double, nontrivial_scales_rowmajor2) {
     double alpha = 5.5;
     double beta = -1.0;
     alpha_beta(0, alpha, beta, 21, 4, Layout::RowMajor, 0.05);
@@ -187,7 +186,7 @@ TEST_F(TestLeftMultiplyCOO_double, nontrivial_scales_rowmajor2) {
 //
 ////////////////////////////////////////////////////////////////////////
 
-TEST_F(TestLeftMultiplyCOO_double, transpose_self_colmajor) {
+TEST_F(TestLeftMultiply_COO_double, transpose_self_colmajor) {
     for (uint32_t key : {0}) {
         transpose_self(key, 200, 30, Layout::ColMajor, 0.01);
         transpose_self(key, 200, 30, Layout::ColMajor, 0.10);
@@ -195,7 +194,7 @@ TEST_F(TestLeftMultiplyCOO_double, transpose_self_colmajor) {
     }
 }
 
-TEST_F(TestLeftMultiplyCOO_double, transpose_self_rowmajor) {
+TEST_F(TestLeftMultiply_COO_double, transpose_self_rowmajor) {
     for (uint32_t key : {0}) {
         transpose_self(key, 200, 30, Layout::RowMajor, 0.01);
         transpose_self(key, 200, 30, Layout::RowMajor, 0.10);
@@ -203,7 +202,7 @@ TEST_F(TestLeftMultiplyCOO_double, transpose_self_rowmajor) {
     }
 }
 
-TEST_F(TestLeftMultiplyCOO_single, transpose_self) {
+TEST_F(TestLeftMultiply_COO_single, transpose_self) {
     for (uint32_t key : {0}) {
         transpose_self(key, 200, 30, Layout::ColMajor, 0.01);
         transpose_self(key, 200, 30, Layout::ColMajor, 0.10);
@@ -217,21 +216,21 @@ TEST_F(TestLeftMultiplyCOO_single, transpose_self) {
 //
 ////////////////////////////////////////////////////////////////////////
 
-TEST_F(TestLeftMultiplyCOO_double, submatrix_self_colmajor) {
+TEST_F(TestLeftMultiply_COO_double, submatrix_self_colmajor) {
     for (uint32_t key : {0}) {
         submatrix_self(key, 3, 10, 8, 12, 3, 1, Layout::ColMajor, 0.1);
         submatrix_self(key, 3, 10, 8, 12, 3, 1, Layout::ColMajor, 1.0);
     }
 }
 
-TEST_F(TestLeftMultiplyCOO_double, submatrix_self_rowmajor) {
+TEST_F(TestLeftMultiply_COO_double, submatrix_self_rowmajor) {
     for (uint32_t key : {0}) {
         submatrix_self(key, 3, 10, 8, 12, 3, 1, Layout::RowMajor, 0.1);
         submatrix_self(key, 3, 10, 8, 12, 3, 1, Layout::RowMajor, 1.0);
     }
 }
 
-TEST_F(TestLeftMultiplyCOO_single, submatrix_self) {
+TEST_F(TestLeftMultiply_COO_single, submatrix_self) {
     for (uint32_t key : {0}) {
         submatrix_self(key, 3, 10, 8, 12, 3, 1, Layout::ColMajor, 0.1);
         submatrix_self(key, 3, 10, 8, 12, 3, 1, Layout::ColMajor, 1.0);
@@ -244,21 +243,21 @@ TEST_F(TestLeftMultiplyCOO_single, submatrix_self) {
 //
 ////////////////////////////////////////////////////////////////////////
 
-TEST_F(TestLeftMultiplyCOO_double, submatrix_other_colmajor) {
+TEST_F(TestLeftMultiply_COO_double, submatrix_other_colmajor) {
     for (uint32_t key : {0}) {
         submatrix_other(key, 3, 10, 5, 12, 8, 2, 1, Layout::ColMajor, 0.1);
         submatrix_other(key, 3, 10, 5, 12, 8, 2, 1, Layout::ColMajor, 1.0);
     }
 }
 
-TEST_F(TestLeftMultiplyCOO_double, submatrix_other_rowmajor) {
+TEST_F(TestLeftMultiply_COO_double, submatrix_other_rowmajor) {
     for (uint32_t key : {0}) {
         submatrix_other(key, 3, 10, 5, 12, 8, 2, 1, Layout::RowMajor, 0.1);
         submatrix_other(key, 3, 10, 5, 12, 8, 2, 1, Layout::RowMajor, 1.0);
     }
 }
 
-TEST_F(TestLeftMultiplyCOO_single, submatrix_other) {
+TEST_F(TestLeftMultiply_COO_single, submatrix_other) {
     for (uint32_t key : {0}) {
         submatrix_other(key, 3, 10, 5, 12, 8, 2, 1, Layout::ColMajor, 0.1);
         submatrix_other(key, 3, 10, 5, 12, 8, 2, 1, Layout::ColMajor, 1.0);
@@ -272,14 +271,14 @@ TEST_F(TestLeftMultiplyCOO_single, submatrix_other) {
 ////////////////////////////////////////////////////////////////////////
 
 
-TEST_F(TestLeftMultiplyCOO_double, sparse_times_trans_other_colmajor) {
+TEST_F(TestLeftMultiply_COO_double, sparse_times_trans_other_colmajor) {
     uint32_t key = 0;
     transpose_other(key, 7, 22, 5, Layout::ColMajor, 0.05);
     transpose_other(key, 7, 22, 5, Layout::ColMajor, 0.10);
     transpose_other(key, 7, 22, 5, Layout::ColMajor, 0.80);
 }
 
-TEST_F(TestLeftMultiplyCOO_double, sparse_times_trans_other_rowmajor) {
+TEST_F(TestLeftMultiply_COO_double, sparse_times_trans_other_rowmajor) {
     uint32_t key = 0;
     transpose_other(key, 7, 22, 5, Layout::RowMajor, 0.05);
     transpose_other(key, 7, 22, 5, Layout::RowMajor, 0.10);
