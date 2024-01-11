@@ -74,6 +74,7 @@ static inline NonzeroSort coo_sort_type(int64_t nnz, sint_t *rows, sint_t *cols)
 ///
 template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 struct COOMatrix {
+    using scalar_t = T;
     using index_t = sint_t; 
     // ---------------------------------------------------------------------------
     ///  The number of rows in this sparse matrix.

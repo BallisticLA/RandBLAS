@@ -9,6 +9,7 @@ namespace RandBLAS::sparse_data {
 
 template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 struct CSRMatrix {
+    using scalar_t = T;
     using index_t = sint_t; 
     const int64_t n_rows;
     const int64_t n_cols;
