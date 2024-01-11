@@ -10,7 +10,7 @@
 namespace RandBLAS::sparse_data::csc {
 
 template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
-static void apply_csc_to_vector_from_left(
+static void apply_csc_to_vector_from_left_ki(
     // CSC-format data
     const T *vals,
     sint_t *rowidxs,
@@ -34,7 +34,7 @@ static void apply_csc_to_vector_from_left(
 }
 
 template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
-static void apply_regular_csc_to_vector_from_left(
+static void apply_regular_csc_to_vector_from_left_ki(
     // data for "regular CSC": CSC with fixed nnz per col,
     // which obviates the requirement for colptr.
     const T *vals,
@@ -57,7 +57,7 @@ static void apply_regular_csc_to_vector_from_left(
 }
 
 template <typename T, RandBLAS::SignedInteger sint_t>
-static void apply_csc_left_11p(
+static void apply_csc_left_kij_11p(
     T alpha,
     blas::Layout layout_B,
     blas::Layout layout_C,
@@ -101,13 +101,13 @@ static void apply_csc_left_11p(
             B_col = &B[B_inter_col_stride * k];
             C_col = &C[C_inter_col_stride * k];
             if (fixed_nnz_per_col) {
-                apply_regular_csc_to_vector_from_left<T>(
+                apply_regular_csc_to_vector_from_left_ki<T>(
                     vals, A.rowidxs, A.colptr[1],
                     m, B_col, B_inter_row_stride,
                     C_col, C_inter_row_stride
                 );
             } else {
-                apply_csc_to_vector_from_left<T>(
+                apply_csc_to_vector_from_left_ki<T>(
                     vals, A.rowidxs, A.colptr,
                     m, B_col, B_inter_row_stride,
                     C_col, C_inter_row_stride

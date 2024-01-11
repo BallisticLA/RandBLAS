@@ -45,7 +45,7 @@ static int64_t set_filtered_coo(
 
 
 template <typename T, RandBLAS::SignedInteger sint_t>
-static void apply_coo_left_11p(
+static void apply_coo_left_kij_11p(
     T alpha,
     blas::Layout layout_B,
     blas::Layout layout_C,
@@ -66,7 +66,7 @@ static void apply_coo_left_11p(
     if (A0.sort != NonzeroSort::CSC) {
         auto orig_sort = A0.sort;
         sort_coo_data(NonzeroSort::CSC, A0);
-        apply_coo_left_11p(alpha, layout_B, layout_C, d, n, m, A0, row_offset, col_offset, B, ldb, C, ldc);
+        apply_coo_left_kij_11p(alpha, layout_B, layout_C, d, n, m, A0, row_offset, col_offset, B, ldb, C, ldc);
         sort_coo_data(orig_sort, A0);
         return;
     }
@@ -112,13 +112,13 @@ static void apply_coo_left_11p(
             B_col = &B[B_inter_col_stride * k];
             C_col = &C[C_inter_col_stride * k];
             if (fixed_nnz_per_col) {
-                RandBLAS::sparse_data::csc::apply_regular_csc_to_vector_from_left<T>(
+                RandBLAS::sparse_data::csc::apply_regular_csc_to_vector_from_left_ki<T>(
                     A_vals.data(), A_rows.data(), A_colptr[1],
                     m, B_col, B_inter_row_stride,
                     C_col, C_inter_row_stride
                 );
             } else {
-                RandBLAS::sparse_data::csc::apply_csc_to_vector_from_left<T>(
+                RandBLAS::sparse_data::csc::apply_csc_to_vector_from_left_ki<T>(
                     A_vals.data(), A_rows.data(), A_colptr.data(),
                     m, B_col, B_inter_row_stride,
                     C_col, C_inter_row_stride
@@ -191,7 +191,7 @@ void lspgemm(
 
     // compute the matrix-matrix product
     if (alpha != 0)
-        apply_coo_left_11p(alpha, layout_opB, layout_C, d, n, m, A, row_offset, col_offset, B, ldb, C, ldc);
+        apply_coo_left_kij_11p(alpha, layout_opB, layout_C, d, n, m, A, row_offset, col_offset, B, ldb, C, ldc);
     return;
 }
 
