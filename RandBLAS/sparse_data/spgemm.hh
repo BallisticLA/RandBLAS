@@ -46,10 +46,10 @@ void lspgemm(
             auto At = transpose(A);
             lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, col_offset, row_offset, B, ldb, beta, C, ldc);
         } else if constexpr (is_csc) {
-            auto At = transpose<T, CSRMatrix<T>>(A);
+            auto At = RandBLAS::sparse_data::conversions::transpose<T, CSRMatrix<T>>(A, true);
             lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, col_offset, row_offset, B, ldb, beta, C, ldc);
         } else if constexpr (is_csr) {
-            auto At = transpose<T, CSCMatrix<T>>(A);
+            auto At = RandBLAS::sparse_data::conversions::transpose<T, CSCMatrix<T>>(A, true);
             lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, col_offset, row_offset, B, ldb, beta, C, ldc);
         } else {
             randblas_require(false);

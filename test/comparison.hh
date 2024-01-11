@@ -2,15 +2,10 @@
 #define randblas_test_util_hh
 
 #include <gtest/gtest.h>
+#include <math.h>
 #include <cmath>
 #include <numeric>
 #include <iostream>
-
-
-#include <RandBLAS/dense.hh>
-#include <RandBLAS/sparse_skops.hh>
-#include <RandBLAS/util.hh>
-#include <math.h>
 
 
 namespace test::comparison {

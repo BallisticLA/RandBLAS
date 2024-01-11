@@ -149,9 +149,11 @@ struct COOMatrix {
         randblas_require(this->_can_reserve);
         randblas_require(this->own_memory);
         this->nnz = nnz;
-        this->vals = new T[nnz];
-        this->rows = new sint_t[nnz];
-        this->cols = new sint_t[nnz];
+        if (this->nnz > 0) {
+            this->vals = new T[nnz];
+            this->rows = new sint_t[nnz];
+            this->cols = new sint_t[nnz];
+        }
         this->_can_reserve = false;
     }
 

@@ -52,10 +52,12 @@ struct CSRMatrix {
     void reserve(int64_t nnz) {
         randblas_require(this->_can_reserve);
         randblas_require(this->own_memory);
-        this->nnz = nnz;
         this->rowptr = new sint_t[this->n_rows + 1]{0};
-        this->colidxs = new sint_t[nnz]{0};
-        this->vals = new T[nnz]{0.0};
+        this->nnz = nnz;
+        if (this->nnz > 0) {
+            this->colidxs = new sint_t[nnz]{0};
+            this->vals = new T[nnz]{0.0};
+        }
         this->_can_reserve = false;
     };
 
