@@ -141,7 +141,7 @@ void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int6
     #else
         UNUSED(threads);
     #endif
-    RandBLAS::sparse_data::coo::lspgemm(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
+    RandBLAS::sparse_data::lspgemm(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
     #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
     #endif
