@@ -574,7 +574,7 @@ void lskge3(
         randblas_require(ldb >= n);
     }
     // Perform the sketch.
-    blas::gemm<T>(
+    blas::gemm(
         layout, opS, opA,
         d, n, m,
         alpha,
@@ -766,7 +766,7 @@ void rskge3(
         randblas_require(ldb >= d);
     }
     // Perform the sketch.
-    blas::gemm<T>(
+    blas::gemm(
         layout, opA, opS,
         m, d, n,
         alpha,
