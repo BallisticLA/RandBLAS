@@ -106,14 +106,14 @@ void lspgemm(
     
     // compute the matrix-matrix product
     if constexpr (is_coo) {
-        using RandBLAS::sparse_data::coo::apply_coo_left_kij_11p;
-        apply_coo_left_kij_11p(alpha, layout_opB, layout_C, d, n, m, A, row_offset, col_offset, B, ldb, C, ldc);
+        using RandBLAS::sparse_data::coo::apply_coo_left_jki_p11;
+        apply_coo_left_jki_p11(alpha, layout_opB, layout_C, d, n, m, A, row_offset, col_offset, B, ldb, C, ldc);
     } else if constexpr (is_csc) {
-        using RandBLAS::sparse_data::csc::apply_csc_left_kij_11p;
-        apply_csc_left_kij_11p(alpha, layout_opB, layout_C, d, n, m, A, B, ldb, C, ldc);
+        using RandBLAS::sparse_data::csc::apply_csc_left_jki_p11;
+        apply_csc_left_jki_p11(alpha, layout_opB, layout_C, d, n, m, A, B, ldb, C, ldc);
     } else {
-        using RandBLAS::sparse_data::csr::apply_csr_left_ikj_11p;
-        apply_csr_left_ikj_11p(alpha, layout_opB, layout_C, d, n, m, A, B, ldb, C, ldc);
+        using RandBLAS::sparse_data::csr::apply_csr_left_jik_p11;
+        apply_csr_left_jik_p11(alpha, layout_opB, layout_C, d, n, m, A, B, ldb, C, ldc);
     }
     return;
 }

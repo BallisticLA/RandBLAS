@@ -34,7 +34,7 @@ static void apply_csr_to_vector_from_left_ik(
 }
 
 template <typename T, RandBLAS::SignedInteger sint_t>
-static void apply_csr_left_ikj_11p(
+static void apply_csr_left_jik_p11(
     T alpha,
     blas::Layout layout_B,
     blas::Layout layout_C,
@@ -70,9 +70,9 @@ static void apply_csr_left_ikj_11p(
         const T *B_col = nullptr;
         T *C_col = nullptr;
         #pragma omp for schedule(static)
-        for (int64_t k = 0; k < n; k++) {
-            B_col = &B[B_inter_col_stride * k];
-            C_col = &C[C_inter_col_stride * k];
+        for (int64_t j = 0; j < n; j++) {
+            B_col = &B[B_inter_col_stride * j];
+            C_col = &C[C_inter_col_stride * j];
             apply_csr_to_vector_from_left_ik(
                    vals, A.rowptr, A.colidxs,
                    B_col, B_inter_row_stride,

@@ -57,7 +57,7 @@ static void apply_regular_csc_to_vector_from_left_ki(
 }
 
 template <typename T, RandBLAS::SignedInteger sint_t>
-static void apply_csc_left_kij_11p(
+static void apply_csc_left_jki_p11(
     T alpha,
     blas::Layout layout_B,
     blas::Layout layout_C,
@@ -97,9 +97,9 @@ static void apply_csc_left_kij_11p(
         const T *B_col = nullptr;
         T *C_col = nullptr;
         #pragma omp for schedule(static)
-        for (int64_t k = 0; k < n; k++) {
-            B_col = &B[B_inter_col_stride * k];
-            C_col = &C[C_inter_col_stride * k];
+        for (int64_t j = 0; j < n; j++) {
+            B_col = &B[B_inter_col_stride * j];
+            C_col = &C[C_inter_col_stride * j];
             if (fixed_nnz_per_col) {
                 apply_regular_csc_to_vector_from_left_ki<T>(
                     vals, A.rowidxs, A.colptr[1],
