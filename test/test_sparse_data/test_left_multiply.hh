@@ -1,7 +1,6 @@
 #include "../linop_common.hh"
 #include "common.hh"
 #include <gtest/gtest.h>
-#include <vector>
 
 using namespace test::sparse_data::common;
 using namespace test::linop_common;
