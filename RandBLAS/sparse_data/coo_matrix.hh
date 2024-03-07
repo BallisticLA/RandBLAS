@@ -74,6 +74,8 @@ static inline NonzeroSort coo_sort_type(int64_t nnz, sint_t *rows, sint_t *cols)
 ///
 template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 struct COOMatrix {
+    using scalar_t = T;
+    using index_t = sint_t; 
     // ---------------------------------------------------------------------------
     ///  The number of rows in this sparse matrix.
     const int64_t n_rows;
@@ -89,20 +91,20 @@ struct COOMatrix {
     const bool own_memory;
     // ---------------------------------------------------------------------------
     ///  The number of entries in (rows, cols, vals).
-    int64_t nnz;
+    int64_t nnz = 0;
     // ---------------------------------------------------------------------------
     ///  Values of the nonzeros.
-    T *vals;
+    T *vals = nullptr;
     // ---------------------------------------------------------------------------
     ///  Row indicies for nonzeros (interpreted with respect to index_base).
-    sint_t *rows;
+    sint_t *rows = nullptr;
     // ---------------------------------------------------------------------------
     ///  Column indicies for nonzeros (interpreted with respect to index_base).
-    sint_t *cols;
+    sint_t *cols = nullptr;
     // ---------------------------------------------------------------------------
     ///  A flag to indicate if the data in (rows, cols, vals) is sorted in a 
     ///  CSC-like order, a CSR-like order, or neither order.
-    NonzeroSort sort;
+    NonzeroSort sort = NonzeroSort::None;
 
     bool _can_reserve = true;
     // ^ A flag to indicate if we're allowed to allocate new memory for 
@@ -112,13 +114,7 @@ struct COOMatrix {
         int64_t n_rows,
         int64_t n_cols,
         IndexBase index_base = IndexBase::Zero
-    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) {
-        this->nnz = 0;
-        this->vals = nullptr;
-        this->rows = nullptr;
-        this->cols = nullptr;
-        this->sort = NonzeroSort::None;
-    };
+    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) {};
 
     COOMatrix(
         int64_t n_rows,
@@ -154,11 +150,24 @@ struct COOMatrix {
         randblas_require(this->_can_reserve);
         randblas_require(this->own_memory);
         this->nnz = nnz;
-        this->vals = new T[nnz];
-        this->rows = new sint_t[nnz];
-        this->cols = new sint_t[nnz];
+        if (this->nnz > 0) {
+            this->vals = new T[nnz];
+            this->rows = new sint_t[nnz];
+            this->cols = new sint_t[nnz];
+        }
         this->_can_reserve = false;
     }
+
+    // move constructor
+    COOMatrix(COOMatrix<T, sint_t> &&other) 
+    : n_rows(other.n_rows), n_cols(other.n_cols), index_base(other.index_base), own_memory(other.own_memory) {
+        this->nnz = other.nnz;
+        std::swap(this->rows, other.rows);
+        std::swap(this->cols, other.cols);
+        std::swap(this->vals, other.vals);
+        this->_can_reserve = other._can_reserve;
+        other.nnz = 0;
+    }    
 
 };
 
@@ -230,8 +239,11 @@ namespace RandBLAS::sparse_data::coo {
 using namespace RandBLAS::sparse_data;
 using blas::Layout;
 
+// consider:
+//      1. Adding optional share_memory flag that defaults to true.
+//      2. renaming to transpose_as_coo.
 template <typename T>
-static auto transpose(COOMatrix<T> &S) {
+COOMatrix<T> transpose(COOMatrix<T> &S) {
     COOMatrix<T> St(S.n_cols, S.n_rows, S.nnz, S.vals, S.cols, S.rows, false, S.index_base);
     if (S.sort == NonzeroSort::CSC) {
         St.sort = NonzeroSort::CSR;
@@ -302,12 +314,5 @@ void coo_to_dense(const COOMatrix<T> &spmat, Layout layout, T *mat) {
 }
 
 } // end namespace RandBLAS::sparse_data::coo
-
-
-namespace RandBLAS {
-    using RandBLAS::sparse_data::COOMatrix;
-    using RandBLAS::sparse_data::NonzeroSort;
-    using RandBLAS::sparse_data::coo::transpose;
-}
 
 #endif

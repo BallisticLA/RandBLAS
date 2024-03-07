@@ -1,12 +1,12 @@
+#ifndef randblas_test_linop_common_hh
+#define randblas_test_linop_common_hh
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/dense.hh"
-#include "RandBLAS/util.hh"
-#include "comparison.hh"
 #include "RandBLAS/sparse_skops.hh"
-#include "RandBLAS/sparse_data/coo_matrix.hh"
-#include "RandBLAS/sparse_data/csr_matrix.hh"
-#include "RandBLAS/sparse_data/csc_matrix.hh"
+#include "RandBLAS/sparse_data/spgemm.hh"
+#include "RandBLAS/util.hh"
+#include "test/comparison.hh"
 #include <functional>
 #include <vector>
 #include <tuple>
@@ -14,7 +14,7 @@
 
 namespace test::linop_common {
 
-using RandBLAS::COOMatrix;
+using RandBLAS::sparse_data::COOMatrix;
 using RandBLAS::sparse_data::CSRMatrix;
 using RandBLAS::sparse_data::CSCMatrix;
 using RandBLAS::SparseSkOp;
@@ -43,23 +43,30 @@ auto random_matrix(int64_t m, int64_t n, RNGState<RNG> s) {
 }
 
 template <typename T>
-dims64_t dimensions(COOMatrix<T> &S) {return {S.n_rows, S.n_cols};}
-
-template <typename T>
-dims64_t dimensions(CSCMatrix<T> &S) {return {S.n_rows, S.n_cols};}
-
-template <typename T>
-dims64_t dimensions(CSRMatrix<T> &S) {return {S.n_rows, S.n_cols}; }
-
-template <typename T>
 dims64_t dimensions(SparseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols}; }
 
 template <typename T>
 dims64_t dimensions(DenseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols};}
 
-template <typename T>
-void to_explicit_buffer(COOMatrix<T> &a, T *mat_a, blas::Layout layout) {
-    RandBLAS::sparse_data::coo::coo_to_dense(a, layout, mat_a);
+template <typename SpMatrix>
+dims64_t dimensions(SpMatrix &S) {return {S.n_rows, S.n_cols};}
+
+
+template <typename T, typename SpMatrix>
+void to_explicit_buffer(SpMatrix &a, T *mat_a, blas::Layout layout) {
+    using sint_t = typename SpMatrix::index_t;
+    constexpr bool is_coo = std::is_same_v<SpMatrix, COOMatrix<T, sint_t>>;
+    constexpr bool is_csc = std::is_same_v<SpMatrix, CSCMatrix<T, sint_t>>;
+    constexpr bool is_csr = std::is_same_v<SpMatrix, CSRMatrix<T, sint_t>>;
+    if constexpr (is_coo) {
+        RandBLAS::sparse_data::coo::coo_to_dense(a, layout, mat_a);
+    } else if constexpr (is_csc) {
+        RandBLAS::sparse_data::csc::csc_to_dense(a, layout, mat_a);
+    } else if constexpr (is_csr) {
+        RandBLAS::sparse_data::csr::csr_to_dense(a, layout, mat_a);
+    } else {
+        randblas_require(false);
+    }
     return;
 }
 
@@ -132,8 +139,8 @@ void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int6
     return;
 }
 
-template <typename T>
-void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, COOMatrix<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
+template <typename T, typename SpMatrix>
+void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, SpMatrix &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -141,7 +148,7 @@ void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int6
     #else
         UNUSED(threads);
     #endif
-    RandBLAS::sparse_data::coo::lspgemm(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
+    RandBLAS::sparse_data::lspgemm(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
     #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
     #endif
@@ -462,8 +469,8 @@ void right_apply(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t 
     #endif
 }
 
-template <typename T>
-void right_apply(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, COOMatrix<T> &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb, int threads) {
+template <typename T, typename SpMatrix>
+void right_apply(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SpMatrix &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb, int threads) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -471,7 +478,7 @@ void right_apply(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t 
     #else
         UNUSED(threads);
     #endif
-    RandBLAS::sparse_data::coo::rspgemm(layout, transA, transS, m, d, n, alpha, A, lda, S, i_os, j_os, beta, B, ldb);
+    RandBLAS::sparse_data::rspgemm(layout, transA, transS, m, d, n, alpha, A, lda, S, i_os, j_os, beta, B, ldb);
     #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
     #endif
@@ -674,6 +681,6 @@ void test_right_apply_to_transposed(
     );
 }
 
-
 } // end namespace test::linop_common
 
+#endif

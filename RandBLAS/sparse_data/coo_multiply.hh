@@ -4,6 +4,7 @@
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/coo_matrix.hh"
+#include "RandBLAS/sparse_data/csc_multiply.hh"
 #include <vector>
 #include <algorithm>
 
@@ -41,57 +42,10 @@ static int64_t set_filtered_coo(
     return new_nnz;
 }
 
-template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
-static void apply_csc_to_vector_from_left(
-    // CSC-format data
-    const T *vals,
-    sint_t *rowidxs,
-    sint_t *colptr,
-    // input-output vector data
-    int64_t len_v,
-    const T *v,
-    int64_t incv,   // stride between elements of v
-    T *Av,          // Av += A * v.
-    int64_t incAv   // stride between elements of Av
-) {
-    int64_t i = 0;
-    for (int64_t c = 0; c < len_v; ++c) {
-        T scale = v[c * incv];
-        while (i < colptr[c+1]) {
-            int64_t row = rowidxs[i];
-            Av[row * incAv] += (vals[i] * scale);
-            i += 1;
-        }
-    }
-}
-
-template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
-static void apply_regular_csc_to_vector_from_left(
-    // data for "regular CSC": CSC with fixed nnz per col,
-    // which obviates the requirement for colptr.
-    const T *vals,
-    sint_t *rowidxs,
-    int64_t col_nnz,
-    // input-output vector data
-    int64_t len_v,
-    const T *v,
-    int64_t incv,   // stride between elements of v
-    T *Av,          // Av += A * v.
-    int64_t incAv   // stride between elements of Av
-) {
-    for (int64_t c = 0; c < len_v; ++c) {
-        T scale = v[c * incv];
-        for (int64_t j = c * col_nnz; j < (c + 1) * col_nnz; ++j) {
-            int64_t row = rowidxs[j];
-            Av[row * incAv] += (vals[j] * scale);
-        }
-    }
-}
-
 
 
 template <typename T, RandBLAS::SignedInteger sint_t>
-static void apply_coo_left(
+static void apply_coo_left_jki_p11(
     T alpha,
     blas::Layout layout_B,
     blas::Layout layout_C,
@@ -112,7 +66,7 @@ static void apply_coo_left(
     if (A0.sort != NonzeroSort::CSC) {
         auto orig_sort = A0.sort;
         sort_coo_data(NonzeroSort::CSC, A0);
-        apply_coo_left(alpha, layout_B, layout_C, d, n, m, A0, row_offset, col_offset, B, ldb, C, ldc);
+        apply_coo_left_jki_p11(alpha, layout_B, layout_C, d, n, m, A0, row_offset, col_offset, B, ldb, C, ldc);
         sort_coo_data(orig_sort, A0);
         return;
     }
@@ -154,17 +108,17 @@ static void apply_coo_left(
         const T *B_col = nullptr;
         T *C_col = nullptr;
         #pragma omp for schedule(static)
-        for (int64_t k = 0; k < n; k++) {
-            B_col = &B[B_inter_col_stride * k];
-            C_col = &C[C_inter_col_stride * k];
+        for (int64_t j = 0; j < n; j++) {
+            B_col = &B[B_inter_col_stride * j];
+            C_col = &C[C_inter_col_stride * j];
             if (fixed_nnz_per_col) {
-                apply_regular_csc_to_vector_from_left<T>(
+                RandBLAS::sparse_data::csc::apply_regular_csc_to_vector_from_left_ki<T>(
                     A_vals.data(), A_rows.data(), A_colptr[1],
                     m, B_col, B_inter_row_stride,
                     C_col, C_inter_row_stride
                 );
             } else {
-                apply_csc_to_vector_from_left<T>(
+                RandBLAS::sparse_data::csc::apply_csc_to_vector_from_left_ki<T>(
                     A_vals.data(), A_rows.data(), A_colptr.data(),
                     m, B_col, B_inter_row_stride,
                     C_col, C_inter_row_stride
@@ -175,128 +129,7 @@ static void apply_coo_left(
     return;
 }
 
-template <typename T>
-void lspgemm(
-    blas::Layout layout,
-    blas::Op opA,
-    blas::Op opB,
-    int64_t d, // C is d-by-n
-    int64_t n, // \op(B) is m-by-n
-    int64_t m, // \op(A) is d-by-m
-    T alpha,
-    COOMatrix<T> &A,
-    int64_t row_offset,
-    int64_t col_offset,
-    const T *B,
-    int64_t ldb,
-    T beta,
-    T *C,
-    int64_t ldc
-) {
-    // handle applying a transposed sparse sketching operator.
-    if (opA == blas::Op::Trans) {
-        auto At = transpose(A);
-        lspgemm(
-            layout, blas::Op::NoTrans, opB,
-            d, n, m, alpha, At, col_offset, row_offset,
-            B, ldb, beta, C, ldc
-        );
-        return; 
-    }
-    // Below this point, we can assume A is not transposed.
-    randblas_require(A.n_rows >= d);
-    randblas_require(A.n_cols >= m);
-
-    // Dimensions of B, rather than \op(B)
-    blas::Layout layout_C = layout;
-    blas::Layout layout_opB;
-    int64_t rows_B, cols_B;
-    if (opB == blas::Op::NoTrans) {
-        rows_B = m;
-        cols_B = n;
-        layout_opB = layout;
-    } else {
-        rows_B = n;
-        cols_B = m;
-        layout_opB = (layout == blas::Layout::ColMajor) ? blas::Layout::RowMajor : blas::Layout::ColMajor;
-    }
-
-    // Check dimensions and compute C = beta * C.
-    //      Note: both B and C are checked based on "layout"; B is *not* checked on layout_opB.
-    if (layout == blas::Layout::ColMajor) {
-        randblas_require(ldb >= rows_B);
-        randblas_require(ldc >= d);
-        for (int64_t i = 0; i < n; ++i)
-            RandBLAS::util::safe_scal(d, beta, &C[i*ldc], 1);
-    } else {
-        randblas_require(ldc >= n);
-        randblas_require(ldb >= cols_B);
-        for (int64_t i = 0; i < d; ++i)
-            RandBLAS::util::safe_scal(n, beta, &C[i*ldc], 1);
-    }
-
-    // compute the matrix-matrix product
-    if (alpha != 0)
-        apply_coo_left(alpha, layout_opB, layout_C, d, n, m, A, row_offset, col_offset, B, ldb, C, ldc);
-    return;
-}
-
-template <typename T>
-void rspgemm(
-    blas::Layout layout,
-    blas::Op opB,
-    blas::Op opA,
-    int64_t m, // C is m-by-d
-    int64_t d, // op(A) is n-by-d
-    int64_t n, // op(B) is m-by-n
-    T alpha,
-    const T *A,
-    int64_t lda,
-    COOMatrix<T> &B0,
-    int64_t i_off,
-    int64_t j_off,
-    T beta,
-    T *C,
-    int64_t ldc
-) { 
-    //
-    // Compute C = op(B) op(submat(A)) by reduction to LSPGEMM. We start with
-    //
-    //      C^T = op(submat(A))^T op(B)^T.
-    //
-    // Then we interchange the operator "op(*)" in op(B) and (*)^T:
-    //
-    //      C^T = op(submat(A))^T op(B^T).
-    //
-    // We tell LSPGEMM to process (C^T) and (B^T) in the opposite memory layout
-    // compared to the layout for (B, C).
-    // 
-    using blas::Layout;
-    using blas::Op;
-    auto trans_opA = (opA == Op::NoTrans) ? Op::Trans : Op::NoTrans;
-    auto trans_layout = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
-    lspgemm(
-        trans_layout, trans_opA, opB,
-        d, m, n, alpha, B0, i_off, j_off, A, lda, beta, C, ldc
-    );
-}
 
 } // end namespace
-
-namespace RandBLAS {
-
-template <typename T>
-void multiply_general(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, COOMatrix<T> &A, int64_t i_off, int64_t j_off, const T *B, int64_t ldb, T beta, T *C, int64_t ldc) {
-    RandBLAS::sparse_data::coo::lspgemm(layout, opA, opB, m, n, k, alpha, A, i_off, j_off, B, ldb, beta, C, ldc);
-    return;
-};
-
-template <typename T>
-void multiply_general(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T *A, int64_t lda, COOMatrix<T> &B, int64_t i_off, int64_t j_off, T beta, T *C, int64_t ldc) {
-    RandBLAS::sparse_data::coo::rspgemm(layout, opA, opB, m, n, k, alpha, A, lda, B, i_off, j_off, B, beta, C, ldc);
-    return;
-}
-
-}
 
 #endif

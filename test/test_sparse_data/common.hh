@@ -1,3 +1,5 @@
+#ifndef randblas_test_sparse_data_common_hh
+#define randblas_test_sparse_data_common_hh
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/dense.hh"
@@ -125,3 +127,4 @@ void coo_from_diag(
 
 }
 
+#endif

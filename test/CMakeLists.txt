@@ -29,11 +29,12 @@ if (GTest_FOUND)
         # dense sketching operators for sparse matrices
         comparison.hh
         test_sparse_data/common.hh
+        test_sparse_data/test_left_multiply.hh
+        test_sparse_data/test_right_multiply.hh
         test_sparse_data/test_csc.cc
         test_sparse_data/test_csr.cc
         test_sparse_data/test_coo.cc
-        test_sparse_data/test_left_multiply.cc
-        test_sparse_data/test_right_multiply.cc
+        test_sparse_data/test_conversions.cc
     )
     target_link_libraries(SparseRandBLAS_tests
         RandBLAS

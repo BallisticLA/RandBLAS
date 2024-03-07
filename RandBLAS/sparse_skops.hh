@@ -6,7 +6,7 @@
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/random_gen.hh"
 #include "RandBLAS/util.hh"
-#include "RandBLAS/sparse_data/coo_multiply.hh"
+#include "RandBLAS/sparse_data/spgemm.hh"
 
 #include <blas.hh>
 #include <iostream>
@@ -567,7 +567,7 @@ void lskges(
     using RNG = typename SKOP::RNG_t;
     using sint_t = typename SKOP::index_t;
     auto Scoo = coo_view_of_skop<T,RNG,sint_t>(S);
-    RandBLAS::sparse_data::coo::lspgemm(
+    lspgemm(
         layout, opS, opA, d, n, m, alpha, Scoo, row_offset, col_offset,
         A, lda, beta, B, ldb
     );
@@ -699,7 +699,7 @@ void rskges(
     using RNG = typename SKOP::RNG_t;
     using sint = typename SKOP::index_t;
     auto Scoo = coo_view_of_skop<T,RNG,sint>(S0);
-    RandBLAS::sparse_data::coo::rspgemm(
+    rspgemm(
         layout, opA, opS, m, d, n, alpha, A, lda, Scoo, i_off, j_off, beta, B, ldb
     );
     return;
