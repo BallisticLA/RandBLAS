@@ -1,3 +1,5 @@
+#ifndef randblas_test_linop_common_hh
+#define randblas_test_linop_common_hh
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/dense.hh"
@@ -679,6 +681,6 @@ void test_right_apply_to_transposed(
     );
 }
 
-
 } // end namespace test::linop_common
 
+#endif

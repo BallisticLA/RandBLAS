@@ -1,4 +1,5 @@
 #include "test/test_sparse_data/test_left_multiply.hh"
+#include "test/test_sparse_data/test_right_multiply.hh"
 #include <algorithm>
 #include <vector>
 
@@ -23,11 +24,11 @@ class TestCSC_Conversions : public ::testing::Test
         auto dn_mat = new T[m * n];
         iid_sparsify_random_dense(m, n, layout, dn_mat, p, s);
 
-        // Step 2. convert the dense representation into a CSR matrix
+        // Step 2. convert the dense representation into a CSC matrix
         CSCMatrix<T> spmat(m, n, IndexBase::Zero);
         dense_to_csc(layout, dn_mat, 0.0, spmat);
 
-        // Step 3. reconstruct the dense representation of dn_mat from the CSR matrix.
+        // Step 3. reconstruct the dense representation of dn_mat from the CSC matrix.
         auto dn_mat_recon = new T[m * n];
         csc_to_dense(spmat, layout, dn_mat_recon);
 
@@ -131,17 +132,17 @@ TEST_F(TestCSC_Conversions, coo_diagonal_rectangular_neg_offset) {
  }
 
 
-template <typename T>
-CSCMatrix<T> make_test_matrix(int64_t m, int64_t n, T nonzero_prob, uint32_t key = 0) {
-    randblas_require(nonzero_prob >= 0);
-    randblas_require(nonzero_prob <= 1);
-    CSCMatrix<T> A(m, n);
-    std::vector<T> actual(m * n);
-    RandBLAS::RNGState s(key);
-    iid_sparsify_random_dense<T>(m, n, Layout::ColMajor, actual.data(), 1 - nonzero_prob, s);
-    dense_to_csc<T>(Layout::ColMajor, actual.data(), 0.0, A);
-    return A;
-}
+// template <typename T>
+// CSCMatrix<T> make_test_matrix(int64_t m, int64_t n, T nonzero_prob, uint32_t key = 0) {
+//     randblas_require(nonzero_prob >= 0);
+//     randblas_require(nonzero_prob <= 1);
+//     CSCMatrix<T> A(m, n);
+//     std::vector<T> actual(m * n);
+//     RandBLAS::RNGState s(key);
+//     iid_sparsify_random_dense<T>(m, n, Layout::ColMajor, actual.data(), 1 - nonzero_prob, s);
+//     dense_to_csc<T>(Layout::ColMajor, actual.data(), 0.0, A);
+//     return A;
+// }
 
 
 template <typename T>
@@ -313,64 +314,23 @@ TEST_F(TestLeftMultiply_CSC_double, sparse_times_trans_other_rowmajor) {
 }
 
 
-class TestRightMultiplyCSC : public ::testing::Test
-{
-    // C = alpha * opB(B) @ opA(submat(A)) + beta * C
-    //
-    //  In what follows, "self" refers to A and "other" refers to B.
-    //
-    protected:
-    virtual void SetUp(){};
-    virtual void TearDown(){};
-
-    template <typename T>
-    static void multiply_eye(uint32_t key, int64_t m, int64_t n, Layout layout, T p) {
-        auto A = make_test_matrix<T>(m, n, p, key);
-        test_right_apply_submatrix_to_eye<T>(1.0, A, m, n, 0, 0, layout, 0.0, 0);
-    }
-
-    template <typename T>
-    static void alpha_beta(uint32_t key, T alpha, T beta, int64_t m, int64_t n, Layout layout, T p) {
-        auto A = make_test_matrix<T>(m, n, p, key);
-       test_right_apply_submatrix_to_eye<T>(alpha, A, m, n, 0, 0, layout, beta, 0);
-    }
-
-    template <typename T>
-    static void transpose_self(uint32_t key, int64_t m, int64_t n, Layout layout, T p) {
-        auto A = make_test_matrix<T>(m, n, p, key);
-        test_right_apply_tranpose_to_eye<T>(A, layout, 0);
-    }
-
-    template <typename T>
-    static void submatrix_other(
-        uint32_t key,   // key for RNG that generates sparse A
-        int64_t d,      // cols in A
-        int64_t m,      // rows in B
-        int64_t n,      // rows in A, columns in B
-        int64_t m0,     // rows in B0
-        int64_t n0,     // cols in B0
-        int64_t B_ro,   // row offset for B in B0
-        int64_t B_co,   // col offset for B in B0
-        Layout layout,  // layout of dense matrix input and output
-        T p
-    ) {
-        auto A = make_test_matrix<T>(n, d, p, key);
-        test_right_apply_to_submatrix<T>(A, m, m0, n0, B_ro, B_co, layout, 0);
-    }
-
-    template <typename T>
-    static void transpose_other(
-        uint32_t key,  // key for RNG that generates sparse A
-        int64_t d,     // cols in A
-        int64_t n,     // rows in A and B
-        int64_t m,     // cols in B
-        Layout layout, // layout of dense matrix input and output
-        T p
-    ) {
-        auto A = make_test_matrix<T>(n, d, p, key);
-        test_right_apply_to_transposed<T>(A, m, layout, 0);
+template <typename T>
+class TestRightMultiply_CSC : public TestRightMultiply_Sparse<CSCMatrix<T>> {
+    CSCMatrix<T> make_test_matrix(int64_t m, int64_t n, T nonzero_prob, uint32_t key = 0) {
+        randblas_require(nonzero_prob >= 0);
+        randblas_require(nonzero_prob <= 1);
+        CSCMatrix<T> A(m, n);
+        std::vector<T> actual(m * n);
+        RandBLAS::RNGState s(key);
+        iid_sparsify_random_dense<T>(m, n, Layout::ColMajor, actual.data(), 1 - nonzero_prob, s);
+        dense_to_csc<T>(Layout::ColMajor, actual.data(), 0.0, A);
+        return A;
     }
 };
+
+class TestRightMultiply_CSC_double : public TestRightMultiply_CSC<double> {};
+
+class TestRightMultiply_CSC_single : public TestRightMultiply_CSC<float> {};
 
 ////////////////////////////////////////////////////////////////////////
 //
@@ -380,69 +340,69 @@ class TestRightMultiplyCSC : public ::testing::Test
 //
 ////////////////////////////////////////////////////////////////////////
 
-TEST_F(TestRightMultiplyCSC, wide_multiply_eye_double_colmajor) {
+TEST_F(TestRightMultiply_CSC_double, wide_multiply_eye_double_colmajor) {
     for (uint32_t key : {0}) {
-        multiply_eye<double>(key, 200, 30, Layout::ColMajor, 0.01);
-        multiply_eye<double>(key, 200, 30, Layout::ColMajor, 0.10);
-        multiply_eye<double>(key, 200, 30, Layout::ColMajor, 0.80);
+        multiply_eye(key, 200, 30, Layout::ColMajor, 0.01);
+        multiply_eye(key, 200, 30, Layout::ColMajor, 0.10);
+        multiply_eye(key, 200, 30, Layout::ColMajor, 0.80);
     }
 }
 
-TEST_F(TestRightMultiplyCSC, wide_multiply_eye_double_rowmajor) {
+TEST_F(TestRightMultiply_CSC_double, wide_multiply_eye_double_rowmajor) {
     for (uint32_t key : {0}) {
-        multiply_eye<double>(key, 200, 30, Layout::RowMajor, 0.01);
-        multiply_eye<double>(key, 200, 30, Layout::RowMajor, 0.10);
-        multiply_eye<double>(key, 200, 30, Layout::RowMajor, 0.80);
+        multiply_eye(key, 200, 30, Layout::RowMajor, 0.01);
+        multiply_eye(key, 200, 30, Layout::RowMajor, 0.10);
+        multiply_eye(key, 200, 30, Layout::RowMajor, 0.80);
     }
 }
 
 
-TEST_F(TestRightMultiplyCSC, tall_multiply_eye_double_colmajor) {
+TEST_F(TestRightMultiply_CSC_double, tall_multiply_eye_double_colmajor) {
     for (uint32_t key : {0}) {
-        multiply_eye<double>(key, 51, 101, Layout::ColMajor, 0.01);
-        multiply_eye<double>(key, 51, 101, Layout::ColMajor, 0.10);
-        multiply_eye<double>(key, 51, 101, Layout::ColMajor, 0.80);
+        multiply_eye(key, 51, 101, Layout::ColMajor, 0.01);
+        multiply_eye(key, 51, 101, Layout::ColMajor, 0.10);
+        multiply_eye(key, 51, 101, Layout::ColMajor, 0.80);
     }
 }
 
-TEST_F(TestRightMultiplyCSC, tall_multiply_eye_double_rowmajor) {
+TEST_F(TestRightMultiply_CSC_double, tall_multiply_eye_double_rowmajor) {
     for (uint32_t key : {0}) {
-        multiply_eye<double>(key, 51, 101, Layout::RowMajor, 0.01);
-        multiply_eye<double>(key, 51, 101, Layout::RowMajor, 0.10);
-        multiply_eye<double>(key, 51, 101, Layout::RowMajor, 0.80);
+        multiply_eye(key, 51, 101, Layout::RowMajor, 0.01);
+        multiply_eye(key, 51, 101, Layout::RowMajor, 0.10);
+        multiply_eye(key, 51, 101, Layout::RowMajor, 0.80);
     }
 }
 
-TEST_F(TestRightMultiplyCSC, nontrivial_scales_colmajor1) {
+TEST_F(TestRightMultiply_CSC_double, nontrivial_scales_colmajor1) {
     double alpha = 5.5;
     double beta = 0.0;
-    alpha_beta<double>(0, alpha, beta, 4, 21, Layout::ColMajor, 0.05);
-    alpha_beta<double>(0, alpha, beta, 4, 21, Layout::ColMajor, 0.10);
-    alpha_beta<double>(0, alpha, beta, 4, 21, Layout::ColMajor, 0.80);
+    alpha_beta(0, alpha, beta, 4, 21, Layout::ColMajor, 0.05);
+    alpha_beta(0, alpha, beta, 4, 21, Layout::ColMajor, 0.10);
+    alpha_beta(0, alpha, beta, 4, 21, Layout::ColMajor, 0.80);
 }
 
-TEST_F(TestRightMultiplyCSC, nontrivial_scales_colmajor2) {
+TEST_F(TestRightMultiply_CSC_double, nontrivial_scales_colmajor2) {
     double alpha = 5.5;
     double beta = -1.0;
-    alpha_beta<double>(0, alpha, beta, 4, 21, Layout::ColMajor, 0.05);
-    alpha_beta<double>(0, alpha, beta, 4, 21, Layout::ColMajor, 0.10);
-    alpha_beta<double>(0, alpha, beta, 4, 21, Layout::ColMajor, 0.80);
+    alpha_beta(0, alpha, beta, 4, 21, Layout::ColMajor, 0.05);
+    alpha_beta(0, alpha, beta, 4, 21, Layout::ColMajor, 0.10);
+    alpha_beta(0, alpha, beta, 4, 21, Layout::ColMajor, 0.80);
 }
 
-TEST_F(TestRightMultiplyCSC, nontrivial_scales_rowmajor1) {
+TEST_F(TestRightMultiply_CSC_double, nontrivial_scales_rowmajor1) {
     double alpha = 5.5;
     double beta = 0.0;
-    alpha_beta<double>(0, alpha, beta, 4, 21, Layout::RowMajor, 0.05);
-    alpha_beta<double>(0, alpha, beta, 4, 21, Layout::RowMajor, 0.10);
-    alpha_beta<double>(0, alpha, beta, 4, 21, Layout::RowMajor, 0.80);
+    alpha_beta(0, alpha, beta, 4, 21, Layout::RowMajor, 0.05);
+    alpha_beta(0, alpha, beta, 4, 21, Layout::RowMajor, 0.10);
+    alpha_beta(0, alpha, beta, 4, 21, Layout::RowMajor, 0.80);
 }
 
-TEST_F(TestRightMultiplyCSC, nontrivial_scales_rowmajor2) {
+TEST_F(TestRightMultiply_CSC_double, nontrivial_scales_rowmajor2) {
     double alpha = 5.5;
     double beta = -1.0;
-    alpha_beta<double>(0, alpha, beta, 4, 21, Layout::RowMajor, 0.05);
-    alpha_beta<double>(0, alpha, beta, 4, 21, Layout::RowMajor, 0.10);
-    alpha_beta<double>(0, alpha, beta, 4, 21, Layout::RowMajor, 0.80);
+    alpha_beta(0, alpha, beta, 4, 21, Layout::RowMajor, 0.05);
+    alpha_beta(0, alpha, beta, 4, 21, Layout::RowMajor, 0.10);
+    alpha_beta(0, alpha, beta, 4, 21, Layout::RowMajor, 0.80);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -451,27 +411,27 @@ TEST_F(TestRightMultiplyCSC, nontrivial_scales_rowmajor2) {
 //
 ////////////////////////////////////////////////////////////////////////
 
-TEST_F(TestRightMultiplyCSC, transpose_self_double_colmajor) {
+TEST_F(TestRightMultiply_CSC_double, transpose_self_double_colmajor) {
     for (uint32_t key : {0}) {
-        transpose_self<double>(key, 30, 200, Layout::ColMajor, 0.01);
-        transpose_self<double>(key, 30, 200, Layout::ColMajor, 0.10);
-        transpose_self<double>(key, 30, 200, Layout::ColMajor, 0.80);
+        transpose_self(key, 30, 200, Layout::ColMajor, 0.01);
+        transpose_self(key, 30, 200, Layout::ColMajor, 0.10);
+        transpose_self(key, 30, 200, Layout::ColMajor, 0.80);
     }
 }
 
-TEST_F(TestRightMultiplyCSC, transpose_self_double_rowmajor) {
+TEST_F(TestRightMultiply_CSC_double, transpose_self_double_rowmajor) {
     for (uint32_t key : {0}) {
-        transpose_self<double>(key, 30, 200, Layout::RowMajor, 0.01);
-        transpose_self<double>(key, 30, 200, Layout::RowMajor, 0.10);
-        transpose_self<double>(key, 30, 200, Layout::RowMajor, 0.80);
+        transpose_self(key, 30, 200, Layout::RowMajor, 0.01);
+        transpose_self(key, 30, 200, Layout::RowMajor, 0.10);
+        transpose_self(key, 30, 200, Layout::RowMajor, 0.80);
     }
 }
 
-TEST_F(TestRightMultiplyCSC, transpose_self_single) {
+TEST_F(TestRightMultiply_CSC_single, transpose_self_single) {
     for (uint32_t key : {0}) {
-        transpose_self<float>(key, 30, 200, Layout::ColMajor, 0.01);
-        transpose_self<float>(key, 30, 200, Layout::ColMajor, 0.10);
-        transpose_self<float>(key, 30, 200, Layout::ColMajor, 0.80);
+        transpose_self(key, 30, 200, Layout::ColMajor, 0.01);
+        transpose_self(key, 30, 200, Layout::ColMajor, 0.10);
+        transpose_self(key, 30, 200, Layout::ColMajor, 0.80);
     }
 }
 
@@ -481,24 +441,24 @@ TEST_F(TestRightMultiplyCSC, transpose_self_single) {
 //
 ////////////////////////////////////////////////////////////////////////
 
-TEST_F(TestRightMultiplyCSC, submatrix_other_double_colmajor) {
+TEST_F(TestRightMultiply_CSC_double, submatrix_other_double_colmajor) {
     for (uint32_t key : {0}) {
-        submatrix_other<double>(key, 3, 10, 5, 12, 8, 2, 1, Layout::ColMajor, 0.1);
-        submatrix_other<double>(key, 3, 10, 5, 12, 8, 2, 1, Layout::ColMajor, 1.0);
+        submatrix_other(key, 3, 10, 5, 12, 8, 2, 1, Layout::ColMajor, 0.1);
+        submatrix_other(key, 3, 10, 5, 12, 8, 2, 1, Layout::ColMajor, 1.0);
     }
 }
 
-TEST_F(TestRightMultiplyCSC, submatrix_other_double_rowmajor) {
+TEST_F(TestRightMultiply_CSC_double, submatrix_other_double_rowmajor) {
     for (uint32_t key : {0}) {
-        submatrix_other<double>(key, 3, 10, 5, 12, 8, 2, 1, Layout::RowMajor, 0.1);
-        submatrix_other<double>(key, 3, 10, 5, 12, 8, 2, 1, Layout::RowMajor, 1.0);
+        submatrix_other(key, 3, 10, 5, 12, 8, 2, 1, Layout::RowMajor, 0.1);
+        submatrix_other(key, 3, 10, 5, 12, 8, 2, 1, Layout::RowMajor, 1.0);
     }
 }
 
-TEST_F(TestRightMultiplyCSC, submatrix_other_single) {
+TEST_F(TestRightMultiply_CSC_single, submatrix_other_single) {
     for (uint32_t key : {0}) {
-        submatrix_other<float>(key, 3, 10, 5, 12, 8, 2, 1, Layout::ColMajor, 0.1);
-        submatrix_other<float>(key, 3, 10, 5, 12, 8, 2, 1, Layout::ColMajor, 1.0);
+        submatrix_other(key, 3, 10, 5, 12, 8, 2, 1, Layout::ColMajor, 0.1);
+        submatrix_other(key, 3, 10, 5, 12, 8, 2, 1, Layout::ColMajor, 1.0);
     }
 }
 
@@ -509,17 +469,17 @@ TEST_F(TestRightMultiplyCSC, submatrix_other_single) {
 ////////////////////////////////////////////////////////////////////////
 
 
-TEST_F(TestRightMultiplyCSC, trans_other_times_sparse_colmajor) {
+TEST_F(TestRightMultiply_CSC_double, trans_other_times_sparse_colmajor) {
     uint32_t key = 0;
-    transpose_other<double>(key, 7, 22, 5, Layout::ColMajor, 0.05);
-    transpose_other<double>(key, 7, 22, 5, Layout::ColMajor, 0.10);
-    transpose_other<double>(key, 7, 22, 5, Layout::ColMajor, 0.80);
+    transpose_other(key, 7, 22, 5, Layout::ColMajor, 0.05);
+    transpose_other(key, 7, 22, 5, Layout::ColMajor, 0.10);
+    transpose_other(key, 7, 22, 5, Layout::ColMajor, 0.80);
 }
 
-TEST_F(TestRightMultiplyCSC, trans_other_times_sparse_rowmajor) {
+TEST_F(TestRightMultiply_CSC_double, trans_other_times_sparse_rowmajor) {
     uint32_t key = 0;
-    transpose_other<double>(key, 7, 22, 5, Layout::RowMajor, 0.05);
-    transpose_other<double>(key, 7, 22, 5, Layout::RowMajor, 0.10);
-    transpose_other<double>(key, 7, 22, 5, Layout::RowMajor, 0.80);
+    transpose_other(key, 7, 22, 5, Layout::RowMajor, 0.05);
+    transpose_other(key, 7, 22, 5, Layout::RowMajor, 0.10);
+    transpose_other(key, 7, 22, 5, Layout::RowMajor, 0.80);
 }
 

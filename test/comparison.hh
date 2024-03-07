@@ -1,5 +1,5 @@
-#ifndef randblas_test_util_hh
-#define randblas_test_util_hh
+#ifndef randblas_test_comparisons_hh
+#define randblas_test_comparisons_hh
 
 #include <gtest/gtest.h>
 #include <math.h>
@@ -204,4 +204,5 @@ void matrices_approx_equal(
 }
 
 } // end namespace test::comparison
+
 #endif
