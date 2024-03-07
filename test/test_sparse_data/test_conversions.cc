@@ -23,14 +23,14 @@ class TestSparseTranspose : public ::testing::Test
         CSRMatrix<T> A_csr(m, n);
         dense_to_csr(Layout::ColMajor, A_dense.data(), 0.0, A_csr);
         
-        auto At_csc_view = transpose<T,CSCMatrix<T>>(A_csr, true);
+        CSCMatrix<T> At_csc_view = transpose_as_csc(A_csr, true);
         csc_to_dense(At_csc_view, layout, At_dense.data());
         test::comparison::matrices_approx_equal(
             layout, blas::Op::Trans, m, n, A_dense.data(), m, At_dense.data(), n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
 
-        auto At_csc_copy = transpose<T,CSCMatrix<T>>(A_csr, false);
+        CSCMatrix<T> At_csc_copy = transpose_as_csc(A_csr, false);
         blas::scal(m * n, 0.0, At_dense.data(), 1);
         blas::scal(A_csr.nnz, 0.0, A_csr.vals, 1);
         csc_to_dense(At_csc_copy, layout, At_dense.data());
@@ -50,14 +50,14 @@ class TestSparseTranspose : public ::testing::Test
         CSCMatrix<T> A_csc(m, n);
         dense_to_csc(Layout::ColMajor, A_dense.data(), 0.0, A_csc);
         
-        auto At_csr_view = transpose<T,CSRMatrix<T>>(A_csc, true);
+        CSRMatrix<T> At_csr_view = transpose_as_csr(A_csc, true);
         csr_to_dense(At_csr_view, layout, At_dense.data());
         test::comparison::matrices_approx_equal(
             layout, blas::Op::Trans, m, n, A_dense.data(), m, At_dense.data(), n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
 
-        auto At_csr_copy = transpose<T,CSRMatrix<T>>(A_csc, false);
+        CSRMatrix<T> At_csr_copy = transpose_as_csr(A_csc, false);
         blas::scal(m * n, 0.0, At_dense.data(), 1);
         blas::scal(A_csc.nnz, 0.0, A_csc.vals, 1);
         csr_to_dense(At_csr_copy, layout, At_dense.data());

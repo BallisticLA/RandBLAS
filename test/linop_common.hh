@@ -14,7 +14,7 @@
 
 namespace test::linop_common {
 
-using RandBLAS::COOMatrix;
+using RandBLAS::sparse_data::COOMatrix;
 using RandBLAS::sparse_data::CSRMatrix;
 using RandBLAS::sparse_data::CSCMatrix;
 using RandBLAS::SparseSkOp;

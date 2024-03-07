@@ -43,13 +43,13 @@ void lspgemm(
         constexpr bool is_csc = std::is_same_v<SpMatrix, CSCMatrix<T, sint_t>>;
         constexpr bool is_csr = std::is_same_v<SpMatrix, CSRMatrix<T, sint_t>>;
         if constexpr (is_coo) {
-            auto At = transpose(A);
+            auto At = RandBLAS::sparse_data::coo::transpose(A);
             lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, col_offset, row_offset, B, ldb, beta, C, ldc);
         } else if constexpr (is_csc) {
-            auto At = RandBLAS::sparse_data::conversions::transpose<T, CSRMatrix<T>>(A, true);
+            auto At = RandBLAS::sparse_data::conversions::transpose_as_csr(A);
             lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, col_offset, row_offset, B, ldb, beta, C, ldc);
         } else if constexpr (is_csr) {
-            auto At = RandBLAS::sparse_data::conversions::transpose<T, CSCMatrix<T>>(A, true);
+            auto At = RandBLAS::sparse_data::conversions::transpose_as_csc(A);
             lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, col_offset, row_offset, B, ldb, beta, C, ldc);
         } else {
             randblas_require(false);

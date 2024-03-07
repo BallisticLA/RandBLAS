@@ -241,8 +241,7 @@ using blas::Layout;
 
 // consider:
 //      1. Adding optional share_memory flag that defaults to true.
-//      2. renaming to transpose_as_coo, making a transpose dispatcher function like
-//          I did for transposing CSC matrices.
+//      2. renaming to transpose_as_coo.
 template <typename T>
 COOMatrix<T> transpose(COOMatrix<T> &S) {
     COOMatrix<T> St(S.n_cols, S.n_rows, S.nnz, S.vals, S.cols, S.rows, false, S.index_base);
@@ -315,12 +314,5 @@ void coo_to_dense(const COOMatrix<T> &spmat, Layout layout, T *mat) {
 }
 
 } // end namespace RandBLAS::sparse_data::coo
-
-
-namespace RandBLAS {
-    using RandBLAS::sparse_data::COOMatrix;
-    using RandBLAS::sparse_data::NonzeroSort;
-    using RandBLAS::sparse_data::coo::transpose;
-}
 
 #endif

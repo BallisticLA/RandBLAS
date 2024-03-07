@@ -120,20 +120,6 @@ CSCMatrix<T> transpose_as_csc(CSRMatrix<T> &A, bool share_memory = true) {
     }
 }
 
-template <typename T, typename SpMatrix>
-SpMatrix transpose(CSCMatrix<T> &A, bool share_memory) {
-    constexpr bool implemented = std::is_same_v<SpMatrix, CSRMatrix<T>>;
-    randblas_require(implemented);
-    return transpose_as_csr(A, share_memory);
-}
-
-template <typename T, typename SpMatrix>
-SpMatrix transpose(CSRMatrix<T> &A, bool share_memory) {
-    constexpr bool implemented = std::is_same_v<SpMatrix, CSCMatrix<T>>;
-    randblas_require(implemented);
-    return transpose_as_csc(A, share_memory);
-}
-
 
 } // end namespace RandBLAS::sparse_data::conversions
 
