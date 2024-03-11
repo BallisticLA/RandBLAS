@@ -121,8 +121,8 @@ void lspgemm(
 template <typename T, typename SpMatrix>
 void rspgemm(
     blas::Layout layout,
-    blas::Op opB,
     blas::Op opA,
+    blas::Op opB,
     int64_t m, // C is m-by-d
     int64_t d, // op(A) is n-by-d
     int64_t n, // op(B) is m-by-n
@@ -137,23 +137,23 @@ void rspgemm(
     int64_t ldc
 ) { 
     //
-    // Compute C = op(B) op(submat(A)) by reduction to LSPGEMM. We start with
+    // Compute C = op(mat(A)) @ op(submat(B0)) by reduction to LSPGEMM. We start with
     //
-    //      C^T = op(submat(A))^T op(B)^T.
+    //      C^T = op(submat(B0))^T @ op(mat(A))^T.
     //
-    // Then we interchange the operator "op(*)" in op(B) and (*)^T:
+    // Then we interchange the operator "op(*)" in op(submat(A)) and (*)^T:
     //
-    //      C^T = op(submat(A))^T op(B^T).
+    //      C^T = op(submat(B0))^T @ op(mat(A)^T).
     //
     // We tell LSPGEMM to process (C^T) and (B^T) in the opposite memory layout
     // compared to the layout for (B, C).
     // 
     using blas::Layout;
     using blas::Op;
-    auto trans_opA = (opA == Op::NoTrans) ? Op::Trans : Op::NoTrans;
+    auto trans_opB = (opB == Op::NoTrans) ? Op::Trans : Op::NoTrans;
     auto trans_layout = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
     lspgemm(
-        trans_layout, trans_opA, opB,
+        trans_layout, trans_opB, opA,
         d, m, n, alpha, B0, i_off, j_off, A, lda, beta, C, ldc
     );
 }
