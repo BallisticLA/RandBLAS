@@ -176,7 +176,7 @@ struct DenseSkOp {
 
     T *buff = nullptr;                         // memory
     const blas::Layout layout;                 // matrix storage order
-    bool del_buff_on_destruct = false;         // only applies if realize_full has been called.
+    bool del_buff_on_destruct = false;         // only applies if fill_dense(S) has been called.
 
     /////////////////////////////////////////////////////////////////////
     //
@@ -252,7 +252,7 @@ bool compare_ctr(typename RNG::ctr_type c1, typename RNG::ctr_type c2) {
 }
 
 /** 
- * Fill buff with random values so it gives a row-major representation of an n_srows \times n_scols
+ * Fill buff with random values so it gives a row-major representation of an n_srows \math{\times} n_scols
  * submatrix of some implicitly defined parent matrix.
  * 
  * The implicit parent matrix is **imagined** as a buffer in row-major order with "n_cols" columns.
@@ -266,7 +266,7 @@ bool compare_ctr(typename RNG::ctr_type c1, typename RNG::ctr_type c2) {
  * @param[in] n_cols
  *      The number of columns in the implicitly defined parent matrix.
  * @param[in] smat
- *      A pointer to a region of memory with space for n_rows \times lda elements of type T.
+ *      A pointer to a region of memory with space for n_rows \math{\times} lda elements of type T.
  *      This memory will be filled with random values by wrting rows of length "n_scols"
  *      with an inter-row stride of length "lda".
  * @param[in] n_srows
@@ -716,11 +716,10 @@ void lskge3(
     T *B,
     int64_t ldb
 ){
+    auto [rows_submat_S, cols_submat_S] = dims_before_op(d, m, opS);
     if (!S.buff) {
         // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
         // of that sketching operator, and then call LSKGE3 with that new object.
-        int64_t rows_submat_S = (opS == blas::Op::NoTrans) ? d : m;
-        int64_t cols_submat_S = (opS == blas::Op::NoTrans) ? m : d;
         T *buff = new T[rows_submat_S * cols_submat_S];
         fill_dense(S.dist, rows_submat_S, cols_submat_S, i_off, j_off, buff, S.seed_state);
         DenseDist D{rows_submat_S, cols_submat_S, DenseDistName::BlackBox, S.dist.major_axis};
@@ -729,46 +728,9 @@ void lskge3(
         delete [] buff;
         return;
     }
-    bool opposing_layouts = S.layout != layout;
-    if (opposing_layouts)
-        opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
-
-    // Dimensions of A, rather than op(A)
-    int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
-    if (opA == blas::Op::NoTrans) {
-        rows_A = m;
-        cols_A = n;
-    } else {
-        rows_A = n;
-        cols_A = m;
-    }
-    // Dimensions of S, rather than op(S)
-    if (opS == blas::Op::NoTrans) {
-        rows_submat_S = d;
-        cols_submat_S = m;
-    } else {
-        rows_submat_S = m;
-        cols_submat_S = d;
-    }
-
-    // Sanity checks on dimensions and strides
-    if (opposing_layouts) {
-        randblas_require(S.dist.n_rows >= cols_submat_S + i_off);
-        randblas_require(S.dist.n_cols >= rows_submat_S + j_off);
-    } else {
-        randblas_require(S.dist.n_rows >= rows_submat_S + i_off);
-        randblas_require(S.dist.n_cols >= cols_submat_S + j_off);
-    }
-
-    int64_t lds, pos;
-    if (S.layout == blas::Layout::ColMajor) {
-        lds = S.dist.n_rows;
-        pos = i_off + lds * j_off;
-    } else {
-        lds = S.dist.n_cols;
-        pos = i_off * lds + j_off;
-    }
-
+    randblas_require( S.dist.n_rows >= rows_submat_S + i_off );
+    randblas_require( S.dist.n_cols >= cols_submat_S + j_off );
+    auto [rows_A, cols_A] = dims_before_op(m, n, opA);
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= d);
@@ -776,16 +738,13 @@ void lskge3(
         randblas_require(lda >= cols_A);
         randblas_require(ldb >= n);
     }
-    // Perform the sketch.
-    blas::gemm(
-        layout, opS, opA,
-        d, n, m,
-        alpha,
-        &S.buff[pos], lds,
-        A, lda,
-        beta,
-        B, ldb
-    );
+
+    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, i_off, j_off);
+    T* S_ptr = &S.buff[pos];
+    if (S.layout != layout)
+        opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
+
+    blas::gemm(layout, opS, opA, d, n, m, alpha, S_ptr, lds, A, lda, beta, B, ldb);
     return;
 }
 

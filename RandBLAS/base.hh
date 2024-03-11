@@ -30,7 +30,7 @@ struct stride_64t {
     int64_t inter_col_stride;
 };
 
-static inline stride_64t layout_to_strides(blas::Layout layout, int64_t ldim) {
+inline stride_64t layout_to_strides(blas::Layout layout, int64_t ldim) {
     if (layout == blas::Layout::ColMajor) {
         return stride_64t{(int64_t) 1, ldim};
     } else {
@@ -43,11 +43,28 @@ struct dims64_t {
     int64_t n_cols;
 };
 
-static inline dims64_t dims_before_op(int64_t m, int64_t n, blas::Op op) {
+inline dims64_t dims_before_op(int64_t m, int64_t n, blas::Op op) {
     if (op == blas::Op::NoTrans) {
         return {m, n};
     } else {
         return {n, m};
+    }
+}
+
+struct submat_spec_64t {
+    int64_t pointer_offset;
+    int64_t ldim;
+};
+
+inline submat_spec_64t offset_and_ldim(
+    blas::Layout layout, int64_t n_rows, int64_t n_cols, int64_t i_off, int64_t j_off
+) {
+    if (layout == blas::Layout::ColMajor) {
+        int64_t offset = i_off + n_rows * j_off;
+        return submat_spec_64t{offset, n_rows};
+    } else {
+        int64_t offset = i_off * n_cols + j_off;
+        return submat_spec_64t{offset, n_cols};
     }
 }
 
