@@ -867,11 +867,10 @@ void rskge3(
     T *B,
     int64_t ldb
 ){
+    auto [rows_submat_S, cols_submat_S] = dims_before_op(n, d, opS);
     if (!S.buff) {
         // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
         // of that sketching operator, and then call RSKGE3 with that new object.
-        int64_t rows_submat_S = (opS == blas::Op::NoTrans) ? n : d;
-        int64_t cols_submat_S = (opS == blas::Op::NoTrans) ? d : n;
         T *buff = new T[rows_submat_S * cols_submat_S];
         fill_dense(S.dist, rows_submat_S, cols_submat_S, i_off, j_off, buff, S.seed_state);
         DenseDist D{rows_submat_S, cols_submat_S, DenseDistName::BlackBox, S.dist.major_axis};
@@ -880,46 +879,9 @@ void rskge3(
         delete [] buff;
         return;
     }
-    bool opposing_layouts = S.layout != layout;
-    if (opposing_layouts)
-        opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
-
-    // Dimensions of A, rather than op(A)
-    int64_t rows_A, cols_A, rows_submat_S, cols_submat_S;
-    if (opA == blas::Op::NoTrans) {
-        rows_A = m;
-        cols_A = n;
-    } else {
-        rows_A = n;
-        cols_A = m;
-    }
-    // Dimensions of S, rather than op(S)
-    if (opS == blas::Op::NoTrans) {
-        rows_submat_S = n;
-        cols_submat_S = d;
-    } else {
-        rows_submat_S = d;
-        cols_submat_S = n;
-    }
-
-    // Sanity checks on dimensions and strides
-    if (opposing_layouts) {
-        randblas_require(S.dist.n_rows >= cols_submat_S + i_off);
-        randblas_require(S.dist.n_cols >= rows_submat_S + j_off);
-    } else {
-        randblas_require(S.dist.n_rows >= rows_submat_S + i_off);
-        randblas_require(S.dist.n_cols >= cols_submat_S + j_off);
-    }
-
-    int64_t lds, pos;
-    if (S.layout == blas::Layout::ColMajor) {
-        lds = S.dist.n_rows;
-        pos = i_off + lds * j_off;
-    } else {
-        lds = S.dist.n_cols;
-        pos = i_off * lds + j_off;
-    }
-
+    randblas_require( S.dist.n_rows >= rows_submat_S + i_off );
+    randblas_require( S.dist.n_cols >= cols_submat_S + j_off );
+    auto [rows_A, cols_A] = dims_before_op(m, n, opA);
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
         randblas_require(ldb >= m);
@@ -927,16 +889,13 @@ void rskge3(
         randblas_require(lda >= cols_A);
         randblas_require(ldb >= d);
     }
-    // Perform the sketch.
-    blas::gemm(
-        layout, opA, opS,
-        m, d, n,
-        alpha,
-        A, lda,
-        &S.buff[pos], lds,
-        beta,
-        B, ldb
-    );
+
+    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, i_off, j_off);
+    T* S_ptr = &S.buff[pos];
+    if (S.layout != layout)
+        opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
+
+    blas::gemm(layout, opA, opS, m, d, n, alpha, A, lda, S_ptr, lds, beta, B, ldb);
     return;
 }
 
