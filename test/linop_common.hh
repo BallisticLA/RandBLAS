@@ -22,6 +22,7 @@ using RandBLAS::DenseSkOp;
 using RandBLAS::RNGState;
 using RandBLAS::DenseDist;
 using RandBLAS::dims_before_op;
+using RandBLAS::offset_and_ldim;
 using RandBLAS::dims64_t;
 
 
@@ -357,13 +358,11 @@ void test_left_apply_to_submatrix(
     randblas_require(m0 >= m);
     randblas_require(n0 >= n);
 
-    auto A = std::get<0>(random_matrix<T>(m0, n0, RNGState(13)));
     std::vector<T> B0(d * n, 0.0);
-    bool is_colmajor = (layout == blas::Layout::ColMajor);
-    int64_t lda = (is_colmajor) ? m0 : n0;
-    int64_t ldb = (is_colmajor) ? d : n;
+    int64_t ldb = (layout == blas::Layout::ColMajor) ? d : n;
 
-    int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
+    auto A = std::get<0>(random_matrix<T>(m0, n0, RNGState(13)));
+    auto [a_offset, lda] = offset_and_ldim(layout, m0, n0, A_ro, A_co);
     T *A_ptr = &A.data()[a_offset]; 
     left_apply<T>(
         layout,
@@ -626,14 +625,13 @@ void test_right_apply_to_submatrix(
     randblas_require(m0 >= m);
     randblas_require(n0 >= n);
     
-    auto A = std::get<0>(random_matrix<T>(m0, n0, RandBLAS::RNGState(1)));
     std::vector<T> B0(m * d, 0.0);
-    bool is_colmajor = (layout == blas::Layout::ColMajor);
-    int64_t lda = (is_colmajor) ? m0 : n0;
-    int64_t ldb = (is_colmajor) ? m : d;
- 
-    int64_t a_offset = (is_colmajor) ? (A_ro + m0 * A_co) : (A_ro * n0 + A_co);
+    int64_t ldb = (layout == blas::Layout::ColMajor) ? m : d;
+
+    auto A = std::get<0>(random_matrix<T>(m0, n0, RandBLAS::RNGState(1)));
+    auto [a_offset, lda] = offset_and_ldim(layout, m0, n0, A_ro, A_co);
     T *A_ptr = &A.data()[a_offset];
+
     right_apply<T>(layout, blas::Op::NoTrans, blas::Op::NoTrans, m, d, n, 1.0, A_ptr, lda, S, 0, 0, 0.0, B0.data(), ldb, threads);
 
     std::vector<T> B1(d * m, 0.0);
