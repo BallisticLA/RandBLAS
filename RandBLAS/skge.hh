@@ -143,8 +143,8 @@ void sketch_general(
     blas::Op opS,
     blas::Op opA,
     int64_t d, // B is d-by-n
-    int64_t n, // \op(A) is m-by-n
-    int64_t m, // \op(\submat(S)) is d-by-m
+    int64_t n, // op(A) is m-by-n
+    int64_t m, // op(submat(S)) is d-by-m
     T alpha,
     SKOP &S,
     int64_t i_off,
@@ -162,8 +162,8 @@ void sketch_general(
     blas::Op opS,
     blas::Op opA,
     int64_t d, // B is d-by-n
-    int64_t n, // \op(A) is m-by-n
-    int64_t m, // \op(\submat(S)) is d-by-m
+    int64_t n, // op(A) is m-by-n
+    int64_t m, // op(submat(S)) is d-by-m
     T alpha,
     SparseSkOp<T, RNG> &S,
     int64_t i_off,
@@ -186,8 +186,8 @@ void sketch_general(
     blas::Op opS,
     blas::Op opA,
     int64_t d, // B is d-by-n
-    int64_t n, // \op(A) is m-by-n
-    int64_t m, // \op(\submat(S)) is d-by-m
+    int64_t n, // op(A) is m-by-n
+    int64_t m, // op(submat(S)) is d-by-m
     T alpha,
     DenseSkOp<T, RNG> &S,
     int64_t i_off,
@@ -315,7 +315,7 @@ void sketch_general(
     blas::Op opA,
     blas::Op opS,
     int64_t m, // B is m-by-d
-    int64_t d, // op(\submat(S)) is n-by-d
+    int64_t d, // op(submat(S)) is n-by-d
     int64_t n, // op(A) is m-by-n
     T alpha,
     const T *A,
@@ -334,7 +334,7 @@ void sketch_general(
     blas::Op opA,
     blas::Op opS,
     int64_t m, // B is m-by-d
-    int64_t d, // op(\submat(S)) is n-by-d
+    int64_t d, // op(submat(S)) is n-by-d
     int64_t n, // op(A) is m-by-n
     T alpha,
     const T *A,
@@ -358,7 +358,7 @@ void sketch_general(
     blas::Op opA,
     blas::Op opS,
     int64_t m, // B is m-by-d
-    int64_t d, // op(\submat(S)) is n-by-d
+    int64_t d, // op(submat(S)) is n-by-d
     int64_t n, // op(A) is m-by-n
     T alpha,
     const T *A,
@@ -478,8 +478,8 @@ void sketch_general(
     blas::Op opS,
     blas::Op opA,
     int64_t d, // B is d-by-n
-    int64_t n, // \op(A) is m-by-n
-    int64_t m, // \op(S) is d-by-m
+    int64_t n, // op(A) is m-by-n
+    int64_t m, // op(S) is d-by-m
     T alpha,
     SKOP &S,
     const T *A,
@@ -697,8 +697,8 @@ void sketch_general(
 template <typename T, typename SKOP>
 void sketch_vector(
     blas::Op opS,
-    int64_t d, // rows in \submat(S)
-    int64_t m, // cols in \submat(S)
+    int64_t d, // rows in submat(S)
+    int64_t m, // cols in submat(S)
     T alpha,
     SKOP &S,
     int64_t i_off,
