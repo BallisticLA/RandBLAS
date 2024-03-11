@@ -6,9 +6,10 @@ These random linear transformations are called *sketching operators*.
 The act of applying a sketching operator -- that is, the act of *sketching* -- is of fundamental importance to randomized numerical linear algebra.
 
 RandBLAS is efficient, flexible, and reliable.
-It can sample sketching operators from a wide range of dense and sparse distributions.
-It uses CPU-based OpenMP acceleration to apply its sketching operators to dense data matrices stored in main memory.
-It can be used in distributed environments through its ability to (reproducibly) compute products with *submatrices* of sketching operators.
+It uses CPU-based OpenMP acceleration to apply its sketching operators to dense or sparse data matrices stored in main memory.
+All sketches produced by RandBLAS are dense.
+As such, dense data matrices can be sketched with dense or sparse operators, while sparse data matrices can only be sketched with dense operators.
+RandBLAS can be used in distributed environments through its ability to (reproducibly) compute products with *submatrices* of sketching operators.
 
 Learn more by reading the `RandBLAS User Guide <user_guide/index.html>`_.
 

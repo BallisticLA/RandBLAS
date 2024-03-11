@@ -89,5 +89,5 @@ Dense sketching operators
 Sparse sketching operators
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. doxygenfunction:: RandBLAS::fill_sparse(SparseSkOp<T, RNG> &S)
+.. doxygenfunction:: RandBLAS::fill_sparse(SparseSkOp<T, RNG, sint_t> &S)
    :project: RandBLAS
