@@ -11,12 +11,12 @@ if (GTest_FOUND)
         test_sketch_vector.cc
         # dense sketching operators for dense data matrices
         test_dense_skops/test_construction.cc
-        test_dense_skops/test_sketch_gefl3.cc
-        test_dense_skops/test_sketch_gefr3.cc
+        test_dense_skops/test_lskge3.cc
+        test_dense_skops/test_rskge3.cc
         # sparse sketching operators for dense data matrices
         test_sparse_skops/test_construction.cc
-        test_sparse_skops/test_sketch_gefls.cc
-        test_sparse_skops/test_sketch_gefrs.cc
+        test_sparse_skops/test_lskges.cc
+        test_sparse_skops/test_rskges.cc
     )
     target_link_libraries(RandBLAS_tests
         RandBLAS
