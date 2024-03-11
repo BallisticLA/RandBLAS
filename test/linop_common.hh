@@ -14,6 +14,8 @@
 
 namespace test::linop_common {
 
+using blas::Layout;
+using blas::Op;
 using RandBLAS::sparse_data::COOMatrix;
 using RandBLAS::sparse_data::CSRMatrix;
 using RandBLAS::sparse_data::CSCMatrix;
@@ -39,7 +41,7 @@ auto random_matrix(int64_t m, int64_t n, RNGState<RNG> s) {
     std::vector<T> A(m * n);
     DenseDist DA(m, n);
     auto [layout, next_state] = RandBLAS::fill_dense(DA, A.data(), s);
-    std::tuple<std::vector<T>, blas::Layout, RNGState<RNG>> t{A, layout, next_state};
+    std::tuple<std::vector<T>, Layout, RNGState<RNG>> t{A, layout, next_state};
     return t;
 }
 
@@ -54,7 +56,7 @@ dims64_t dimensions(SpMatrix &S) {return {S.n_rows, S.n_cols};}
 
 
 template <typename T, typename SpMatrix>
-void to_explicit_buffer(SpMatrix &a, T *mat_a, blas::Layout layout) {
+void to_explicit_buffer(SpMatrix &a, T *mat_a, Layout layout) {
     using sint_t = typename SpMatrix::index_t;
     constexpr bool is_coo = std::is_same_v<SpMatrix, COOMatrix<T, sint_t>>;
     constexpr bool is_csc = std::is_same_v<SpMatrix, CSCMatrix<T, sint_t>>;
@@ -72,23 +74,23 @@ void to_explicit_buffer(SpMatrix &a, T *mat_a, blas::Layout layout) {
 }
 
 template <typename T>
-void to_explicit_buffer(SparseSkOp<T> &a, T *mat_a, blas::Layout layout) {
+void to_explicit_buffer(SparseSkOp<T> &a, T *mat_a, Layout layout) {
     auto a_coo = RandBLAS::sparse::coo_view_of_skop(a);
     to_explicit_buffer(a_coo, mat_a, layout);
     return;
 }
 
 template <typename T>
-void to_explicit_buffer(DenseSkOp<T> &s, T *mat_s, blas::Layout layout) {
+void to_explicit_buffer(DenseSkOp<T> &s, T *mat_s, Layout layout) {
     DenseSkOp<T> a(s.dist, s.seed_state);
     auto n_rows = a.dist.n_rows;
     auto n_cols = a.dist.n_cols;
-    int64_t stride_row = (layout == blas::Layout::ColMajor) ? 1 : n_cols;
-    int64_t stride_col = (layout == blas::Layout::ColMajor) ? n_rows : 1;
+    int64_t stride_row = (layout == Layout::ColMajor) ? 1 : n_cols;
+    int64_t stride_col = (layout == Layout::ColMajor) ? n_rows : 1;
     #define MAT_S(_i, _j) mat_s[(_i) * stride_row + (_j) * stride_col ]
     RandBLAS::fill_dense(a);
-    int64_t buff_stride_row = (a.layout == blas::Layout::ColMajor) ? 1 : n_cols;
-    int64_t buff_stride_col = (a.layout == blas::Layout::ColMajor) ? n_rows : 1;
+    int64_t buff_stride_row = (a.layout == Layout::ColMajor) ? 1 : n_cols;
+    int64_t buff_stride_col = (a.layout == Layout::ColMajor) ? n_rows : 1;
     #define BUFF(_i, _j) a.buff[(_i) * buff_stride_row + (_j) * buff_stride_col]
     for (int64_t i = 0; i < n_rows; ++i) {
         for (int64_t j = 0; j < n_cols; ++j) {
@@ -109,7 +111,7 @@ void to_explicit_buffer(DenseSkOp<T> &s, T *mat_s, blas::Layout layout) {
 
 
 template <typename T>
-void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, SparseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
+void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, T alpha, SparseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -125,7 +127,7 @@ void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int6
 }
 
 template <typename T>
-void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, DenseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
+void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, T alpha, DenseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -141,7 +143,7 @@ void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int6
 }
 
 template <typename T, typename SpMatrix>
-void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, SpMatrix &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
+void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, T alpha, SpMatrix &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -158,7 +160,7 @@ void left_apply(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int6
 
 template <typename T, typename LinOp>
 void reference_left_apply(
-    blas::Layout layout, blas::Op transS, blas::Op transA, int64_t d, int64_t n, int64_t m, T alpha, LinOp &S, int64_t i_os, int64_t j_os, const T *A, int64_t lda, T beta, T *B, T *E, int64_t ldb
+    Layout layout, Op transS, Op transA, int64_t d, int64_t n, int64_t m, T alpha, LinOp &S, int64_t i_os, int64_t j_os, const T *A, int64_t lda, T beta, T *B, T *E, int64_t ldb
 ){
     randblas_require(d > 0);
     randblas_require(m > 0);
@@ -171,7 +173,7 @@ void reference_left_apply(
 
     // Sanity checks on dimensions and strides
     int64_t lds, s_row_stride, s_col_stride, pos, size_A, size_B;
-    if (layout == blas::Layout::ColMajor) {
+    if (layout == Layout::ColMajor) {
         lds = rows_S;
         pos = i_os + lds * j_os;
         randblas_require(lds >= rows_submat_S);
@@ -232,19 +234,19 @@ void reference_left_apply(
 template <typename T, typename LinOp>
 void test_left_apply_to_random(
     // B = alpha * S * A + beta*B, where A is m-by-n and random, S is m-by-d, and B is d-by-n and random
-    T alpha, LinOp &S, int64_t n, T beta, blas::Layout layout, int threads = 0
+    T alpha, LinOp &S, int64_t n, T beta, Layout layout, int threads = 0
 ) {
     auto [d, m] = dimensions(S);
     auto A  = std::get<0>(random_matrix<T>(m, n, RandBLAS::RNGState(99)));
     auto B0 = std::get<0>(random_matrix<T>(d, n, RandBLAS::RNGState(42)));
     std::vector<T> B1(B0);
-    bool is_colmajor = layout == blas::Layout::ColMajor;
+    bool is_colmajor = layout == Layout::ColMajor;
     int64_t lda = (is_colmajor) ? m : n;
     int64_t ldb = (is_colmajor) ? d : n;
 
     // compute S*A. 
     left_apply<T>(
-        layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        layout, Op::NoTrans, Op::NoTrans,
         d, n, m,
         alpha, S, 0, 0, A.data(), lda,
         beta, B0.data(), ldb, threads 
@@ -253,7 +255,7 @@ void test_left_apply_to_random(
     // compute expected result (B1) and allowable error (E)
     std::vector<T> E(d * n, 0.0);
     reference_left_apply<T>(
-        layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        layout, Op::NoTrans, Op::NoTrans,
         d, n, m,
         alpha, S, 0, 0, A.data(), lda,
         beta, B1.data(), E.data(), ldb
@@ -270,12 +272,12 @@ void test_left_apply_to_random(
 template <typename T, typename LinOp>
 void test_left_apply_submatrix_to_eye(
     // B = alpha * submat(S0) * eye + beta*B, where S = submat(S) is d1-by-m1 offset by (S_ro, S_co) in S0, and B is random.
-    T alpha, LinOp &S0, int64_t d1, int64_t m1, int64_t S_ro, int64_t S_co, blas::Layout layout, T beta = 0.0, int threads = 0
+    T alpha, LinOp &S0, int64_t d1, int64_t m1, int64_t S_ro, int64_t S_co, Layout layout, T beta = 0.0, int threads = 0
 ) {
     auto [d0, m0] = dimensions(S0);
     randblas_require(d0 >= d1);
     randblas_require(m0 >= m1);
-    bool is_colmajor = layout == blas::Layout::ColMajor;
+    bool is_colmajor = layout == Layout::ColMajor;
     int64_t lda = m1;
     int64_t ldb = (is_colmajor) ? d1 : m1;
 
@@ -286,7 +288,7 @@ void test_left_apply_submatrix_to_eye(
 
     // Perform the sketch
     left_apply(
-        layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        layout, Op::NoTrans, Op::NoTrans,
         d1, m1, m1,
         alpha, S0, S_ro, S_co,
         A.data(), lda,
@@ -309,7 +311,7 @@ void test_left_apply_submatrix_to_eye(
     }
 
     test::comparison::matrices_approx_equal(
-        layout, blas::Op::NoTrans,
+        layout, Op::NoTrans,
         d1, m1,
         B.data(), ldb,
         &expect[offset], ld_expect,
@@ -322,19 +324,19 @@ void test_left_apply_submatrix_to_eye(
 template <typename T, typename LinOp>
 void test_left_apply_transpose_to_eye(
     // B = S^T * eye, where S is m-by-d, B is d-by-m
-    LinOp &S, blas::Layout layout, int threads = 0
+    LinOp &S, Layout layout, int threads = 0
 ) {
     auto [m, d] = dimensions(S);
     auto A = eye<T>(m);
     std::vector<T> B(d * m, 0.0);
-    bool is_colmajor = (blas::Layout::ColMajor == layout);
+    bool is_colmajor = (Layout::ColMajor == layout);
     int64_t ldb = (is_colmajor) ? d : m;
     int64_t lds = (is_colmajor) ? m : d;
 
     left_apply<T>(
         layout,
-        blas::Op::Trans,
-        blas::Op::NoTrans,
+        Op::Trans,
+        Op::NoTrans,
         d, m, m,
         1.0, S, 0, 0, A.data(), m,
         0.0, B.data(), ldb, threads   
@@ -343,7 +345,7 @@ void test_left_apply_transpose_to_eye(
     std::vector<T> S_dense(m * d, 0.0);
     to_explicit_buffer(S, S_dense.data(), layout);
     test::comparison::matrices_approx_equal(
-        layout, blas::Op::Trans, d, m,
+        layout, Op::Trans, d, m,
         B.data(), ldb, S_dense.data(), lds,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
@@ -352,22 +354,22 @@ void test_left_apply_transpose_to_eye(
 template <typename T, typename LinOp>
 void test_left_apply_to_submatrix(
     // B = S * A, where S is d-by-m, A = A0[A_ro:(A_ro + m), A_co:(A_co + n)], and A0 is random m0-by-n0.
-    LinOp &S, int64_t n, int64_t m0, int64_t n0, int64_t A_ro, int64_t A_co, blas::Layout layout, int threads = 0
+    LinOp &S, int64_t n, int64_t m0, int64_t n0, int64_t A_ro, int64_t A_co, Layout layout, int threads = 0
 ) {
     auto [d, m] = dimensions(S);
     randblas_require(m0 >= m);
     randblas_require(n0 >= n);
 
     std::vector<T> B0(d * n, 0.0);
-    int64_t ldb = (layout == blas::Layout::ColMajor) ? d : n;
+    int64_t ldb = (layout == Layout::ColMajor) ? d : n;
 
     auto A = std::get<0>(random_matrix<T>(m0, n0, RNGState(13)));
     auto [a_offset, lda] = offset_and_ldim(layout, m0, n0, A_ro, A_co);
     T *A_ptr = &A.data()[a_offset]; 
     left_apply<T>(
         layout,
-        blas::Op::NoTrans,
-        blas::Op::NoTrans,
+        Op::NoTrans,
+        Op::NoTrans,
         d, n, m,
         1.0, S, 0, 0,
         A_ptr, lda,
@@ -378,8 +380,8 @@ void test_left_apply_to_submatrix(
     std::vector<T> E(d * n, 0.0);
     reference_left_apply<T>(
         layout,
-        blas::Op::NoTrans,
-        blas::Op::NoTrans,
+        Op::NoTrans,
+        Op::NoTrans,
         d, n, m,
         1.0, S, 0, 0,
         A_ptr, lda,
@@ -394,19 +396,19 @@ void test_left_apply_to_submatrix(
 template <typename T, typename LinOp>
 void test_left_apply_to_transposed(
     // B = S * A^T, where S is d-by-m, A is m-by-n and random
-    LinOp &S, int64_t n, blas::Layout layout, int threads = 0
+    LinOp &S, int64_t n, Layout layout, int threads = 0
 ) {
     auto [d, m] = dimensions(S);
     auto At = std::get<0>(random_matrix<T>(n, m, RNGState(101)));
     std::vector<T> B0(d * n, 0.0);
-    bool is_colmajor = layout == blas::Layout::ColMajor;
+    bool is_colmajor = layout == Layout::ColMajor;
     int64_t lda = (is_colmajor) ? n : m;
     int64_t ldb = (is_colmajor) ? d : n;
 
     left_apply<T>(
         layout,
-        blas::Op::NoTrans,
-        blas::Op::Trans,
+        Op::NoTrans,
+        Op::Trans,
         d, n, m,
         1.0, S, 0, 0,
         At.data(), lda,
@@ -416,7 +418,7 @@ void test_left_apply_to_transposed(
     std::vector<T> B1(d * n, 0.0);
     std::vector<T> E(d * n, 0.0);
     reference_left_apply<T>(
-        layout, blas::Op::NoTrans, blas::Op::Trans,
+        layout, Op::NoTrans, Op::Trans,
         d, n, m,
         1.0, S, 0, 0,
         At.data(), lda,
@@ -439,7 +441,7 @@ void test_left_apply_to_transposed(
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-void right_apply(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SparseSkOp<T> &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb, int threads) {
+void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SparseSkOp<T> &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb, int threads) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -454,7 +456,7 @@ void right_apply(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t 
 }
 
 template <typename T>
-void right_apply(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, DenseSkOp<T> &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb, int threads) {
+void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, DenseSkOp<T> &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb, int threads) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -469,7 +471,7 @@ void right_apply(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t 
 }
 
 template <typename T, typename SpMatrix>
-void right_apply(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SpMatrix &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb, int threads) {
+void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SpMatrix &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb, int threads) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -485,10 +487,8 @@ void right_apply(blas::Layout layout, blas::Op transA, blas::Op transS, int64_t 
 
 template <typename T, typename LinOp>
 void reference_right_apply(
-    blas::Layout layout, blas::Op transA, blas::Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, LinOp &S0, int64_t i_os, int64_t j_os, T beta, T *B, T *E, int64_t ldb
+    Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, LinOp &S0, int64_t i_os, int64_t j_os, T beta, T *B, T *E, int64_t ldb
 ) { 
-    using blas::Layout;
-    using blas::Op;
     // Check dimensions of submat(S).
     auto [submat_S_rows, submat_S_cols] = RandBLAS::dims_before_op(n, d, transS);
     auto [rows_S, cols_S] = dimensions(S0);
@@ -524,25 +524,25 @@ void reference_right_apply(
 template <typename T, typename LinOp>
 void test_right_apply_to_random(
     // B = alpha * A * S + beta * B, where A is m-by-n, S is n-by-d, B is m-by-d and random
-    T alpha, LinOp &S, int64_t m, blas::Layout layout, T beta, int threads = 0
+    T alpha, LinOp &S, int64_t m, Layout layout, T beta, int threads = 0
 ) {
     auto [n, d] = dimensions(S);
     auto A  = std::get<0>(random_matrix<T>(m, n, RandBLAS::RNGState(57)));
     auto B0 = std::get<0>(random_matrix<T>(m, d, RandBLAS::RNGState(10)));
     std::vector<T> B1(B0);
-    bool is_colmajor = layout == blas::Layout::ColMajor;
+    bool is_colmajor = layout == Layout::ColMajor;
     int64_t lda = (is_colmajor) ? m : n;
     int64_t ldb = (is_colmajor) ? m : d;
 
     right_apply<T>(
-        layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        layout, Op::NoTrans, Op::NoTrans,
         m, d, n, alpha, A.data(), lda, S, 0, 0,
         beta, B0.data(), ldb, threads
     );
 
     std::vector<T> E(m * d, 0.0);
     reference_right_apply(
-        layout, blas::Op::NoTrans, blas::Op::NoTrans,
+        layout, Op::NoTrans, Op::NoTrans,
         m, d, n, alpha, A.data(), lda, S, 0, 0,
         beta, B1.data(), E.data(), ldb
     );
@@ -557,19 +557,19 @@ void test_right_apply_to_random(
 template <typename T, typename LinOp>
 void test_right_apply_submatrix_to_eye(
     // B = alpha * eye * submat(S) + beta*B : submat(S) is n-by-d, eye is n-by-n, B is n-by-d and random
-    T alpha, LinOp &S0, int64_t n, int64_t d, int64_t S_ro, int64_t S_co, blas::Layout layout, T beta = 0.0, int threads = 0
+    T alpha, LinOp &S0, int64_t n, int64_t d, int64_t S_ro, int64_t S_co, Layout layout, T beta = 0.0, int threads = 0
 ) {
     auto [n0, d0] = dimensions(S0);
     randblas_require(n0 >= n);
     randblas_require(d0 >= d);
-    bool is_colmajor = layout == blas::Layout::ColMajor;
+    bool is_colmajor = layout == Layout::ColMajor;
     int64_t lda = n;
     int64_t ldb = (is_colmajor) ? n : d;
 
     auto A = eye<T>(n);
     auto B = std::get<0>(random_matrix<T>(n, d, RandBLAS::RNGState(11)));
     std::vector<T> B_backup(B);
-    right_apply(layout, blas::Op::NoTrans, blas::Op::NoTrans, n, d, n, alpha, A.data(), lda, S0, S_ro, S_co, beta, B.data(), ldb, threads);
+    right_apply(layout, Op::NoTrans, Op::NoTrans, n, d, n, alpha, A.data(), lda, S0, S_ro, S_co, beta, B.data(), ldb, threads);
 
     T *expect = new T[n0 * d0];
     to_explicit_buffer(S0, expect, layout);
@@ -586,7 +586,7 @@ void test_right_apply_submatrix_to_eye(
     }
 
     test::comparison::matrices_approx_equal(
-        layout, blas::Op::NoTrans, n, d, B.data(), ldb, &expect[offset], ld_expect,
+        layout, Op::NoTrans, n, d, B.data(), ldb, &expect[offset], ld_expect,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
 
@@ -596,21 +596,21 @@ void test_right_apply_submatrix_to_eye(
 template <typename T, typename LinOp>
 void test_right_apply_tranpose_to_eye(
     // B = eye * S^T, where S is d-by-n, so eye is order n and B is n-by-d
-    LinOp &S, blas::Layout layout, int threads = 0
+    LinOp &S, Layout layout, int threads = 0
 ) {
     auto [d, n] = dimensions(S);
     auto A = eye<T>(n);
     std::vector<T> B(n * d, 0.0);
-    bool is_colmajor = blas::Layout::ColMajor == layout;
+    bool is_colmajor = Layout::ColMajor == layout;
     int64_t ldb = (is_colmajor) ? n : d;
     int64_t lds = (is_colmajor) ? d : n;
     
-    right_apply<T>(layout, blas::Op::NoTrans, blas::Op::Trans, n, d, n, 1.0, A.data(), n, S, 0, 0, 0.0, B.data(), ldb, threads);
+    right_apply<T>(layout, Op::NoTrans, Op::Trans, n, d, n, 1.0, A.data(), n, S, 0, 0, 0.0, B.data(), ldb, threads);
 
     std::vector<T> S_dense(n * d, 0.0);
     to_explicit_buffer(S, S_dense.data(), layout);
     test::comparison::matrices_approx_equal(
-        layout, blas::Op::Trans, n, d, 
+        layout, Op::Trans, n, d, 
         B.data(), ldb, S_dense.data(), lds,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
@@ -619,27 +619,27 @@ void test_right_apply_tranpose_to_eye(
 template <typename T, typename LinOp>
 void test_right_apply_to_submatrix(
     // B = submat(A) * S, where mat(A) is m0-by-n0, S is n-by-d, and submat(A) is m-by-n, B is m-by-d
-    LinOp &S, int64_t m, int64_t m0, int64_t n0, int64_t A_ro, int64_t A_co, blas::Layout layout, int threads = 0
+    LinOp &S, int64_t m, int64_t m0, int64_t n0, int64_t A_ro, int64_t A_co, Layout layout, int threads = 0
 ) {
     auto [n, d] = dimensions(S);
     randblas_require(m0 >= m);
     randblas_require(n0 >= n);
     
     std::vector<T> B0(m * d, 0.0);
-    int64_t ldb = (layout == blas::Layout::ColMajor) ? m : d;
+    int64_t ldb = (layout == Layout::ColMajor) ? m : d;
 
     auto A = std::get<0>(random_matrix<T>(m0, n0, RandBLAS::RNGState(1)));
     auto [a_offset, lda] = offset_and_ldim(layout, m0, n0, A_ro, A_co);
     T *A_ptr = &A.data()[a_offset];
 
-    right_apply<T>(layout, blas::Op::NoTrans, blas::Op::NoTrans, m, d, n, 1.0, A_ptr, lda, S, 0, 0, 0.0, B0.data(), ldb, threads);
+    right_apply<T>(layout, Op::NoTrans, Op::NoTrans, m, d, n, 1.0, A_ptr, lda, S, 0, 0, 0.0, B0.data(), ldb, threads);
 
     std::vector<T> B1(d * m, 0.0);
     std::vector<T> E(d * m, 0.0);
     reference_right_apply<T>(
         layout,
-        blas::Op::NoTrans,
-        blas::Op::NoTrans,
+        Op::NoTrans,
+        Op::NoTrans,
         m, d, n,
         1.0, A_ptr, lda, S, 0, 0,
         0.0, B1.data(), E.data(), ldb
@@ -654,21 +654,21 @@ void test_right_apply_to_submatrix(
 template <typename T, typename LinOp>
 void test_right_apply_to_transposed(
     // B = A^T S, where A is n-by-m, S is n-by-d, and B is m-by-d
-    LinOp &S, int64_t m, blas::Layout layout, int threads = 0
+    LinOp &S, int64_t m, Layout layout, int threads = 0
 ) {
     auto [n, d] = dimensions(S);
     auto At = std::get<0>(random_matrix<T>(n, m, RNGState(0)));
     std::vector<T> B0(m * d, 0.0);
-    bool is_colmajor = (layout == blas::Layout::ColMajor);
+    bool is_colmajor = (layout == Layout::ColMajor);
     int64_t lda = (is_colmajor) ? n : m;
     int64_t ldb = (is_colmajor) ? m : d;
 
-    right_apply<T>(layout, blas::Op::Trans, blas::Op::NoTrans, m, d, n, 1.0, At.data(), lda, S, 0, 0, 0.0, B0.data(), ldb, threads);
+    right_apply<T>(layout, Op::Trans, Op::NoTrans, m, d, n, 1.0, At.data(), lda, S, 0, 0, 0.0, B0.data(), ldb, threads);
 
     std::vector<T> B1(m * d, 0.0);
     std::vector<T> E(m * d, 0.0);
     reference_right_apply<T>(
-        layout, blas::Op::Trans, blas::Op::NoTrans,
+        layout, Op::Trans, Op::NoTrans,
         m, d, n,
         1.0, At.data(), lda, S, 0, 0,
         0.0, B1.data(), E.data(), ldb
