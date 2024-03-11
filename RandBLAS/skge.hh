@@ -685,9 +685,7 @@ void sketch_general(
 ///    - On entry, defines \math{\mat(y)} on the RIGHT-hand side of
 ///      \math{(\star)} (if \math{\opS = \texttt{NoTrans}}) or
 ///      \math{(\diamond)} (if \math{\opS = \texttt{Trans}})
-///    - On exit, defines \math{\mat(y)} on the LEFT-hand side of
-///      \math{(\star)} (if \math{\opS = \texttt{NoTrans}}) or
-///      \math{(\diamond)} (if \math{\opS = \texttt{Trans}})
+///    - On exit, defines \math{\mat(y)} on the LEFT-hand side of the same.
 ///
 /// @param[in] incy
 ///     A positive integer.
@@ -777,9 +775,7 @@ void sketch_vector(
 ///    - On entry, defines \math{\mat(y)} on the RIGHT-hand side of
 ///      \math{(\star)} (if \math{\opS = \texttt{NoTrans}}) or
 ///      \math{(\diamond)} (if \math{\opS = \texttt{Trans}})
-///    - On exit, defines \math{\mat(y)} on the LEFT-hand side of
-///      \math{(\star)} (if \math{\opS = \texttt{NoTrans}}) or
-///      \math{(\diamond)} (if \math{\opS = \texttt{Trans}})
+///    - On exit, defines \math{\mat(y)} on the LEFT-hand side of the same.
 ///
 /// @param[in] incy
 ///     A positive integer.
