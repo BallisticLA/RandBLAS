@@ -554,8 +554,8 @@ void lskges(
     int64_t m, // \op(S) is d-by-m
     T alpha,
     SKOP &S,
-    int64_t row_offset,
-    int64_t col_offset,
+    int64_t i_off,
+    int64_t j_off,
     const T *A,
     int64_t lda,
     T beta,
@@ -568,7 +568,7 @@ void lskges(
     using sint_t = typename SKOP::index_t;
     auto Scoo = coo_view_of_skop<T,RNG,sint_t>(S);
     lspgemm(
-        layout, opS, opA, d, n, m, alpha, Scoo, row_offset, col_offset,
+        layout, opS, opA, d, n, m, alpha, Scoo, i_off, j_off,
         A, lda, beta, B, ldb
     );
     return;
@@ -687,18 +687,18 @@ void rskges(
     T alpha,
     const T *A,
     int64_t lda,
-    SKOP &S0,
+    SKOP &S,
     int64_t i_off,
     int64_t j_off,
     T beta,
     T *B,
     int64_t ldb
 ) { 
-    if (!S0.known_filled)
-        fill_sparse(S0);
+    if (!S.known_filled)
+        fill_sparse(S);
     using RNG = typename SKOP::RNG_t;
     using sint = typename SKOP::index_t;
-    auto Scoo = coo_view_of_skop<T,RNG,sint>(S0);
+    auto Scoo = coo_view_of_skop<T,RNG,sint>(S);
     rspgemm(
         layout, opA, opS, m, d, n, alpha, A, lda, Scoo, i_off, j_off, beta, B, ldb
     );
