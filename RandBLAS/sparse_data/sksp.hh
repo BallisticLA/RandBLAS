@@ -15,8 +15,8 @@ using namespace RandBLAS::sparse_data;
 
 // =============================================================================
 /// \fn sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
-///     int64_t n, int64_t m, T alpha, DenseSkOp<T,RNG> &S, int64_t i_off_s, int64_t j_off_s,
-///     SpMatrix &A, int64_t i_off_a, int64_t j_off_a, T beta, T *B, int64_t ldb
+///     int64_t n, int64_t m, T alpha, DenseSkOp<T,RNG> &S, int64_t S_ro, int64_t S_co,
+///     SpMatrix &A, int64_t A_ro, int64_t A_co, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
 ///
@@ -44,7 +44,7 @@ using namespace RandBLAS::sparse_data;
 ///     Their shapes are determined implicitly by :math:`(\opS, d, m)` and :math:`(\opA, n, m)`
 ///     If :math:`{\submat(X)}` is of shape :math:`r \times c`,
 ///     then it is the :math:`r \times c` submatrix of :math:`{X}` whose upper-left corner
-///     appears at index :math:`(\texttt{i_off_x}, \texttt{j_off_x})` of :math:`{X}`.
+///     appears at index :math:`(\texttt{X_ro}, \texttt{X_co})` of :math:`{X}`.
 /// @endverbatim
 /// @param[in] layout
 ///     Layout::ColMajor or Layout::RowMajor
@@ -81,29 +81,29 @@ using namespace RandBLAS::sparse_data;
 ///    A DenseSkOp object.
 ///    - Defines \math{\submat(S)}.
 ///
-/// @param[in] i_off_s
+/// @param[in] S_ro
 ///     A nonnegative integer.
 ///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_off_s}, :]}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{S_ro}, :]}.
 ///
-/// @param[in] j_off_s
+/// @param[in] S_co
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_off_s}]}. 
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{S_co}]}. 
 ///
 /// @param[in] A
 ///     A RandBLAS sparse matrix object.
 ///     - Defines \math{\submat(A)}.
 ///
-/// @param[in] i_off_a
+/// @param[in] A_ro
 ///     A nonnegative integer.
 ///     - The rows of \math{\submat(A)} are a contiguous subset of rows of \math{A}.
-///     - The rows of \math{\submat(A)} start at \math{A[\texttt{i_off_a}, :]}.
+///     - The rows of \math{\submat(A)} start at \math{A[\texttt{A_ro}, :]}.
 ///
-/// @param[in] j_off_a
+/// @param[in] A_co
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(A)} are a contiguous subset of columns of \math{A}.
-///     - The columns \math{\submat(A)} start at \math{A[:,\texttt{j_off_a}]}. 
+///     - The columns \math{\submat(A)} start at \math{A[:,\texttt{A_co}]}. 
 ///
 /// @param[in] beta
 ///     A real scalar.
@@ -142,11 +142,11 @@ void sketch_sparse(
     int64_t m, // op(submat(S)) is d-by-m
     T alpha,
     DenseSkOp<T, RNG> &S,
-    int64_t i_off_s,
-    int64_t j_off_s,
+    int64_t S_ro,
+    int64_t S_co,
     SpMatrix &A,
-    int64_t i_off_a,
-    int64_t j_off_a,
+    int64_t A_ro,
+    int64_t A_co,
     T beta,
     T *B,
     int64_t ldb
@@ -155,39 +155,39 @@ void sketch_sparse(
     auto [rows_submat_S, cols_submat_S] = dims_before_op(d, m, opS);
     if (!S.buff) {
         T *buff = new T[rows_submat_S * cols_submat_S];
-        fill_dense(S.dist, rows_submat_S, cols_submat_S, i_off_s, j_off_s, buff, S.seed_state);
+        fill_dense(S.dist, rows_submat_S, cols_submat_S, S_ro, S_co, buff, S.seed_state);
         DenseDist D{rows_submat_S, cols_submat_S, DenseDistName::BlackBox, S.dist.major_axis};
         DenseSkOp<T,RNG> S_(D, S.seed_state, buff);
-        sketch_sparse(layout, opS, opA, d, n, m, alpha, S_, 0, 0, A, i_off_a, j_off_a, beta, B, ldb);
+        sketch_sparse(layout, opS, opA, d, n, m, alpha, S_, 0, 0, A, A_ro, A_co, beta, B, ldb);
         delete [] buff;
         return;
     }
 
     auto [rows_submat_A, cols_submat_A] = dims_before_op(m, n, opA);
-    randblas_require( A.n_rows      >= rows_submat_A + i_off_a );
-    randblas_require( A.n_cols      >= cols_submat_A + j_off_a );
-    randblas_require( S.dist.n_rows >= rows_submat_S + i_off_s );
-    randblas_require( S.dist.n_cols >= cols_submat_S + j_off_s );
+    randblas_require( A.n_rows      >= rows_submat_A + A_ro );
+    randblas_require( A.n_cols      >= cols_submat_A + A_co );
+    randblas_require( S.dist.n_rows >= rows_submat_S + S_ro );
+    randblas_require( S.dist.n_cols >= cols_submat_S + S_co );
     if (layout == blas::Layout::ColMajor) {
         randblas_require(ldb >= d);
     } else {
         randblas_require(ldb >= n);
     }
 
-    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, i_off_s, j_off_s);
+    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, S_ro, S_co);
     T* S_ptr = &S.buff[pos];
     if (S.layout != layout)
         opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
 
-    rspgemm(layout, opS, opA, d, n, m, alpha, S_ptr, lds, A, i_off_a, j_off_a, beta, B, ldb);
+    rspgemm(layout, opS, opA, d, n, m, alpha, S_ptr, lds, A, A_ro, A_co, beta, B, ldb);
     return;
 }
 
 
 // =============================================================================
 /// \fn sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
-///     int64_t n, int64_t m, T alpha, SpMatrix &A, int64_t i_off_a, int64_t j_off_a,
-///     DenseSkOp<T,RNG> &S, int64_t i_off_s, int64_t j_off_s, T beta, T *B, int64_t ldb
+///     int64_t n, int64_t m, T alpha, SpMatrix &A, int64_t A_ro, int64_t A_co,
+///     DenseSkOp<T,RNG> &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
 ///
@@ -215,7 +215,7 @@ void sketch_sparse(
 ///     Their shapes are determined implicitly by :math:`(\opS, n, d)` and :math:`(\opA, m, n)`
 ///     If :math:`{\submat(X)}` is of shape :math:`r \times c`,
 ///     then it is the :math:`r \times c` submatrix of :math:`{X}` whose upper-left corner
-///     appears at index :math:`(\texttt{i_off_x}, \texttt{j_off_x})` of :math:`{X}`.
+///     appears at index :math:`(\texttt{X_ro}, \texttt{X_co})` of :math:`{X}`.
 /// @endverbatim
 /// @param[in] layout
 ///     Layout::ColMajor or Layout::RowMajor
@@ -252,29 +252,29 @@ void sketch_sparse(
 ///    A DenseSkOp object.
 ///    - Defines \math{\submat(S)}.
 ///
-/// @param[in] i_off_s
+/// @param[in] S_ro
 ///     A nonnegative integer.
 ///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_off_s}, :]}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{S_ro}, :]}.
 ///
-/// @param[in] j_off_s
+/// @param[in] S_co
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_off_s}]}. 
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{S_co}]}. 
 ///
 /// @param[in] A
 ///     A RandBLAS sparse matrix object.
 ///     - Defines \math{\submat(A)}.
 ///
-/// @param[in] i_off_a
+/// @param[in] A_ro
 ///     A nonnegative integer.
 ///     - The rows of \math{\submat(A)} are a contiguous subset of rows of \math{A}.
-///     - The rows of \math{\submat(A)} start at \math{A[\texttt{i_off_a}, :]}.
+///     - The rows of \math{\submat(A)} start at \math{A[\texttt{A_ro}, :]}.
 ///
-/// @param[in] j_off_a
+/// @param[in] A_co
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(A)} are a contiguous subset of columns of \math{A}.
-///     - The columns \math{\submat(A)} start at \math{A[:,\texttt{j_off_a}]}. 
+///     - The columns \math{\submat(A)} start at \math{A[:,\texttt{A_co}]}. 
 ///
 /// @param[in] beta
 ///     A real scalar.
@@ -314,11 +314,11 @@ void sketch_sparse(
     int64_t n, // op(submat(S)) is n-by-d
     T alpha,
     SpMatrix &A,
-    int64_t i_off_a,
-    int64_t j_off_a,
+    int64_t A_ro,
+    int64_t A_co,
     DenseSkOp<T, RNG> &S,
-    int64_t i_off_s,
-    int64_t j_off_s,
+    int64_t S_ro,
+    int64_t S_co,
     T beta,
     T *B,
     int64_t ldb
@@ -326,30 +326,30 @@ void sketch_sparse(
     auto [rows_submat_S, cols_submat_S] = dims_before_op(n, d, opS);
     if (!S.buff) {
         T *buff = new T[rows_submat_S * cols_submat_S];
-        fill_dense(S.dist, rows_submat_S, cols_submat_S, i_off_s, j_off_s, buff, S.seed_state);
+        fill_dense(S.dist, rows_submat_S, cols_submat_S, S_ro, S_co, buff, S.seed_state);
         DenseDist D{rows_submat_S, cols_submat_S, DenseDistName::BlackBox, S.dist.major_axis};
         DenseSkOp S_(D, S.seed_state, buff);
-        sketch_sparse(layout, opA, opS, m, d, n, alpha, A, i_off_a, j_off_a, S_, 0, 0, beta, B, ldb);
+        sketch_sparse(layout, opA, opS, m, d, n, alpha, A, A_ro, A_co, S_, 0, 0, beta, B, ldb);
         delete [] buff;
         return;
     }
     auto [rows_submat_A, cols_submat_A] = dims_before_op(m, n, opA);
-    randblas_require( A.n_rows      >= rows_submat_A + i_off_a );
-    randblas_require( A.n_cols      >= cols_submat_A + j_off_a );
-    randblas_require( S.dist.n_rows >= rows_submat_S + i_off_s );
-    randblas_require( S.dist.n_cols >= cols_submat_S + j_off_s );
+    randblas_require( A.n_rows      >= rows_submat_A + A_ro );
+    randblas_require( A.n_cols      >= cols_submat_A + A_co );
+    randblas_require( S.dist.n_rows >= rows_submat_S + S_ro );
+    randblas_require( S.dist.n_cols >= cols_submat_S + S_co );
     if (layout == blas::Layout::ColMajor) {
         randblas_require(ldb >= m);
     } else {
         randblas_require(ldb >= d);
     }
 
-    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, i_off_s, j_off_s);
+    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, S_ro, S_co);
     T* S_ptr = &S.buff[pos];
     if (S.layout != layout)
         opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
 
-    lspgemm(layout, opA, opS, m, d, n, alpha, A, i_off_a, j_off_a, S_ptr, lds, beta, B, ldb);
+    lspgemm(layout, opA, opS, m, d, n, alpha, A, A_ro, A_co, S_ptr, lds, beta, B, ldb);
     return;
 }
 

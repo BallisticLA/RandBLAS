@@ -65,13 +65,13 @@ struct submat_spec_64t {
 };
 
 inline submat_spec_64t offset_and_ldim(
-    blas::Layout layout, int64_t n_rows, int64_t n_cols, int64_t i_off, int64_t j_off
+    blas::Layout layout, int64_t n_rows, int64_t n_cols, int64_t S_ro, int64_t S_co
 ) {
     if (layout == blas::Layout::ColMajor) {
-        int64_t offset = i_off + n_rows * j_off;
+        int64_t offset = S_ro + n_rows * S_co;
         return submat_spec_64t{offset, n_rows};
     } else {
-        int64_t offset = i_off * n_cols + j_off;
+        int64_t offset = S_ro * n_cols + S_co;
         return submat_spec_64t{offset, n_cols};
     }
 }

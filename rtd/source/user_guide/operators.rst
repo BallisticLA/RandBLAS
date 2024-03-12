@@ -83,7 +83,7 @@ Dense sketching operators
 .. doxygenfunction:: RandBLAS::fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed)
    :project: RandBLAS
 
-.. doxygenfunction:: RandBLAS::fill_dense(const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t i_off, int64_t j_off, T *buff, const RNGState<RNG> &seed)
+.. doxygenfunction:: RandBLAS::fill_dense(const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t S_ro, int64_t S_co, T *buff, const RNGState<RNG> &seed)
    :project: RandBLAS
 
 Sparse sketching operators
