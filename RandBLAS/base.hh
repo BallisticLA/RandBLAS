@@ -38,6 +38,14 @@ inline stride_64t layout_to_strides(blas::Layout layout, int64_t ldim) {
     }
 }
 
+inline stride_64t layout_to_strides(blas::Layout layout, int64_t n_rows, int64_t n_cols) {
+    if (layout == blas::Layout::ColMajor) {
+        return stride_64t{(int64_t) 1, n_rows};
+    } else {
+        return stride_64t{n_cols, (int64_t) 1};
+    }
+}
+
 struct dims64_t {
     int64_t n_rows;
     int64_t n_cols;

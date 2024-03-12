@@ -25,6 +25,7 @@ using RandBLAS::RNGState;
 using RandBLAS::DenseDist;
 using RandBLAS::dims_before_op;
 using RandBLAS::offset_and_ldim;
+using RandBLAS::layout_to_strides;
 using RandBLAS::dims64_t;
 
 
@@ -82,16 +83,16 @@ void to_explicit_buffer(SparseSkOp<T> &a, T *mat_a, Layout layout) {
 
 template <typename T>
 void to_explicit_buffer(DenseSkOp<T> &s, T *mat_s, Layout layout) {
-    DenseSkOp<T> a(s.dist, s.seed_state);
-    auto n_rows = a.dist.n_rows;
-    auto n_cols = a.dist.n_cols;
-    int64_t stride_row = (layout == Layout::ColMajor) ? 1 : n_cols;
-    int64_t stride_col = (layout == Layout::ColMajor) ? n_rows : 1;
+    auto n_rows = s.dist.n_rows;
+    auto n_cols = s.dist.n_cols;
+    auto [stride_row, stride_col] = layout_to_strides(layout, n_rows, n_cols);
     #define MAT_S(_i, _j) mat_s[(_i) * stride_row + (_j) * stride_col ]
+
+    DenseSkOp<T> a(s.dist, s.seed_state);
     RandBLAS::fill_dense(a);
-    int64_t buff_stride_row = (a.layout == Layout::ColMajor) ? 1 : n_cols;
-    int64_t buff_stride_col = (a.layout == Layout::ColMajor) ? n_rows : 1;
+    auto [buff_stride_row, buff_stride_col] = layout_to_strides(a.layout, n_rows, n_cols);
     #define BUFF(_i, _j) a.buff[(_i) * buff_stride_row + (_j) * buff_stride_col]
+
     for (int64_t i = 0; i < n_rows; ++i) {
         for (int64_t j = 0; j < n_cols; ++j) {
             MAT_S(i, j) = BUFF(i, j);
