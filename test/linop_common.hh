@@ -88,10 +88,11 @@ void to_explicit_buffer(DenseSkOp<T> &s, T *mat_s, Layout layout) {
     auto [stride_row, stride_col] = layout_to_strides(layout, n_rows, n_cols);
     #define MAT_S(_i, _j) mat_s[(_i) * stride_row + (_j) * stride_col ]
 
-    DenseSkOp<T> a(s.dist, s.seed_state);
-    RandBLAS::fill_dense(a);
-    auto [buff_stride_row, buff_stride_col] = layout_to_strides(a.layout, n_rows, n_cols);
-    #define BUFF(_i, _j) a.buff[(_i) * buff_stride_row + (_j) * buff_stride_col]
+    // for some reason we prefer to make a copy rather than pass-by-value.
+    DenseSkOp<T> s_copy(s.dist, s.seed_state);
+    RandBLAS::fill_dense(s_copy);
+    auto [buff_stride_row, buff_stride_col] = layout_to_strides(s_copy.layout, n_rows, n_cols);
+    #define BUFF(_i, _j) s_copy.buff[(_i) * buff_stride_row + (_j) * buff_stride_col]
 
     for (int64_t i = 0; i < n_rows; ++i) {
         for (int64_t j = 0; j < n_cols; ++j) {
