@@ -113,7 +113,7 @@ void to_explicit_buffer(DenseSkOp<T> &s, T *mat_s, Layout layout) {
 
 
 template <typename T>
-void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, T alpha, SparseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
+void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, T alpha, SparseSkOp<T> &S, int64_t S_ro, int64_t S_co, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -121,7 +121,7 @@ void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, 
     #else
         UNUSED(threads);
     #endif
-    RandBLAS::sparse::lskges(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
+    RandBLAS::sparse::lskges(layout, opS, opA, d, n, m, alpha, S, S_ro, S_co, A, lda, beta, B, ldb);
     #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
     #endif
@@ -129,7 +129,7 @@ void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, 
 }
 
 template <typename T>
-void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, T alpha, DenseSkOp<T> &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
+void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, T alpha, DenseSkOp<T> &S, int64_t S_ro, int64_t S_co, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -137,7 +137,7 @@ void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, 
     #else
         UNUSED(threads);
     #endif
-    RandBLAS::dense::lskge3(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
+    RandBLAS::dense::lskge3(layout, opS, opA, d, n, m, alpha, S, S_ro, S_co, A, lda, beta, B, ldb);
     #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
     #endif
@@ -145,7 +145,7 @@ void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, 
 }
 
 template <typename T, typename SpMatrix>
-void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, T alpha, SpMatrix &S, int64_t row_offset, int64_t col_offset, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
+void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, T alpha, SpMatrix &S, int64_t S_ro, int64_t S_co, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -153,7 +153,7 @@ void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, 
     #else
         UNUSED(threads);
     #endif
-    RandBLAS::sparse_data::lspgemm(layout, opS, opA, d, n, m, alpha, S, row_offset, col_offset, A, lda, beta, B, ldb);
+    RandBLAS::sparse_data::lspgemm(layout, opS, opA, d, n, m, alpha, S, S_ro, S_co, A, lda, beta, B, ldb);
     #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
     #endif
@@ -162,7 +162,7 @@ void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, 
 
 template <typename T, typename LinOp>
 void reference_left_apply(
-    Layout layout, Op transS, Op transA, int64_t d, int64_t n, int64_t m, T alpha, LinOp &S, int64_t i_os, int64_t j_os, const T *A, int64_t lda, T beta, T *B, T *E, int64_t ldb
+    Layout layout, Op transS, Op transA, int64_t d, int64_t n, int64_t m, T alpha, LinOp &S, int64_t S_ro, int64_t S_co, const T *A, int64_t lda, T beta, T *B, T *E, int64_t ldb
 ){
     randblas_require(d > 0);
     randblas_require(m > 0);
@@ -177,7 +177,7 @@ void reference_left_apply(
     int64_t lds, s_row_stride, s_col_stride, pos, size_A, size_B;
     if (layout == Layout::ColMajor) {
         lds = rows_S;
-        pos = i_os + lds * j_os;
+        pos = S_ro + lds * S_co;
         randblas_require(lds >= rows_submat_S);
         randblas_require(lda >= rows_mat_A);
         randblas_require(ldb >= d);
@@ -187,7 +187,7 @@ void reference_left_apply(
         s_col_stride = lds;
     } else {
         lds = cols_S;
-        pos = i_os * lds + j_os;
+        pos = S_ro * lds + S_co;
         randblas_require(lds >= cols_submat_S);
         randblas_require(lda >= cols_mat_A);
         randblas_require(ldb >= n);
@@ -443,7 +443,7 @@ void test_left_apply_to_transposed(
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SparseSkOp<T> &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb, int threads) {
+void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SparseSkOp<T> &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb, int threads) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -451,14 +451,14 @@ void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int6
     #else
         UNUSED(threads);
     #endif
-    RandBLAS::sparse::rskges(layout, transA, transS, m, d, n, alpha, A, lda, S, i_os, j_os, beta, B, ldb);
+    RandBLAS::sparse::rskges(layout, transA, transS, m, d, n, alpha, A, lda, S, S_ro, S_co, beta, B, ldb);
     #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
     #endif
 }
 
 template <typename T>
-void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, DenseSkOp<T> &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb, int threads) {
+void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, DenseSkOp<T> &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb, int threads) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -466,14 +466,14 @@ void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int6
     #else
         UNUSED(threads);
     #endif
-    RandBLAS::dense::rskge3(layout, transA, transS, m, d, n, alpha, A, lda, S, i_os, j_os, beta, B, ldb);
+    RandBLAS::dense::rskge3(layout, transA, transS, m, d, n, alpha, A, lda, S, S_ro, S_co, beta, B, ldb);
     #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
     #endif
 }
 
 template <typename T, typename SpMatrix>
-void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SpMatrix &S, int64_t i_os, int64_t j_os, T beta, T *B, int64_t ldb, int threads) {
+void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SpMatrix &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb, int threads) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -481,7 +481,7 @@ void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int6
     #else
         UNUSED(threads);
     #endif
-    RandBLAS::sparse_data::rspgemm(layout, transA, transS, m, d, n, alpha, A, lda, S, i_os, j_os, beta, B, ldb);
+    RandBLAS::sparse_data::rspgemm(layout, transA, transS, m, d, n, alpha, A, lda, S, S_ro, S_co, beta, B, ldb);
     #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
     #endif
@@ -489,7 +489,7 @@ void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int6
 
 template <typename T, typename LinOp>
 void reference_right_apply(
-    Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, LinOp &S0, int64_t i_os, int64_t j_os, T beta, T *B, T *E, int64_t ldb
+    Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, LinOp &S0, int64_t S_ro, int64_t S_co, T beta, T *B, T *E, int64_t ldb
 ) { 
     // Check dimensions of submat(S).
     auto [submat_S_rows, submat_S_cols] = RandBLAS::dims_before_op(n, d, transS);
@@ -519,7 +519,7 @@ void reference_right_apply(
     auto trans_layout = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
     reference_left_apply(
         trans_layout, trans_transS, transA,
-        d, m, n, alpha, S0, i_os, j_os, A, lda, beta, B, E, ldb
+        d, m, n, alpha, S0, S_ro, S_co, A, lda, beta, B, E, ldb
     );
 }
 
