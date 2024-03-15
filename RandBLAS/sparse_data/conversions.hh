@@ -130,6 +130,54 @@ CSCMatrix<T> transpose_as_csc(CSRMatrix<T> &A, bool share_memory = true) {
     }
 }
 
+template <typename T>
+void reindex_inplace(CSCMatrix<T> &A, IndexBase desired) {
+    if (A.index_base == desired)
+        return;
+    if (A.index_base == IndexBase::One) {
+        for (int64_t ell = 0; ell < A.nnz; ++ell)
+            A.rowidxs[ell] -= 1;
+    } else {
+        for (int64_t ell = 0; ell < A.nnz; ++ell)
+            A.rowidxs[ell] += 1;
+    }
+    A.index_base = desired;
+    return;
+}
+
+template <typename T>
+void reindex_inplace(CSRMatrix<T> &A, IndexBase desired) {
+    if (A.index_base == desired)
+        return;
+    if (A.index_base == IndexBase::One) {
+        for (int64_t ell = 0; ell < A.nnz; ++ell)
+            A.colidxs[ell] -= 1;
+    } else {
+        for (int64_t ell = 0; ell < A.nnz; ++ell)
+            A.colidxs[ell] += 1;  
+    }
+    A.index_base = desired;
+    return;
+}
+
+template <typename T>
+void reindex_inplace(COOMatrix<T> &A, IndexBase desired) {
+    if (A.index_base == desired)
+        return;
+    if (A.index_base == IndexBase::One) {
+        for (int64_t ell = 0; ell < A.nnz; ++ell) {
+            A.rows[ell] -= 1;
+            A.cols[ell] -= 1;
+        }
+    } else {
+        for (int64_t ell = 0; ell < A.nnz; ++ell) {
+            A.rows[ell] += 1;
+            A.cols[ell] += 1;
+        }
+    }
+    A.index_base = desired;
+    return;
+}
 
 } // end namespace RandBLAS::sparse_data::conversions
 
