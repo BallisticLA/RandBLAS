@@ -53,8 +53,8 @@ static void apply_coo_left_jki_p11(
     int64_t n,
     int64_t m,
     COOMatrix<T, sint_t> &A0,
-    int64_t a_ro,
-    int64_t a_co,
+    int64_t ro_a,
+    int64_t co_a,
     const T *B,
     int64_t ldb,
     T *C,
@@ -66,7 +66,7 @@ static void apply_coo_left_jki_p11(
     if (A0.sort != NonzeroSort::CSC) {
         auto orig_sort = A0.sort;
         sort_coo_data(NonzeroSort::CSC, A0);
-        apply_coo_left_jki_p11(alpha, layout_B, layout_C, d, n, m, A0, a_ro, a_co, B, ldb, C, ldc);
+        apply_coo_left_jki_p11(alpha, layout_B, layout_C, d, n, m, A0, ro_a, co_a, B, ldb, C, ldc);
         sort_coo_data(orig_sort, A0);
         return;
     }
@@ -81,8 +81,8 @@ static void apply_coo_left_jki_p11(
     std::vector<T> A_vals(A0_nnz, 0.0);
     A_nnz = set_filtered_coo(
         A0.vals, A0.rows, A0.cols, A0.nnz,
-        a_co, a_co + m,
-        a_ro, a_ro + d,
+        co_a, co_a + m,
+        ro_a, ro_a + d,
         A_vals.data(), A_rows.data(), A_colptr.data()
     );
     blas::scal<T>(A_nnz, alpha, A_vals.data(), 1);
