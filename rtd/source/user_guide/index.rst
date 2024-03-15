@@ -41,3 +41,4 @@ The full range of possibilities with RandBLAS are described in the pages linked 
     Applying a sketching operator <sketching>
     Sketching distributions and sketching operators <operators>
     Random states <rng_details>
+    Sparse data <sparse_data>

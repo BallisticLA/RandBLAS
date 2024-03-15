@@ -22,12 +22,13 @@ using namespace RandBLAS::sparse_data;
 ///
 ///   .. |op| mathmacro:: \operatorname{op}
 ///   .. |mat| mathmacro:: \operatorname{mat}
+///   .. |ldb| mathmacro:: \mathrm{ldb}
 ///   .. |submat| mathmacro:: \operatorname{submat}
 ///   .. |opA| mathmacro:: \mathrm{opA}
 ///   .. |opS| mathmacro:: \mathrm{opS}
 ///
 /// @endverbatim
-/// Perform a GEMM-like operation
+/// Perform a SpMM-like operation
 /// @verbatim embed:rst:leading-slashes
 /// .. math::
 ///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(S))}_{d \times m} \cdot \underbrace{\op(\submat(A))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
@@ -194,6 +195,7 @@ void sketch_sparse(
 ///   .. |op| mathmacro:: \operatorname{op}
 ///   .. |mat| mathmacro:: \operatorname{mat}
 ///   .. |submat| mathmacro:: \operatorname{submat}
+///   .. |ldb| mathmacro:: \mathrm{ldb}
 ///   .. |opA| mathmacro:: \mathrm{opA}
 ///   .. |opS| mathmacro:: \mathrm{opS}
 ///
