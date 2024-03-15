@@ -16,6 +16,8 @@ template <typename T, SignedInteger sint_t1 = int64_t, SignedInteger sint_t2 = i
 void coo_to_csc(COOMatrix<T, sint_t1> &coo, CSCMatrix<T, sint_t2> &csc) {
     randblas_require(csc.n_rows == coo.n_rows);
     randblas_require(csc.n_cols == csc.n_cols);
+    randblas_require(csc.index_base == IndexBase::Zero);
+    randblas_require(coo.index_base == IndexBase::Zero);
     sort_coo_data(NonzeroSort::CSC, coo);
     csc.reserve(coo.nnz);
     csc.colptr[0] = 0;
@@ -35,6 +37,8 @@ template <typename T, SignedInteger sint_t1 = int64_t, SignedInteger sint_t2 = i
 void csc_to_coo(CSCMatrix<T, sint_t1> &csc, COOMatrix<T, sint_t2> &coo) {
     randblas_require(csc.n_rows == coo.n_rows);
     randblas_require(csc.n_cols == coo.n_cols);
+    randblas_require(csc.index_base == IndexBase::Zero);
+    randblas_require(coo.index_base == IndexBase::Zero);
     coo.reserve(csc.nnz);
     int64_t ell = 0;
     for (int64_t j = 0; j < csc.n_cols; ++j) {
@@ -51,6 +55,10 @@ void csc_to_coo(CSCMatrix<T, sint_t1> &csc, COOMatrix<T, sint_t2> &coo) {
 
 template <typename T, SignedInteger sint_t1 = int64_t, SignedInteger sint_t2 = int64_t>
 void coo_to_csr(COOMatrix<T, sint_t1> &coo, CSRMatrix<T, sint_t2> &csr) {
+    randblas_require(csr.n_rows == coo.n_rows);
+    randblas_require(csr.n_cols == coo.n_cols);
+    randblas_require(csr.index_base == IndexBase::Zero);
+    randblas_require(coo.index_base == IndexBase::Zero);
     sort_coo_data(NonzeroSort::CSR, coo);
     csr.reserve(coo.nnz);
     csr.rowptr[0] = (sint_t2) 0;
@@ -70,6 +78,8 @@ template <typename T, SignedInteger sint_t1 = int64_t, SignedInteger sint_t2 = i
 void csr_to_coo(CSRMatrix<T, sint_t1> &csr, COOMatrix<T, sint_t2> &coo) {
     randblas_require(csr.n_rows == coo.n_rows);
     randblas_require(csr.n_cols == coo.n_cols);
+    randblas_require(csr.index_base == IndexBase::Zero);
+    randblas_require(coo.index_base == IndexBase::Zero);
     coo.reserve(csr.nnz);
     int64_t ell = 0;
     for (int64_t i = 0; i < csr.n_rows; ++i) {

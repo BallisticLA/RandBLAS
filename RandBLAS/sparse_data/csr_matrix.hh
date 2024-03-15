@@ -84,6 +84,7 @@ using blas::Layout;
 
 template <typename T>
 void csr_to_dense(const CSRMatrix<T> &spmat, int64_t stride_row, int64_t stride_col, T *mat) {
+    randblas_require(spmat.index_base == IndexBase::Zero);
     auto rowptr = spmat.rowptr;
     auto colidxs = spmat.colidxs;
     auto vals = spmat.vals;
