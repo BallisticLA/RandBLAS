@@ -462,7 +462,7 @@ static auto transpose(SKOP const& S) {
 ///     Its shape is defined implicitly by :math:`(\opS, d, m)`.
 ///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
 ///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
-///     appears at index :math:`(\texttt{S_ro}, \texttt{S_co})` of :math:`{S}`.
+///     appears at index :math:`(\texttt{s_ro}, \texttt{s_co})` of :math:`{S}`.
 /// @endverbatim
 /// @param[in] layout
 ///     Layout::ColMajor or Layout::RowMajor
@@ -499,15 +499,15 @@ static auto transpose(SKOP const& S) {
 ///    A SparseSkOp object.
 ///    - Defines \math{\submat(S)}.
 ///
-/// @param[in] S_ro
+/// @param[in] s_ro
 ///     A nonnegative integer.
 ///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{S_ro}, :]}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{s_ro}, :]}.
 ///
-/// @param[in] S_co
+/// @param[in] s_co
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{S_co}]}. 
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{s_co}]}. 
 ///
 /// @param[in] A
 ///     Pointer to a 1D array of real scalars.
@@ -554,8 +554,8 @@ void lskges(
     int64_t m, // \op(S) is d-by-m
     T alpha,
     SKOP &S,
-    int64_t S_ro,
-    int64_t S_co,
+    int64_t s_ro,
+    int64_t s_co,
     const T *A,
     int64_t lda,
     T beta,
@@ -568,7 +568,7 @@ void lskges(
     using sint_t = typename SKOP::index_t;
     auto Scoo = coo_view_of_skop<T,RNG,sint_t>(S);
     lspgemm(
-        layout, opS, opA, d, n, m, alpha, Scoo, S_ro, S_co,
+        layout, opS, opA, d, n, m, alpha, Scoo, s_ro, s_co,
         A, lda, beta, B, ldb
     );
     return;
@@ -594,7 +594,7 @@ void lskges(
 ///     Its shape is defined implicitly by :math:`(\opS, n, d)`.
 ///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
 ///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
-///     appears at index :math:`(\texttt{S_ro}, \texttt{S_co})` of :math:`{S}`.
+///     appears at index :math:`(\texttt{s_ro}, \texttt{s_co})` of :math:`{S}`.
 /// @endverbatim
 /// @param[in] layout
 ///     Layout::ColMajor or Layout::RowMajor
@@ -651,15 +651,15 @@ void lskges(
 ///    A SparseSkOp object.
 ///    - Defines \math{\submat(S)}.
 ///
-/// @param[in] S_ro
+/// @param[in] s_ro
 ///     A nonnegative integer.
 ///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{S_ro}, :]}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{s_ro}, :]}.
 ///
-/// @param[in] S_co
+/// @param[in] s_co
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{S_co}]}. 
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{s_co}]}. 
 ///
 /// @param[in] beta
 ///     A real scalar.
@@ -688,8 +688,8 @@ void rskges(
     const T *A,
     int64_t lda,
     SKOP &S,
-    int64_t S_ro,
-    int64_t S_co,
+    int64_t s_ro,
+    int64_t s_co,
     T beta,
     T *B,
     int64_t ldb
@@ -700,7 +700,7 @@ void rskges(
     using sint = typename SKOP::index_t;
     auto Scoo = coo_view_of_skop<T,RNG,sint>(S);
     rspgemm(
-        layout, opA, opS, m, d, n, alpha, A, lda, Scoo, S_ro, S_co, beta, B, ldb
+        layout, opA, opS, m, d, n, alpha, A, lda, Scoo, s_ro, s_co, beta, B, ldb
     );
     return;
 }

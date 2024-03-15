@@ -443,11 +443,11 @@ static RNGState<RNG> fill_dense_submat_impl(
 /// @param[in] n_cols
 ///      A positive integer.
 ///      - The number of columns in \math{\mat(\buff)}.
-/// @param[in] S_ro
+/// @param[in] s_ro
 ///      A nonnegative integer.
 ///      - The row offset for \math{\mat(\buff)} as a submatrix of \math{S}. 
 ///      - We require that \math{\ioff + \nrows} is at most D.n_rows.
-/// @param[in] S_co
+/// @param[in] s_co
 ///      A nonnegative integer.
 ///      - The column offset for \math{\mat(\buff)} as a submatrix of \math{S}. 
 ///      - We require that \math{\joff + \ncols} is at most D.n_cols.
@@ -474,13 +474,13 @@ std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
     const DenseDist &D,
     int64_t n_rows,
     int64_t n_cols,
-    int64_t S_ro,
-    int64_t S_co,
+    int64_t s_ro,
+    int64_t s_co,
     T* buff,
     const RNGState<RNG> &seed
 ) {
-    randblas_require(D.n_rows >= n_rows + S_ro);
-    randblas_require(D.n_cols >= n_cols + S_co);
+    randblas_require(D.n_rows >= n_rows + s_ro);
+    randblas_require(D.n_cols >= n_cols + s_co);
     blas::Layout layout = dist_to_layout(D);
     int64_t ma_len = major_axis_length(D);
     int64_t n_rows_, n_cols_, ptr;
@@ -488,11 +488,11 @@ std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
         // operate on the transpose in row-major
         n_rows_ = n_cols;
         n_cols_ = n_rows;
-        ptr = S_ro + S_co * ma_len;
+        ptr = s_ro + s_co * ma_len;
     } else {
         n_rows_ = n_rows;
         n_cols_ = n_cols;
-        ptr = S_ro * ma_len + S_co;
+        ptr = s_ro * ma_len + s_co;
     }
     switch (D.family) {
         case DenseDistName::Gaussian: {
@@ -618,7 +618,7 @@ using namespace RandBLAS;
 ///     Its shape is defined implicitly by :math:`(\opS, d, m)`.
 ///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
 ///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
-///     appears at index :math:`(\texttt{S_ro}, \texttt{S_co})` of :math:`{S}`.
+///     appears at index :math:`(\texttt{s_ro}, \texttt{s_co})` of :math:`{S}`.
 /// @endverbatim
 /// @param[in] layout
 ///     Layout::ColMajor or Layout::RowMajor
@@ -653,15 +653,15 @@ using namespace RandBLAS;
 ///    A DenseSkOp object.
 ///    - Defines \math{\submat(S)}.
 ///
-/// @param[in] S_ro
+/// @param[in] s_ro
 ///     A nonnegative integer.
 ///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{S_ro}, :]}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{s_ro}, :]}.
 ///
-/// @param[in] S_co
+/// @param[in] s_co
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{S_co}]}. 
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{s_co}]}. 
 ///
 /// @param[in] A
 ///     Pointer to a 1D array of real scalars.
@@ -708,8 +708,8 @@ void lskge3(
     int64_t m, // op(S) is d-by-m
     T alpha,
     DenseSkOp<T,RNG> &S,
-    int64_t S_ro,
-    int64_t S_co,
+    int64_t s_ro,
+    int64_t s_co,
     const T *A,
     int64_t lda,
     T beta,
@@ -721,15 +721,15 @@ void lskge3(
         // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
         // of that sketching operator, and then call LSKGE3 with that new object.
         T *buff = new T[rows_submat_S * cols_submat_S];
-        fill_dense(S.dist, rows_submat_S, cols_submat_S, S_ro, S_co, buff, S.seed_state);
+        fill_dense(S.dist, rows_submat_S, cols_submat_S, s_ro, s_co, buff, S.seed_state);
         DenseDist D{rows_submat_S, cols_submat_S, DenseDistName::BlackBox, S.dist.major_axis};
         DenseSkOp S_(D, S.seed_state, buff);
         lskge3(layout, opS, opA, d, n, m, alpha, S_, 0, 0, A, lda, beta, B, ldb);
         delete [] buff;
         return;
     }
-    randblas_require( S.dist.n_rows >= rows_submat_S + S_ro );
-    randblas_require( S.dist.n_cols >= cols_submat_S + S_co );
+    randblas_require( S.dist.n_rows >= rows_submat_S + s_ro );
+    randblas_require( S.dist.n_cols >= cols_submat_S + s_co );
     auto [rows_A, cols_A] = dims_before_op(m, n, opA);
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
@@ -739,7 +739,7 @@ void lskge3(
         randblas_require(ldb >= n);
     }
 
-    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, S_ro, S_co);
+    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, s_ro, s_co);
     T* S_ptr = &S.buff[pos];
     if (S.layout != layout)
         opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
@@ -767,7 +767,7 @@ void lskge3(
 ///     Its shape is defined implicitly by :math:`(\opS, n, d)`.
 ///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
 ///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
-///     appears at index :math:`(\texttt{S_ro}, \texttt{S_co})` of :math:`{S}`.
+///     appears at index :math:`(\texttt{s_ro}, \texttt{s_co})` of :math:`{S}`.
 /// @endverbatim
 /// @param[in] layout
 ///     Layout::ColMajor or Layout::RowMajor
@@ -824,15 +824,15 @@ void lskge3(
 ///    A DenseSkOp object.
 ///    - Defines \math{\submat(S)}.
 ///
-/// @param[in] S_ro
+/// @param[in] s_ro
 ///     A nonnegative integer.
 ///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{S_ro}, :]}.
+///     - The rows of \math{\submat(S)} start at \math{S[\texttt{s_ro}, :]}.
 ///
-/// @param[in] S_co
+/// @param[in] s_co
 ///     A nonnnegative integer.
 ///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{S_co}]}. 
+///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{s_co}]}. 
 ///
 /// @param[in] beta
 ///     A real scalar.
@@ -861,8 +861,8 @@ void rskge3(
     const T *A,
     int64_t lda,
     DenseSkOp<T,RNG> &S,
-    int64_t S_ro,
-    int64_t S_co,
+    int64_t s_ro,
+    int64_t s_co,
     T beta,
     T *B,
     int64_t ldb
@@ -872,15 +872,15 @@ void rskge3(
         // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
         // of that sketching operator, and then call RSKGE3 with that new object.
         T *buff = new T[rows_submat_S * cols_submat_S];
-        fill_dense(S.dist, rows_submat_S, cols_submat_S, S_ro, S_co, buff, S.seed_state);
+        fill_dense(S.dist, rows_submat_S, cols_submat_S, s_ro, s_co, buff, S.seed_state);
         DenseDist D{rows_submat_S, cols_submat_S, DenseDistName::BlackBox, S.dist.major_axis};
         DenseSkOp S_(D, S.seed_state, buff);
         rskge3(layout, opA, opS, m, d, n, alpha, A, lda, S_, 0, 0, beta, B, ldb);
         delete [] buff;
         return;
     }
-    randblas_require( S.dist.n_rows >= rows_submat_S + S_ro );
-    randblas_require( S.dist.n_cols >= cols_submat_S + S_co );
+    randblas_require( S.dist.n_rows >= rows_submat_S + s_ro );
+    randblas_require( S.dist.n_cols >= cols_submat_S + s_co );
     auto [rows_A, cols_A] = dims_before_op(m, n, opA);
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
@@ -890,7 +890,7 @@ void rskge3(
         randblas_require(ldb >= d);
     }
 
-    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, S_ro, S_co);
+    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, s_ro, s_co);
     T* S_ptr = &S.buff[pos];
     if (S.layout != layout)
         opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;

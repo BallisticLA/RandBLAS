@@ -26,8 +26,8 @@ void lspgemm(
     int64_t m, // \op(A) is d-by-m
     T alpha,
     SpMatrix &A,
-    int64_t A_ro,
-    int64_t A_co,
+    int64_t a_ro,
+    int64_t a_co,
     const T *B,
     int64_t ldb,
     T beta,
@@ -44,13 +44,13 @@ void lspgemm(
         constexpr bool is_csr = std::is_same_v<SpMatrix, CSRMatrix<T, sint_t>>;
         if constexpr (is_coo) {
             auto At = RandBLAS::sparse_data::coo::transpose(A);
-            lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, A_co, A_ro, B, ldb, beta, C, ldc);
+            lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, a_co, a_ro, B, ldb, beta, C, ldc);
         } else if constexpr (is_csc) {
             auto At = RandBLAS::sparse_data::conversions::transpose_as_csr(A);
-            lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, A_co, A_ro, B, ldb, beta, C, ldc);
+            lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, a_co, a_ro, B, ldb, beta, C, ldc);
         } else if constexpr (is_csr) {
             auto At = RandBLAS::sparse_data::conversions::transpose_as_csc(A);
-            lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, A_co, A_ro, B, ldb, beta, C, ldc);
+            lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, a_co, a_ro, B, ldb, beta, C, ldc);
         } else {
             randblas_require(false);
         }
@@ -70,8 +70,8 @@ void lspgemm(
     } else {
         randblas_require(A.n_rows == d);
         randblas_require(A.n_cols == m);
-        randblas_require(A_ro == 0);
-        randblas_require(A_co == 0);
+        randblas_require(a_ro == 0);
+        randblas_require(a_co == 0);
     }
     
     // Dimensions of B, rather than \op(B)
@@ -108,7 +108,7 @@ void lspgemm(
     // compute the matrix-matrix product
     if constexpr (is_coo) {
         using RandBLAS::sparse_data::coo::apply_coo_left_jki_p11;
-        apply_coo_left_jki_p11(alpha, layout_opB, layout_C, d, n, m, A, A_ro, A_co, B, ldb, C, ldc);
+        apply_coo_left_jki_p11(alpha, layout_opB, layout_C, d, n, m, A, a_ro, a_co, B, ldb, C, ldc);
     } else if constexpr (is_csc) {
         using RandBLAS::sparse_data::csc::apply_csc_left_jki_p11;
         apply_csc_left_jki_p11(alpha, layout_opB, layout_C, d, n, m, A, B, ldb, C, ldc);
