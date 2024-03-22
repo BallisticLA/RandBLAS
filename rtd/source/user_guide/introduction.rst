@@ -1,5 +1,6 @@
-A GEMM-like API for abstract linear operators
-=============================================
+****************************************
+Preliminaries: GEMM and linear operators
+****************************************
 
    .. |op| mathmacro:: \operatorname{op}
    .. |mat| mathmacro:: \operatorname{mat}
@@ -11,15 +12,9 @@ A GEMM-like API for abstract linear operators
    .. |opA| mathmacro:: \texttt{opA}
    .. |opB| mathmacro:: \texttt{opB}
    .. |opS| mathmacro:: \texttt{opS}
-   .. |roa| mathmacro:: \texttt{roa}
-   .. |coa| mathmacro:: \texttt{coa}
+   .. |roa| mathmacro:: \texttt{ro_a}
+   .. |coa| mathmacro:: \texttt{co_a}
    .. |mtx| mathmacro:: \mathbf
-
-
-.. .. dropdown:: A simplified version of GEMM
-..     :animate: fade-in-slide-down
-
-.. **A simplified version of GEMM**
 
 .. dropdown:: A simplified version of GEMM
     :open:
@@ -28,7 +23,6 @@ A GEMM-like API for abstract linear operators
     Consider a simplified version of GEMM with conformable real linear operators :math:`(\mtx{A},\mtx{B},\mtx{C})`:
 
         .. math::
-          :label: eq_simplifiedgemm
       
           \displaystyle\mtx{C} = \alpha \cdot\,\op(\mtx{A})\, \cdot \,\op(\mtx{B}) + \,\beta \cdot \mtx{C}.
 
@@ -47,7 +41,7 @@ A GEMM-like API for abstract linear operators
     :open:
     :animate: fade-in-slide-down
 
-    The actual GEMM API accepts dimensions :math:`(m, n, k)`, pointers  :math:`(A, B, C)`, and executes
+    The GEMM API accepts dimensions :math:`(m, n, k)`, pointers  :math:`(A, B, C)`, and executes
 
       .. math::
           :label: eq_realisticgemm
@@ -60,10 +54,10 @@ A GEMM-like API for abstract linear operators
       * a stride parameter associated with the pointer, and 
       * a layout parameter that applies to all three matrices in :eq:`eq_realisticgemm`.
 
-    We emphasize that :math:`\text{“}\mat\text{”}` only exists to help with exposition.
+    We use the :math:`\text{“}\mat\text{”}` operator only to help with exposition.
     No such operator appears in the GEMM API.
     For reference, here is a standard function signature for a version of GEMM that requires all three matrices
-    in :eq:`eq_realisticgemm` to have a common numerical type, ``T``:
+    in :eq:`eq_realisticgemm` to have a common numerical type, ``T``.
 
     .. code:: c++
 
@@ -109,14 +103,14 @@ A GEMM-like API for abstract linear operators
   :open:
   :animate: fade-in-slide-down
 
-  The semantics of :math:`\mat` in :eq:`eq_realisticgemm` make it possible for
-  GEMM to operate on *contiguous submatrices*, and this is key to the flexibility of GEMM in numerical computing.
+  GEMM's low-level semantics enables operating on *contiguous submatrices* of larger matrices in complicated applications.
+  This flexibility is a key part of its usefulness in numerical computing.
   RandBLAS aims to be similarly flexible.
   However, RandBLAS needs an expressive data model for its sketching operators.
   It also needs to incorporate sparse data matrices.
   As a result, the :math:`\mat` operator used to facilate working with submatrices in :eq:`eq_realisticgemm` is insufficient for RandBLAS' purposes.
 
-  It's easy to describe a version of GEMM that supports abstract linear operators for :math:`\mtx{A}` or :math:`\mtx{B}.`
+  Luckily, it's easy to describe a version of GEMM that supports abstract linear operators for :math:`\mtx{A}` or :math:`\mtx{B}.`
   All we need is an operator that selects a submatrix based on explicit row and column offset parameters.
   We'll call this operator :math:`\submat(\cdot).`
   Our convention is to use :math:`\text{“}(\roa, \coa)\text{”}` for the row and column offsets for :math:`\submat(\mtx{A})` in :math:`\mtx{A},`
@@ -144,9 +138,9 @@ A GEMM-like API for abstract linear operators
       T alpha, LinOp A, int roa, int coa, const T* B, int ldb, T beta, T* C, int ldc
     )
 
-  The spirit of this change to ``gemm`` applies just as well when :math:`\mtx{B}` is an abstract linear operator
-  instead of :math:`\mtx{A}`, or when both :math:`\mtx{A}` and :math:`\mtx{B}` are abstract.
-  Click the expandable dropdown below for more discussion.
+  Analgous changes apply just as well in two other cases: when :math:`\mtx{B}` is abstract
+  rather than :math:`\mtx{A}`, or when both :math:`\mtx{A}` and :math:`\mtx{B}` are abstract.
+  Click the dropdown below for more discussion.
   
   .. dropdown:: More on :math:`\submat`, :math:`\mat`, and the layout parameter.
     :animate: fade-in-slide-down

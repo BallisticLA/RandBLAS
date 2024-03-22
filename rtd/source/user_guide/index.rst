@@ -1,6 +1,10 @@
-###################
-RandBLAS User Guide
-###################
+##########
+User Guide
+##########
+
+*************
+Raison d'etre
+*************
 
 RandBLAS facilitates implementation of randomized numerical linear algebra (RandNLA) algorithms that need linear dimension-reduction maps.
 These dimension-reduction maps, called *sketching operators*, are sampled at random from some prescribed distribution.
@@ -11,8 +15,9 @@ The RandNLA literature documents a huge array of possibilities for how to comput
 It also documents sketching operators of many different "flavors;" some are sparse matrices, some are subsampled FFT-like operations, and others still are dense matrices. 
 
 
-RandBLAS, in brief
-==================
+*********************
+RandBLAS, at a glance
+*********************
 
 It's useful to think of RandBLAS' sketching workflow in three steps.
 
@@ -43,17 +48,29 @@ RandBLAS has a wealth of capabilities that are not reflected in that code sippet
 For example, it lets you set an integer-valued the seed when defining :math:`\texttt{state}`, and it provides a wide range of both dense and sparse sketching operators.
 It even lets you compute products against *submatrices* of sketching operators without ever forming the full operator in memory.
 
-Outline of this User Guide
-==========================
+***************************
+Overview of this User Guide
+***************************
 
-The full range of possibilities with RandBLAS are described in the pages linked below.
+Words Words words ....
 
-.. toctree::
-    :maxdepth: 3
-    :numbered: 3
+Words Words words ....
 
-    Introduction <introduction>
-    Applying a sketching operator <sketching>
-    Sketching distributions and sketching operators <operators>
-    Random states <rng_details>
-    Sparse data <sparse_data>
+Words Words words ....
+
+.. contents:: Outline of this User Guide
+      :depth: 3
+
+Words Words words ....
+
+Words Words words ....
+
+Words Words words ....
+
+.. the start of each file below is a heading at the level of ************
+
+.. include:: introduction.rst
+.. include:: operators.rst
+.. include:: rng_details.rst
+
+
