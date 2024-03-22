@@ -1,3 +1,10 @@
+.. toctree::
+   :numbered: 4
+   :hidden:
+
+   User Guide <user_guide/index>
+
+
 RandBLAS: sketching for randomized numerical linear algebra
 ===========================================================
 
@@ -32,8 +39,3 @@ RandBLAS is configured with CMake. The following CMake variables influence the b
 | Random123_DIR           | The path to your local random123 install           |
 +-------------------------+----------------------------------------------------+
 
-
-.. toctree::
-   :hidden:
-
-   User Guide <user_guide/index>

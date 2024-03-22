@@ -2,10 +2,6 @@
 Applying a sketching operator
 *****************************
 
-RandBLAS currently only supports sketching matrices that would be called "general" in BLAS.
-This is done with an overloaded and templated function called :math:`\texttt{sketch_general}`.
-The order of arguments provided to :math:`\texttt{sketch_general}` is very important; it
-determines whether the sketching operator is applied from the left or from the right.
 
 Basic sketching from the left
 =============================
