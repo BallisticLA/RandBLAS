@@ -1,8 +1,9 @@
 .. toctree::
    :hidden:
+   :maxdepth: 3
 
    User Guide <user_guide/index>
-   API Reference <api/index>
+   API Reference <api_reference/index>
 
 
 RandBLAS: sketching for randomized numerical linear algebra
