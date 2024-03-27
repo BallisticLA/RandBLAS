@@ -392,16 +392,6 @@ void sketch_general(
 ///     int64_t n, int64_t m, T alpha, SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
-///
-///   .. |op| mathmacro:: \operatorname{op}
-///   .. |mat| mathmacro:: \operatorname{mat}
-///   .. |lda| mathmacro:: \mathrm{lda}
-///   .. |ldb| mathmacro:: \mathrm{ldb}
-///   .. |opA| mathmacro:: \mathrm{opA}
-///   .. |opS| mathmacro:: \mathrm{opS}
-///
-/// @endverbatim
-/// @verbatim embed:rst:leading-slashes
 /// Perform a GEMM-like operation
 ///
 /// .. math::
