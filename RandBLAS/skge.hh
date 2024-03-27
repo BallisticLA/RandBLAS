@@ -20,18 +20,17 @@ namespace RandBLAS {
 using namespace RandBLAS::dense;
 using namespace RandBLAS::sparse;
 
-/// Intended macro definitions.
-///
-///
-///   .. |op| mathmacro:: \operatorname{op}
-///   .. |mat| mathmacro:: \operatorname{mat}
-///   .. |submat| mathmacro:: \operatorname{submat}
-///   .. |lda| mathmacro:: \texttt{lda}
-///   .. |ldb| mathmacro:: \texttt{ldb}
-///   .. |opA| mathmacro:: \texttt{opA}
-///   .. |opS| mathmacro:: \texttt{opS}
-///
-///
+
+/* Intended macro definitions.
+
+   .. |op| mathmacro:: \operatorname{op}
+   .. |mat| mathmacro:: \operatorname{mat}
+   .. |submat| mathmacro:: \operatorname{submat}
+   .. |lda| mathmacro:: \texttt{lda}
+   .. |ldb| mathmacro:: \texttt{ldb}
+   .. |opA| mathmacro:: \texttt{opA}
+   .. |opS| mathmacro:: \texttt{opS}
+*/
 
 
 // =============================================================================
@@ -53,8 +52,8 @@ using namespace RandBLAS::sparse;
 ///
 ///     **What are** :math:`\mat(A)` **and** :math:`\mat(B)` **?**
 ///
-///       Their shapes are defined implicitly by :math:`(d, m, n, \opA)`.
-///       Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
+///       Their shapes are defined implicitly by :math:`(d, m, n, \opA).`
+///       Their precise contents are determined by :math:`(A, \lda),` :math:`(B, \ldb),`
 ///       and "layout", following the same convention as GEMM from BLAS.
 ///
 ///       If layout == ColMajor, then
@@ -62,53 +61,53 @@ using namespace RandBLAS::sparse;
 ///             .. math::
 ///                 \mat(A)[i, j] = A[i + j \cdot \lda].
 ///
-///       In this case, :math:`\lda` must be :math:`\geq` the length of a column in :math:`\mat(A)`.
+///       In this case, :math:`\lda` must be :math:`\geq` the length of a column in :math:`\mat(A).`
 ///
 ///       If layout == RowMajor, then
 ///
 ///             .. math::
 ///                 \mat(A)[i, j] = A[i \cdot \lda + j].
 ///
-///       In this case, :math:`\lda` must be :math:`\geq` the length of a row in :math:`\mat(A)`.
+///       In this case, :math:`\lda` must be :math:`\geq` the length of a row in :math:`\mat(A).`
 ///
 ///     **What is** :math:`\submat(S)` **?**
 ///
-///       Its shape is defined implicitly by :math:`(\opS, d, m)`.
+///       Its shape is defined implicitly by :math:`(\opS, d, m).`
 ///
-///       If :math:`{\submat(S)}` is of shape :math:`r \times c`,
+///       If :math:`{\submat(S)}` is of shape :math:`r \times c,`
 ///       then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
-///       appears at index :math:`(\texttt{ro_s}, \texttt{co_s})` of :math:`{S}`.
+///       appears at index :math:`(\texttt{ro_s}, \texttt{co_s})` of :math:`{S}.`
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
 ///
 ///      layout - [in]
 ///       * Either Layout::ColMajor or Layout::RowMajor
-///       * Matrix storage for :math:`\mat(A)` and :math:`\mat(B)`.
+///       * Matrix storage for :math:`\mat(A)` and :math:`\mat(B).`
 ///
 ///      opS - [in]
 ///       * Either Op::Trans or Op::NoTrans.
-///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(S)) = \submat(S)`.
-///       * If :math:`\opS` = Trans, then :math:`\op(\submat(S)) = \submat(S)^T`.
+///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(S)) = \submat(S).`
+///       * If :math:`\opS` = Trans, then :math:`\op(\submat(S)) = \submat(S)^T.`
 ///
 ///      opA - [in]
-///       * If :math:`\opA` == NoTrans, then :math:`\op(\mat(A)) = \mat(A)`.
-///       * If :math:`\opA` == Trans, then :math:`\op(\mat(A)) = \mat(A)^T`.
+///       * If :math:`\opA` == NoTrans, then :math:`\op(\mat(A)) = \mat(A).`
+///       * If :math:`\opA` == Trans, then :math:`\op(\mat(A)) = \mat(A)^T.`
 ///
 ///      d - [in]
 ///       * A nonnegative integer.
 ///       * The number of rows in :math:`\mat(B)`
-///       * The number of rows in :math:`\op(\submat(S))`.
+///       * The number of rows in :math:`\op(\submat(S)).`
 ///
 ///      n - [in]
 ///       * A nonnegative integer.
 ///       * The number of columns in :math:`\mat(B)`
-///       * The number of columns in :math:`\op(\mat(A))`.
+///       * The number of columns in :math:`\op(\mat(A)).`
 ///
 ///      m - [in]
 ///       * A nonnegative integer.
 ///       * The number of columns in :math:`\op(\submat(S))`
-///       * The number of rows in :math:`\op(\mat(A))`.
+///       * The number of rows in :math:`\op(\mat(A)).`
 ///
 ///      alpha - [in]
 ///       * A real scalar.
@@ -116,25 +115,25 @@ using namespace RandBLAS::sparse;
 ///
 ///      S - [in]  
 ///       * A DenseSkOp or SparseSkOp object.
-///       * Defines :math:`\submat(S)`.
+///       * Defines :math:`\submat(S).`
 ///
 ///      ro_s - [in]
 ///       * A nonnegative integer.
-///       * The rows of :math:`\submat(S)` are a contiguous subset of rows of :math:`S`.
-///       * The rows of :math:`\submat(S)` start at :math:`S[\texttt{ro_s}, :]`.
+///       * The rows of :math:`\submat(S)` are a contiguous subset of rows of :math:`S.`
+///       * The rows of :math:`\submat(S)` start at :math:`S[\texttt{ro_s}, :].`
 ///
 ///      co_s - [in]
 ///       * A nonnnegative integer.
-///       * The columns of :math:`\submat(S)` are a contiguous subset of columns of :math:`S`.
-///       * The columns of :math:`\submat(S)` start at :math:`S[:,\texttt{co_s}]`. 
+///       * The columns of :math:`\submat(S)` are a contiguous subset of columns of :math:`S.`
+///       * The columns of :math:`\submat(S)` start at :math:`S[:,\texttt{co_s}].` 
 ///
 ///      A - [in]
 ///       * Pointer to a 1D array of real scalars.
-///       * Defines :math:`\mat(A)`.
+///       * Defines :math:`\mat(A).`
 ///
 ///      lda - [in]
 ///       * A nonnegative integer.
-///       * Leading dimension of :math:`\mat(A)` when reading from :math:`A`.
+///       * Leading dimension of :math:`\mat(A)` when reading from :math:`A.`
 ///
 ///      beta - [in]
 ///       * A real scalar.
@@ -143,13 +142,13 @@ using namespace RandBLAS::sparse;
 ///      B - [in,out]
 ///       * Pointer to 1D array of real scalars.
 ///       * On entry, defines :math:`\mat(B)`
-///         on the RIGHT-hand side of :math:`(\star)`.
+///         on the RIGHT-hand side of :math:`(\star).`
 ///       * On exit, defines :math:`\mat(B)`
-///         on the LEFT-hand side of :math:`(\star)`.
+///         on the LEFT-hand side of :math:`(\star).`
 ///
 ///      ldb - [in]
 ///       * A nonnegative integer.
-///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B`.
+///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
 template <typename T, typename SKOP>
@@ -238,47 +237,47 @@ void sketch_general(
 ///
 ///     **What are** :math:`\mat(A)` **and** :math:`\mat(B)` **?**
 ///
-///       Their shapes are defined implicitly by :math:`(m, d, n, \opA)`.
-///       Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
+///       Their shapes are defined implicitly by :math:`(m, d, n, \opA).`
+///       Their precise contents are determined by :math:`(A, \lda),` :math:`(B, \ldb),`
 ///       and "layout", following the same convention as the Level 3 BLAS function "GEMM."
 ///
 ///     **What is** :math:`\submat(S)` **?**
 ///
-///       Its shape is defined implicitly by :math:`(\opS, n, d)`.
-///       If :math:`{\submat(S)}` is of shape :math:`r \times c`,
+///       Its shape is defined implicitly by :math:`(\opS, n, d).`
+///       If :math:`{\submat(S)}` is of shape :math:`r \times c,`
 ///       then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
-///       appears at index :math:`(\texttt{ro_s}, \texttt{co_s})` of :math:`{S}`.
+///       appears at index :math:`(\texttt{ro_s}, \texttt{co_s})` of :math:`{S}.`
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
 ///
 ///      layout - [in]
 ///       * Either Layout::ColMajor or Layout::RowMajor
-///       * Matrix storage for :math:`\mat(A)` and :math:`\mat(B)`.
+///       * Matrix storage for :math:`\mat(A)` and :math:`\mat(B).`
 ///
 ///      opA - [in]
-///       * If :math:`\opA` == NoTrans, then :math:`\op(\mat(A)) = \mat(A)`.
-///       * If :math:`\opA` == Trans, then :math:`\op(\mat(A)) = \mat(A)^T`.
+///       * If :math:`\opA` == NoTrans, then :math:`\op(\mat(A)) = \mat(A).`
+///       * If :math:`\opA` == Trans, then :math:`\op(\mat(A)) = \mat(A)^T.`
 ///
 ///      opS - [in]
 ///       * Either Op::Trans or Op::NoTrans.
-///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(S)) = \submat(S)`.
-///       * If :math:`\opS` = Trans, then :math:`\op(\submat(S)) = \submat(S)^T`.
+///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(S)) = \submat(S).`
+///       * If :math:`\opS` = Trans, then :math:`\op(\submat(S)) = \submat(S)^T.`
 ///
 ///      m - [in]
 ///       * A nonnegative integer.
-///       * The number of rows in :math:`\mat(B)`.
-///       * The number of rows in :math:`\op(\mat(A)).
+///       * The number of rows in :math:`\mat(B).`
+///       * The number of rows in :math:`\op(\mat(A)).`
 ///
 ///      d - [in]
 ///       * A nonnegative integer.
 ///       * The number of columns in :math:`\mat(B)`
-///       * The number of columns in :math:`\op(\submat(S))`.
+///       * The number of columns in :math:`\op(\submat(S)).`
 ///
 ///      n - [in]
 ///       * A nonnegative integer.
-///       * The number of columns in :math:`\op(\mat(A))
-///       * The number of rows in :math:`\op(\submat(S))`.
+///       * The number of columns in :math:`\op(\mat(A)).`
+///       * The number of rows in :math:`\op(\submat(S)).`
 ///
 ///      alpha - [in]
 ///       * A real scalar.
@@ -286,26 +285,26 @@ void sketch_general(
 ///
 ///      A - [in]
 ///       * Pointer to a 1D array of real scalars.
-///       * Defines :math:`\mat(A)`.
+///       * Defines :math:`\mat(A).`
 ///
 ///      lda - [in]
 ///       * A nonnegative integer.
-///       * Leading dimension of :math:`\mat(A)` when reading from :math:`A`.
+///       * Leading dimension of :math:`\mat(A)` when reading from :math:`A.`
 ///
 ///      S - [in]  
 ///       * A DenseSkOp or SparseSkOp object.
-///       * Defines :math:`\submat(S)`.
-///       * Defines :math:`\submat(S)`.
+///       * Defines :math:`\submat(S).`
+///       * Defines :math:`\submat(S).`
 ///
 ///      ro_s - [in]
 ///       * A nonnegative integer.
-///       * The rows of :math:`\submat(S)` are a contiguous subset of rows of :math:`S`.
-///       * The rows of :math:`\submat(S)` start at \math{S[\texttt{ro_s}, :]}.
+///       * The rows of :math:`\submat(S)` are a contiguous subset of rows of :math:`S.`
+///       * The rows of :math:`\submat(S)` start at :math:`S[\texttt{ro_s}, :].`
 ///
 ///      co_s - [in]
 ///       * A nonnegative integer.
-///       * The columns of :math:`\submat(S)` are a contiguous subset of columns of :math:`S`.
-///       * The columns :math:`\submat(S)` start at \math{S[:,\texttt{co_s}]}. 
+///       * The columns of :math:`\submat(S)` are a contiguous subset of columns of :math:`S.`
+///       * The columns :math:`\submat(S)` start at :math:`S[:,\texttt{co_s}].` 
 ///
 ///      beta - [in]
 ///       * A real scalar.
@@ -314,13 +313,13 @@ void sketch_general(
 ///      B - [in,out]
 ///       * Pointer to 1D array of real scalars.
 ///       * On entry, defines :math:`\mat(B)`
-///         on the RIGHT-hand side of :math:`(\star)`.
+///         on the RIGHT-hand side of :math:`(\star).`
 ///       * On exit, defines :math:`\mat(B)`
-///         on the LEFT-hand side of :math:`(\star)`.
+///         on the LEFT-hand side of :math:`(\star).`
 ///
 ///      ldb - [in]
 ///       * A nonnegative integer.
-///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B`.
+///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
 template <typename T, typename SKOP>
@@ -407,40 +406,40 @@ void sketch_general(
 ///
 ///     **What are** :math:`\mat(A)` **and** :math:`\mat(B)` **?**
 ///
-///       Their shapes are defined implicitly by :math:`(d, m, n, \opA)`.
-///       Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
+///       Their shapes are defined implicitly by :math:`(d, m, n, \opA).`
+///       Their precise contents are determined by :math:`(A, \lda),` :math:`(B, \ldb),`
 ///       and "layout", following the same convention as the Level 3 BLAS function "GEMM."
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
 ///
-///      ayout - [in]
+///      layout - [in]
 ///       * Either Layout::ColMajor or Layout::RowMajor
-///       * Matrix storage for :math:`\mat(A)` and :math:`\mat(B)`.
+///       * Matrix storage for :math:`\mat(A)` and :math:`\mat(B).`
 ///
 ///      opS - [in]
 ///       * Either Op::Trans or Op::NoTrans.
-///       * If :math:`\opS` = NoTrans, then :math:`\op(S) = S`.
-///       * If :math:`\opS` = Trans, then :math:`\op(S) = S^T`.
+///       * If :math:`\opS` = NoTrans, then :math:`\op(S) = S.`
+///       * If :math:`\opS` = Trans, then :math:`\op(S) = S^T.`
 ///
 ///      opA - [in]
-///       * If :math:`\opA` == NoTrans, then :math:`\op(\mat(A)) = \mat(A)`.
-///       * If :math:`\opA` == Trans, then :math:`\op(\mat(A)) = \mat(A)^T`.
+///       * If :math:`\opA` == NoTrans, then :math:`\op(\mat(A)) = \mat(A).`
+///       * If :math:`\opA` == Trans, then :math:`\op(\mat(A)) = \mat(A)^T.`
 ///
 ///      d - [in]
 ///       * A nonnegative integer.
 ///       * The number of rows in :math:`\mat(B)`
-///       * The number of rows in :math:`\op(\mat(S))`.
+///       * The number of rows in :math:`\op(\mat(S)).`
 ///
 ///      n - [in]
 ///       * A nonnegative integer.
 ///       * The number of columns in :math:`\mat(B)`
-///       * The number of columns in :math:`\op(\mat(A)).
+///       * The number of columns in :math:`\op(\mat(A)).`
 ///
 ///      m - [in]
 ///       * A nonnegative integer.
-///       * The number of columns in \math{\op(S)}
-///       * The number of rows in :math:`\op(\mat(A)).
+///       * The number of columns in :math:`\op(S).`
+///       * The number of rows in :math:`\op(\mat(A)).`
 ///
 ///      alpha - [in]
 ///       * A real scalar.
@@ -448,15 +447,15 @@ void sketch_general(
 ///
 ///      S - [in]  
 ///       * A DenseSkOp or SparseSkOp object.
-///       * Defines :math:`\submat(S)`.
+///       * Defines :math:`\submat(S).`
 ///
 ///      A - [in]
 ///       * Pointer to a 1D array of real scalars.
-///       * Defines :math:`\mat(A)`.
+///       * Defines :math:`\mat(A).`
 ///
 ///      lda - [in]
 ///       * A nonnegative integer.
-///       * Leading dimension of :math:`\mat(A)` when reading from :math:`A`.
+///       * Leading dimension of :math:`\mat(A)` when reading from :math:`A.`
 ///
 ///      beta - [in]
 ///       * A real scalar.
@@ -465,13 +464,13 @@ void sketch_general(
 ///      B - [in,out]
 ///       * Pointer to 1D array of real scalars.
 ///       * On entry, defines :math:`\mat(B)`
-///         on the RIGHT-hand side of :math:`(\star)`.
+///         on the RIGHT-hand side of :math:`(\star).`
 ///       * On exit, defines :math:`\mat(B)`
-///         on the LEFT-hand side of :math:`(\star)`.
+///         on the LEFT-hand side of :math:`(\star).`
 ///
 ///      ldb - [in]
 ///       * A nonnegative integer.
-///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B`.
+///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
 template <typename T, typename SKOP>
@@ -518,8 +517,8 @@ void sketch_general(
 ///
 ///     **What are** :math:`\mat(A)` **and** :math:`\mat(B)` **?**
 ///
-///       Their shapes are defined implicitly by :math:`(m, d, n, \opA)`.
-///       Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
+///       Their shapes are defined implicitly by :math:`(m, d, n, \opA).`
+///       Their precise contents are determined by :math:`(A, \lda),` :math:`(B, \ldb),`
 ///       and "layout", following the same convention as the Level 3 BLAS function "GEMM."
 ///
 /// .. dropdown:: Full parameter descriptions
@@ -527,31 +526,31 @@ void sketch_general(
 ///
 ///      layout - [in]
 ///       * Either Layout::ColMajor or Layout::RowMajor
-///       * Matrix storage for :math:`\mat(A)` and :math:`\mat(B)`.
+///       * Matrix storage for :math:`\mat(A)` and :math:`\mat(B).`
 ///
 ///      opA - [in]
-///       * If :math:`\opA` == NoTrans, then :math:`\op(\mat(A)) = \mat(A)`.
-///       * If :math:`\opA` == Trans, then :math:`\op(\mat(A)) = \mat(A)^T`.
+///       * If :math:`\opA` == NoTrans, then :math:`\op(\mat(A)) = \mat(A).`
+///       * If :math:`\opA` == Trans, then :math:`\op(\mat(A)) = \mat(A)^T.`
 ///
 ///      opS - [in]
 ///       * Either Op::Trans or Op::NoTrans.
-///       * If :math:`\opS` = NoTrans, then :math:`\op(S) = S`.
-///       * If :math:`\opS` = Trans, then :math:`\op(S) = S^T`.
+///       * If :math:`\opS` = NoTrans, then :math:`\op(S) = S.`
+///       * If :math:`\opS` = Trans, then :math:`\op(S) = S^T.`
 ///
 ///      m - [in]
 ///       * A nonnegative integer.
-///       * The number of rows in :math:`\mat(B)`.
-///       * The number of rows in :math:`\op(\mat(A)).
+///       * The number of rows in :math:`\mat(B).`
+///       * The number of rows in :math:`\op(\mat(A)).`
 ///
 ///      d - [in]
 ///       * A nonnegative integer.
-///       * The number of columns in :math:`\mat(B)`
-///       * The number of columns in :math:`\op(\mat(S))`.
+///       * The number of columns in :math:`\mat(B).`
+///       * The number of columns in :math:`\op(\mat(S)).`
 ///
 ///      n - [in]
 ///       * A nonnegative integer.
-///       * The number of columns in :math:`\op(\mat(A))
-///       * The number of rows in \math{\op(S)}.
+///       * The number of columns in :math:`\op(\mat(A)).`
+///       * The number of rows in :math:`\op(S).`
 ///
 ///      alpha - [in]
 ///       * A real scalar.
@@ -559,11 +558,11 @@ void sketch_general(
 ///
 ///      A - [in]
 ///       * Pointer to a 1D array of real scalars.
-///       * Defines :math:`\mat(A)`.
+///       * Defines :math:`\mat(A).`
 ///
 ///      lda - [in]
 ///       * A nonnegative integer.
-///       * Leading dimension of :math:`\mat(A)` when reading from :math:`A`.
+///       * Leading dimension of :math:`\mat(A)` when reading from :math:`A.`
 ///
 ///      S - [in]  
 ///       * A DenseSkOp or SparseSkOp object.
@@ -575,13 +574,13 @@ void sketch_general(
 ///      B - [in,out]
 ///       * Pointer to 1D array of real scalars.
 ///       * On entry, defines :math:`\mat(B)`
-///         on the RIGHT-hand side of :math:`(\star)`.
+///         on the RIGHT-hand side of :math:`(\star).`
 ///       * On exit, defines :math:`\mat(B)`
-///         on the LEFT-hand side of :math:`(\star)`.
+///         on the LEFT-hand side of :math:`(\star).`
 ///
 ///      ldb - [in]
 ///       * A nonnegative integer.
-///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B`.
+///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
 template <typename T, typename SKOP>
@@ -615,7 +614,7 @@ void sketch_general(
 ///    int64_t ro_s, int64_t co_s, const T *x, int64_t incx, T beta, T *y, int64_t incy
 /// )
 /// @verbatim embed:rst:leading-slashes
-/// Perform a GEMV-like operation. If :math:`{\opS} = \texttt{NoTrans}`, then we perform
+/// Perform a GEMV-like operation. If :math:`{\opS} = \texttt{NoTrans},` then we perform
 ///
 /// .. math::
 ///     \mat(y) = \alpha \cdot \underbrace{\submat(S)}_{d \times m} \cdot \underbrace{\mat(x)}_{m \times 1} + \beta \cdot \underbrace{\mat(y)}_{d \times 1},    \tag{$\star$}
@@ -632,13 +631,13 @@ void sketch_general(
 ///
 ///     **What are** :math:`\mat(x)` **and** :math:`\mat(y)` **?**
 ///     
-///       Their shapes are defined as tall vectors of dimension :math:`(\mat(x), L_x \times 1)`, :math:`(\mat(y), L_y \times 1)`,
-///       where :math:`(L_x, L_y)` are lengths so that :math:`\opS(\submat(S)) \mat(x)` is well-defined and the same shape as :math:`\mat(y)`. 
+///       Their shapes are defined as tall vectors of dimension :math:`(\mat(x), L_x \times 1),` :math:`(\mat(y), L_y \times 1),`
+///       where :math:`(L_x, L_y)` are lengths so that :math:`\opS(\submat(S)) \mat(x)` is well-defined and the same shape as :math:`\mat(y).` 
 ///       Their precise contents are determined in a way that is identical to the Level 2 BLAS function "GEMV."
 ///
 ///     **Why no "layout" argument?**
 ///     
-///        The GEMV in CBLAS accepts a parameter that specifies row-major or column-major layout of the matrix.
+///       The GEMV in CBLAS accepts a parameter that specifies row-major or column-major layout of the matrix.
 ///       Since our matrix is a sketching operator, and since RandBLAS has no notion of the layout of a sketching operator, we do not have a layout parameter.
 ///
 /// .. dropdown:: Full parameter descriptions
@@ -646,16 +645,16 @@ void sketch_general(
 ///
 ///      opS - [in]
 ///       * Either Op::Trans or Op::NoTrans.
-///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(S)) = \submat(S)`.
-///       * If :math:`\opS` = Trans, then :math:`\op(\submat(S)) = \submat(S)^T`.
+///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(S)) = \submat(S).`
+///       * If :math:`\opS` = Trans, then :math:`\op(\submat(S)) = \submat(S)^T.`
 ///
 ///      d - [in]
 ///       * A nonnegative integer.
-///       * The number of rows in :math:`\submat(S)`.
+///       * The number of rows in :math:`\submat(S).`
 ///
 ///      m - [in]
 ///       * A nonnegative integer.
-///       * The number of columns in :math:`\submat(S)`.
+///       * The number of columns in :math:`\submat(S).`
 ///
 ///      alpha - [in]
 ///       * A real scalar.
@@ -663,19 +662,19 @@ void sketch_general(
 ///     
 ///      S - [in]  
 ///       * A DenseSkOp or SparseSkOp object.
-///       * Defines :math:`\submat(S)`.
+///       * Defines :math:`\submat(S).`
 ///
 ///      ro_s - [in]
 ///       * A nonnegative integer.
-///       * :math:`\submat(S)` is a contiguous submatrix of \math{S[\texttt{ro_s}:(\texttt{ro_s} + d), :]}.
+///       * :math:`\submat(S)` is a contiguous submatrix of :math:`S[\texttt{ro_s}:(\texttt{ro_s} + d), :].`
 ///
 ///      co_s - [in]
 ///       * A nonnegative integer.
-///       * :math:`\submat(S)` is a contiguous submatrix of \math{S[:,\texttt{co_s}:(\texttt{co_s} + m)]}. 
+///       * :math:`\submat(S)` is a contiguous submatrix of :math:`S[:,\texttt{co_s}:(\texttt{co_s} + m)].`
 ///
 ///      x - [in]
 ///       * Pointer to a 1D array of real scalars.
-///       * Defines :math:`mat(x)`.
+///       * Defines :math:`mat(x).`
 ///
 ///      incx - [in]
 ///       * A positive integer.
@@ -740,8 +739,8 @@ void sketch_vector(
 ///
 ///     **What are** :math:`\mat(x)` **and** :math:`\mat(y)` **?**
 ///
-///       Their shapes are defined as tall vectors of dimension :math:`(\mat(x), L_x \times 1)`, :math:`(\mat(y), L_y \times 1)`,
-///       where :math:`(L_x, L_y)` are lengths so that :math:`\opS(S) \mat(x)` is well-defined and the same shape as :math:`\mat(y)`. 
+///       Their shapes are defined as tall vectors of dimension :math:`(\mat(x), L_x \times 1),` :math:`(\mat(y), L_y \times 1),`
+///       where :math:`(L_x, L_y)` are lengths so that :math:`\opS(S) \mat(x)` is well-defined and the same shape as :math:`\mat(y).` 
 ///       Their precise contents are determined in a way that is identical to the Level 2 BLAS function "GEMV."
 ///
 ///     **Why no "layout" argument?**
@@ -754,8 +753,8 @@ void sketch_vector(
 ///
 ///      opS - [in]
 ///       * Either Op::Trans or Op::NoTrans.
-///       * If :math:`\opS` = NoTrans, then :math:`\op(S) = S`.
-///       * If :math:`\opS` = Trans, then :math:`\op(S) = S^T`.
+///       * If :math:`\opS` = NoTrans, then :math:`\op(S) = S.`
+///       * If :math:`\opS` = Trans, then :math:`\op(S) = S^T.`
 ///
 ///      alpha - [in]
 ///       * A real scalar.
@@ -763,11 +762,11 @@ void sketch_vector(
 ///     
 ///      S - [in]  
 ///       * A DenseSkOp or SparseSkOp object.
-///       * Defines :math:`S`.
+///       * Defines :math:`S.`
 ///
 ///      x - [in]
 ///       * Pointer to a 1D array of real scalars.
-///       * Defines :math:`\mat(x)`.
+///       * Defines :math:`\mat(x).`
 ///
 ///      incx - [in]
 ///       * A positive integer.
@@ -780,7 +779,7 @@ void sketch_vector(
 ///      y - [in, out]
 ///       * Pointer to 1D array of real scalars.
 ///       * On entry, defines :math:`\mat(y)` on the RIGHT-hand side of
-///         :math:`(\star)`.
+///         :math:`(\star).`
 ///       * On exit, defines :math:`\mat(y)` on the LEFT-hand side of the same.
 ///
 ///      incy - [in]
