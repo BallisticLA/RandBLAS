@@ -20,13 +20,8 @@ namespace RandBLAS {
 using namespace RandBLAS::dense;
 using namespace RandBLAS::sparse;
 
-
-// =============================================================================
-/// \fn sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
-///     int64_t n, int64_t m, T alpha, SKOP &S, int64_t ro_s, int64_t co_s,
-///     const T *A, int64_t lda, T beta, T *B, int64_t ldb
-/// ) 
-/// @verbatim embed:rst:leading-slashes
+/// Intended macro definitions.
+///
 ///
 ///   .. |op| mathmacro:: \operatorname{op}
 ///   .. |mat| mathmacro:: \operatorname{mat}
@@ -36,7 +31,14 @@ using namespace RandBLAS::sparse;
 ///   .. |opA| mathmacro:: \texttt{opA}
 ///   .. |opS| mathmacro:: \texttt{opS}
 ///
-/// @endverbatim
+///
+
+
+// =============================================================================
+/// \fn sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
+///     int64_t n, int64_t m, T alpha, SKOP &S, int64_t ro_s, int64_t co_s,
+///     const T *A, int64_t lda, T beta, T *B, int64_t ldb
+/// ) 
 /// @verbatim embed:rst:leading-slashes
 /// Perform a GEMM-like operation
 /// 

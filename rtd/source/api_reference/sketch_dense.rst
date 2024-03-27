@@ -1,3 +1,12 @@
+
+ .. |op| mathmacro:: \operatorname{op}
+ .. |mat| mathmacro:: \operatorname{mat}
+ .. |submat| mathmacro:: \operatorname{submat}
+ .. |lda| mathmacro:: \texttt{lda}
+ .. |ldb| mathmacro:: \texttt{ldb}
+ .. |opA| mathmacro:: \texttt{opA}
+ .. |opS| mathmacro:: \texttt{opS}
+
 ****************************************
 Sketching dense data
 ****************************************
