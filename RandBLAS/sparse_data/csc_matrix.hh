@@ -82,6 +82,7 @@ using blas::Layout;
 
 template <typename T>
 void csc_to_dense(const CSCMatrix<T> &spmat, int64_t stride_row, int64_t stride_col, T *mat) {
+    randblas_require(spmat.index_base == IndexBase::Zero);
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
     for (int64_t i = 0; i < spmat.n_rows; ++i) {
         for (int64_t j = 0; j < spmat.n_cols; ++j) {

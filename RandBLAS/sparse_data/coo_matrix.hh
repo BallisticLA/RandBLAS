@@ -286,6 +286,7 @@ void dense_to_coo(Layout layout, T* mat, T abs_tol, COOMatrix<T> &spmat) {
 
 template <typename T>
 void coo_to_dense(const COOMatrix<T> &spmat, int64_t stride_row, int64_t stride_col, T *mat) {
+    randblas_require(spmat.index_base == IndexBase::Zero);
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
     for (int64_t i = 0; i < spmat.n_rows; ++i) {
         for (int64_t j = 0; j < spmat.n_cols; ++j) {

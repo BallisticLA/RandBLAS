@@ -1,0 +1,50 @@
+***************************************************
+Random matrix distributions
+***************************************************
+
+RNGState
+========
+
+.. doxygenstruct:: RandBLAS::RNGState
+   :project: RandBLAS
+   :members:
+
+
+DenseDist and DenseSkOp
+============================================
+
+.. doxygenstruct:: RandBLAS::DenseDist
+   :project: RandBLAS
+   :members:
+
+.. doxygenstruct:: RandBLAS::DenseSkOp
+   :project: RandBLAS
+   :members: 
+
+.. doxygenfunction:: RandBLAS::fill_dense(DenseSkOp<T, RNG> &S)
+   :project: RandBLAS
+
+
+SparseDist and SparseSkOp
+==============================
+
+.. doxygenstruct:: RandBLAS::SparseDist
+   :project: RandBLAS
+   :members:
+
+.. doxygenstruct:: RandBLAS::SparseSkOp
+   :project: RandBLAS
+   :members: 
+
+.. doxygenfunction:: RandBLAS::fill_sparse(SparseSkOp<T, RNG, sint_t> &S)
+   :project: RandBLAS
+
+
+Advanced material
+=================
+
+.. doxygenenum:: RandBLAS::DenseDistName
+    :project: RandBLAS
+
+.. doxygenfunction:: RandBLAS::fill_dense(const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t S_ro, int64_t S_co, T *buff, const RNGState<RNG> &seed)
+   :project: RandBLAS

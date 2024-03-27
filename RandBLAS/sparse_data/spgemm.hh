@@ -26,8 +26,8 @@ void lspgemm(
     int64_t m, // \op(A) is d-by-m
     T alpha,
     SpMatrix &A,
-    int64_t row_offset,
-    int64_t col_offset,
+    int64_t ro_a,
+    int64_t co_a,
     const T *B,
     int64_t ldb,
     T beta,
@@ -44,19 +44,20 @@ void lspgemm(
         constexpr bool is_csr = std::is_same_v<SpMatrix, CSRMatrix<T, sint_t>>;
         if constexpr (is_coo) {
             auto At = RandBLAS::sparse_data::coo::transpose(A);
-            lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, col_offset, row_offset, B, ldb, beta, C, ldc);
+            lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
         } else if constexpr (is_csc) {
             auto At = RandBLAS::sparse_data::conversions::transpose_as_csr(A);
-            lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, col_offset, row_offset, B, ldb, beta, C, ldc);
+            lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
         } else if constexpr (is_csr) {
             auto At = RandBLAS::sparse_data::conversions::transpose_as_csc(A);
-            lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, col_offset, row_offset, B, ldb, beta, C, ldc);
+            lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
         } else {
             randblas_require(false);
         }
         return; 
     }
     // Below this point, we can assume A is not transposed.
+    randblas_require( A.index_base == IndexBase::Zero );
     using sint_t   = typename SpMatrix::index_t;
     constexpr bool is_coo = std::is_same_v<SpMatrix, COOMatrix<T, sint_t>>;
     constexpr bool is_csr = std::is_same_v<SpMatrix, CSRMatrix<T, sint_t>>;
@@ -69,8 +70,8 @@ void lspgemm(
     } else {
         randblas_require(A.n_rows == d);
         randblas_require(A.n_cols == m);
-        randblas_require(row_offset == 0);
-        randblas_require(col_offset == 0);
+        randblas_require(ro_a == 0);
+        randblas_require(co_a == 0);
     }
     
     // Dimensions of B, rather than \op(B)
@@ -107,7 +108,7 @@ void lspgemm(
     // compute the matrix-matrix product
     if constexpr (is_coo) {
         using RandBLAS::sparse_data::coo::apply_coo_left_jki_p11;
-        apply_coo_left_jki_p11(alpha, layout_opB, layout_C, d, n, m, A, row_offset, col_offset, B, ldb, C, ldc);
+        apply_coo_left_jki_p11(alpha, layout_opB, layout_C, d, n, m, A, ro_a, co_a, B, ldb, C, ldc);
     } else if constexpr (is_csc) {
         using RandBLAS::sparse_data::csc::apply_csc_left_jki_p11;
         apply_csc_left_jki_p11(alpha, layout_opB, layout_C, d, n, m, A, B, ldb, C, ldc);
@@ -121,8 +122,8 @@ void lspgemm(
 template <typename T, typename SpMatrix>
 void rspgemm(
     blas::Layout layout,
-    blas::Op opB,
     blas::Op opA,
+    blas::Op opB,
     int64_t m, // C is m-by-d
     int64_t d, // op(A) is n-by-d
     int64_t n, // op(B) is m-by-n
@@ -137,23 +138,23 @@ void rspgemm(
     int64_t ldc
 ) { 
     //
-    // Compute C = op(B) op(submat(A)) by reduction to LSPGEMM. We start with
+    // Compute C = op(mat(A)) @ op(submat(B0)) by reduction to LSPGEMM. We start with
     //
-    //      C^T = op(submat(A))^T op(B)^T.
+    //      C^T = op(submat(B0))^T @ op(mat(A))^T.
     //
-    // Then we interchange the operator "op(*)" in op(B) and (*)^T:
+    // Then we interchange the operator "op(*)" in op(submat(A)) and (*)^T:
     //
-    //      C^T = op(submat(A))^T op(B^T).
+    //      C^T = op(submat(B0))^T @ op(mat(A)^T).
     //
     // We tell LSPGEMM to process (C^T) and (B^T) in the opposite memory layout
     // compared to the layout for (B, C).
     // 
     using blas::Layout;
     using blas::Op;
-    auto trans_opA = (opA == Op::NoTrans) ? Op::Trans : Op::NoTrans;
+    auto trans_opB = (opB == Op::NoTrans) ? Op::Trans : Op::NoTrans;
     auto trans_layout = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
     lspgemm(
-        trans_layout, trans_opA, opB,
+        trans_layout, trans_opB, opA,
         d, m, n, alpha, B0, i_off, j_off, A, lda, beta, C, ldc
     );
 }

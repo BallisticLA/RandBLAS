@@ -10,3 +10,10 @@
     max-width: 100%;
     overflow: visible;
 }
+
+.math {
+    text-align: left;
+}
+.eqno {
+    float: right;
+}

@@ -5,6 +5,7 @@
 * doxygen (e.g., on macOS: ``brew install doxygen``)
 * breathe (``pip install breathe``)
 * sphinx_rtd_theme (``pip install sphinx-rtd-theme``). 
+* bibtex support (``pip install sphinxcontrib-bibtex``).
 
 Note: ``sphinx_rtd_theme`` is somewhat optional; alternative styles could be used with modest changes to the files described below.
 
