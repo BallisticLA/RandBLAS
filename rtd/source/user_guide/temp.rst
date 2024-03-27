@@ -1,3 +1,9 @@
+:orphan:
+
+.. toctree::
+  :maxdepth: 3
+
+
 ****************************************
 Preliminaries: GEMM and linear operators
 ****************************************

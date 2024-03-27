@@ -1,3 +1,6 @@
+.. toctree::
+  :maxdepth: 3
+
 *************
 Random states
 *************

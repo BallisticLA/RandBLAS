@@ -1,10 +1,9 @@
+.. :sd_hide_title:
+.. ^ uncomment that if you want to prevent the header from rendering.
+
 ##########
 User Guide
 ##########
-
-*************
-Raison d'etre
-*************
 
 RandBLAS facilitates implementation of randomized numerical linear algebra (RandNLA) algorithms that need linear dimension-reduction maps.
 These dimension-reduction maps, called *sketching operators*, are sampled at random from some prescribed distribution.
@@ -15,19 +14,16 @@ The RandNLA literature documents a huge array of possibilities for how to comput
 It also documents sketching operators of many different "flavors;" some are sparse matrices, some are subsampled FFT-like operations, and others still are dense matrices. 
 
 
-*********************
 RandBLAS, at a glance
-*********************
+  It's useful to think of RandBLAS' sketching workflow in three steps.
 
-It's useful to think of RandBLAS' sketching workflow in three steps.
+    1. Get your hands on a random state.
+    2. Define a sketching distribution, and use the random state to sample a sketching operator from that distribution.
+    3. Apply the sketching operator with a function that's *almost* identical to GEMM.
 
-  1. Get your hands on a random state.
-  2. Define a sketching distribution, and use the random state to sample a sketching operator from that distribution.
-  3. Apply the sketching operator with a function that's *almost* identical to GEMM.
-
-To illustrate this workflow, suppose we have a 20,000-by-10,000 double-precision matrix :math:`A`  stored in column-major
-layout. Suppose also that we want to compute a sketch of the form :math:`B = AS`, where :math:`S` is a Gaussian matrix of size 10,000-by-50.
-This can be done as follows.
+  To illustrate this workflow, suppose we have a 20,000-by-10,000 double-precision matrix :math:`A`  stored in column-major
+  layout. Suppose also that we want to compute a sketch of the form :math:`B = AS`, where :math:`S` is a Gaussian matrix of size 10,000-by-50.
+  This can be done as follows.
 
    .. code:: c++
 
@@ -48,29 +44,20 @@ RandBLAS has a wealth of capabilities that are not reflected in that code sippet
 For example, it lets you set an integer-valued the seed when defining :math:`\texttt{state}`, and it provides a wide range of both dense and sparse sketching operators.
 It even lets you compute products against *submatrices* of sketching operators without ever forming the full operator in memory.
 
-***************************
+
 Overview of this User Guide
-***************************
+  Words Words words ....
 
-Words Words words ....
+  Words Words words ....
 
-Words Words words ....
+  Words Words words ....
 
-Words Words words ....
+.. toctree::
+    :maxdepth: 4
 
-.. contents:: Outline of this User Guide
-      :depth: 3
-
-Words Words words ....
-
-Words Words words ....
-
-Words Words words ....
-
-.. the start of each file below is a heading at the level of ************
-
-.. include:: introduction.rst
-.. include:: operators.rst
-.. include:: rng_details.rst
+    Background on GEMM <gemm>
+    Sketching operators and sketching distributions <operators>
+    Random number generation <rng_details>
+    Working with submatrices <submatrices>
 
 
