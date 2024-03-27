@@ -70,29 +70,32 @@ struct DenseDist {
     ///  not spend any brain power thinking about how this value should be set.
     ///  
     /// @verbatim embed:rst:leading-slashes
-    ///  *Notes for experts*. Deciding the value of this member is only needed
-    ///  in algorithms where (1) there's a need to iteratively generate panels of
-    ///  a larger sketching operator and (2) one of larger operator's dimensions
-    ///  cannot be known before the  iterative process starts.
+    /// .. dropdown:: *Notes for experts*
+    ///    :animate: fade-in-slide-down
     ///
-    ///  Essentially, column-major storage order lets us
-    ///  stack operators horizontally in a consistent way, while row-major storage order
-    ///  lets us stack operators vertically in a consistent way. The mapping from
-    ///  major_axis to storage order is given in the table below.
+    ///     Deciding the value of this member is only needed
+    ///     in algorithms where (1) there's a need to iteratively generate panels of
+    ///     a larger sketching operator and (2) one of larger operator's dimensions
+    ///     cannot be known before the  iterative process starts.
+    ///
+    ///     Essentially, column-major storage order lets us
+    ///     stack operators horizontally in a consistent way, while row-major storage order
+    ///     lets us stack operators vertically in a consistent way. The mapping from
+    ///     major_axis to storage order is given in the table below.
     /// 
-    ///     .. list-table::
-    ///        :widths: 34 33 33
-    ///        :header-rows: 1
+    ///        .. list-table::
+    ///           :widths: 34 33 33
+    ///           :header-rows: 1
     ///
-    ///        * -  
-    ///          - :math:`\texttt{major_axis} = \texttt{Long}`
-    ///          - :math:`\texttt{major_axis} = \texttt{Short}`
-    ///        * - :math:`\texttt{n_rows} > \texttt{n_cols}`
-    ///          - column major
-    ///          - row major
-    ///        * - :math:`\texttt{n_rows} \leq \texttt{n_cols}`
-    ///          - row major
-    ///          - column major
+    ///           * -  
+    ///             - :math:`\texttt{major_axis} = \texttt{Long}`
+    ///             - :math:`\texttt{major_axis} = \texttt{Short}`
+    ///           * - :math:`\texttt{n_rows} > \texttt{n_cols}`
+    ///             - column major
+    ///             - row major
+    ///           * - :math:`\texttt{n_rows} \leq \texttt{n_cols}`
+    ///             - row major
+    ///             - column major
     /// @endverbatim
     const MajorAxis major_axis;
 
@@ -103,7 +106,7 @@ struct DenseDist {
     DenseDist(
         int64_t n_rows,
         int64_t n_cols,
-        DenseDistName dn = DenseDistName::Gaussian
+        DenseDistName dn = DenseDistName::Uniform
     ) : n_rows(n_rows), n_cols(n_cols), family(dn), major_axis(MajorAxis::Long) {
         randblas_require(dn != DenseDistName::BlackBox);
     };
