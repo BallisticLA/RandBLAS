@@ -76,24 +76,13 @@ template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 struct COOMatrix {
     using scalar_t = T;
     using index_t = sint_t; 
-    // ---------------------------------------------------------------------------
-    ///  The number of rows in this sparse matrix.
     const int64_t n_rows;
-    // ---------------------------------------------------------------------------
-    ///  The number of columns in this sparse matrix.
     const int64_t n_cols;
     // ---------------------------------------------------------------------------
     ///  Whether data in (rows, cols) is zero-indexed or one-indexed.
-    const IndexBase index_base;
-    // ---------------------------------------------------------------------------
-    ///  A flag to indicate if this object is responsible for allocating and 
-    ///  deallocating memory for (rows, cols, vals).
+    IndexBase index_base;
     const bool own_memory;
-    // ---------------------------------------------------------------------------
-    ///  The number of entries in (rows, cols, vals).
     int64_t nnz = 0;
-    // ---------------------------------------------------------------------------
-    ///  Values of the nonzeros.
     T *vals = nullptr;
     // ---------------------------------------------------------------------------
     ///  Row indicies for nonzeros (interpreted with respect to index_base).
@@ -110,12 +99,81 @@ struct COOMatrix {
     // ^ A flag to indicate if we're allowed to allocate new memory for 
     //   (rows, cols, vals). Set to false after COOMatrix.reserve(...) is called.
 
+    // ---------------------------------------------------------------------------
+    /// @verbatim embed:rst:leading-slashes
+    /// Construct a COO-format sparse matrix :math:`M` whose dimensions are fixed but whose 
+    /// contents are not yet determined. 
+    /// 
+    /// Memory for (rows, cols, vals) needs to be allocated
+    /// later by calling :math:`M\text{.reserve(nnz)}` for a desired value of nnz. This
+    /// matrix will deallocate those buffers when its destructor is invoked.
+    ///
+    /// .. dropdown:: Full parameter descriptions
+    ///     :animate: fade-in-slide-down
+    ///
+    ///      n_rows - [in]
+    ///       * The number of rows in this sparse matrix.
+    ///
+    ///      n_cols - [in]
+    ///       * The number of columns in this sparse matrix.
+    ///
+    ///      index_base - [in]
+    ///       * Indexing convention used in (rows, cols). The default
+    ///         is zero-indexed, which is needed if this matrix is to
+    ///         be used in any arithmetic operations. The index_base
+    ///         member of COOMatrix objects can be changed manually at
+    ///         any time. The user bears all responsibility for setting
+    ///         it correctly.
+    /// @endverbatim
     COOMatrix(
         int64_t n_rows,
         int64_t n_cols,
         IndexBase index_base = IndexBase::Zero
     ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) {};
 
+    // ---------------------------------------------------------------------------
+    /// @verbatim embed:rst:leading-slashes
+    /// Construct a COO-format sparse matrix given existing data in three buffers
+    /// (rows, cols, vals). These buffers will not be affected when the destructor
+    /// of this matrix is invoked.
+    ///
+    /// .. dropdown:: Full parameter descriptions
+    ///     :animate: fade-in-slide-down
+    ///
+    ///      n_rows - [in]
+    ///       * The number of rows in this sparse matrix.
+    ///
+    ///      n_cols - [in]
+    ///       * The number of columns in this sparse matrix.
+    ///
+    ///      rows - [in]
+    ///       * Pointer to array of sint_t.
+    ///       * stores row indices as part of the COO format.
+    ///
+    ///      cols - [in]
+    ///       * Pointer to array of sint_t.
+    ///       * stores column indices as part of the COO format.
+    ///
+    ///      vals - [in]
+    ///       * Pointer to array of real numerical type T.
+    ///       * stores nonzeros as part of the COO format.
+    /// 
+    ///      compute_sort_type - [in]
+    ///       * Indicates if we should parse data in (rows, cols)
+    ///         to see if it's already in CSC-like order or CSR-like order.
+    ///         If you happen to know the sort order ahead of time then 
+    ///         you should set this parameter to false and then manually
+    ///         assign M.sort = ``<the order you already know>`` once you
+    ///         have a handle on M.
+    ///
+    ///      index_base - [in]
+    ///       * Indexing convention used in (rows, cols). The default
+    ///         is zero-indexed, which is needed if this matrix is to
+    ///         be used in any arithmetic operations. The index_base
+    ///         member of COOMatrix objects can be changed manually at
+    ///         any time. The user bears all responsibility for setting
+    ///         it correctly.
+    /// @endverbatim
     COOMatrix(
         int64_t n_rows,
         int64_t n_cols,

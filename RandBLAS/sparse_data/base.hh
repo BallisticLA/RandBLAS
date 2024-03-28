@@ -4,6 +4,8 @@
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include <blas.hh>
+#include <concepts>
+
 
 namespace RandBLAS::sparse_data {
 
@@ -61,10 +63,59 @@ static inline void sorted_nonzero_locations_to_pointer_array(
     return;
 }
 
+// =============================================================================
+/// @verbatim embed:rst:leading-slashes
+///
+/// .. |ttt| mathmacro:: \texttt
+/// 
+/// This concept requires that objects :math:`\ttt{M}` of type :math:`\ttt{SpMat}` have the following semantics:
+///
+///     .. list-table::
+///        :widths: 25 30 40
+///        :header-rows: 1
+///        
+///        * - 
+///          - type
+///          - description
+///        * - :math:`\ttt{M.n_rows}`
+///          - :math:`\ttt{const int64_t}`
+///          - number of rows
+///        * - :math:`\ttt{M.n_cols}`
+///          - :math:`\ttt{const int64_t}`
+///          - number of columns
+///        * - :math:`\ttt{M.nnz}`
+///          - :math:`\ttt{int64_t}`
+///          - number of structural nonzeros
+///        * - :math:`\ttt{M.vals}`
+///          - :math:`\ttt{SpMat::scalar_t *}`
+///          - pointer to values of structural nonzeros
+///        * - :math:`\ttt{M.own_memory}`
+///          - :math:`\ttt{const bool}`
+///          - flag indicating if buffers attached to :math:`\ttt{M}` should be deallocated when :math:`\texttt{M}` is deleted.
+///
+/// All of RandBLAS' sparse matrix classes fulfill this concept.
+/// 
+/// Note that this concept doesn't specify how to associate indices of nonzeros in :math:`\ttt{M.vals}`
+/// to row and column indices in :math:`\ttt{M}`.
+///
+/// @endverbatim
+template<typename SpMat>
+concept SparseMatrix = requires(SpMat A) {
+    // TODO: figure out why I need to use convertible_to rather than is_same.
+    { A.n_rows } -> std::convertible_to<const int64_t>;
+    { A.n_cols } -> std::convertible_to<const int64_t>;
+    { A.nnz } -> std::convertible_to<int64_t>;
+    { *(A.vals) } -> std::convertible_to<typename SpMat::scalar_t>;
+    { A.own_memory } ->  std::convertible_to<const bool>;
+};
+
 } // end namespace RandBLAS::sparse_data
 
 namespace RandBLAS {
     using RandBLAS::sparse_data::IndexBase;
+    using RandBLAS::sparse_data::SparseMatrix;
 }
+
+
 
 #endif

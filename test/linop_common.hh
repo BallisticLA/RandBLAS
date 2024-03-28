@@ -19,6 +19,7 @@ using blas::Op;
 using RandBLAS::sparse_data::COOMatrix;
 using RandBLAS::sparse_data::CSRMatrix;
 using RandBLAS::sparse_data::CSCMatrix;
+using RandBLAS::SparseMatrix;
 using RandBLAS::SparseSkOp;
 using RandBLAS::DenseSkOp;
 using RandBLAS::RNGState;
@@ -52,16 +53,16 @@ dims64_t dimensions(SparseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols}; }
 template <typename T>
 dims64_t dimensions(DenseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols};}
 
-template <typename SpMatrix>
-dims64_t dimensions(SpMatrix &S) {return {S.n_rows, S.n_cols};}
+template <SparseMatrix SpMat>
+dims64_t dimensions(SpMat &S) {return {S.n_rows, S.n_cols};}
 
 
-template <typename T, typename SpMatrix>
-void to_explicit_buffer(SpMatrix &a, T *mat_a, Layout layout) {
-    using sint_t = typename SpMatrix::index_t;
-    constexpr bool is_coo = std::is_same_v<SpMatrix, COOMatrix<T, sint_t>>;
-    constexpr bool is_csc = std::is_same_v<SpMatrix, CSCMatrix<T, sint_t>>;
-    constexpr bool is_csr = std::is_same_v<SpMatrix, CSRMatrix<T, sint_t>>;
+template <typename T, SparseMatrix SpMat>
+void to_explicit_buffer(SpMat &a, T *mat_a, Layout layout) {
+    using sint_t = typename SpMat::index_t;
+    constexpr bool is_coo = std::is_same_v<SpMat, COOMatrix<T, sint_t>>;
+    constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
+    constexpr bool is_csr = std::is_same_v<SpMat, CSRMatrix<T, sint_t>>;
     if constexpr (is_coo) {
         RandBLAS::sparse_data::coo::coo_to_dense(a, layout, mat_a);
     } else if constexpr (is_csc) {
@@ -144,8 +145,8 @@ void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, 
     return;
 }
 
-template <typename T, typename SpMatrix>
-void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, T alpha, SpMatrix &S, int64_t S_ro, int64_t S_co, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
+template <typename T, SparseMatrix SpMat>
+void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, T alpha, SpMat &S, int64_t S_ro, int64_t S_co, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -472,8 +473,8 @@ void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int6
     #endif
 }
 
-template <typename T, typename SpMatrix>
-void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SpMatrix &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb, int threads) {
+template <typename T, SparseMatrix SpMat>
+void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SpMat &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb, int threads) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)

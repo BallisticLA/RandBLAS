@@ -16,7 +16,7 @@
 
 namespace RandBLAS::sparse_data {
 
-template <typename T, typename SpMatrix>
+template <typename T, SparseMatrix SpMat>
 void lspgemm(
     blas::Layout layout,
     blas::Op opA,
@@ -25,7 +25,7 @@ void lspgemm(
     int64_t n, // \op(B) is m-by-n
     int64_t m, // \op(A) is d-by-m
     T alpha,
-    SpMatrix &A,
+    SpMat &A,
     int64_t ro_a,
     int64_t co_a,
     const T *B,
@@ -38,10 +38,10 @@ void lspgemm(
     using blas::Op;
     // handle applying a transposed sparse sketching operator.
     if (opA == Op::Trans) {
-        using sint_t = typename SpMatrix::index_t;
-        constexpr bool is_coo = std::is_same_v<SpMatrix, COOMatrix<T, sint_t>>;
-        constexpr bool is_csc = std::is_same_v<SpMatrix, CSCMatrix<T, sint_t>>;
-        constexpr bool is_csr = std::is_same_v<SpMatrix, CSRMatrix<T, sint_t>>;
+        using sint_t = typename SpMat::index_t;
+        constexpr bool is_coo = std::is_same_v<SpMat, COOMatrix<T, sint_t>>;
+        constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
+        constexpr bool is_csr = std::is_same_v<SpMat, CSRMatrix<T, sint_t>>;
         if constexpr (is_coo) {
             auto At = RandBLAS::sparse_data::coo::transpose(A);
             lspgemm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
@@ -58,10 +58,10 @@ void lspgemm(
     }
     // Below this point, we can assume A is not transposed.
     randblas_require( A.index_base == IndexBase::Zero );
-    using sint_t   = typename SpMatrix::index_t;
-    constexpr bool is_coo = std::is_same_v<SpMatrix, COOMatrix<T, sint_t>>;
-    constexpr bool is_csr = std::is_same_v<SpMatrix, CSRMatrix<T, sint_t>>;
-    constexpr bool is_csc = std::is_same_v<SpMatrix, CSCMatrix<T, sint_t>>;
+    using sint_t = typename SpMat::index_t;
+    constexpr bool is_coo = std::is_same_v<SpMat, COOMatrix<T, sint_t>>;
+    constexpr bool is_csr = std::is_same_v<SpMat, CSRMatrix<T, sint_t>>;
+    constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
     randblas_require(is_coo || is_csr || is_csc);
 
     if constexpr (is_coo) {
@@ -119,7 +119,7 @@ void lspgemm(
     return;
 }
 
-template <typename T, typename SpMatrix>
+template <typename T, SparseMatrix SpMat>
 void rspgemm(
     blas::Layout layout,
     blas::Op opA,
@@ -130,7 +130,7 @@ void rspgemm(
     T alpha,
     const T *A,
     int64_t lda,
-    SpMatrix &B0,
+    SpMat &B0,
     int64_t i_off,
     int64_t j_off,
     T beta,
@@ -163,14 +163,14 @@ void rspgemm(
 
 namespace RandBLAS {
 
-template < typename T, typename SpMatrix>
-void multiply_general(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, SpMatrix &A, int64_t i_off, int64_t j_off, const T *B, int64_t ldb, T beta, T *C, int64_t ldc) {
+template < typename T, SparseMatrix SpMat>
+void multiply_general(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, SpMat &A, int64_t i_off, int64_t j_off, const T *B, int64_t ldb, T beta, T *C, int64_t ldc) {
     RandBLAS::sparse_data::lspgemm(layout, opA, opB, m, n, k, alpha, A, i_off, j_off, B, ldb, beta, C, ldc);
     return;
 };
 
-template <typename T, typename SpMatrix>
-void multiply_general(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T *A, int64_t lda, SpMatrix &B, int64_t i_off, int64_t j_off, T beta, T *C, int64_t ldc) {
+template <typename T, SparseMatrix SpMat>
+void multiply_general(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T *A, int64_t lda, SpMat &B, int64_t i_off, int64_t j_off, T beta, T *C, int64_t ldc) {
     RandBLAS::sparse_data::rspgemm(layout, opA, opB, m, n, k, alpha, A, lda, B, i_off, j_off, B, beta, C, ldc);
     return;
 }

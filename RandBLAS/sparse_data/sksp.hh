@@ -26,7 +26,7 @@ using namespace RandBLAS::sparse_data;
 // =============================================================================
 /// \fn sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
 ///     int64_t n, int64_t m, T alpha, DenseSkOp<T,RNG> &S, int64_t ro_s, int64_t co_s,
-///     SpMatrix &A, int64_t ro_a, int64_t co_a, T beta, T *B, int64_t ldb
+///     SpMat &A, int64_t ro_a, int64_t co_a, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
 /// Perform an SpMM-like operation
@@ -130,7 +130,7 @@ using namespace RandBLAS::sparse_data;
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B`.
 ///
 /// @endverbatim
-template <typename T, typename SpMatrix, typename RNG>
+template <typename T, SparseMatrix SpMat, typename RNG>
 void sketch_sparse(
     blas::Layout layout,
     blas::Op opS,
@@ -142,7 +142,7 @@ void sketch_sparse(
     DenseSkOp<T, RNG> &S,
     int64_t ro_s,
     int64_t co_s,
-    SpMatrix &A,
+    SpMat &A,
     int64_t ro_a,
     int64_t co_a,
     T beta,
@@ -184,7 +184,7 @@ void sketch_sparse(
 
 // =============================================================================
 /// \fn sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
-///     int64_t n, int64_t m, T alpha, SpMatrix &A, int64_t ro_a, int64_t co_a,
+///     int64_t n, int64_t m, T alpha, SpMat &A, int64_t ro_a, int64_t co_a,
 ///     DenseSkOp<T,RNG> &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
@@ -289,7 +289,7 @@ void sketch_sparse(
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B`.
 ///
 /// @endverbatim
-template <typename T, typename SpMatrix, typename RNG>
+template <typename T, SparseMatrix SpMat, typename RNG>
 void sketch_sparse(
     blas::Layout layout,
     blas::Op opA,
@@ -298,7 +298,7 @@ void sketch_sparse(
     int64_t d, // op(submat(A)) is m-by-n
     int64_t n, // op(submat(S)) is n-by-d
     T alpha,
-    SpMatrix &A,
+    SpMat &A,
     int64_t ro_a,
     int64_t co_a,
     DenseSkOp<T, RNG> &S,

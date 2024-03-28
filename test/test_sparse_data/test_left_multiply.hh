@@ -7,10 +7,10 @@ using namespace test::linop_common;
 using blas::Layout;
 
 
-template <typename SpMatrix>
+template <SparseMatrix SpMat>
 class TestLeftMultiply_Sparse : public ::testing::Test
 {
-    using T = typename SpMatrix::scalar_t;
+    using T = typename SpMat::scalar_t;
     // C = alpha * opA(submat(A)) @ opB(B) + beta * C
     // In what follows, "self" refers to A and "other" refers to B.
     protected:
@@ -19,7 +19,7 @@ class TestLeftMultiply_Sparse : public ::testing::Test
 
     virtual void TearDown(){};
 
-    virtual SpMatrix make_test_matrix(int64_t m, int64_t n, T nonzero_prob, uint32_t key = 0) = 0;
+    virtual SpMat make_test_matrix(int64_t m, int64_t n, T nonzero_prob, uint32_t key = 0) = 0;
 
     void multiply_eye(uint32_t key, int64_t m, int64_t n, Layout layout, T p) {
         auto A = this->make_test_matrix(m, n, p, key);

@@ -13,7 +13,7 @@ struct CSRMatrix {
     using index_t = sint_t; 
     const int64_t n_rows;
     const int64_t n_cols;
-    const IndexBase index_base;
+    IndexBase index_base;
     const bool own_memory;
     int64_t nnz = 0;
     T *vals = nullptr;
