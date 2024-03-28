@@ -7,9 +7,9 @@
  .. |opA| mathmacro:: \texttt{opA}
  .. |opS| mathmacro:: \texttt{opS}
 
-****************************************
-Sketching dense data
-****************************************
+******************************************
+Computing a sketch: dense data
+******************************************
 
 Full matrix-matrix operations
 =============================
