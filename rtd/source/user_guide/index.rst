@@ -2,7 +2,7 @@
 .. ^ uncomment that if you want to prevent the header from rendering.
 
 ##########
-User Guide
+Tutorial
 ##########
 
 RandBLAS facilitates implementation of randomized numerical linear algebra (RandNLA) algorithms that need linear dimension-reduction maps.

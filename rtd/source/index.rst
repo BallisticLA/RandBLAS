@@ -2,7 +2,7 @@
    :hidden:
    :maxdepth: 3
 
-   User Guide <user_guide/index>
+   Tutorial <user_guide/index>
    API Reference <api_reference/index>
 
 

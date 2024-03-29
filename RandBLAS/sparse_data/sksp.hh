@@ -29,7 +29,7 @@ using namespace RandBLAS::sparse_data;
 ///     SpMat &A, int64_t ro_a, int64_t co_a, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
-/// Perform an SpMM-like operation
+/// Sketch from the left in an SpMM-like operation
 ///
 /// .. math::
 ///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(S))}_{d \times m} \cdot \underbrace{\op(\submat(A))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
@@ -188,7 +188,7 @@ void sketch_sparse(
 ///     DenseSkOp<T,RNG> &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
-/// Perform an SpMM-like operation
+/// Sketch from the right in an SpMM-like operation
 ///
 /// .. math::
 ///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(A))}_{m \times n} \cdot \underbrace{\op(\submat(S))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}

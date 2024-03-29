@@ -10,6 +10,8 @@
 
 namespace RandBLAS::sparse_data {
 
+using RandBLAS::SignedInteger;
+
 // =============================================================================
 /// Indicates whether the (rows, cols, vals) data of a COO-format sparse matrix
 /// are known to be sorted in CSC order, CSR order, or neither of those orders.
@@ -20,7 +22,7 @@ enum class NonzeroSort : char {
     None = 'N'
 };
 
-template <RandBLAS::SignedInteger sint_t>
+template <SignedInteger sint_t>
 static inline bool increasing_by_csr(sint_t i0, sint_t j0, sint_t i1, sint_t j1) {
     if (i0 > i1) {
         return false;
@@ -31,7 +33,7 @@ static inline bool increasing_by_csr(sint_t i0, sint_t j0, sint_t i1, sint_t j1)
     }
 }
 
-template <RandBLAS::SignedInteger sint_t>
+template <SignedInteger sint_t>
 static inline bool increasing_by_csc(sint_t i0, sint_t j0, sint_t i1, sint_t j1) {
     if (j0 > j1) {
         return false;
@@ -42,7 +44,7 @@ static inline bool increasing_by_csc(sint_t i0, sint_t j0, sint_t i1, sint_t j1)
     }
 }
 
-template <RandBLAS::SignedInteger sint_t>
+template <SignedInteger sint_t>
 static inline NonzeroSort coo_sort_type(int64_t nnz, sint_t *rows, sint_t *cols) {
     bool csc_okay = true;
     bool csr_okay = true;
@@ -72,23 +74,21 @@ static inline NonzeroSort coo_sort_type(int64_t nnz, sint_t *rows, sint_t *cols)
 // =============================================================================
 /// A sparse matrix stored in COO format.
 ///
-template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
+template <typename T, SignedInteger sint_t = int64_t>
 struct COOMatrix {
     using scalar_t = T;
     using index_t = sint_t; 
     const int64_t n_rows;
     const int64_t n_cols;
-    // ---------------------------------------------------------------------------
-    ///  Whether data in (rows, cols) is zero-indexed or one-indexed.
-    IndexBase index_base;
     const bool own_memory;
     int64_t nnz = 0;
+    IndexBase index_base;
     T *vals = nullptr;
     // ---------------------------------------------------------------------------
-    ///  Row indicies for nonzeros (interpreted with respect to index_base).
+    ///  Row indicies for nonzeros.
     sint_t *rows = nullptr;
     // ---------------------------------------------------------------------------
-    ///  Column indicies for nonzeros (interpreted with respect to index_base).
+    ///  Column indicies for nonzeros
     sint_t *cols = nullptr;
     // ---------------------------------------------------------------------------
     ///  A flag to indicate if the data in (rows, cols, vals) is sorted in a 
@@ -99,43 +99,24 @@ struct COOMatrix {
     // ^ A flag to indicate if we're allowed to allocate new memory for 
     //   (rows, cols, vals). Set to false after COOMatrix.reserve(...) is called.
 
-    // ---------------------------------------------------------------------------
-    /// @verbatim embed:rst:leading-slashes
-    /// Construct a COO-format sparse matrix :math:`M` whose dimensions are fixed but whose 
-    /// contents are not yet determined. 
-    /// 
-    /// Memory for (rows, cols, vals) needs to be allocated
-    /// later by calling :math:`M\text{.reserve(nnz)}` for a desired value of nnz. This
-    /// matrix will deallocate those buffers when its destructor is invoked.
-    ///
-    /// .. dropdown:: Full parameter descriptions
-    ///     :animate: fade-in-slide-down
-    ///
-    ///      n_rows - [in]
-    ///       * The number of rows in this sparse matrix.
-    ///
-    ///      n_cols - [in]
-    ///       * The number of columns in this sparse matrix.
-    ///
-    ///      index_base - [in]
-    ///       * Indexing convention used in (rows, cols). The default
-    ///         is zero-indexed, which is needed if this matrix is to
-    ///         be used in any arithmetic operations. The index_base
-    ///         member of COOMatrix objects can be changed manually at
-    ///         any time. The user bears all responsibility for setting
-    ///         it correctly.
-    /// @endverbatim
+    // Constructs an empty sparse matrix of given dimensions.
+    // Data can't stored in this object until a subsequent call to reserve(int64_t nnz).
+    // This constructor initializes \math{\ttt{own_memory(true)},} and so
+    // all data stored in this object is deleted once its destructor is invoked.
+    //
     COOMatrix(
         int64_t n_rows,
-        int64_t n_cols,
-        IndexBase index_base = IndexBase::Zero
-    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) {};
+        int64_t n_cols
+    ) : n_rows(n_rows), n_cols(n_cols), index_base(IndexBase::Zero), own_memory(true) {};
+
 
     // ---------------------------------------------------------------------------
     /// @verbatim embed:rst:leading-slashes
-    /// Construct a COO-format sparse matrix given existing data in three buffers
-    /// (rows, cols, vals). These buffers will not be affected when the destructor
-    /// of this matrix is invoked.
+    /// Constructs a sparse matrix based on declared dimensions and the data in three buffers
+    /// (vals, rows, cols).
+    /// This constructor initializes :math:`\ttt{own_memory(false)}`, and
+    /// so the provided buffers are unaffected when this object's destructor
+    /// is invoked.
     ///
     /// .. dropdown:: Full parameter descriptions
     ///     :animate: fade-in-slide-down
@@ -146,18 +127,22 @@ struct COOMatrix {
     ///      n_cols - [in]
     ///       * The number of columns in this sparse matrix.
     ///
-    ///      rows - [in]
-    ///       * Pointer to array of sint_t.
-    ///       * stores row indices as part of the COO format.
-    ///
-    ///      cols - [in]
-    ///       * Pointer to array of sint_t.
-    ///       * stores column indices as part of the COO format.
+    ///      nnz - [in]
+    ///       * The number of structural nonzeros in the matrix.
     ///
     ///      vals - [in]
     ///       * Pointer to array of real numerical type T.
-    ///       * stores nonzeros as part of the COO format.
+    ///       * The first nnz entries store values of structural nonzeros
+    ///         as part of the COO format.
     /// 
+    ///      rows - [in]
+    ///       * Pointer to array of sint_t.
+    ///       * The first nnz entries store row indices as part of the COO format.
+    ///
+    ///      cols - [in]
+    ///       * Pointer to array of sint_t.
+    ///       * The first nnz entries store column indices as part of the COO format.
+    ///
     ///      compute_sort_type - [in]
     ///       * Indicates if we should parse data in (rows, cols)
     ///         to see if it's already in CSC-like order or CSR-like order.
@@ -166,13 +151,6 @@ struct COOMatrix {
     ///         assign M.sort = ``<the order you already know>`` once you
     ///         have a handle on M.
     ///
-    ///      index_base - [in]
-    ///       * Indexing convention used in (rows, cols). The default
-    ///         is zero-indexed, which is needed if this matrix is to
-    ///         be used in any arithmetic operations. The index_base
-    ///         member of COOMatrix objects can be changed manually at
-    ///         any time. The user bears all responsibility for setting
-    ///         it correctly.
     /// @endverbatim
     COOMatrix(
         int64_t n_rows,
@@ -181,8 +159,51 @@ struct COOMatrix {
         T *vals,
         sint_t *rows,
         sint_t *cols,
-        bool compute_sort_type = true,
-        IndexBase index_base = IndexBase::Zero
+        bool compute_sort_type = true
+    ) : COOMatrix(n_rows, n_cols, nnz, vals, rows, cols, compute_sort_type, IndexBase::Zero) {};
+
+    ~COOMatrix() {
+        if (this->own_memory) {
+            delete [] this->vals;
+            delete [] this->rows;
+            delete [] this->cols;
+           
+        }
+    };
+
+    // @verbatim embed:rst:leading-slashes
+    // Attach three buffers of length nnz for (vals, rows, cols).
+    // This function can only be called if :math:`\ttt{own_memory == true},`` and
+    // it can only be called once.
+    //
+    // @endverbatim
+    void reserve(int64_t nnz) {
+        randblas_require(this->_can_reserve);
+        randblas_require(this->own_memory);
+        this->nnz = nnz;
+        if (this->nnz > 0) {
+            this->vals = new T[nnz];
+            this->rows = new sint_t[nnz];
+            this->cols = new sint_t[nnz];
+        }
+        this->_can_reserve = false;
+    }
+
+    /////////////////////////////////////////////////////////////////////
+    //
+    //      Undocumented functions (don't appear in doxygen)
+    //
+    /////////////////////////////////////////////////////////////////////
+
+    COOMatrix(
+        int64_t n_rows,
+        int64_t n_cols,
+        int64_t nnz,
+        T *vals,
+        sint_t *rows,
+        sint_t *cols,
+        bool compute_sort_type,
+        IndexBase index_base
     ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(false) {
         this->nnz = nnz;
         this->vals = vals;
@@ -195,26 +216,11 @@ struct COOMatrix {
         }
     };
 
-    ~COOMatrix() {
-        if (this->own_memory) {
-            delete [] this->vals;
-            delete [] this->rows;
-            delete [] this->cols;
-           
-        }
-    };
-
-    void reserve(int64_t nnz) {
-        randblas_require(this->_can_reserve);
-        randblas_require(this->own_memory);
-        this->nnz = nnz;
-        if (this->nnz > 0) {
-            this->vals = new T[nnz];
-            this->rows = new sint_t[nnz];
-            this->cols = new sint_t[nnz];
-        }
-        this->_can_reserve = false;
-    }
+    COOMatrix(
+        int64_t n_rows,
+        int64_t n_cols,
+        IndexBase index_base
+    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) {};
 
     // move constructor
     COOMatrix(COOMatrix<T, sint_t> &&other) 
@@ -229,7 +235,7 @@ struct COOMatrix {
 
 };
 
-template <typename T, RandBLAS::SignedInteger sint_t>
+template <typename T, SignedInteger sint_t>
 void sort_coo_data(NonzeroSort s, int64_t nnz, T *vals, sint_t *rows, sint_t *cols) {
     if (s == NonzeroSort::None)
         return;

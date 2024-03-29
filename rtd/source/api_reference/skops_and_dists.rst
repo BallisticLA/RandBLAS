@@ -1,5 +1,5 @@
 ***************************************************
-Random matrix distributions
+Distributions and sketching operators
 ***************************************************
 
 RNGState

@@ -39,7 +39,7 @@ using namespace RandBLAS::sparse;
 ///     const T *A, int64_t lda, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
-/// Perform a GEMM-like operation
+/// Sketch from the left in a GEMM-like operation
 /// 
 /// .. math::
 ///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(S))}_{d \times m} \cdot \underbrace{\op(\mat(A))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
@@ -224,7 +224,7 @@ void sketch_general(
 ///    int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb
 /// )
 /// @verbatim embed:rst:leading-slashes
-/// Perform a GEMM-like operation
+/// Sketch from the right in a GEMM-like operation
 ///
 /// .. math::
 ///     \mat(B) = \alpha \cdot \underbrace{\op(\mat(A))}_{m \times n} \cdot \underbrace{\op(\submat(S))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
@@ -393,7 +393,7 @@ void sketch_general(
 ///     int64_t n, int64_t m, T alpha, SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
-/// Perform a GEMM-like operation
+/// Sketch from the left in a GEMM-like operation
 ///
 /// .. math::
 ///     \mat(B) = \alpha \cdot \underbrace{\op(S)}_{d \times m} \cdot \underbrace{\op(\mat(A))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
@@ -504,7 +504,7 @@ void sketch_general(
 ///    T alpha, const T *A, int64_t lda, SKOP &S, T beta, T *B, int64_t ldb
 /// )
 /// @verbatim embed:rst:leading-slashes
-/// Perform a GEMM-like operation
+/// Sketch from the right in a GEMM-like operation
 ///
 /// .. math::
 ///     \mat(B) = \alpha \cdot \underbrace{\op(\mat(A))}_{m \times n} \cdot \underbrace{\op(S)}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}

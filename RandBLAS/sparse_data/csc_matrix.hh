@@ -7,40 +7,83 @@
 
 namespace RandBLAS::sparse_data {
 
+// =============================================================================
+/// A sparse matrix stored in CSC format.
+///
 template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 struct CSCMatrix {
     using scalar_t = T;
     using index_t = sint_t; 
     const int64_t n_rows;
     const int64_t n_cols;
-    IndexBase index_base;
     const bool own_memory;
     int64_t nnz = 0;
+    IndexBase index_base;
     T *vals = nullptr;
+
+    // ---------------------------------------------------------------------------
+    ///  Row index array in the CSC format. 
+    ///  
     sint_t *rowidxs = nullptr;
+    
+    // ---------------------------------------------------------------------------
+    ///  Pointer offset array for the CSC format. The number of nonzeros in column j
+    ///  is given by colptr[j+1] - colptr[j]. The row index of the k-th nonzero
+    ///  in column j is rowidxs[colptr[j] + k].
+    ///  
     sint_t *colptr = nullptr;
     bool _can_reserve = true;
 
+
+    // Constructs an empty sparse matrix of given dimensions.
+    // Data can't stored in this object until a subsequent call to reserve(int64_t nnz).
+    // This constructor initializes \math{\ttt{own_memory(true)},} and so
+    // all data stored in this object is deleted once its destructor is invoked.
+    //
     CSCMatrix(
         int64_t n_rows,
-        int64_t n_cols,
-        IndexBase index_base = IndexBase::Zero
-    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) { };
+        int64_t n_cols
+    ) : CSCMatrix(n_rows, n_cols, IndexBase::Zero) { };
 
+    // ---------------------------------------------------------------------------
+    /// @verbatim embed:rst:leading-slashes
+    /// Constructs a sparse matrix based on declared dimensions and the data in three buffers
+    /// (vals, rowidxs, colptr). 
+    /// This constructor initializes :math:`\ttt{own_memory(false)}`, and
+    /// so the provided buffers are unaffected when this object's destructor
+    /// is invoked.
+    ///
+    /// .. dropdown:: Full parameter descriptions
+    ///     :animate: fade-in-slide-down
+    ///
+    ///      n_rows - [in]
+    ///       * The number of rows in this sparse matrix.
+    ///
+    ///      n_cols - [in]
+    ///       * The number of columns in this sparse matrix.
+    ///
+    ///      nnz - [in]
+    ///       * The number of structural nonzeros in the matrix.
+    ///
+    ///      vals - [in]
+    ///       * Pointer to array of real numerical type T, of length at least nnz.
+    ///       * Stores values of structural nonzeros as part of the CSC format.
+    ///
+    ///      rowidxs - [in]
+    ///       * Pointer to array of sint_t, of length at least nnz.
+    ///
+    ///      colptr - [in]
+    ///       * Pointer to array of sint_t, of length at least n_cols + 1.
+    ///
+    /// @endverbatim
     CSCMatrix(
         int64_t n_rows,
         int64_t n_cols,
         int64_t nnz,
         T *vals,
         sint_t *rowidxs,
-        sint_t *colptr,
-        IndexBase index_base = IndexBase::Zero
-    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(false) {
-        this->nnz = nnz;
-        this->vals = vals;
-        this->rowidxs = rowidxs;
-        this->colptr = colptr;
-    };
+        sint_t *colptr
+    ) : CSCMatrix(n_rows, n_cols, nnz, vals, rowidxs, colptr, IndexBase::Zero) {};
 
     ~CSCMatrix() {
         if (this->own_memory) {
@@ -50,6 +93,14 @@ struct CSCMatrix {
         }
     };
 
+
+    // @verbatim embed:rst:leading-slashes
+    // Attach three buffers to this CSCMatrix, (vals, rowidxs, colptr), of sufficient
+    // size for this matrix to hold nnz structural nonzeros.
+    // This function can only be called if :math:`\ttt{own_memory == true},`` and
+    // it can only be called once.
+    //
+    // @endverbatim
     void reserve(int64_t nnz) {
         randblas_require(this->_can_reserve);
         randblas_require(this->own_memory);
@@ -60,6 +111,27 @@ struct CSCMatrix {
             this->vals = new T[nnz]{0.0};
         }
         this->_can_reserve = false;
+    };
+
+    CSCMatrix(
+        int64_t n_rows,
+        int64_t n_cols,
+        IndexBase index_base
+    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) { };
+
+    CSCMatrix(
+        int64_t n_rows,
+        int64_t n_cols,
+        int64_t nnz,
+        T *vals,
+        sint_t *rowidxs,
+        sint_t *colptr,
+        IndexBase index_base
+    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(false) {
+        this->nnz = nnz;
+        this->vals = vals;
+        this->rowidxs = rowidxs;
+        this->colptr = colptr;
     };
 
     CSCMatrix(CSCMatrix<T, sint_t> &&other) 
