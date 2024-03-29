@@ -99,6 +99,33 @@ struct COOMatrix {
     // ^ A flag to indicate if we're allowed to allocate new memory for 
     //   (rows, cols, vals). Set to false after COOMatrix.reserve(...) is called.
 
+    COOMatrix(
+        int64_t n_rows,
+        int64_t n_cols,
+        int64_t nnz,
+        T *vals,
+        sint_t *rows,
+        sint_t *cols,
+        bool compute_sort_type,
+        IndexBase index_base
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), index_base(index_base) {
+        this->nnz = nnz;
+        this->vals = vals;
+        this->rows = rows;
+        this->cols = cols;
+        if (compute_sort_type) {
+            this->sort = coo_sort_type(nnz, rows, cols);
+        } else {
+            this->sort = NonzeroSort::None;
+        }
+    };
+
+    COOMatrix(
+        int64_t n_rows,
+        int64_t n_cols,
+        IndexBase index_base
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), index_base(index_base) {};
+
     // Constructs an empty sparse matrix of given dimensions.
     // Data can't stored in this object until a subsequent call to reserve(int64_t nnz).
     // This constructor initializes \math{\ttt{own_memory(true)},} and so
@@ -107,7 +134,7 @@ struct COOMatrix {
     COOMatrix(
         int64_t n_rows,
         int64_t n_cols
-    ) : n_rows(n_rows), n_cols(n_cols), index_base(IndexBase::Zero), own_memory(true) {};
+    ) : COOMatrix(n_rows, n_cols, IndexBase::Zero) {};
 
 
     // ---------------------------------------------------------------------------
@@ -195,36 +222,9 @@ struct COOMatrix {
     //
     /////////////////////////////////////////////////////////////////////
 
-    COOMatrix(
-        int64_t n_rows,
-        int64_t n_cols,
-        int64_t nnz,
-        T *vals,
-        sint_t *rows,
-        sint_t *cols,
-        bool compute_sort_type,
-        IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(false) {
-        this->nnz = nnz;
-        this->vals = vals;
-        this->rows = rows;
-        this->cols = cols;
-        if (compute_sort_type) {
-            this->sort = coo_sort_type(nnz, rows, cols);
-        } else {
-            this->sort = NonzeroSort::None;
-        }
-    };
-
-    COOMatrix(
-        int64_t n_rows,
-        int64_t n_cols,
-        IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) {};
-
     // move constructor
     COOMatrix(COOMatrix<T, sint_t> &&other) 
-    : n_rows(other.n_rows), n_cols(other.n_cols), index_base(other.index_base), own_memory(other.own_memory) {
+    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), index_base(other.index_base) {
         this->nnz = other.nnz;
         std::swap(this->rows, other.rows);
         std::swap(this->cols, other.cols);

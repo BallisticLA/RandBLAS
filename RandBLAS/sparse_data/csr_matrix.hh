@@ -38,6 +38,27 @@ struct CSRMatrix {
     sint_t *colidxs = nullptr;
     bool _can_reserve = true;
 
+    CSRMatrix(
+        int64_t n_rows,
+        int64_t n_cols,
+        IndexBase index_base
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), index_base(index_base) { };
+
+    CSRMatrix(
+        int64_t n_rows,
+        int64_t n_cols,
+        int64_t nnz,
+        T *vals,
+        sint_t *rowptr,
+        sint_t *colidxs,
+        IndexBase index_base
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), index_base(index_base) {
+        this->nnz = nnz;
+        this->vals = vals;
+        this->rowptr = rowptr;
+        this->colidxs = colidxs;
+    };
+
     // Constructs an empty sparse matrix of given dimensions.
     // Data can't stored in this object until a subsequent call to reserve(int64_t nnz).
     // This constructor initializes \math{\ttt{own_memory(true)},} and so
@@ -46,7 +67,7 @@ struct CSRMatrix {
     CSRMatrix(
         int64_t n_rows,
         int64_t n_cols
-    ) : n_rows(n_rows), n_cols(n_cols), index_base(IndexBase::Zero), own_memory(true) {};
+    ) : CSRMatrix(n_rows, n_cols, IndexBase::Zero) {};
 
     // ---------------------------------------------------------------------------
     /// @verbatim embed:rst:leading-slashes
@@ -121,24 +142,9 @@ struct CSRMatrix {
     //
     /////////////////////////////////////////////////////////////////////
 
-    CSRMatrix(
-        int64_t n_rows,
-        int64_t n_cols,
-        int64_t nnz,
-        T *vals,
-        sint_t *rowptr,
-        sint_t *colidxs,
-        IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(false) {
-        this->nnz = nnz;
-        this->vals = vals;
-        this->rowptr = rowptr;
-        this->colidxs = colidxs;
-    };
-
     // move constructor
     CSRMatrix(CSRMatrix<T, sint_t> &&other)
-    : n_rows(other.n_rows), n_cols(other.n_cols), index_base(other.index_base), own_memory(other.own_memory)  {
+    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), index_base(other.index_base)  {
         this->nnz = other.nnz;
         std::swap(this->colidxs, other.colidxs);
         std::swap(this->rowptr , other.rowptr );

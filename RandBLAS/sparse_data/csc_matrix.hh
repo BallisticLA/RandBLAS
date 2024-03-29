@@ -34,6 +34,26 @@ struct CSCMatrix {
     sint_t *colptr = nullptr;
     bool _can_reserve = true;
 
+    CSCMatrix(
+        int64_t n_rows,
+        int64_t n_cols,
+        IndexBase index_base
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), index_base(index_base) { };
+
+    CSCMatrix(
+        int64_t n_rows,
+        int64_t n_cols,
+        int64_t nnz,
+        T *vals,
+        sint_t *rowidxs,
+        sint_t *colptr,
+        IndexBase index_base
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), index_base(index_base) {
+        this->nnz = nnz;
+        this->vals = vals;
+        this->rowidxs = rowidxs;
+        this->colptr = colptr;
+    };
 
     // Constructs an empty sparse matrix of given dimensions.
     // Data can't stored in this object until a subsequent call to reserve(int64_t nnz).
@@ -113,29 +133,8 @@ struct CSCMatrix {
         this->_can_reserve = false;
     };
 
-    CSCMatrix(
-        int64_t n_rows,
-        int64_t n_cols,
-        IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(true) { };
-
-    CSCMatrix(
-        int64_t n_rows,
-        int64_t n_cols,
-        int64_t nnz,
-        T *vals,
-        sint_t *rowidxs,
-        sint_t *colptr,
-        IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), index_base(index_base), own_memory(false) {
-        this->nnz = nnz;
-        this->vals = vals;
-        this->rowidxs = rowidxs;
-        this->colptr = colptr;
-    };
-
     CSCMatrix(CSCMatrix<T, sint_t> &&other) 
-    : n_rows(other.n_rows), n_cols(other.n_cols), index_base(other.index_base), own_memory(other.own_memory) {
+    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), index_base(other.index_base) {
         this->nnz = other.nnz;
         std::swap(this->rowidxs, other.rowidxs);
         std::swap(this->colptr , other.colptr );
