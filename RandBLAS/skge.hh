@@ -4,8 +4,10 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/random_gen.hh"
-#include "RandBLAS/dense.hh"
+#include "RandBLAS/dense_skops.hh"
 #include "RandBLAS/sparse_skops.hh"
+#include "RandBLAS/skge3_to_gemm.hh"
+#include "RandBLAS/skges_to_spmm.hh"
 
 #include <iostream>
 #include <stdio.h>
@@ -152,7 +154,7 @@ using namespace RandBLAS::sparse;
 ///
 /// @endverbatim
 template <typename T, typename SKOP>
-void sketch_general(
+inline void sketch_general(
     blas::Layout layout,
     blas::Op opS,
     blas::Op opA,
@@ -171,7 +173,7 @@ void sketch_general(
 );
 
 template <typename T, typename RNG>
-void sketch_general(
+inline void sketch_general(
     blas::Layout layout,
     blas::Op opS,
     blas::Op opA,
@@ -195,7 +197,7 @@ void sketch_general(
 }
 
 template <typename T, typename RNG>
-void sketch_general(
+inline void sketch_general(
     blas::Layout layout,
     blas::Op opS,
     blas::Op opA,
@@ -323,7 +325,7 @@ void sketch_general(
 ///
 /// @endverbatim
 template <typename T, typename SKOP>
-void sketch_general(
+inline void sketch_general(
     blas::Layout layout,
     blas::Op opA,
     blas::Op opS,
@@ -342,7 +344,7 @@ void sketch_general(
 );
 
 template <typename T, typename RNG>
-void sketch_general(
+inline void sketch_general(
     blas::Layout layout,
     blas::Op opA,
     blas::Op opS,
@@ -366,7 +368,7 @@ void sketch_general(
 
 
 template <typename T, typename RNG>
-void sketch_general(
+inline void sketch_general(
     blas::Layout layout,
     blas::Op opA,
     blas::Op opS,
@@ -474,7 +476,7 @@ void sketch_general(
 ///
 /// @endverbatim
 template <typename T, typename SKOP>
-void sketch_general(
+inline void sketch_general(
     blas::Layout layout,
     blas::Op opS,
     blas::Op opA,
@@ -584,7 +586,7 @@ void sketch_general(
 ///
 /// @endverbatim
 template <typename T, typename SKOP>
-void sketch_general(
+inline void sketch_general(
     blas::Layout layout,
     blas::Op opA,
     blas::Op opS,
@@ -697,7 +699,7 @@ void sketch_general(
 ///
 /// @endverbatim
 template <typename T, typename SKOP>
-void sketch_vector(
+inline void sketch_vector(
     blas::Op opS,
     int64_t d, // rows in submat(S)
     int64_t m, // cols in submat(S)
@@ -788,7 +790,7 @@ void sketch_vector(
 ///
 /// @endverbatim
 template <typename T, typename SKOP>
-void sketch_vector(
+inline void sketch_vector(
     blas::Op opS,
     T alpha,
     SKOP &S,

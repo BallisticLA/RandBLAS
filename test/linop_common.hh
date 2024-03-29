@@ -2,9 +2,11 @@
 #define randblas_test_linop_common_hh
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
-#include "RandBLAS/dense.hh"
+#include "RandBLAS/dense_skops.hh"
 #include "RandBLAS/sparse_skops.hh"
-#include "RandBLAS/sparse_data/spgemm.hh"
+#include "RandBLAS/skge3_to_gemm.hh"
+#include "RandBLAS/skges_to_spmm.hh"
+#include "RandBLAS/sparse_data/spmm_dispatch.hh"
 #include "RandBLAS/util.hh"
 #include "test/comparison.hh"
 #include <functional>
@@ -154,7 +156,7 @@ void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, 
     #else
         UNUSED(threads);
     #endif
-    RandBLAS::sparse_data::lspgemm(layout, opS, opA, d, n, m, alpha, S, S_ro, S_co, A, lda, beta, B, ldb);
+    RandBLAS::sparse_data::left_spmm(layout, opS, opA, d, n, m, alpha, S, S_ro, S_co, A, lda, beta, B, ldb);
     #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
     #endif
@@ -482,7 +484,7 @@ void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int6
     #else
         UNUSED(threads);
     #endif
-    RandBLAS::sparse_data::rspgemm(layout, transA, transS, m, d, n, alpha, A, lda, S, S_ro, S_co, beta, B, ldb);
+    RandBLAS::sparse_data::right_spmm(layout, transA, transS, m, d, n, alpha, A, lda, S, S_ro, S_co, beta, B, ldb);
     #if defined (RandBLAS_HAS_OpenMP)
         omp_set_num_threads(orig_threads);
     #endif

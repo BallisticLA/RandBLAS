@@ -1,7 +1,7 @@
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/random_gen.hh"
-#include "RandBLAS/dense.hh"
+#include "RandBLAS/dense_skops.hh"
 #include "RandBLAS/util.hh"
 #include "comparison.hh"
 #include "RandBLAS/skge.hh"

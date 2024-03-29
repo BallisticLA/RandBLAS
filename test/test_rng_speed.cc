@@ -2,7 +2,7 @@
 #include "RandBLAS/config.h"
 #include "RandBLAS/random_gen.hh"
 #include "RandBLAS/base.hh"
-#include "RandBLAS/dense.hh"
+#include "RandBLAS/dense_skops.hh"
 
 #include <iostream>
 #include <vector>
@@ -31,7 +31,7 @@ std::ostream &operator<<(std::ostream &os, std::vector<T> &v)
 
 
 template <typename T, typename RNG, typename OP>
-auto run_test(RandBLAS::dense::DenseDist D, T *mat)
+auto run_test(RandBLAS::DenseDist D, T *mat)
 {
     auto t0 = std::chrono::high_resolution_clock::now();
     RNGState<RNG> seed;
@@ -52,7 +52,7 @@ int main(int argc, char **argv)
     int64_t m = atoi(argv[1]);
     int64_t n = atoi(argv[2]);
     int64_t d = m*n;
-    RandBLAS::dense::DenseDist dist{m, n, RandBLAS::dense::DenseDistName::Uniform};
+    RandBLAS::DenseDist dist{m, n, RandBLAS::DenseDistName::Uniform};
 
     std::vector<T> mat(d);
 

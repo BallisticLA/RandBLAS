@@ -2,7 +2,7 @@
 #define randblas_test_sparse_data_common_hh
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
-#include "RandBLAS/dense.hh"
+#include "RandBLAS/dense_skops.hh"
 #include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_skops.hh"
 #include "RandBLAS/sparse_data/base.hh"
