@@ -36,7 +36,7 @@ void lspgemm(
 ) {
     using blas::Layout;
     using blas::Op;
-    // handle applying a transposed sparse sketching operator.
+    // handle applying a transposed sparse matrix.
     if (opA == Op::Trans) {
         using sint_t = typename SpMat::index_t;
         constexpr bool is_coo = std::is_same_v<SpMat, COOMatrix<T, sint_t>>;

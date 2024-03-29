@@ -72,7 +72,7 @@ static inline NonzeroSort coo_sort_type(int64_t nnz, sint_t *rows, sint_t *cols)
 }
 
 // =============================================================================
-/// A sparse matrix stored in COO format.
+/// A COO-format sparse matrix that complies with the SparseMatrix concept.
 ///
 template <typename T, SignedInteger sint_t = int64_t>
 struct COOMatrix {

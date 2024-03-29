@@ -12,7 +12,7 @@ using RandBLAS::SignedInteger;
 // in the doxygen.
 
 // =============================================================================
-/// A sparse matrix stored in CSR format.
+/// A CSR-format sparse matrix that complies with the SparseMatrix concept.
 ///
 template <typename T, SignedInteger sint_t = int64_t>
 struct CSRMatrix {

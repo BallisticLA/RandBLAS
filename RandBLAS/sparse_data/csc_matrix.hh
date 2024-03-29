@@ -8,7 +8,7 @@
 namespace RandBLAS::sparse_data {
 
 // =============================================================================
-/// A sparse matrix stored in CSC format.
+/// A CSC-format sparse matrix that complies with the SparseMatrix concept.
 ///
 template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
 struct CSCMatrix {
