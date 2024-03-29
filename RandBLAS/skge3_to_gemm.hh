@@ -20,7 +20,8 @@
 
 namespace RandBLAS::dense {
 
-using namespace RandBLAS;
+using RandBLAS::DenseSkOp;
+using RandBLAS::fill_dense;
 
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
