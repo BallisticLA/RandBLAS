@@ -30,8 +30,8 @@ author = "Riley J. Murray, Burlen Loring"
 if not os.path.exists('../build/html'):
     os.makedirs('../build/html')
 
-# subprocess.call('doxygen --version', shell=True)
-# subprocess.call('doxygen', shell=True)
+subprocess.call('doxygen --version', shell=True)
+subprocess.call('doxygen', shell=True)
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
