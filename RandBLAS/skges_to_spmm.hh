@@ -136,7 +136,7 @@ namespace RandBLAS::sparse {
 ///    - Refer to documentation for \math{\lda} for details. 
 ///
 template <typename T, typename SKOP>
-void lskges(
+inline void lskges(
     blas::Layout layout,
     blas::Op opS,
     blas::Op opA,
@@ -268,7 +268,7 @@ void lskges(
 ///    - Refer to documentation for \math{\lda} for details. 
 ///
 template <typename T, typename SKOP>
-void rskges(
+inline void rskges(
     blas::Layout layout,
     blas::Op opA,
     blas::Op opS,

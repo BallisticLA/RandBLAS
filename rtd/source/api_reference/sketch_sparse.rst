@@ -1,3 +1,4 @@
+
    .. |op| mathmacro:: \operatorname{op}
    .. |mat| mathmacro:: \operatorname{mat}
    .. |submat| mathmacro:: \operatorname{submat}

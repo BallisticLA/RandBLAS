@@ -1,5 +1,5 @@
-#ifndef randblas_sksp_hh
-#define randblas_sksp_hh
+#ifndef randblas_sksp3_to_spmm_hh
+#define randblas_sksp3_to_spmm_hh
 
 #include "RandBLAS/base.hh"
 #include "RandBLAS/dense_skops.hh"
@@ -83,7 +83,6 @@ using namespace RandBLAS::dense;
 ///
 ///      alpha - [in]
 ///       * A real scalar.
-///       * If zero, then :math:`A` is not accessed.
 ///
 ///      S - [in]
 ///       * A DenseSkOp object.
@@ -182,8 +181,8 @@ void lsksp3(
 
 
 // =============================================================================
-/// \fn rsksp3(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
-///     int64_t n, int64_t m, T alpha, SpMat &A, int64_t ro_a, int64_t co_a,
+/// \fn rsksp3(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m,
+///     int64_t d, int64_t n, T alpha, SpMat &A, int64_t ro_a, int64_t co_a,
 ///     DenseSkOp<T,RNG> &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
@@ -242,21 +241,6 @@ void lsksp3(
 ///
 ///      alpha - [in]
 ///       * A real scalar.
-///       * If zero, then :math:`A` is not accessed.
-///
-///      S - [in]
-///       * A DenseSkOp object.
-///       * Defines :math:`\submat(S)`.
-///
-///      ro_s - [in]
-///       * A nonnegative integer.
-///       * The rows of :math:`\submat(S)` are a contiguous subset of rows of :math:`S`.
-///       * The rows of :math:`\submat(S)` start at :math:`S[\texttt{ro_s}, :]`.
-///
-///      co_s - [in]
-///       * A nonnegative integer.
-///       * The columns of :math:`\submat(S)` are a contiguous subset of columns of :math:`S`.
-///       * The columns :math:`\submat(S)` start at :math:`S[:,\texttt{co_s}]`. 
 ///
 ///      A - [in]
 ///       * A RandBLAS sparse matrix object.
@@ -271,6 +255,20 @@ void lsksp3(
 ///       * A nonnegative integer.
 ///       * The columns of :math:`\submat(A)` are a contiguous subset of columns of :math:`A`.
 ///       * The columns :math:`\submat(A)` start at :math:`A[:,\texttt{co_a}]`. 
+///
+///      S - [in]
+///       * A DenseSkOp object.
+///       * Defines :math:`\submat(S)`.
+///
+///      ro_s - [in]
+///       * A nonnegative integer.
+///       * The rows of :math:`\submat(S)` are a contiguous subset of rows of :math:`S`.
+///       * The rows of :math:`\submat(S)` start at :math:`S[\texttt{ro_s}, :]`.
+///
+///      co_s - [in]
+///       * A nonnegative integer.
+///       * The columns of :math:`\submat(S)` are a contiguous subset of columns of :math:`S`.
+///       * The columns :math:`\submat(S)` start at :math:`S[:,\texttt{co_s}]`. 
 ///
 ///      beta - [in]
 ///       * A real scalar.
