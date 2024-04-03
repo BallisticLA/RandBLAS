@@ -7,9 +7,9 @@
 #include "RandBLAS/sparse_data/csr_matrix.hh"
 #include "RandBLAS/sparse_data/csc_matrix.hh"
 #include "RandBLAS/sparse_data/conversions.hh"
-#include "RandBLAS/sparse_data/csc_multiply.hh"
-#include "RandBLAS/sparse_data/csr_multiply.hh"
-#include "RandBLAS/sparse_data/coo_multiply.hh"
+#include "RandBLAS/sparse_data/csc_spmm_impl.hh"
+#include "RandBLAS/sparse_data/csr_spmm_impl.hh"
+#include "RandBLAS/sparse_data/coo_spmm_impl.hh"
 #include <vector>
 #include <algorithm>
 

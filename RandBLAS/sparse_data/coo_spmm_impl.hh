@@ -4,7 +4,7 @@
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/coo_matrix.hh"
-#include "RandBLAS/sparse_data/csc_multiply.hh"
+#include "RandBLAS/sparse_data/csc_spmm_impl.hh"
 #include <vector>
 #include <algorithm>
 
