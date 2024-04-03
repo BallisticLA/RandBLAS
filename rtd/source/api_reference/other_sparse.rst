@@ -8,7 +8,7 @@
    .. |opB| mathmacro:: \texttt{opB}
 
 ############################################################
-Deterministic operations with sparse matrices
+Other sparse matrix operations
 ############################################################
 
 

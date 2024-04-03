@@ -7,7 +7,7 @@
    .. |opS| mathmacro:: \texttt{opS}
 
 ********************************
-Representing sparse matrices
+Representing sparse data
 ********************************
 
 
