@@ -253,7 +253,7 @@ void sort_coo_data(NonzeroSort s, int64_t nnz, T *vals, sint_t *rows, sint_t *co
         nonzeros.emplace_back(rows[ell], cols[ell], vals[ell]);
 
     // sort the vector-of-triples representation
-    auto sort_func = [s](tuple_type const& t1, tuple_type const& t2) {
+    auto sort_func = [s](tuple_type const &t1, tuple_type const &t2) {
         if (s == NonzeroSort::CSR) {
             if (std::get<0>(t1) < std::get<0>(t2)) {
                 return true;

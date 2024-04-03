@@ -276,7 +276,7 @@ RNGState<RNG> fill_sparse(
 }
 
 template <typename SKOP>
-void print_sparse(SKOP const& S0) {
+void print_sparse(SKOP const &S0) {
     std::cout << "SparseSkOp information" << std::endl;
     int64_t nnz;
     if (S0.dist.major_axis == MajorAxis::Short) {
@@ -370,7 +370,7 @@ using RandBLAS::sparse_data::COOMatrix;
 
 template <typename SKOP>
 static bool has_fixed_nnz_per_col(
-    SKOP const& S0
+    SKOP const &S0
 ) {
     if (S0.dist.major_axis == MajorAxis::Short) {
         return S0.dist.n_rows < S0.dist.n_cols;
@@ -381,7 +381,7 @@ static bool has_fixed_nnz_per_col(
 
 template <typename SKOP>
 static int64_t nnz(
-    SKOP const& S0
+    SKOP const &S0
 ) {
     bool saso = S0.dist.major_axis == MajorAxis::Short;
     bool wide = S0.dist.n_rows < S0.dist.n_cols;
@@ -420,7 +420,7 @@ COOMatrix<T,sint_t> coo_view_of_skop(SparseSkOp<T,RNG,sint_t> &S) {
 ///     (In particular, it depends on S.rows, S.cols, and S.vals.)
 ///     
 template <typename SKOP>
-static auto transpose(SKOP const& S) {
+static auto transpose(SKOP const &S) {
     randblas_require(S.known_filled);
     SparseDist dist = {
         .n_rows = S.dist.n_cols,

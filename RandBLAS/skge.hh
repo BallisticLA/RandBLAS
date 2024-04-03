@@ -676,7 +676,7 @@ inline void sketch_general(
 ///
 ///      x - [in]
 ///       * Pointer to a 1D array of real scalars.
-///       * Defines :math:`mat(x).`
+///       * Defines :math:`\mat(x).`
 ///
 ///      incx - [in]
 ///       * A positive integer.
@@ -690,7 +690,7 @@ inline void sketch_general(
 ///       * Pointer to 1D array of real scalars.
 ///       * On entry, defines :math:`\mat(y)` on the RIGHT-hand side of
 ///         :math:`(\star)` (if :math:`\opS = \texttt{NoTrans}`) or
-///         :math:`(\diamond)`} (if :math:`\opS = \texttt{Trans}`)
+///         :math:`(\diamond)` (if :math:`\opS = \texttt{Trans}`)
 ///       * On exit, defines :math:`\mat(y)` on the LEFT-hand side of the same.
 ///
 ///      incy - [in]

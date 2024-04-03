@@ -190,7 +190,7 @@ struct DenseSkOp {
     //  Elementary constructor: needs an implementation
     DenseSkOp(
         DenseDist dist,
-        RNGState<RNG> const& state,
+        RNGState<RNG> const &state,
         T *buff = nullptr
     );
 
@@ -218,7 +218,7 @@ struct DenseSkOp {
 template <typename T, typename RNG>
 DenseSkOp<T,RNG>::DenseSkOp(
     DenseDist dist,
-    RNGState<RNG> const& state,
+    RNGState<RNG> const &state,
     T *buff
 ) : // variable definitions
     dist(dist),

@@ -91,46 +91,55 @@ enum class MajorAxis : char {
     Long = 'L'
 };
 
-/// Enumerate the names of the Random123 CBRNGs
-enum class RNGName : char {None = '\0', Philox = 'P', Threefry = 'T'};
 
-
-/** A CBRNG state consiting of a counter and a key.
- * @tparam RNG One of Random123 CBRNG's e.g. Philox4x32
+/** A representation of the state of a counter-based random number generator
+ * (CBRNG) defined in Random123. The representation consists of two arrays:
+ * the counter and the key. The arrays' types are statically sized, small
+ * (typically of length 2 or 4), and can be distinct from one another.
+ * 
+ * @tparam RNG A CBRNG in defined in Random123. Philox-based CBRNGs work
+ * best for our purposes. Strictly speaking, we allow all Random123 CBRNGs
+ * besides those based on AES.
  */
 template <typename RNG = r123::Philox4x32>
 struct RNGState
 {
     using generator = RNG;
-    using ctr_value_type = typename RNG::ctr_type::value_type;
-    using key_value_type = typename RNG::ukey_type::value_type;
+    // The unsigned integer type used in this RNGState's counter array.
+    using ctr_uint_type = typename RNG::ctr_type::value_type;
+    /// @brief The unsigned integer type used in this RNGState's key array.
+    ///        This is typically 32-bit unsigned integer, but it can be a 64-bit
+    ///        unsigned integer.
+    using key_uint_type = typename RNG::key_type::value_type;
+    // An array type defined in Random123.
     using ctr_type = typename RNG::ctr_type;
+    // An array type defined in Random123.
     using key_type = typename RNG::key_type;
 
     const static int len_c = RNG::ctr_type::static_size;
     const static int len_k = RNG::key_type::static_size;
-    ctr_type counter; ///< the counter
-    key_type key;     ///< the key
+    RNG::ctr_type counter; ///< This RNGState's counter array.
+    RNG::key_type key;     ///< This RNGState's key array.
 
-    /// default construct both counter and key are zero'd
-    RNGState() : counter{{}}, key(typename RNG::ukey_type{{}}) {}
+    /// Initialize the counter and key arrays to all zeros.
+    RNGState() : counter{{0}}, key(key_type{{}}) {}
 
-    /** construct with a seed. the seed is stored in the key.
-     * @param[in] k a key value to use as a seed
-     */
-    RNGState(typename RNG::ukey_type const& k) : counter{{}}, key(k) {}
+    // construct from a key
+    RNGState(key_type const &k) : counter{{0}}, key(k) {}
 
-    /// construct from an initial counter and key
-    RNGState(typename RNG::ctr_type const& c, typename RNG::key_type const& k) : counter(c), key(k) {}
+    // Initialize counter and key arrays at the given values.
+    RNGState(ctr_type const &c, key_type const &k) : counter(c), key(k) {}
 
-    /// move construct from an initial counter and key
-    RNGState(typename RNG::ctr_type &&c, typename RNG::key_type &&k) : counter(std::move(c)), key(std::move(k)) {}
+    // move construct from an initial counter and key
+    RNGState(ctr_type &&c, key_type &&k) : counter(std::move(c)), key(std::move(k)) {}
 
-    /// construct from an integer key
-    RNGState(typename RNG::ukey_type::value_type k) : counter{{0}}, key{{k}} {}
+    /// Initialize the counter array to all zeros. Initialize the key array to have first
+    /// element equal to k and all other elements equal to zero.
+    RNGState(key_uint_type k) : counter{{0}}, key{{k}} {}
 
     ~RNGState() {};
 
+    /// A copy constructor.
     RNGState(const RNGState<RNG> &s);
 
     RNGState<RNG> &operator=(const RNGState<RNG> &s);
@@ -142,16 +151,16 @@ template <typename RNG>
 RNGState<RNG>::RNGState(
     const RNGState<RNG> &s
 ) {
-    std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_value_type));
-    std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_value_type));
+    std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint_type));
+    std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint_type));
 }
 
 template <typename RNG>
 RNGState<RNG> &RNGState<RNG>::operator=(
     const RNGState &s
 ) {
-    std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_value_type));
-    std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_value_type));
+    std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint_type));
+    std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint_type));
     return *this;
 }
 
