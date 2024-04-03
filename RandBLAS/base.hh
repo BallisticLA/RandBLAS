@@ -97,8 +97,8 @@ enum class MajorAxis : char {
  * the counter and the key. The arrays' types are statically sized, small
  * (typically of length 2 or 4), and can be distinct from one another.
  * 
- * @tparam RNG A CBRNG in defined in Random123. Philox-based CBRNGs work
- * best for our purposes. Strictly speaking, we allow all Random123 CBRNGs
+ * @tparam RNG A CBRNG type in defined in Random123. We've found that Philox-based
+ * CBRNGs work best for our purposes. Strictly speaking, we allow all Random123 CBRNGs
  * besides those based on AES.
  */
 template <typename RNG = r123::Philox4x32>
@@ -108,8 +108,7 @@ struct RNGState
     // The unsigned integer type used in this RNGState's counter array.
     using ctr_uint_type = typename RNG::ctr_type::value_type;
     /// @brief The unsigned integer type used in this RNGState's key array.
-    ///        This is typically 32-bit unsigned integer, but it can be a 64-bit
-    ///        unsigned integer.
+    ///        This is typically std::uint32_t, but it can be std::uint64_t.
     using key_uint_type = typename RNG::key_type::value_type;
     // An array type defined in Random123.
     using ctr_type = typename RNG::ctr_type;

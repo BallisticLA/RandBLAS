@@ -337,7 +337,6 @@ inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int
 ///       * Leading dimension of :math:`\mat(C)` when reading from :math:`C`.
 ///
 /// @endverbatim
-
 template <typename T, SparseMatrix SpMat>
 inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T *A, int64_t lda, SpMat &B, int64_t ro_b, int64_t co_b, T beta, T *C, int64_t ldc) {
     RandBLAS::sparse_data::right_spmm(layout, opA, opB, m, n, k, alpha, A, lda, B, ro_b, co_b, B, beta, C, ldc);

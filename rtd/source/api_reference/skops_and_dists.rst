@@ -2,8 +2,8 @@
 Distributions and sketching operators
 ***************************************************
 
-RNGState
-========
+The state of a random number generator
+================================================
 
 .. doxygenstruct:: RandBLAS::RNGState
    :project: RandBLAS
