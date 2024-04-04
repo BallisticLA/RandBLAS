@@ -155,11 +155,8 @@ struct DenseSkOp {
     using state_type = RNGState<RNG>;
     using buffer_type = T;
 
-    /////////////////////////////////////////////////////////////////////
-    //
-    //      Properties specific to dense sketching operators
-    //
-    /////////////////////////////////////////////////////////////////////
+    const int64_t n_rows;
+    const int64_t n_cols;
 
     // ---------------------------------------------------------------------------
     ///  The distribution from which this sketching operator is sampled.
@@ -221,6 +218,8 @@ DenseSkOp<T,RNG>::DenseSkOp(
     RNGState<RNG> const &state,
     T *buff
 ) : // variable definitions
+    n_rows(dist.n_rows),
+    n_cols(dist.n_cols),
     dist(dist),
     seed_state(state),
     next_state{},

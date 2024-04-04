@@ -69,6 +69,9 @@ struct SparseSkOp {
     using T_t = T;
     using index_t = sint_t;
 
+    const int64_t n_rows;
+    const int64_t n_cols;
+
     // ---------------------------------------------------------------------------
     ///  The distribution from which this sketching operator is sampled.
     ///  This member specifies the number of rows and columns of the sketching
@@ -182,6 +185,8 @@ SparseSkOp<T,RNG,sint_t>::SparseSkOp(
     SparseDist dist,
     const RNGState<RNG> &state
 ) :  // variable definitions
+    n_rows(dist.n_rows),
+    n_cols(dist.n_cols),
     dist(dist),
     seed_state(state),
     own_memory(true)
@@ -211,6 +216,8 @@ SparseSkOp<T,RNG,sint_t>::SparseSkOp(
     T *vals,
     bool known_filled
 ) :  // variable definitions
+    n_rows(dist.n_rows),
+    n_cols(dist.n_cols),
     dist(dist),
     seed_state(state),
     own_memory(false)
