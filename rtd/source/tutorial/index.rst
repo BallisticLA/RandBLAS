@@ -56,8 +56,8 @@ Overview of this User Guide
     :maxdepth: 4
 
     Background on GEMM <gemm>
-    Sketching operators and sketching distributions <operators>
-    Random number generation <rng_details>
-    Working with submatrices <submatrices>
-
+    Defining a sketching distribution <distributions>
+    Sampling a sketching operator <sampling_skops>
+    Computing a sketch <sketching>
+    The meaning of "submat(・)" in RandBLAS documentation <submatrices>
 

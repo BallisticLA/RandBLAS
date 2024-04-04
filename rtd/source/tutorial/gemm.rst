@@ -13,6 +13,9 @@
   .. |coa| mathmacro:: \texttt{co_a}
   .. |mtx| mathmacro:: \mathbf
 
+
+.. _gemm_tutorial:
+
 *******************************
 Background on GEMM
 *******************************
@@ -62,7 +65,7 @@ in :eq:`eq_realisticgemm` to have a common numerical type, ``T``.
 
 .. code:: c++
 
-    <template typename T>
+    template <typename T>
     gemm(
       blas::Layout ell, blas::Op opA, blas::Op opB, int m, int n, int k,
       T alpha, const T* A, int lda, const T* B, int ldb, T beta, T* C, int ldc

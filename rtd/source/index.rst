@@ -5,6 +5,8 @@
    Tutorial <tutorial/index>
    API Reference <api_reference/index>
 
+.. default-domain:: cpp
+
 
 RandBLAS: sketching for randomized numerical linear algebra
 ===========================================================

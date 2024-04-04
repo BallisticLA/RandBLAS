@@ -12,7 +12,7 @@ API Reference
 .. toctree::
     :maxdepth: 4
 
-    Distributions and sketching operators <skops_and_dists>
+    Distributions, random states, and sketching operators <skops_and_dists>
     Computing a sketch: dense data <sketch_dense>
     Representing sparse data <sparse_matrices>
     Computing a sketch: sparse data <sketch_sparse>
