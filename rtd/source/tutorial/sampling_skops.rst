@@ -1,7 +1,7 @@
 .. toctree::
   :maxdepth: 3
 
-Note to self: I can first describe CBRNGs mathematically. Then I get to implementation details.
+.. Note to self: I can first describe CBRNGs mathematically. Then I get to implementation details.
 
 ******************************************************************************
 Sampling a sketching operator

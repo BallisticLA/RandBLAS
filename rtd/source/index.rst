@@ -21,7 +21,7 @@ All sketches produced by RandBLAS are dense.
 As such, dense data matrices can be sketched with dense or sparse operators, while sparse data matrices can only be sketched with dense operators.
 RandBLAS can be used in distributed environments through its ability to (reproducibly) compute products with *submatrices* of sketching operators.
 
-Learn more by reading the `RandBLAS User Guide <tutorial/index.html>`_ or our `API Reference <api/index.html>`.
+Learn more by reading our `Tutorial <tutorial/index.html>`_ or our `API Reference <api_reference/index.html>`_.
 
 Source Code
 -----------

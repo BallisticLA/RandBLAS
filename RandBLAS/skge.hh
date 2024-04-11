@@ -764,7 +764,6 @@ inline void sketch_vector(
 ///     
 ///      S - [in]  
 ///       * A DenseSkOp or SparseSkOp object.
-///       * Defines :math:`S.`
 ///
 ///      x - [in]
 ///       * Pointer to a 1D array of real scalars.

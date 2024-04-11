@@ -118,35 +118,35 @@ struct SparseSkOp {
     /////////////////////////////////////////////////////////////////////
 
     // ---------------------------------------------------------------------------
-    ///
-    /// @param[in] dist
-    ///     A SparseDist object.
-    ///     - Defines the number of rows and columns in this sketching operator.
-    ///     - Indirectly controls sparsity pattern.
-    ///     - Directly controls sparsity level.
-    ///
-    /// @param[in] state
-    ///     An RNGState object.
-    ///     - The RNG will use this as the starting point to generate all 
-    ///       random numbers needed for this sketching operator.
-    ///
-    /// @param[in] rows
-    ///     Pointer to int64_t array.
-    ///     - stores row indices as part of the COO format.
-    ///
-    /// @param[in] cols
-    ///     Pointer to int64_t array.
-    ///     - stores column indices as part of the COO format.
-    ///
-    /// @param[in] vals
-    ///     Pointer to array of real numerical type T.
-    ///     - stores nonzeros as part of the COO format.
-    /// 
-    /// @param[in] known_filled
-    ///     A boolean. If true, then the arrays pointed to by
-    ///     (rows, cols, vals) already contain the randomly sampled
-    ///     data defining this sketching operator.
-    ///     
+    // 
+    //  @param[in] dist
+    //      A SparseDist object.
+    //      - Defines the number of rows and columns in this sketching operator.
+    //      - Indirectly controls sparsity pattern.
+    //      - Directly controls sparsity level.
+    // 
+    //  @param[in] state
+    //      An RNGState object.
+    //      - The RNG will use this as the starting point to generate all 
+    //        random numbers needed for this sketching operator.
+    // 
+    //  @param[in] rows
+    //      Pointer to int64_t array.
+    //      - stores row indices as part of the COO format.
+    // 
+    //  @param[in] cols
+    //      Pointer to int64_t array.
+    //      - stores column indices as part of the COO format.
+    // 
+    //  @param[in] vals
+    //      Pointer to array of real numerical type T.
+    //      - stores nonzeros as part of the COO format.
+    //  
+    //  @param[in] known_filled
+    //      A boolean. If true, then the arrays pointed to by
+    //      (rows, cols, vals) already contain the randomly sampled
+    //      data defining this sketching operator.
+    //      
     SparseSkOp(
         SparseDist dist,
         const RNGState<RNG> &state,
@@ -164,6 +164,22 @@ struct SparseSkOp {
         T *vals 
     ) : SparseSkOp(dist, RNGState<RNG>(key), rows, cols, vals) {};
 
+
+    ///---------------------------------------------------------------------------
+    /// The preferred constructor for SparseSkOp objects. There are other 
+    /// constructors, but they don't appear in the web documentation.
+    ///
+    /// @param[in] dist
+    ///     A SparseDist object.
+    ///     - Defines the number of rows and columns in this sketching operator.
+    ///     - Indirectly controls sparsity pattern.
+    ///     - Directly controls sparsity level.
+    ///
+    /// @param[in] state
+    ///     An RNGState object.
+    ///     - The RNG will use this as the starting point to generate all 
+    ///       random numbers needed for this sketching operator.
+    ///
     SparseSkOp(
         SparseDist dist,
         const RNGState<RNG> &state

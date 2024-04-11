@@ -17,12 +17,12 @@ The state of a random number generator
 DenseDist and DenseSkOp
 ============================================
 
+.. doxygenenum:: RandBLAS::DenseDistName
+    :project: RandBLAS
+
 .. doxygenstruct:: RandBLAS::DenseDist
    :project: RandBLAS
    :members:
-
-
-TODO: document the DenseSkOp constructor(s) I care about!
 
 .. doxygenstruct:: RandBLAS::DenseSkOp
    :project: RandBLAS
@@ -36,8 +36,6 @@ TODO: document the DenseSkOp constructor(s) I care about!
 
 SparseDist and SparseSkOp
 ==============================
-
-TODO: document the SparseSkOp constructors that I actually care about, and hide documentation of the one(s) I don't care about.
 
 .. doxygenstruct:: RandBLAS::SparseDist
    :project: RandBLAS
@@ -53,9 +51,6 @@ TODO: document the SparseSkOp constructors that I actually care about, and hide 
 
 Advanced material
 =================
-
-.. doxygenenum:: RandBLAS::DenseDistName
-    :project: RandBLAS
 
 .. doxygenfunction:: RandBLAS::fill_dense(const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t S_ro, int64_t S_co, T *buff, const RNGState<RNG> &seed)
    :project: RandBLAS

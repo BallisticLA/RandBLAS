@@ -30,28 +30,44 @@ How to choose between dense and sparse sketching
 
 Let's say you have an :math:`m \times n` matrix :math:`A` and an integer :math:`d,`
 and you want to compute a sketch of :math:`A` that has rank :math:`\min\{d, \operatorname{rank}(A)\}.`
-Here's a visual aid to help decide whether to use a dense or a sparse sketching operator.
+Here's a chart to help decide whether to use a dense or a sparse sketching operator.
 
   .. raw:: html
       :file: ../assets/sparse_vs_dense_diagram_no_header.html
 
-The chart's first question asks about the representation of :math:`A,`
-and has a plain yes-no answer. 
-It reflects a limitation of RandBLAS that sparse data can only be sketched with dense sketching operators.
+Discussion of the chart's first yes/no branch.
+  RandBLAS doesn't allow applying sparse sketching operators to sparse data.
+  This is because RandBLAS is only intended to produce sketches that are dense.
 
-The chart's second question is more subjective.
-It's getting at whether adding :math:`O(dmn)` flops to a larger randomized algorithm
-has potential to decisively impact that algorithm's performance.
-Some randomized algorithms for dense matrix computations make it easy to answer this question.
+  While 
+  algorithms exist to multiply two sparse matrices and store the
+  result as a dense matrix, we don't know of practical RandNLA
+  algorithms that would benefit from this functionality.
 
-  Subspace iteration methods for low-rank approximation have complexity :math:`\Omega(dmn)`
-  regardless of whether the complexity of computing the initial sketch is :math:`o(dmn)`.
 
-  Sketch-and-precondition methods for least squares need to set :math:`d \geq \min\{m,n\}`.
-  As a result, these methods can't tolerate :math:`O(dmn)` operations for sketching while still providing
-  asymptotically faster runtime than a direct least squares solver.
+Discussion of the chart's second yes/no branch.
+  This gets at whether adding :math:`O(dmn)` flops to a randomized algorithm
+  can decisively impact that algorithm's performance.
+  Some randomized algorithms for dense matrix computations make it easy to answer this question.
+  Consider, for example ...
 
-In other situations, it's not as clear cut. 
+    *Subspace iteration methods for low-rank approximation.* These methods have complexity :math:`\Omega(dmn)`
+    regardless of whether the complexity of computing the initial sketch is :math:`o(dmn)`.
+
+    *Sketch-and-precondition methods for least squares.* These methods need to set :math:`d \geq \min\{m,n\}`.
+    As a result, they can't tolerate :math:`O(dmn)` operations for sketching while still providing
+    asymptotically faster runtime than a direct least squares solver.
+
+  With this in mind, notice that the chart indicates a preference dense sketching over
+  sparse sketching when dense sketching can be afforded.
+  This preference stems from how if the sketching dimension is fixed, then the statistical properties of dense sketching
+  operators will generally be preferable to those of sparse
+  sketching operators.
+
+  .. note::
+    See Wikipedia for the meanings of
+    `big-omega notation <https://en.wikipedia.org/wiki/Big_O_notation#Big_Omega_notation>`_ and 
+    `little-o notation <https://en.wikipedia.org/wiki/Big_O_notation#Little-o_notation>`_.
 
 
 Distribution parameters

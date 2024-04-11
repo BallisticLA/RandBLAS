@@ -188,8 +188,27 @@ struct DenseSkOp {
     DenseSkOp(
         DenseDist dist,
         RNGState<RNG> const &state,
-        T *buff = nullptr
+        T *buff
     );
+
+    ///---------------------------------------------------------------------------
+    /// The preferred constructor for DenseSkOp objects. There are other 
+    /// constructors, but they don't appear in the web documentation.
+    ///
+    /// @param[in] dist
+    ///     A DenseDist object.
+    ///     - Defines the number of rows and columns in this sketching operator.
+    ///     - Defines the (scalar-valued) distribution of each entry in this sketching operator.
+    ///
+    /// @param[in] state
+    ///     An RNGState object.
+    ///     - The RNG will use this as the starting point to generate all 
+    ///       random numbers needed for this sketching operator.
+    ///
+    DenseSkOp(
+        DenseDist dist,
+        RNGState<RNG> const &state
+    ) : DenseSkOp(dist, state, nullptr) {};
 
     //  Convenience constructor (a wrapper)
     DenseSkOp(

@@ -5,9 +5,8 @@
 API Reference
 #############
 
-.. warning::
 
-  TODO. Explain that we always say data matrices are :math:`m \times n`. Sketching involves matrices (S, A, B).
+..  TODO. Explain that we always say data matrices are :math:`m \times n`. Sketching involves matrices (S, A, B).
 
 .. toctree::
     :maxdepth: 4
