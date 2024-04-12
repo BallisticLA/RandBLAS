@@ -45,12 +45,9 @@ For example, it lets you set an integer-valued the seed when defining :math:`\te
 It even lets you compute products against *submatrices* of sketching operators without ever forming the full operator in memory.
 
 
-Overview of this User Guide
-  Words Words words ....
+.. note::
+  This tutorial is very much incomplete! Bear with us for the time being.
 
-  Words Words words ....
-
-  Words Words words ....
 
 .. toctree::
     :maxdepth: 4
@@ -58,6 +55,5 @@ Overview of this User Guide
     Background on GEMM <gemm>
     Defining a sketching distribution <distributions>
     Sampling a sketching operator <sampling_skops>
-    Computing a sketch <sketching>
     The meaning of "submat(・)" in RandBLAS documentation <submatrices>
 
