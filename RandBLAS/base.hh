@@ -117,8 +117,8 @@ struct RNGState
 
     const static int len_c = RNG::ctr_type::static_size;
     const static int len_k = RNG::key_type::static_size;
-    RNG::ctr_type counter; ///< This RNGState's counter array.
-    RNG::key_type key;     ///< This RNGState's key array.
+    typename RNG::ctr_type counter; ///< This RNGState's counter array.
+    typename RNG::key_type key;     ///< This RNGState's key array.
 
     /// Initialize the counter and key arrays to all zeros.
     RNGState() : counter{{0}}, key(key_type{{}}) {}
