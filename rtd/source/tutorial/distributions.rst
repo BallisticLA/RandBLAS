@@ -73,23 +73,17 @@ Discussion of the chart's second yes/no branch.
 Distribution parameters
 =======================
 
-DenseDist
------------------
-
-
-SparseDist
-------------------
+This part of the web docs is coming soon!
 
 
 
 The semantics of MajorAxis
 ==========================
 
-
-
 Sketching operators in RandBLAS have a "MajorAxis" member.
 The semantics of this member can be complicated.
 We only expect advanced users to benefit from chosing this member
 differently from the defaults we set.
-We discuss the deeper meaning of and motivation for this member
-later on this page.
+
+A proper explanation of MajorAxis' semantics is coming soon!
+Bear with us until then.
