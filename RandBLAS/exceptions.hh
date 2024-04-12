@@ -24,7 +24,7 @@ public:
     {}
 
     /// Constructs BLAS error with message
-    Error( std::string const& msg ):
+    Error( std::string const &msg ):
         std::exception(),
         msg_( msg )
     {}

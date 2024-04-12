@@ -4,6 +4,8 @@
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include <blas.hh>
+#include <concepts>
+
 
 namespace RandBLAS::sparse_data {
 
@@ -61,10 +63,100 @@ static inline void sorted_nonzero_locations_to_pointer_array(
     return;
 }
 
+// =============================================================================
+/// @verbatim embed:rst:leading-slashes
+///
+/// .. |ttt| mathmacro:: \texttt
+///
+/// Any object :math:`\ttt{M}` of type :math:`\ttt{SpMat}` has the following attributes.
+///
+///     .. list-table::
+///        :widths: 25 30 40
+///        :header-rows: 1
+///        
+///        * - 
+///          - type
+///          - description
+///        * - :math:`\ttt{M.n_rows}`
+///          - :math:`\ttt{const int64_t}`
+///          - number of rows
+///        * - :math:`\ttt{M.n_cols}`
+///          - :math:`\ttt{const int64_t}`
+///          - number of columns
+///        * - :math:`\ttt{M.nnz}`
+///          - :math:`\ttt{int64_t}`
+///          - number of structural nonzeros
+///        * - :math:`\ttt{M.vals}`
+///          - :math:`\ttt{SpMat::scalar_t *}`
+///          - pointer to values of structural nonzeros
+///        * - :math:`\ttt{M.own_memory}`
+///          - :math:`\ttt{const bool}`
+///          - A flag indicating if memory attached to :math:`\ttt{M}` should be deallocated when :math:`\ttt{M}` is deleted.
+///            This flag is set automatically based on the type of constructor used for :math:`\ttt{M}.` 
+/// 
+///
+/// **Memory-owning constructors**
+/// 
+///     :math:`\ttt{SpMat}` must have a constructor for an empty matrix of given dimensions.
+///     Conformant implementations of this constructor look like the following.
+///
+///     .. code:: c++
+///
+///        SpMat(int64_t n_rows, int64_t n_cols) 
+///         : n_rows(n_rows), n_cols(n_cols), nnz(0), vals(nullptr), own_memory(true) {
+///             // class-specific code ...
+///         };
+///
+///     If we construct :math:`\ttt{SpMat M(m, n)},` then we can't store data in :math:`\ttt{M}` until a function call
+///     of the form :math:`\ttt{M.reserve(nnz)}.` Here's an outline of a conformant implementation of this function.
+///
+///     .. code:: c++
+///
+///         void reserve(int64_t nnz) {
+///             assert this->own_memory;
+///             this->nnz = nnz;
+///             this->vals = new SpMat::scalar_t[nnz];
+///             // ... class-specific code ...
+///         }
+///
+///     The destructor of :math:`\ttt{M}` is responsible for deallocating :math:`\ttt{M.vals}` and other
+///     attached data. A conformant implemnentation of the destructor will look like the following.
+///
+///     .. code:: c++
+///
+///         ~SpMat() {
+///             if (this-own_memory) {
+///                 delete [] this->vals;
+///                 // ... class-specific code ...
+///             }
+///         }        
+///
+/// **Non-owning constructors**
+///
+///     This concept doesn't place specific requirements constructors for non-owning sparse matrix views of existing data. 
+///     However, all of RandBLAS' sparse matrix classes offer such constructors. See individual classes'
+///     documentation for details.
+///
+/// @endverbatim
+template<typename SpMat>
+concept SparseMatrix = requires(SpMat A) {
+    // TODO: figure out why I need to use convertible_to rather than is_same.
+    { A.n_rows } -> std::convertible_to<const int64_t>;
+    { A.n_cols } -> std::convertible_to<const int64_t>;
+    { A.nnz } -> std::convertible_to<int64_t>;
+    { *(A.vals) } -> std::convertible_to<typename SpMat::scalar_t>;
+    { A.own_memory } ->  std::convertible_to<const bool>;
+    { SpMat(A.n_rows, A.n_cols) }; // Is there better way to require a two-argument constructor?
+    { A.reserve((int64_t) 10) };  // This will always compile, even though it might error at runtime.
+};
+
 } // end namespace RandBLAS::sparse_data
 
 namespace RandBLAS {
     using RandBLAS::sparse_data::IndexBase;
+    using RandBLAS::sparse_data::SparseMatrix;
 }
+
+
 
 #endif

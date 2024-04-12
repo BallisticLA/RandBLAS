@@ -1,4 +1,4 @@
-#include <RandBLAS/dense.hh>
+#include <RandBLAS/dense_skops.hh>
 #include <RandBLAS/sparse_skops.hh>
 #include <RandBLAS/util.hh>
 #include "../comparison.hh"

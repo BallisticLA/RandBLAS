@@ -1,20 +1,29 @@
-#ifndef randblas_sksp_hh
-#define randblas_sksp_hh
+#ifndef randblas_sksp3_to_spmm_hh
+#define randblas_sksp3_to_spmm_hh
 
 #include "RandBLAS/base.hh"
 #include "RandBLAS/dense_skops.hh"
-#include "RandBLAS/sparse_data/sksp3_to_spmm.hh"
+#include "RandBLAS/sparse_data/spmm_dispatch.hh"
 
 #include "RandBLAS/exceptions.hh"
 
-namespace RandBLAS {
+namespace RandBLAS::sparse_data {
 
 using namespace RandBLAS::dense;
-using namespace RandBLAS::sparse_data;
+
+/* Intended macro definitions.
+
+   .. |op| mathmacro:: \operatorname{op}
+   .. |mat| mathmacro:: \operatorname{mat}
+   .. |submat| mathmacro:: \operatorname{submat}
+   .. |ldb| mathmacro:: \texttt{ldb}
+   .. |opA| mathmacro:: \texttt{opA}
+   .. |opS| mathmacro:: \texttt{opS}
+*/
 
 
 // =============================================================================
-/// \fn sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
+/// \fn lsksp3(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
 ///     int64_t n, int64_t m, T alpha, DenseSkOp<T,RNG> &S, int64_t ro_s, int64_t co_s,
 ///     SpMat &A, int64_t ro_a, int64_t co_a, T beta, T *B, int64_t ldb
 /// ) 
@@ -74,7 +83,6 @@ using namespace RandBLAS::sparse_data;
 ///
 ///      alpha - [in]
 ///       * A real scalar.
-///       * If zero, then :math:`A` is not accessed.
 ///
 ///      S - [in]
 ///       * A DenseSkOp object.
@@ -121,7 +129,7 @@ using namespace RandBLAS::sparse_data;
 ///
 /// @endverbatim
 template <typename T, SparseMatrix SpMat, typename RNG>
-inline void sketch_sparse(
+void lsksp3(
     blas::Layout layout,
     blas::Op opS,
     blas::Op opA,
@@ -139,14 +147,42 @@ inline void sketch_sparse(
     T *B,
     int64_t ldb
 ) {
-    sparse_data::lsksp3(layout, opS, opA, d, n, m, alpha, S, ro_s, co_s, A, ro_a, co_a, beta, B, ldb);
+    // B = op(submat(S)) @ op(submat(A))
+    auto [rows_submat_S, cols_submat_S] = dims_before_op(d, m, opS);
+    if (!S.buff) {
+        T *buff = new T[rows_submat_S * cols_submat_S];
+        fill_dense(S.dist, rows_submat_S, cols_submat_S, ro_s, co_s, buff, S.seed_state);
+        DenseDist D{rows_submat_S, cols_submat_S, DenseDistName::BlackBox, S.dist.major_axis};
+        DenseSkOp S_(D, S.seed_state, buff);
+        lsksp3(layout, opS, opA, d, n, m, alpha, S_, 0, 0, A, ro_a, co_a, beta, B, ldb);
+        delete [] buff;
+        return;
+    }
+
+    auto [rows_submat_A, cols_submat_A] = dims_before_op(m, n, opA);
+    randblas_require( A.n_rows      >= rows_submat_A + ro_a );
+    randblas_require( A.n_cols      >= cols_submat_A + co_a );
+    randblas_require( S.dist.n_rows >= rows_submat_S + ro_s );
+    randblas_require( S.dist.n_cols >= cols_submat_S + co_s );
+    if (layout == blas::Layout::ColMajor) {
+        randblas_require(ldb >= d);
+    } else {
+        randblas_require(ldb >= n);
+    }
+
+    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, ro_s, co_s);
+    T* S_ptr = &S.buff[pos];
+    if (S.layout != layout)
+        opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
+
+    right_spmm(layout, opS, opA, d, n, m, alpha, S_ptr, lds, A, ro_a, co_a, beta, B, ldb);
     return;
 }
 
 
 // =============================================================================
-/// \fn sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
-///     int64_t n, int64_t m, T alpha, SpMat &A, int64_t ro_a, int64_t co_a,
+/// \fn rsksp3(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m,
+///     int64_t d, int64_t n, T alpha, SpMat &A, int64_t ro_a, int64_t co_a,
 ///     DenseSkOp<T,RNG> &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
@@ -205,21 +241,6 @@ inline void sketch_sparse(
 ///
 ///      alpha - [in]
 ///       * A real scalar.
-///       * If zero, then :math:`A` is not accessed.
-///
-///      S - [in]
-///       * A DenseSkOp object.
-///       * Defines :math:`\submat(S)`.
-///
-///      ro_s - [in]
-///       * A nonnegative integer.
-///       * The rows of :math:`\submat(S)` are a contiguous subset of rows of :math:`S`.
-///       * The rows of :math:`\submat(S)` start at :math:`S[\texttt{ro_s}, :]`.
-///
-///      co_s - [in]
-///       * A nonnegative integer.
-///       * The columns of :math:`\submat(S)` are a contiguous subset of columns of :math:`S`.
-///       * The columns :math:`\submat(S)` start at :math:`S[:,\texttt{co_s}]`. 
 ///
 ///      A - [in]
 ///       * A RandBLAS sparse matrix object.
@@ -234,6 +255,20 @@ inline void sketch_sparse(
 ///       * A nonnegative integer.
 ///       * The columns of :math:`\submat(A)` are a contiguous subset of columns of :math:`A`.
 ///       * The columns :math:`\submat(A)` start at :math:`A[:,\texttt{co_a}]`. 
+///
+///      S - [in]
+///       * A DenseSkOp object.
+///       * Defines :math:`\submat(S)`.
+///
+///      ro_s - [in]
+///       * A nonnegative integer.
+///       * The rows of :math:`\submat(S)` are a contiguous subset of rows of :math:`S`.
+///       * The rows of :math:`\submat(S)` start at :math:`S[\texttt{ro_s}, :]`.
+///
+///      co_s - [in]
+///       * A nonnegative integer.
+///       * The columns of :math:`\submat(S)` are a contiguous subset of columns of :math:`S`.
+///       * The columns :math:`\submat(S)` start at :math:`S[:,\texttt{co_s}]`. 
 ///
 ///      beta - [in]
 ///       * A real scalar.
@@ -252,7 +287,7 @@ inline void sketch_sparse(
 ///
 /// @endverbatim
 template <typename T, SparseMatrix SpMat, typename RNG>
-inline void sketch_sparse(
+void rsksp3(
     blas::Layout layout,
     blas::Op opA,
     blas::Op opS,
@@ -270,7 +305,33 @@ inline void sketch_sparse(
     T *B,
     int64_t ldb
 ) {
-    sparse_data::rsksp3(layout, opA, opS, m, d, n, alpha, A, ro_a, co_a, S, ro_s, co_s, beta, B, ldb);
+    auto [rows_submat_S, cols_submat_S] = dims_before_op(n, d, opS);
+    if (!S.buff) {
+        T *buff = new T[rows_submat_S * cols_submat_S];
+        fill_dense(S.dist, rows_submat_S, cols_submat_S, ro_s, co_s, buff, S.seed_state);
+        DenseDist D{rows_submat_S, cols_submat_S, DenseDistName::BlackBox, S.dist.major_axis};
+        DenseSkOp S_(D, S.seed_state, buff);
+        rsksp3(layout, opA, opS, m, d, n, alpha, A, ro_a, co_a, S_, 0, 0, beta, B, ldb);
+        delete [] buff;
+        return;
+    }
+    auto [rows_submat_A, cols_submat_A] = dims_before_op(m, n, opA);
+    randblas_require( A.n_rows      >= rows_submat_A + ro_a );
+    randblas_require( A.n_cols      >= cols_submat_A + co_a );
+    randblas_require( S.dist.n_rows >= rows_submat_S + ro_s );
+    randblas_require( S.dist.n_cols >= cols_submat_S + co_s );
+    if (layout == blas::Layout::ColMajor) {
+        randblas_require(ldb >= m);
+    } else {
+        randblas_require(ldb >= d);
+    }
+
+    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, ro_s, co_s);
+    T* S_ptr = &S.buff[pos];
+    if (S.layout != layout)
+        opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
+
+    left_spmm(layout, opA, opS, m, d, n, alpha, A, ro_a, co_a, S_ptr, lds, beta, B, ldb);
     return;
 }
 

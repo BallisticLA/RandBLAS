@@ -45,8 +45,8 @@ static inline void sincospi(double x, double *s, double *c) {
 #include <Random123/array.h>
 #include <Random123/philox.h>
 #include <Random123/threefry.h>
-#include <Random123/aes.h>
 #include <Random123/ars.h>
+// NOTE: we do not support Random123's AES generator.
 #include <Random123/boxmuller.hpp>
 #include <Random123/uniform.hpp>
 
@@ -69,7 +69,7 @@ namespace r123ext
 template <typename CTR, typename T = typename std::conditional
     <sizeof(typename CTR::value_type) == sizeof(uint32_t), float, double>::type>
 auto boxmulall(
-    CTR const& ri
+    CTR const &ri
 ) {
     std::array<T, CTR::static_size> ro;
     int nit = CTR::static_size / 2;
@@ -110,8 +110,8 @@ struct boxmul
     static
     auto generate(
         RNG &rng,
-        typename RNG::ctr_type const& c,
-        typename RNG::key_type const& k
+        typename RNG::ctr_type const &c,
+        typename RNG::key_type const &k
     ) {
         return boxmulall(rng(c,k));
     }
@@ -138,8 +138,8 @@ struct uneg11
     static
     auto generate(
         RNG &rng,
-        typename RNG::ctr_type const& c,
-        typename RNG::key_type const& k
+        typename RNG::ctr_type const &c,
+        typename RNG::key_type const &k
     ) {
         return r123::uneg11all<T>(rng(c,k));
     }

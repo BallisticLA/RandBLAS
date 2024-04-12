@@ -6,7 +6,7 @@
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/random_gen.hh"
 #include "RandBLAS/util.hh"
-#include "RandBLAS/sparse_data/spgemm.hh"
+#include "RandBLAS/sparse_data/spmm_dispatch.hh"
 
 #include <blas.hh>
 #include <iostream>
@@ -69,6 +69,9 @@ struct SparseSkOp {
     using T_t = T;
     using index_t = sint_t;
 
+    const int64_t n_rows;
+    const int64_t n_cols;
+
     // ---------------------------------------------------------------------------
     ///  The distribution from which this sketching operator is sampled.
     ///  This member specifies the number of rows and columns of the sketching
@@ -115,35 +118,35 @@ struct SparseSkOp {
     /////////////////////////////////////////////////////////////////////
 
     // ---------------------------------------------------------------------------
-    ///
-    /// @param[in] dist
-    ///     A SparseDist object.
-    ///     - Defines the number of rows and columns in this sketching operator.
-    ///     - Indirectly controls sparsity pattern.
-    ///     - Directly controls sparsity level.
-    ///
-    /// @param[in] state
-    ///     An RNGState object.
-    ///     - The RNG will use this as the starting point to generate all 
-    ///       random numbers needed for this sketching operator.
-    ///
-    /// @param[in] rows
-    ///     Pointer to int64_t array.
-    ///     - stores row indices as part of the COO format.
-    ///
-    /// @param[in] cols
-    ///     Pointer to int64_t array.
-    ///     - stores column indices as part of the COO format.
-    ///
-    /// @param[in] vals
-    ///     Pointer to array of real numerical type T.
-    ///     - stores nonzeros as part of the COO format.
-    /// 
-    /// @param[in] known_filled
-    ///     A boolean. If true, then the arrays pointed to by
-    ///     (rows, cols, vals) already contain the randomly sampled
-    ///     data defining this sketching operator.
-    ///     
+    // 
+    //  @param[in] dist
+    //      A SparseDist object.
+    //      - Defines the number of rows and columns in this sketching operator.
+    //      - Indirectly controls sparsity pattern.
+    //      - Directly controls sparsity level.
+    // 
+    //  @param[in] state
+    //      An RNGState object.
+    //      - The RNG will use this as the starting point to generate all 
+    //        random numbers needed for this sketching operator.
+    // 
+    //  @param[in] rows
+    //      Pointer to int64_t array.
+    //      - stores row indices as part of the COO format.
+    // 
+    //  @param[in] cols
+    //      Pointer to int64_t array.
+    //      - stores column indices as part of the COO format.
+    // 
+    //  @param[in] vals
+    //      Pointer to array of real numerical type T.
+    //      - stores nonzeros as part of the COO format.
+    //  
+    //  @param[in] known_filled
+    //      A boolean. If true, then the arrays pointed to by
+    //      (rows, cols, vals) already contain the randomly sampled
+    //      data defining this sketching operator.
+    //      
     SparseSkOp(
         SparseDist dist,
         const RNGState<RNG> &state,
@@ -161,6 +164,22 @@ struct SparseSkOp {
         T *vals 
     ) : SparseSkOp(dist, RNGState<RNG>(key), rows, cols, vals) {};
 
+
+    ///---------------------------------------------------------------------------
+    /// The preferred constructor for SparseSkOp objects. There are other 
+    /// constructors, but they don't appear in the web documentation.
+    ///
+    /// @param[in] dist
+    ///     A SparseDist object.
+    ///     - Defines the number of rows and columns in this sketching operator.
+    ///     - Indirectly controls sparsity pattern.
+    ///     - Directly controls sparsity level.
+    ///
+    /// @param[in] state
+    ///     An RNGState object.
+    ///     - The RNG will use this as the starting point to generate all 
+    ///       random numbers needed for this sketching operator.
+    ///
     SparseSkOp(
         SparseDist dist,
         const RNGState<RNG> &state
@@ -182,6 +201,8 @@ SparseSkOp<T,RNG,sint_t>::SparseSkOp(
     SparseDist dist,
     const RNGState<RNG> &state
 ) :  // variable definitions
+    n_rows(dist.n_rows),
+    n_cols(dist.n_cols),
     dist(dist),
     seed_state(state),
     own_memory(true)
@@ -211,6 +232,8 @@ SparseSkOp<T,RNG,sint_t>::SparseSkOp(
     T *vals,
     bool known_filled
 ) :  // variable definitions
+    n_rows(dist.n_rows),
+    n_cols(dist.n_cols),
     dist(dist),
     seed_state(state),
     own_memory(false)
@@ -276,7 +299,7 @@ RNGState<RNG> fill_sparse(
 }
 
 template <typename SKOP>
-void print_sparse(SKOP const& S0) {
+void print_sparse(SKOP const &S0) {
     std::cout << "SparseSkOp information" << std::endl;
     int64_t nnz;
     if (S0.dist.major_axis == MajorAxis::Short) {
@@ -364,11 +387,13 @@ static auto repeated_fisher_yates(
 
 namespace RandBLAS::sparse {
 
-using namespace RandBLAS;
+using RandBLAS::SparseSkOp;
+using RandBLAS::MajorAxis;
+using RandBLAS::sparse_data::COOMatrix;
 
 template <typename SKOP>
 static bool has_fixed_nnz_per_col(
-    SKOP const& S0
+    SKOP const &S0
 ) {
     if (S0.dist.major_axis == MajorAxis::Short) {
         return S0.dist.n_rows < S0.dist.n_cols;
@@ -379,7 +404,7 @@ static bool has_fixed_nnz_per_col(
 
 template <typename SKOP>
 static int64_t nnz(
-    SKOP const& S0
+    SKOP const &S0
 ) {
     bool saso = S0.dist.major_axis == MajorAxis::Short;
     bool wide = S0.dist.n_rows < S0.dist.n_cols;
@@ -397,11 +422,11 @@ static int64_t nnz(
 
 
 template <typename T, typename RNG, SignedInteger sint_t>
-RandBLAS::sparse_data::COOMatrix<T,sint_t> coo_view_of_skop(SparseSkOp<T,RNG,sint_t> &S) {
+COOMatrix<T,sint_t> coo_view_of_skop(SparseSkOp<T,RNG,sint_t> &S) {
     if (!S.known_filled)
         fill_sparse(S);
     int64_t nnz = RandBLAS::sparse::nnz(S);
-    RandBLAS::sparse_data::COOMatrix<T,sint_t> A(
+    COOMatrix<T,sint_t> A(
         S.dist.n_rows, S.dist.n_cols, nnz,
         S.vals, S.rows, S.cols
     );
@@ -418,7 +443,7 @@ RandBLAS::sparse_data::COOMatrix<T,sint_t> coo_view_of_skop(SparseSkOp<T,RNG,sin
 ///     (In particular, it depends on S.rows, S.cols, and S.vals.)
 ///     
 template <typename SKOP>
-static auto transpose(SKOP const& S) {
+static auto transpose(SKOP const &S) {
     randblas_require(S.known_filled);
     SparseDist dist = {
         .n_rows = S.dist.n_cols,
@@ -431,280 +456,6 @@ static auto transpose(SKOP const& S) {
     return St;
 }
 
-
-// =============================================================================
-/// @verbatim embed:rst:leading-slashes
-///
-///   .. |op| mathmacro:: \operatorname{op}
-///   .. |mat| mathmacro:: \operatorname{mat}
-///   .. |submat| mathmacro:: \operatorname{submat}
-///   .. |lda| mathmacro:: \mathrm{lda}
-///   .. |ldb| mathmacro:: \mathrm{ldb}
-///   .. |opA| mathmacro:: \mathrm{opA}
-///   .. |opS| mathmacro:: \mathrm{opS}
-///
-/// @endverbatim
-/// LSKGES: Perform a GEMM-like operation
-/// @verbatim embed:rst:leading-slashes
-/// .. math::
-///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(S))}_{d \times m} \cdot \underbrace{\op(\mat(A))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
-/// @endverbatim
-/// where \math{\alpha} and \math{\beta} are real scalars, \math{\op(X)} either returns a matrix \math{X}
-/// or its transpose, and \math{S} is a sparse sketching operator.
-/// 
-/// @verbatim embed:rst:leading-slashes
-/// What are :math:`\mat(A)` and :math:`\mat(B)`?
-///     Their shapes are defined implicitly by :math:`(d, m, n, \opA)`.
-///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
-///     and "layout", following the same convention as BLAS.
-///
-/// What is :math:`\submat(S)`?
-///     Its shape is defined implicitly by :math:`(\opS, d, m)`.
-///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
-///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
-///     appears at index :math:`(\texttt{i_off}, \texttt{j_off})` of :math:`{S}`.
-/// @endverbatim
-/// @param[in] layout
-///     Layout::ColMajor or Layout::RowMajor
-///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
-///
-/// @param[in] opS
-///      - If \math{\opS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
-///      - If \math{\opS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
-///
-/// @param[in] opA
-///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
-///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
-///
-/// @param[in] d
-///     A nonnegative integer.
-///     - The number of rows in \math{\mat(B)}
-///     - The number of rows in \math{\op(\mat(S))}.
-///
-/// @param[in] n
-///     A nonnegative integer.
-///     - The number of columns in \math{\mat(B)}
-///     - The number of columns in \math{\op(\mat(A))}.
-///
-/// @param[in] m
-///     A nonnegative integer.
-///     - The number of columns in \math{\op(\submat(S))}
-///     - The number of rows in \math{\op(\mat(A))}.
-///
-/// @param[in] alpha
-///     A real scalar.
-///     - If zero, then \math{A} is not accessed.
-///
-/// @param[in] S
-///    A SparseSkOp object.
-///    - Defines \math{\submat(S)}.
-///
-/// @param[in] i_off
-///     A nonnegative integer.
-///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_off}, :]}.
-///
-/// @param[in] j_off
-///     A nonnnegative integer.
-///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_off}]}. 
-///
-/// @param[in] A
-///     Pointer to a 1D array of real scalars.
-///     - Defines \math{\mat(A)}.
-///
-/// @param[in] lda
-///     A nonnegative integer.
-///     * Leading dimension of \math{\mat(A)} when reading from \math{A}.
-///     * If layout == ColMajor, then
-///         @verbatim embed:rst:leading-slashes
-///             .. math::
-///                 \mat(A)[i, j] = A[i + j \cdot \lda].
-///         @endverbatim
-///       In this case, \math{\lda} must be \math{\geq} the length of a column in \math{\mat(A)}.
-///     * If layout == RowMajor, then
-///         @verbatim embed:rst:leading-slashes
-///             .. math::
-///                 \mat(A)[i, j] = A[i \cdot \lda + j].
-///         @endverbatim
-///       In this case, \math{\lda} must be \math{\geq} the length of a row in \math{\mat(A)}.
-///
-/// @param[in] beta
-///     A real scalar.
-///     - If zero, then \math{B} need not be set on input.
-///
-/// @param[in, out] B
-///    Pointer to 1D array of real scalars.
-///    - On entry, defines \math{\mat(B)}
-///      on the RIGHT-hand side of \math{(\star)}.
-///    - On exit, defines \math{\mat(B)}
-///      on the LEFT-hand side of \math{(\star)}.
-///
-/// @param[in] ldb
-///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
-///    - Refer to documentation for \math{\lda} for details. 
-///
-template <typename T, typename SKOP>
-void lskges(
-    blas::Layout layout,
-    blas::Op opS,
-    blas::Op opA,
-    int64_t d, // B is d-by-n
-    int64_t n, // \op(A) is m-by-n
-    int64_t m, // \op(S) is d-by-m
-    T alpha,
-    SKOP &S,
-    int64_t row_offset,
-    int64_t col_offset,
-    const T *A,
-    int64_t lda,
-    T beta,
-    T *B,
-    int64_t ldb
-) {
-    if (!S.known_filled)
-        fill_sparse(S);
-    using RNG = typename SKOP::RNG_t;
-    using sint_t = typename SKOP::index_t;
-    auto Scoo = coo_view_of_skop<T,RNG,sint_t>(S);
-    lspgemm(
-        layout, opS, opA, d, n, m, alpha, Scoo, row_offset, col_offset,
-        A, lda, beta, B, ldb
-    );
-    return;
-}
-
-
-// =============================================================================
-/// RSKGES: Perform a GEMM-like operation
-/// @verbatim embed:rst:leading-slashes
-/// .. math::
-///     \mat(B) = \alpha \cdot \underbrace{\op(\mat(A))}_{m \times n} \cdot \underbrace{\op(\submat(S))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
-/// @endverbatim
-/// where \math{\alpha} and \math{\beta} are real scalars, \math{\op(X)} either returns a matrix \math{X}
-/// or its transpose, and \math{S} is a sparse sketching operator.
-/// 
-/// @verbatim embed:rst:leading-slashes
-/// What are :math:`\mat(A)` and :math:`\mat(B)`?
-///     Their shapes are defined implicitly by :math:`(m, d, n, \opA)`.
-///     Their precise contents are determined by :math:`(A, \lda)`, :math:`(B, \ldb)`,
-///     and "layout", following the same convention as BLAS.
-///
-/// What is :math:`\submat(S)`?
-///     Its shape is defined implicitly by :math:`(\opS, n, d)`.
-///     If :math:`{\submat(S)}` is of shape :math:`r \times c`,
-///     then it is the :math:`r \times c` submatrix of :math:`{S}` whose upper-left corner
-///     appears at index :math:`(\texttt{i_off}, \texttt{j_off})` of :math:`{S}`.
-/// @endverbatim
-/// @param[in] layout
-///     Layout::ColMajor or Layout::RowMajor
-///      - Matrix storage for \math{\mat(A)} and \math{\mat(B)}.
-///
-/// @param[in] opA
-///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
-///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
-///
-/// @param[in] opS
-///      - If \math{\opS} = NoTrans, then \math{ \op(\submat(S)) = \submat(S)}.
-///      - If \math{\opS} = Trans, then \math{\op(\submat(S)) = \submat(S)^T }.
-///
-/// @param[in] m
-///     A nonnegative integer.
-///     - The number of rows in \math{\mat(B)}.
-///     - The number of rows in \math{\op(\mat(A))}.
-///
-/// @param[in] d
-///     A nonnegative integer.
-///     - The number of columns in \math{\mat(B)}
-///     - The number of columns in \math{\op(\mat(S))}.
-///
-/// @param[in] n
-///     A nonnegative integer.
-///     - The number of columns in \math{\op(\mat(A))}
-///     - The number of rows in \math{\op(\submat(S))}.
-///
-/// @param[in] alpha
-///     A real scalar.
-///     - If zero, then \math{A} is not accessed.
-///
-/// @param[in] A
-///     Pointer to a 1D array of real scalars.
-///     - Defines \math{\mat(A)}.
-///
-/// @param[in] lda
-///     A nonnegative integer.
-///     * Leading dimension of \math{\mat(A)} when reading from \math{A}.
-///     * If layout == ColMajor, then
-///         @verbatim embed:rst:leading-slashes
-///             .. math::
-///                 \mat(A)[i, j] = A[i + j \cdot \lda].
-///         @endverbatim
-///       In this case, \math{\lda} must be \math{\geq} the length of a column in \math{\mat(A)}.
-///     * If layout == RowMajor, then
-///         @verbatim embed:rst:leading-slashes
-///             .. math::
-///                 \mat(A)[i, j] = A[i \cdot \lda + j].
-///         @endverbatim
-///       In this case, \math{\lda} must be \math{\geq} the length of a row in \math{\mat(A)}.
-///
-/// @param[in] S
-///    A SparseSkOp object.
-///    - Defines \math{\submat(S)}.
-///
-/// @param[in] i_off
-///     A nonnegative integer.
-///     - The rows of \math{\submat(S)} are a contiguous subset of rows of \math{S}.
-///     - The rows of \math{\submat(S)} start at \math{S[\texttt{i_off}, :]}.
-///
-/// @param[in] j_off
-///     A nonnnegative integer.
-///     - The columns of \math{\submat(S)} are a contiguous subset of columns of \math{S}.
-///     - The columns \math{\submat(S)} start at \math{S[:,\texttt{j_off}]}. 
-///
-/// @param[in] beta
-///     A real scalar.
-///     - If zero, then \math{B} need not be set on input.
-///
-/// @param[in, out] B
-///    Pointer to 1D array of real scalars.
-///    - On entry, defines \math{\mat(B)}
-///      on the RIGHT-hand side of \math{(\star)}.
-///    - On exit, defines \math{\mat(B)}
-///      on the LEFT-hand side of \math{(\star)}.
-///
-/// @param[in] ldb
-///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
-///    - Refer to documentation for \math{\lda} for details. 
-///
-template <typename T, typename SKOP>
-void rskges(
-    blas::Layout layout,
-    blas::Op opA,
-    blas::Op opS,
-    int64_t m, // B is m-by-d
-    int64_t d, // op(S) is n-by-d
-    int64_t n, // op(A) is m-by-n
-    T alpha,
-    const T *A,
-    int64_t lda,
-    SKOP &S0,
-    int64_t i_off,
-    int64_t j_off,
-    T beta,
-    T *B,
-    int64_t ldb
-) { 
-    if (!S0.known_filled)
-        fill_sparse(S0);
-    using RNG = typename SKOP::RNG_t;
-    using sint = typename SKOP::index_t;
-    auto Scoo = coo_view_of_skop<T,RNG,sint>(S0);
-    rspgemm(
-        layout, opA, opS, m, d, n, alpha, A, lda, Scoo, i_off, j_off, beta, B, ldb
-    );
-    return;
-}
-
-} // end namespace RandBLAS::sparse_ops
+} // end namespace RandBLAS::sparse
 
 #endif

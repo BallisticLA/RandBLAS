@@ -1,7 +1,7 @@
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/random_gen.hh"
-#include "RandBLAS/dense.hh"
+#include "RandBLAS/dense_skops.hh"
 #include "RandBLAS/util.hh"
 #include "../comparison.hh"
 
@@ -156,7 +156,7 @@ class TestSubmatGeneration : public ::testing::Test
         T total_error = 0;
         for (int nptr = ptr; nptr < n_cols*(n_rows-n_srows-1); nptr += stride*n_cols) {
             // ^ Loop through various pointer locations.- goes down the random matrix by amount stride.
-            RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, smat, n_srows, n_scols, nptr, seed);
+            RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(n_cols, smat, n_srows, n_scols, nptr, seed);
             ind = 0;
             for (int i = 0; i<n_srows; i++) {
                 // ^ Loop through entries of the submatrix
@@ -188,7 +188,7 @@ class TestSubmatGeneration : public ::testing::Test
         T total_error = 0;
         for (int nptr = ptr; nptr < (n_cols - n_scols - 1); nptr += stride) {
             // ^ Loop through various pointer locations.- goes across the random matrix by amount stride.
-            RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, smat, n_srows, n_scols, nptr, seed);
+            RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(n_cols, smat, n_srows, n_scols, nptr, seed);
             ind = 0;
             for (int i = 0; i<n_srows; i++) {
                 // ^ Loop through entries of the submatrix
@@ -218,7 +218,7 @@ class TestSubmatGeneration : public ::testing::Test
         int64_t n_srows = 1;
         for (int ptr = 0; ptr + n_scols + n_cols*n_srows < n_cols*n_rows; ptr += n_rows+1) { // Loop through the diagonal of the matrix
             RandBLAS::util::safe_scal(n_srows * n_scols, (T) 0.0, smat, 1);
-            RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n_cols, smat, n_srows, n_scols, ptr, seed);
+            RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(n_cols, smat, n_srows, n_scols, ptr, seed);
             ind = 0;
             for (int i = 0; i<n_srows; i++) { // Loop through entries of the submatrix
                 for (int j = 0; j<n_scols; j++) {
@@ -286,7 +286,7 @@ void DenseThreadTest() {
     // generate the base state with 1 thread.
     omp_set_num_threads(1);
     RandBLAS::RNGState<RNG> state(0);
-    RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n, base.data(), m, n, 0, state);
+    RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(n, base.data(), m, n, 0, state);
     std::cerr << "with 1 thread: " << base << std::endl;
 
     // run with different numbers of threads, and check that the result is the same
@@ -295,7 +295,7 @@ void DenseThreadTest() {
 
     for (int i = 2; i <= n_threads; ++i) {
         omp_set_num_threads(i);
-        RandBLAS::fill_dense_submat_impl<T,RNG,OP>(n, test.data(), m, n, 0, state);
+        RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(n, test.data(), m, n, 0, state);
         std::cerr << "with " << i << " threads: " << test << std::endl;
         for (int64_t i = 0; i < d; ++i) {
             EXPECT_FLOAT_EQ( base[i], test[i] );
@@ -469,7 +469,7 @@ class TestStateUpdate : public ::testing::Test
 
         typename RNG::ctr_type c_ref = state_copy.counter;
 
-        auto [layout, final_state] = RandBLAS::dense::fill_dense(D, buff, state);
+        auto [layout, final_state] = RandBLAS::fill_dense(D, buff, state);
         auto c = final_state.counter;
         int c_len = c.size();
 
