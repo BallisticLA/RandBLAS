@@ -18,7 +18,7 @@ build:
       - pip list
 
 conda:
-  environment: rtd/environment.yaml
+  environment: environment.yaml
 
 sphinx:
   configuration: rtd/source/conf.py
