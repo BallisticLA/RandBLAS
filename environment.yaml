@@ -1,0 +1,11 @@
+name: rtd311
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - doxygen>=1.9.2
+  - python=3.11
+  - pip>=20.1
+  - pip:
+    - -r rtd/requirements.txt
+
