@@ -66,7 +66,7 @@ static inline void sorted_nonzero_locations_to_pointer_array(
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
 ///
-/// .. |ttt| mathmacro:: \texttt
+/// .. NOTE: \ttt expands to \texttt (its definition is given in an rst file)
 ///
 /// Any object :math:`\ttt{M}` of type :math:`\ttt{SpMat}` has the following attributes.
 ///

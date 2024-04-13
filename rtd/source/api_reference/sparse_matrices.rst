@@ -5,6 +5,7 @@
    .. |ldb| mathmacro:: \texttt{ldb}
    .. |opA| mathmacro:: \texttt{opA}
    .. |opS| mathmacro:: \texttt{opS}
+   .. |ttt| mathmacro:: \texttt
 
 ********************************
 Representing sparse data
