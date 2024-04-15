@@ -99,7 +99,7 @@ Only the leading :math:`r \times c` submatrix of :math:`\mat(A)` will be accesse
 Note that in order for this submatrix to be well-defined it's necessary that
 
   .. math::
-    \lda \leq \begin{cases} r & \text{ if } \texttt{ell == ColMajor} \\  c & \text{ if } \texttt{ell == RowMajor} \end{cases}.
+    \lda \geq \begin{cases} r & \text{ if } \texttt{ell == ColMajor} \\  c & \text{ if } \texttt{ell == RowMajor} \end{cases}.
 
 Most performance libraries check that this is the case on entry to GEMM and will raise an error if this condition
 isn't satisfied.
