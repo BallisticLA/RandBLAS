@@ -7,14 +7,15 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+# TODO: do a try-catch pattern for finding OpenMP.
+# If we get an error, then check if (1) we're macOS
+# and (2) if we're using default gcc/g++ linked to system clang,
+# when we need to use clang from homebrew.
+find_package(OpenMP REQUIRED)
+
 message(STATUS "Checking for RandBLAS ... ")
 find_package(RandBLAS REQUIRED)
 message(STATUS "Done checking for RandBLAS. ...")
-
-message(STATUS "Looking for BLAS++ ... ")
-find_package(blaspp REQUIRED)
-message(STATUS "Done looking for BLAS++.")
-
 
 message(STATUS "Looking for LAPACK++ ... ")
 find_package(lapackpp REQUIRED)
@@ -22,30 +23,28 @@ message(STATUS "Done looking for LAPACK++.")
 
 
 set(
-    TLS_DenseSkOp_cxx
-    TLS_DenseSkOp.cpp
+    tls_dense_skop_cxx total-least-squares/tls_dense_skop.cc
 )
 add_executable(
-    TLS_DenseSkOp ${TLS_DenseSkOp_cxx}
+    tls_dense_skop ${tls_dense_skop_cxx}
 )
 target_include_directories(
-    TLS_DenseSkOp PUBLIC ${Random123_DIR}
+    tls_dense_skop PUBLIC ${Random123_DIR}
 )
 target_link_libraries(
-    TLS_DenseSkOp PUBLIC RandBLAS blaspp lapackpp 
+    tls_dense_skop PUBLIC RandBLAS blaspp lapackpp 
 )
 
 set(
-    TLS_SparseSkOp_cxx
-    TLS_SparseSkOp.cpp
+    tls_sparse_skop_cxx total-least-squares/tls_sparse_skop.cc
 )
 add_executable(
-    TLS_SparseSkOp ${TLS_SparseSkOp_cxx}
+    tls_sparse_skop ${tls_sparse_skop_cxx}
 )
 target_include_directories(
-    TLS_SparseSkOp PUBLIC ${Random123_DIR}
+    tls_sparse_skop PUBLIC ${Random123_DIR}
 )
 target_link_libraries(
-    TLS_SparseSkOp PUBLIC RandBLAS blaspp lapackpp 
+    tls_sparse_skop PUBLIC RandBLAS blaspp lapackpp 
 )
 

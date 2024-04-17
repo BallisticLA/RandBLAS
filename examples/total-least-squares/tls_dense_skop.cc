@@ -17,9 +17,6 @@ using std::chrono::duration;
 using std::chrono::milliseconds;
 
 
-//TODO: Read in matrix dimensions 
-//TODO: Have the user choose between dense and sketch sketching operator (4 nnz per col)
-
 void init_noisy_data(int64_t m, int64_t n, int64_t d, double* AB){
     double target_x[n*d];
     double eps[m*d];
@@ -29,8 +26,8 @@ void init_noisy_data(int64_t m, int64_t n, int64_t d, double* AB){
 
     RandBLAS::DenseDist Dist_A(m,n); 
     RandBLAS::DenseDist Dist_eps(m,d); 
-    auto state = RandBLAS::RNGState(0);
-    auto state1 = RandBLAS::RNGState(1);
+    RandBLAS::RNGState state(0);
+    RandBLAS::RNGState state1(1);
 
     RandBLAS::fill_dense<double>(Dist_A, AB, state);  //Fill A to be a random gaussian
     RandBLAS::fill_dense<double>(Dist_eps, eps, state1);  //Fill A to be a random gaussian
@@ -42,7 +39,7 @@ void init_noisy_data(int64_t m, int64_t n, int64_t d, double* AB){
     }
 }
 
-/* Let A be a tall data matrix of dimensions m by n where m > n and b be a vector of dimension m.
+/* Let A be a tall data matrix of dimensions m by n where m > n and b be a vector of dimension m. 
  * In ordinary least squares it assumes that the error lies only in the right hand side vector b,
  * and it aims to find a vector x that minimizes ||A*x - b||_2.
  * On the other hand, total least squares assumes that the input data matrix A could also incur errors.
@@ -50,7 +47,7 @@ void init_noisy_data(int64_t m, int64_t n, int64_t d, double* AB){
  */
 
 // To call the executable run ./TLS_DenseSkOp <m> <n> where <m> <n> are the number of rows and columns
-// of A respectively. We expect m > 2*n.
+// of A respectively. We expect m > 2*n. 
 int main(int argc, char* argv[]){
 
     // Initialize dimensions
@@ -72,11 +69,10 @@ int main(int argc, char* argv[]){
         exit(1);
     }
 
-    // Define number or rows of the sketching operator
     int64_t sk_dim = 2*(n+1);
 
     // Initialize workspace
-    double *AB = new double[m*(n+1)]; // Store [A B] in column major format
+    double *AB = new double[m*(n + 1)]; // Store [A B] in column major format
     double *SAB = new double[sk_dim*(n+1)];
     double *X = new double[n];
     double *res = new double[n];
@@ -89,21 +85,29 @@ int main(int argc, char* argv[]){
     // Initialize noisy gaussian data
     init_noisy_data(m, n, 1, AB);
 
+    // Define properties of the sketching operator
 
-    // Define the parameters of the sparse distribution 
+    // Initialize seed for random number generation
+    uint32_t seed = 0;
+
+    // Define the dense distribution that the sketching operator will sample from
+    /* Additional dense distributions: RandBLAS::DenseDistName::Gaussian - entries are iid standard normal
+     *                                 RandBLAS::DenseDistName::BlackBox - entires are user provided through a buffer
+    */
     auto time_constructsketch1 = high_resolution_clock::now();
+    RandBLAS::DenseDistName dn = RandBLAS::DenseDistName::Uniform;
     
-    // Initialize sparse distribution struct for the sketching operator
-    uint32_t seed = 0;     // Initialize seed for random number generation
-    RandBLAS::SparseDist Dist = {.n_rows = sk_dim,                            // Number of rows of the sketching operator 
-                                 .n_cols = m,                                 // Number of columns of the sketching operator
-                                 .vec_nnz = 4,                               // Number of non-zero entires per major axis
-                                 .major_axis = RandBLAS::MajorAxis::Short     // Defines the major axis of the sketching operator 
-                                };
+    // Initialize dense distribution struct for the sketching operator
+    RandBLAS::DenseDist Dist(sk_dim,   // Number of rows of the sketching operator 
+                             m,        // Number of columns of the sketching operator
+                             dn);     // Distribution of the entires
 
-    //Construct the sparse sketching operator
-    RandBLAS::SparseSkOp<double> S(Dist, seed);  
-    RandBLAS::fill_sparse(S);
+    //Construct the dense sketching operator
+    RandBLAS::DenseSkOp<double> S(Dist, seed);
+    auto t = omp_get_num_threads();
+    omp_set_num_threads(8);
+    RandBLAS::fill_dense(S);
+    omp_set_num_threads(t);
     auto time_constructsketch2 = high_resolution_clock::now();
 
     // Sketch AB
@@ -114,13 +118,13 @@ int main(int argc, char* argv[]){
             blas::Op::NoTrans,         // NoTrans => \op(S) = S, Trans => \op(S) = S^T
             blas::Op::NoTrans,         // NoTrans => \op(AB) = AB, Trans => \op(AB) = AB^T
             sk_dim,                    // Number of rows of S and SAB
-            n+1,                       // Number of columns of AB and SAB
+            n + 1,                     // Number of columns of AB and SAB
             m,                         // Number of rows of AB and columns of S
-            1,                         // Scalar alpha - if alpha is zero AB is not accessed
+            1.0,                       // Scalar alpha - if alpha is zero AB is not accessed
             S,                         // A DenseSkOp or SparseSkOp sketching operator
             AB,                        // Matrix to be sketched
             m,                         // Leading dimension of AB
-            0,                         // Scalar beta - if beta is zero SAB is not accessed
+            0.0,                       // Scalar beta - if beta is zero SAB is not accessed
             SAB,                       // Sketched matrix SAB
             sk_dim                     // Leading dimension of SAB
     );
@@ -138,7 +142,7 @@ int main(int argc, char* argv[]){
     blas::scal(n, -1/VT[(n+1)*(n+1)-1], X, 1); 
     auto time_TLS2 = high_resolution_clock::now();
 
-    //Check TLS solution. Expected to be a vector of 1's
+    //Check TLS solution. Expected to be close to a vector of 1's
     double res_infnorm = 0;
     double res_twonorm = 0;
 
@@ -152,7 +156,7 @@ int main(int argc, char* argv[]){
 
     std::cout << "Matrix dimensions:                                                " << m << " by " << n+1 << '\n'; 
     std::cout << "Sketch dimension:                                                 " << sk_dim << '\n'; 
-    std::cout << "Time to create dense sketch:                                      " << (double) duration_cast<milliseconds>(time_constructsketch2 - time_constructsketch1).count()/1000 << " seconds" << '\n';
+    std::cout << "Time to create dense sketching operator:                          " << (double) duration_cast<milliseconds>(time_constructsketch2 - time_constructsketch1).count()/1000 << " seconds" << '\n';
     std::cout << "Time to sketch AB:                                                " << (double) duration_cast<milliseconds>(time_sketch2 - time_sketch1).count()/1000 << " seconds" <<'\n';
     std::cout << "Time to perform TLS on sketched matrix:                           " << (double) duration_cast<milliseconds>(time_TLS2 - time_TLS1).count()/1000 << " seconds" << '\n';
     std::cout << "Inf-norm distance from TLS solution to vector of all ones:        " << res_infnorm << '\n';
