@@ -48,3 +48,13 @@ target_link_libraries(
     tls_sparse_skop PUBLIC RandBLAS blaspp lapackpp 
 )
 
+
+add_executable(
+    slra_rank1_plus_noise sparse-low-rank-approx/svd_rank1_plus_noise.cc
+)
+target_include_directories(
+    slra_rank1_plus_noise PUBLIC ${Random123_DIR}
+)
+target_link_libraries(
+    slra_rank1_plus_noise PUBLIC RandBLAS blaspp lapackpp 
+)
