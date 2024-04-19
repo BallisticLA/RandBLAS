@@ -29,10 +29,10 @@ void init_noisy_data(int64_t m, int64_t n, int64_t d, double* AB){
     RandBLAS::RNGState state(0);
     RandBLAS::RNGState state1(1);
 
-    RandBLAS::fill_dense<double>(Dist_A, AB, state);  //Fill A to be a random gaussian
-    RandBLAS::fill_dense<double>(Dist_eps, eps, state1);  //Fill A to be a random gaussian
+    RandBLAS::fill_dense(Dist_A, AB, state);  //Fill A to be a random gaussian
+    RandBLAS::fill_dense(Dist_eps, eps, state1);  //Fill A to be a random gaussian
 
-    blas::gemm(blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans, m, d, n, 1, AB, m, target_x, n, 0, &AB[m*n], m);
+    blas::gemm(blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans, m, d, n, 1.0, AB, m, target_x, n, 0.0, &AB[m*n], m);
 
     for (int i = 0; i < m*d; i++){
         AB[m*n + i] += eps[i];   // Add Gaussian Noise to right hand side
@@ -113,7 +113,7 @@ int main(int argc, char* argv[]){
     // Sketch AB
     // SAB = alpha * \op(S) * \op(AB) + beta * SAB
     auto time_sketch1 = high_resolution_clock::now();
-    RandBLAS::sketch_general<double>(
+    RandBLAS::sketch_general(
             blas::Layout::ColMajor,    // Matrix storage layout of AB and SAB
             blas::Op::NoTrans,         // NoTrans => \op(S) = S, Trans => \op(S) = S^T
             blas::Op::NoTrans,         // NoTrans => \op(AB) = AB, Trans => \op(AB) = AB^T
