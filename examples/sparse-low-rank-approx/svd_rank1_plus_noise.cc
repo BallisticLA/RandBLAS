@@ -175,6 +175,99 @@ void make_noise_matrix(double noise_scale, int64_t m, int64_t n, double prob_of_
 3. Basic QB-based SVD with power iteration and HouseholderQR stabilization.
 */
 
+template <typename T>
+int householder_orth(int64_t m, int64_t n, T* mat, T* work) {
+    if(lapack::geqrf(m, n, mat, m, work))
+        return 1;
+    lapack::ungqr(m, n, n, mat, m, work);
+    return 0;
+}
+
+template <typename SpMat, typename T, typename STATE>
+void qb_decompose_sparse_matrix(SpMat &A, int64_t k, T* Q, T* B, int64_t p, STATE state, T* work, int64_t lwork) {
+    int64_t m = A.n_rows;
+    int64_t n = A.n_cols;
+    using RandBLAS::sparse_data::left_spmm;
+    using RandBLAS::sparse_data::right_spmm;
+    using blas::Op;
+    using blas::Layout;
+
+    // We use Q and B as workspace and to store the final result.
+    // To distinguish the semantic use of workspace from the final result,
+    // we define some alias pointers to Q's and B's memory.
+    randblas_require(lwork >= std::max(m, n));
+    T* mat_work1 = Q;
+    T* mat_work2 = B;
+    int64_t p_done = 0;
+
+    // Step 1: fill S := mat_work2 with the data needed to feed it into power iteration.
+    if (p % 2 == 0) {
+        RandBLAS::DenseDist D(n, k);
+        RandBLAS::fill_dense(D, mat_work2, state);
+    } else {
+        RandBLAS::DenseDist D(m, k);
+        RandBLAS::fill_dense(D, mat_work1, state);
+        left_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, n, k, m, 1.0, A, 0, 0, mat_work1, m, 0.0, mat_work2, n);
+        p_done += 1;
+        householder_orth(n, k, mat_work2, work);
+    }
+
+    // Step 2: fill S := mat_work2 with data needed to feed it into the rangefinder.
+    while (p - p_done > 0) {
+        // Update S = orth(A' * orth(A * S))
+        left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, n, 1.0, A, 0, 0, mat_work2, n, 0.0, mat_work1, m);
+        householder_orth(m, k, mat_work1, work);
+        left_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, n, k, m, 1.0, A, 0, 0, mat_work1, m, 0.0, mat_work2, n);
+        householder_orth(n, k, mat_work2, work);
+        p_done += 2;
+    }
+
+    // Step 3: compute Q = orth(A * S) and B = Q'A.
+    left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, n, 1.0, A, 0, 0, mat_work2, n, 0.0, Q, m);
+    householder_orth(m, k, Q, work);
+    right_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, k, n, m, 1.0, Q, m, A, 0, 0, 0.0, B, k);
+    return;
+}
+
+template <typename T>
+void qb_to_svd(int64_t m, int64_t n, int64_t k, T* Q, T* svals, int64_t ldq, T* B, int64_t ldb, T* work, int64_t lwork) {
+    // Input: (Q, B) defining a matrix A = Q*B, where
+    //      Q is m-by-k and column orthonormal
+    // and
+    //      B is k-by-n and otherwise unstructured.
+    //
+    // Output:
+    //      Q holds the top-k left singular vectors of A.
+    //      B holds a matrix that can be described in two equivalent ways:
+    //          1. a column-major representation of the top-k transposed right singular vectors of A.
+    //          2. a row-major representation of the top-k right singular vectors of A.
+    //      svals holds the top-k singular values of A.
+    //
+    using blas::Op;
+    using blas::Layout;
+    using lapack::Job;
+    using lapack::MatrixType;
+
+    // Compute the SVD of B: B = U diag(svals) VT, where B is overwritten by VT.
+    int64_t extra_work_size = lwork - k*k;
+    randblas_require(extra_work_size >= 0);
+    T* U = work; // <-- just a semantic alias for the start of work.
+    lapack::gesdd(Job::OverwriteVec, k, n, B, ldb, svals, U, k, nullptr, k);
+
+    // update Q = Q U.
+    T* more_work = work + k*(k+1);
+    bool allocate_more_work = extra_work_size < m*k;
+    if (allocate_more_work)
+        more_work = new T[m*k];
+    lapack::lacpy(MatrixType::General, m, k, Q, ldq, more_work, m);
+    blas::gemm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, k, 1.0, more_work, m, U, k, 0.0, Q, ldq);
+
+    if (allocate_more_work)
+        delete [] more_work;
+
+    return;
+}
+
 int main(int argc, char** argv) {
     auto [m, n, vec_nnz] = parse_dimension_args(argc, argv);
     // First we set up problem data: a sparse matrix of low numerical rank
@@ -201,6 +294,21 @@ int main(int argc, char** argv) {
     blas::copy(mn, noise_dense, 1, mat_dense, 1);
     blas::axpy(mn, 1.0, signal_dense, 1, mat_dense, 1);
 
+    // Run the randomized algorithm!
+    int64_t k = vec_nnz;  // <-- a semantic alias 
+    double *U  = new double[m*k]{};
+    double *VT = new double[k*n]{}; 
+    double *qb_work = new double[std::max(m, n)];
+    RandBLAS::RNGState state(0);
+    qb_decompose_sparse_matrix(mat_sparse, k, U, VT, 2, state, qb_work, std::max(m,n));
+    double *svals = new double[std::min(m,n)];
+    double *conversion_work = new double[m*k + k*k];
+    qb_to_svd(m, n, k, U, svals, m, VT, k, conversion_work, m*k + k*k);
+
+
+    delete [] qb_work;
+    delete [] conversion_work;
+    delete [] svals;
     delete [] signal_dense;
     delete [] noise_dense;
     delete [] mat_dense;
