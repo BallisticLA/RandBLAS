@@ -10,8 +10,14 @@
 #include <stdlib.h>
 #include <chrono>
 #include <unordered_map>
+#include <iomanip> 
+#include <limits> 
+#include <numbers>
+#include <chrono>
 
 using RandBLAS::sparse_data::COOMatrix;
+
+#define DOUT(_d) std::setprecision(std::numeric_limits<double>::max_digits10) << _d
 
 auto parse_dimension_args(int argc, char** argv) {
     int64_t m;
@@ -111,7 +117,7 @@ SpMat sum_of_coo_matrices(SpMat &A, SpMat &B) {
 
 
 template <typename SpMat>
-void make_signal_matrix(double signal_scale, int64_t m, int64_t n, int64_t vec_nnz, double* signal_dense, SpMat &signal_sparse) {
+void make_signal_matrix(double signal_scale, double* u, int64_t m, double* v, int64_t n, int64_t vec_nnz, double* signal_dense, SpMat &signal_sparse) {
     using T = typename SpMat::scalar_t;
     using sint_t = typename SpMat::index_t;
     constexpr bool valid_type = std::is_same_v<SpMat, COOMatrix<T, sint_t>>;
@@ -124,10 +130,11 @@ void make_signal_matrix(double signal_scale, int64_t m, int64_t n, int64_t vec_n
     int64_t *work_idxs = new int64_t[2*vec_nnz]{};
     int64_t *trash     = new int64_t[vec_nnz]{};
 
+    double uv_scale = 1.0 / std::sqrt((double) vec_nnz);
+
+
     auto v_state    = RandBLAS::repeated_fisher_yates(u_state, vec_nnz, m, 1, work_idxs, trash, work_vals);
     auto next_state = RandBLAS::repeated_fisher_yates(v_state, vec_nnz, n, 1, work_idxs+vec_nnz, trash, work_vals+vec_nnz);
-    double *u = new double[m]{};
-    double *v = new double[n]{};
     for (int j = 0; j < vec_nnz; ++j) {
         for (int i = 0; i < vec_nnz; ++i) {
             int temp = i + j*vec_nnz;
@@ -135,16 +142,14 @@ void make_signal_matrix(double signal_scale, int64_t m, int64_t n, int64_t vec_n
             signal_sparse.cols[temp] = work_idxs[j+vec_nnz];
             signal_sparse.vals[temp] = work_vals[i] * work_vals[j+vec_nnz];
         }
-        u[work_idxs[j]] = work_vals[j];
-        v[work_idxs[j + vec_nnz]] = work_vals[j + vec_nnz];
+        u[work_idxs[j]] = uv_scale * work_vals[j];
+        v[work_idxs[j + vec_nnz]] = uv_scale * work_vals[j + vec_nnz];
     }
     blas::ger(blas::Layout::ColMajor, m, n, signal_scale, u, 1, v, 1, signal_dense, m);
 
     delete [] work_vals;
     delete [] work_idxs;
     delete [] trash;
-    delete [] u;
-    delete [] v;
     return;
 }
 
@@ -170,10 +175,6 @@ void make_noise_matrix(double noise_scale, int64_t m, int64_t n, double prob_of_
     RandBLAS::sparse_data::coo::dense_to_coo(blas::Layout::ColMajor, noise_dense, 0.0, noise_sparse);
     return;
 }
-
-/*Utilities
-3. Basic QB-based SVD with power iteration and HouseholderQR stabilization.
-*/
 
 template <typename T>
 int householder_orth(int64_t m, int64_t n, T* mat, T* work) {
@@ -281,8 +282,10 @@ int main(int argc, char** argv) {
     auto mn = m * n;
     double *signal_dense = new double[mn]{};
     double *noise_dense  = new double[mn];
+    double *u_top = new double[m]{};
+    double *v_top = new double[n]{};
     
-    make_signal_matrix(signal_scale, m, n, vec_nnz, signal_dense, signal_sparse);
+    make_signal_matrix(signal_scale, u_top, m, v_top, n, vec_nnz, signal_dense, signal_sparse);
     make_noise_matrix(noise_scale, m, n, prob_nonzero, noise_dense, noise_sparse);
 
     // Add the two matrices together. 
@@ -295,7 +298,8 @@ int main(int argc, char** argv) {
     blas::axpy(mn, 1.0, signal_dense, 1, mat_dense, 1);
 
     // Run the randomized algorithm!
-    int64_t k = vec_nnz;  // <-- a semantic alias 
+    int64_t k = std::max((int64_t) 3, vec_nnz); // the matrix is really rank-1 plus noise
+    auto start_timer = std::chrono::high_resolution_clock::now();
     double *U  = new double[m*k]{};
     double *VT = new double[k*n]{}; 
     double *qb_work = new double[std::max(m, n)];
@@ -304,8 +308,22 @@ int main(int argc, char** argv) {
     double *svals = new double[std::min(m,n)];
     double *conversion_work = new double[m*k + k*k];
     qb_to_svd(m, n, k, U, svals, m, VT, k, conversion_work, m*k + k*k);
+    auto stop_timer = std::chrono::high_resolution_clock::now();
+    double runtime = (double) std::chrono::duration_cast<std::chrono::microseconds>(stop_timer - start_timer).count();
+    runtime = runtime / 1e6;
 
+    // compute angles between (u_top, v_top) and the top singular vectors 
+    double cos_utopu = blas::dot(m, u_top, 1, U, 1);
+    double cos_vtopv = blas::dot(n, v_top, 1, VT, k);
+    double theta_utopu = std::acos(cos_utopu) / (std::numbers::pi);
+    double theta_vtopv = std::acos(cos_vtopv) / (std::numbers::pi);
 
+    std::cout << "runtime of low-rank approximation : " << DOUT(runtime) << std::endl;
+    std::cout << "Relative angle between top left singular vectors  : " << DOUT(theta_utopu)  << std::endl;
+    std::cout << "Relative angle between top right singular vectors : " << DOUT(theta_vtopv) << std::endl; 
+
+    delete [] u_top;
+    delete [] v_top;
     delete [] qb_work;
     delete [] conversion_work;
     delete [] svals;
