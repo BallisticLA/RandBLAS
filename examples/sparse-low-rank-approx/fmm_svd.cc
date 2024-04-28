@@ -20,6 +20,9 @@
 using RandBLAS::sparse_data::COOMatrix;
 using std_clock = std::chrono::high_resolution_clock;
 using timepoint_t = std::chrono::time_point<std_clock>;
+using std::chrono::duration_cast;
+using std::chrono::microseconds;
+
 
 #define DOUT(_d) std::setprecision(std::numeric_limits<double>::max_digits10) << _d
 
@@ -63,17 +66,24 @@ int householder_orth(int64_t m, int64_t n, T* mat, T* work) {
     return 0;
 }
 
+
+#define TIMED_LINE(_op, _name) { \
+        auto _tp0 = std_clock::now(); \
+        _op; \
+        auto _tp1 = std_clock::now(); \
+        double dtime = (double) duration_cast<microseconds>(_tp1 - _tp0).count(); \
+        std::cout << _name << DOUT(dtime / 1e6) << std::endl; \
+        }
+
+
 template <typename SpMat, typename T, typename STATE>
-void qb_decompose_sparse_matrix(SpMat &A, int64_t k, T* Q, T* B, int64_t p, STATE state, T* work, int64_t lwork, timepoint_t tp0) {
+void qb_decompose_sparse_matrix(SpMat &A, int64_t k, T* Q, T* B, int64_t p, STATE state, T* work, int64_t lwork) {
     int64_t m = A.n_rows;
     int64_t n = A.n_cols;
     using RandBLAS::sparse_data::left_spmm;
     using RandBLAS::sparse_data::right_spmm;
     using blas::Op;
     using blas::Layout;
-    using std::chrono::duration_cast;
-    using std::chrono::microseconds;
-    double tscale = 1e6;
 
     // We use Q and B as workspace and to store the final result.
     // To distinguish the semantic use of workspace from the final result,
@@ -83,94 +93,56 @@ void qb_decompose_sparse_matrix(SpMat &A, int64_t k, T* Q, T* B, int64_t p, STAT
     T* mat_work2 = B;
     int64_t p_done = 0;
 
+    std::string sample_log  = "sample                : ";
+    std::string lspmmN_log  = "left_spmm (NoTrans)   : ";
+    std::string orth_log    = "orth                  : ";
+    std::string lspmmT_log  = "left_spmm (Trans)     : ";
+
     // Convert to CSC.
     //      Turns out that CSC's runtime is consistent across the various side_spmm 
     //      calls. CSR's runtime is not as consistent (right_spmm is much slower) and
     //      even its "faster" runtime is comparable to CSC's consistent runtime.
-    auto tp1 = std_clock::now();
     RandBLAS::sparse_data::CSCMatrix<T> A_csc(A.n_rows, A.n_cols);
-    RandBLAS::sparse_data::conversions::coo_to_csc(A, A_csc);
-    tp0 = std_clock::now();
-    double dtime = (double) duration_cast<microseconds>(tp0 - tp1).count();
-    std::cout <<  "COO to CSC           : " << DOUT(dtime / tscale) << std::endl;
-
-    int sampling_threads = 8;
+    TIMED_LINE(
+    RandBLAS::sparse_data::conversions::coo_to_csc(A, A_csc), "COO to CSC            : ")
 
     // Step 1: fill S := mat_work2 with the data needed to feed it into power iteration.
     if (p % 2 == 0) {
-        RandBLAS::DenseDist D(n, k, RandBLAS::DenseDistName::Uniform, RandBLAS::MajorAxis::Long);
-        auto threads = omp_get_num_threads();
-        omp_set_num_threads(sampling_threads);
-        RandBLAS::fill_dense(D, mat_work2, state);
-        omp_set_num_threads(threads);
-        timepoint_t tp1 = std_clock::now();
-        dtime = (double) duration_cast<microseconds>(tp1 - tp0).count();
-        std::cout << "sample               : " << DOUT(dtime / tscale) << std::endl;
+        RandBLAS::DenseDist D(n, k);
+        TIMED_LINE(
+        RandBLAS::fill_dense(D, mat_work2, state), sample_log)
     } else {
-        RandBLAS::DenseDist D(m, k, RandBLAS::DenseDistName::Uniform, RandBLAS::MajorAxis::Long);
-        auto threads = omp_get_num_threads();
-        omp_set_num_threads(sampling_threads);
-        RandBLAS::fill_dense(D, mat_work1, state);
-        omp_set_num_threads(threads);
-        timepoint_t tp1 = std_clock::now();
-        dtime = (double) duration_cast<microseconds>(tp1 - tp0).count();
-        std::cout << "sample                : " << DOUT(dtime / tscale) << std::endl;
-
-        left_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, n, k, m, 1.0, A_csc, 0, 0, mat_work1, m, 0.0, mat_work2, n);
+        RandBLAS::DenseDist D(m, k);
+        TIMED_LINE(
+        RandBLAS::fill_dense(D, mat_work1, state), sample_log)
+        TIMED_LINE(
+        left_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, n, k, m, 1.0, A_csc, 0, 0, mat_work1, m, 0.0, mat_work2, n), lspmmT_log)
+        TIMED_LINE(
+        householder_orth(n, k, mat_work2, work), orth_log)
         p_done += 1;
-        tp0 = std_clock::now();
-        dtime = (double) duration_cast<microseconds>(tp0 - tp1).count();
-        std::cout << "left_spmm (Trans)     : " << DOUT(dtime / tscale) << std::endl;
-
-        householder_orth(n, k, mat_work2, work);
-        tp1 = std_clock::now();
-        dtime = (double) duration_cast<microseconds>(tp1 - tp0).count();
-        std::cout << "orth                 : " << DOUT(dtime / tscale) << std::endl;
     }
-    tp0 = std_clock::now();
 
     // Step 2: fill S := mat_work2 with data needed to feed it into the rangefinder.
     while (p - p_done > 0) {
         // Update S = orth(A' * orth(A * S))
-        left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, n, 1.0, A_csc, 0, 0, mat_work2, n, 0.0, mat_work1, m);
-        tp1 = std_clock::now();
-        dtime = (double) duration_cast<microseconds>(tp1 - tp0).count();
-        std::cout << "left_spmm (NoTrans)  : " << DOUT(dtime / tscale) << std::endl;
-
-        householder_orth(m, k, mat_work1, work);
-        tp0 = std_clock::now();
-        dtime = (double) duration_cast<microseconds>(tp0 - tp1).count();
-        std::cout <<  "orth                 : " << DOUT(dtime / tscale) << std::endl;
-
-        left_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, n, k, m, 1.0, A_csc, 0, 0, mat_work1, m, 0.0, mat_work2, n);
-        tp1 = std_clock::now();
-        dtime = (double) duration_cast<microseconds>(tp1 - tp0).count();
-        std::cout << "left_spmm ( Trans )  : " << DOUT(dtime / tscale) << std::endl;
-
-        householder_orth(n, k, mat_work2, work);
-        tp0 = std_clock::now();
-        dtime = (double) duration_cast<microseconds>(tp0 - tp1).count();
-        std::cout <<  "orth                 : " << DOUT(dtime / tscale) << std::endl;
-
+        TIMED_LINE(
+        left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, n, 1.0, A_csc, 0, 0, mat_work2, n, 0.0, mat_work1, m), lspmmN_log)
+        TIMED_LINE(
+        householder_orth(m, k, mat_work1, work), orth_log)
+        TIMED_LINE(
+        left_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, n, k, m, 1.0, A_csc, 0, 0, mat_work1, m, 0.0, mat_work2, n), lspmmT_log)
+        TIMED_LINE(
+        householder_orth(n, k, mat_work2, work), orth_log)
         p_done += 2;
     }
-    tp0 = std_clock::now();
 
     // Step 3: compute Q = orth(A * S) and B = Q'A.
-    left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, n, 1.0, A_csc, 0, 0, mat_work2, n, 0.0, Q, m);
-    tp1 = std_clock::now();
-    dtime = (double) duration_cast<microseconds>(tp1 - tp0).count();
-    std::cout << "left_spmm (NoTrans)  : " << DOUT(dtime / tscale) << std::endl;
-
-    householder_orth(m, k, Q, work);
-    tp0 = std_clock::now();
-    dtime = (double) duration_cast<microseconds>(tp0 - tp1).count();
-    std::cout <<  "orth                 : " << DOUT(dtime / tscale) << std::endl;
-
-    right_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, k, n, m, 1.0, Q, m, A_csc, 0, 0, 0.0, B, k);
-    tp1 = std_clock::now();
-    dtime = (double) duration_cast<microseconds>(tp1 - tp0).count();
-    std::cout << "right_spmm           : " << DOUT(dtime / tscale) << std::endl;
+    TIMED_LINE(
+    left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, n, 1.0, A_csc, 0, 0, mat_work2, n, 0.0, Q, m), lspmmN_log)
+    TIMED_LINE(
+    householder_orth(m, k, Q, work), orth_log)
+    TIMED_LINE(
+    right_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, k, n, m, 1.0, Q, m, A_csc, 0, 0, 0.0, B, k), "right_spmm            : ")
     return;
 }
 
@@ -234,7 +206,7 @@ int main(int argc, char** argv) {
         
     */
     auto start_timer = std_clock::now();
-    qb_decompose_sparse_matrix(mat_sparse, k, U, VT, 2, state, qb_work, std::max(m,n), start_timer);
+    qb_decompose_sparse_matrix(mat_sparse, k, U, VT, 2, state, qb_work, std::max(m,n));
     double *svals = new double[std::min(m,n)];
     double *conversion_work = new double[m*k + k*k];
     qb_to_svd(m, n, k, U, svals, m, VT, k, conversion_work, m*k + k*k);
