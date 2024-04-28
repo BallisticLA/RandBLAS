@@ -49,6 +49,19 @@ target_link_libraries(
 )
 
 
+include(FetchContent)
+FetchContent_Declare(
+        fast_matrix_market
+        GIT_REPOSITORY https://github.com/alugowski/fast_matrix_market
+        GIT_TAG main
+        GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(fast_matrix_market)
+
+add_executable( slra_fmm sparse-low-rank-approx/fmm_demo.cc )
+target_include_directories( slra_fmm PUBLIC ${Random123_DIR} )
+target_link_libraries( slra_fmm PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market )
+
 add_executable(
     slra_rank1_plus_noise sparse-low-rank-approx/svd_rank1_plus_noise.cc
 )
@@ -56,5 +69,5 @@ target_include_directories(
     slra_rank1_plus_noise PUBLIC ${Random123_DIR}
 )
 target_link_libraries(
-    slra_rank1_plus_noise PUBLIC RandBLAS blaspp lapackpp 
+    slra_rank1_plus_noise PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market
 )
