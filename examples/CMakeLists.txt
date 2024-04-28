@@ -4,11 +4,10 @@ project(examples)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
 
-# TODO: add -O3 compiler argument.
-# ^ THAT'S SO IMPORTANT!!!!
-
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_FLAGS "-O3")
+# ^ THAT'S SO IMPORTANT!!!!
 
 # TODO: do a try-catch pattern for finding OpenMP.
 # If we get an error, then check if (1) we're macOS
@@ -51,30 +50,44 @@ target_link_libraries(
     tls_sparse_skop PUBLIC RandBLAS blaspp lapackpp 
 )
 
+add_executable(
+    slra_svd_synthetic sparse-low-rank-approx/svd_rank1_plus_noise.cc
+)
+target_include_directories(
+    slra_svd_synthetic PUBLIC ${Random123_DIR}
+)
+target_link_libraries(
+    slra_svd_synthetic PUBLIC RandBLAS blaspp lapackpp
+)
+
 
 include(FetchContent)
 FetchContent_Declare(
-        fast_matrix_market
-        GIT_REPOSITORY https://github.com/alugowski/fast_matrix_market
-        GIT_TAG main
-        GIT_SHALLOW TRUE
+    fast_matrix_market
+    GIT_REPOSITORY https://github.com/alugowski/fast_matrix_market
+    GIT_TAG main
+    GIT_SHALLOW TRUE
 )
-FetchContent_MakeAvailable(fast_matrix_market)
-
-add_executable( slra_fmm sparse-low-rank-approx/fmm_demo.cc )
-target_include_directories( slra_fmm PUBLIC ${Random123_DIR} )
-target_link_libraries( slra_fmm PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market)
-
-add_executable( slra_fmm_svd sparse-low-rank-approx/fmm_svd.cc )
-target_include_directories( slra_fmm_svd PUBLIC ${Random123_DIR} )
-target_link_libraries( slra_fmm_svd PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market)
+FetchContent_MakeAvailable(
+    fast_matrix_market
+)
 
 add_executable(
-    slra_rank1_plus_noise sparse-low-rank-approx/svd_rank1_plus_noise.cc
+    slra_svd_fmm sparse-low-rank-approx/fmm_svd.cc
 )
 target_include_directories(
-    slra_rank1_plus_noise PUBLIC ${Random123_DIR}
+    slra_svd_fmm PUBLIC ${Random123_DIR}
 )
 target_link_libraries(
-    slra_rank1_plus_noise PUBLIC RandBLAS blaspp lapackpp
+    slra_svd_fmm PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market
+)
+
+add_executable(
+    slra_qrcp sparse-low-rank-approx/qrcp.cc
+)
+target_include_directories(
+    slra_qrcp PUBLIC ${Random123_DIR}
+)
+target_link_libraries(
+    slra_qrcp PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market
 )
