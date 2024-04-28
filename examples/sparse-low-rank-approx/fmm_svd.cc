@@ -83,16 +83,15 @@ void qb_decompose_sparse_matrix(SpMat &A, int64_t k, T* Q, T* B, int64_t p, STAT
     T* mat_work2 = B;
     int64_t p_done = 0;
 
-    RandBLAS::sparse_data::CSRMatrix<T> A_csr(A.n_rows, A.n_cols);
-    RandBLAS::sparse_data::conversions::coo_to_csr(A, A_csr);
+    // Convert to CSC.
+    //      Turns out that CSC's runtime is consistent across the various side_spmm 
+    //      calls. CSR's runtime is not as consistent (right_spmm is much slower) and
+    //      even its "faster" runtime is comparable to CSC's consistent runtime.
     auto tp1 = std_clock::now();
-    double dtime = (double) duration_cast<microseconds>(tp1 - tp0).count();
-    std::cout <<  "COO to CSR           : " << DOUT(dtime / tscale) << std::endl;
-
     RandBLAS::sparse_data::CSCMatrix<T> A_csc(A.n_rows, A.n_cols);
     RandBLAS::sparse_data::conversions::coo_to_csc(A, A_csc);
     tp0 = std_clock::now();
-    dtime = (double) duration_cast<microseconds>(tp0 - tp1).count();
+    double dtime = (double) duration_cast<microseconds>(tp0 - tp1).count();
     std::cout <<  "COO to CSC           : " << DOUT(dtime / tscale) << std::endl;
 
     int sampling_threads = 8;
@@ -117,7 +116,7 @@ void qb_decompose_sparse_matrix(SpMat &A, int64_t k, T* Q, T* B, int64_t p, STAT
         dtime = (double) duration_cast<microseconds>(tp1 - tp0).count();
         std::cout << "sample                : " << DOUT(dtime / tscale) << std::endl;
 
-        left_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, n, k, m, 1.0, A_csr, 0, 0, mat_work1, m, 0.0, mat_work2, n);
+        left_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, n, k, m, 1.0, A_csc, 0, 0, mat_work1, m, 0.0, mat_work2, n);
         p_done += 1;
         tp0 = std_clock::now();
         dtime = (double) duration_cast<microseconds>(tp0 - tp1).count();
@@ -133,7 +132,7 @@ void qb_decompose_sparse_matrix(SpMat &A, int64_t k, T* Q, T* B, int64_t p, STAT
     // Step 2: fill S := mat_work2 with data needed to feed it into the rangefinder.
     while (p - p_done > 0) {
         // Update S = orth(A' * orth(A * S))
-        left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, n, 1.0, A_csr, 0, 0, mat_work2, n, 0.0, mat_work1, m);
+        left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, n, 1.0, A_csc, 0, 0, mat_work2, n, 0.0, mat_work1, m);
         tp1 = std_clock::now();
         dtime = (double) duration_cast<microseconds>(tp1 - tp0).count();
         std::cout << "left_spmm (NoTrans)  : " << DOUT(dtime / tscale) << std::endl;
@@ -143,10 +142,10 @@ void qb_decompose_sparse_matrix(SpMat &A, int64_t k, T* Q, T* B, int64_t p, STAT
         dtime = (double) duration_cast<microseconds>(tp0 - tp1).count();
         std::cout <<  "orth                 : " << DOUT(dtime / tscale) << std::endl;
 
-        left_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, n, k, m, 1.0, A_csr, 0, 0, mat_work1, m, 0.0, mat_work2, n);
+        left_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, n, k, m, 1.0, A_csc, 0, 0, mat_work1, m, 0.0, mat_work2, n);
         tp1 = std_clock::now();
         dtime = (double) duration_cast<microseconds>(tp1 - tp0).count();
-        std::cout << "left_spmm (NoTrans)  : " << DOUT(dtime / tscale) << std::endl;
+        std::cout << "left_spmm ( Trans )  : " << DOUT(dtime / tscale) << std::endl;
 
         householder_orth(n, k, mat_work2, work);
         tp0 = std_clock::now();
@@ -158,7 +157,7 @@ void qb_decompose_sparse_matrix(SpMat &A, int64_t k, T* Q, T* B, int64_t p, STAT
     tp0 = std_clock::now();
 
     // Step 3: compute Q = orth(A * S) and B = Q'A.
-    left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, n, 1.0, A_csr, 0, 0, mat_work2, n, 0.0, Q, m);
+    left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, n, 1.0, A_csc, 0, 0, mat_work2, n, 0.0, Q, m);
     tp1 = std_clock::now();
     dtime = (double) duration_cast<microseconds>(tp1 - tp0).count();
     std::cout << "left_spmm (NoTrans)  : " << DOUT(dtime / tscale) << std::endl;
