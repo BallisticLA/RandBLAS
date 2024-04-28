@@ -4,6 +4,9 @@ project(examples)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
 
+# TODO: add -O3 compiler argument.
+# ^ THAT'S SO IMPORTANT!!!!
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
@@ -60,7 +63,11 @@ FetchContent_MakeAvailable(fast_matrix_market)
 
 add_executable( slra_fmm sparse-low-rank-approx/fmm_demo.cc )
 target_include_directories( slra_fmm PUBLIC ${Random123_DIR} )
-target_link_libraries( slra_fmm PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market )
+target_link_libraries( slra_fmm PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market)
+
+add_executable( slra_fmm_svd sparse-low-rank-approx/fmm_svd.cc )
+target_include_directories( slra_fmm_svd PUBLIC ${Random123_DIR} )
+target_link_libraries( slra_fmm_svd PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market)
 
 add_executable(
     slra_rank1_plus_noise sparse-low-rank-approx/svd_rank1_plus_noise.cc
@@ -69,5 +76,5 @@ target_include_directories(
     slra_rank1_plus_noise PUBLIC ${Random123_DIR}
 )
 target_link_libraries(
-    slra_rank1_plus_noise PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market
+    slra_rank1_plus_noise PUBLIC RandBLAS blaspp lapackpp
 )
