@@ -172,10 +172,8 @@ void qb_to_svd(int64_t m, int64_t n, int64_t k, T* Q, T* svals, int64_t ldq, T* 
     lapack::gesdd(Job::OverwriteVec, k, n, B, ldb, svals, U, k, nullptr, k);
 
     // update Q = Q U.
-    T* more_work = work + k*(k+1);
     bool allocate_more_work = extra_work_size < m*k;
-    if (allocate_more_work)
-        more_work = new T[m*k];
+    T* more_work = (allocate_more_work) ? new T[m*k] : (work + k*(k+1)); 
     lapack::lacpy(MatrixType::General, m, k, Q, ldq, more_work, m);
     blas::gemm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, k, 1.0, more_work, m, U, k, 0.0, Q, ldq);
 
