@@ -70,6 +70,11 @@ static inline void sorted_nonzero_locations_to_pointer_array(
 ///
 /// Any object :math:`\ttt{M}` of type :math:`\ttt{SpMat}` has the following attributes.
 ///
+/// IDEA: change all "const" attributes to return values from inlined functions. 
+/// Looks like there'd be no collision with function/property names for sparse matrix
+/// types in Eigen, SuiteSparse, OneMKL, etc..
+///
+///
 ///     .. list-table::
 ///        :widths: 25 30 40
 ///        :header-rows: 1
@@ -143,11 +148,15 @@ concept SparseMatrix = requires(SpMat A) {
     // TODO: figure out why I need to use convertible_to rather than is_same.
     { A.n_rows } -> std::convertible_to<const int64_t>;
     { A.n_cols } -> std::convertible_to<const int64_t>;
+    // Question: is there a way I can have A.n_rows look like a const, but there's secretly a way
+    // for me to write to it? Would it just be to convert this to a function that returns a hidden
+    // (but technically "public") A._n_rows?
     { A.nnz } -> std::convertible_to<int64_t>;
     { *(A.vals) } -> std::convertible_to<typename SpMat::scalar_t>;
     { A.own_memory } ->  std::convertible_to<const bool>;
     { SpMat(A.n_rows, A.n_cols) }; // Is there better way to require a two-argument constructor?
     { A.reserve((int64_t) 10) };  // This will always compile, even though it might error at runtime.
+    // ^ Problem: const SpMat objects will fail this check.
 };
 
 } // end namespace RandBLAS::sparse_data

@@ -50,8 +50,9 @@ COOMatrix<T> from_matrix_market(std::string fn) {
     COOMatrix<T> out(n_rows, n_cols);
     out.reserve(vals.size());
     for (int i = 0; i < out.nnz; ++i) {
-        out.rows[i] = rows[i];
-        out.cols[i] = cols[i];
+        // Matrix Market format is 1-indexed.
+        out.rows[i] = rows[i] - 1;
+        out.cols[i] = cols[i] - 1;
         out.vals[i] = vals[i];
     }
 
