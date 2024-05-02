@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
     std::ifstream f(fn);
 
     using SpMat = typename Eigen::SparseMatrix<double>;
-    using SparseQR = typename Eigen::SparseQR<SpMat, Eigen::AMDOrdering<SpMat::StorageIndex>>;
+    using SparseQR = typename Eigen::SparseQR<SpMat, Eigen::NaturalOrdering<SpMat::StorageIndex>>;
 
     SpMat mat_eigsp;
     fast_matrix_market::read_matrix_market_eigen(f, mat_eigsp);
@@ -67,18 +67,13 @@ int main(int argc, char** argv) {
     double density = ((double) mat_eigsp.nonZeros()) / ((double) (m * n));
     std::cout << "density : " << DOUT(density) << std::endl << std::endl;
 
-    TIMED_LINE(
-    mat_eigsp.makeCompressed(), "\nCompress mat_eigsp   : ")
+    mat_eigsp.makeCompressed();
 
     auto start_timer = std_clock::now();
     SparseQR sqrcp(mat_eigsp);
     auto stop_timer = std_clock::now();
     double runtime = (double) duration_cast<microseconds>(stop_timer - start_timer).count();
     std::cout << "\nMake SparseQR object : " << DOUT(runtime / 1e6) << std::endl;
-
-    TIMED_LINE(
-        sqrcp.compute(mat_eigsp), "\nsqrcp.compute() time : "
-    )
 
     return 0;
 }
