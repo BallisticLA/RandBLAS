@@ -82,16 +82,6 @@ target_link_libraries(
     slra_svd_fmm PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market
 )
 
-FetchContent_Declare(
-   eigen
-   GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-   GIT_TAG master
-   GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(
-    eigen
-)
-
 add_executable(
     slra_qrcp sparse-low-rank-approx/qrcp.cc
 )
@@ -100,14 +90,4 @@ target_include_directories(
 )
 target_link_libraries(
     slra_qrcp PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market
-)
-
-add_executable(
-    eigen_qrcp sparse-low-rank-approx/eigen_qrcp.cc
-)
-target_include_directories(
-    eigen_qrcp PUBLIC ${Random123_DIR}
-)
-target_link_libraries(
-    eigen_qrcp PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market eigen
 )
