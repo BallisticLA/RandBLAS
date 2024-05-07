@@ -31,7 +31,7 @@ std::string parse_args(int argc, char** argv) {
     if (argc > 1) {
         return std::string{argv[1]};
     } else {
-        return "../sparse-low-rank-approx/data-matrices/bcsstk17/bcsstk17.mtx";
+        return "../sparse-data-matrices/bcsstk17/bcsstk17.mtx";
     }
 }
 
@@ -150,11 +150,11 @@ void power_iter_col_sketch(SpMat &A, int64_t k, T* Y, int64_t p_data_aware, STAT
 
     int64_t p_done = 0;
     if (p_data_aware % 2 == 0) {
-        RandBLAS::DenseDist D(k, m);
+        RandBLAS::DenseDist D(k, m, RandBLAS::DenseDistName::Gaussian);
         TIMED_LINE(
         RandBLAS::fill_dense(D, mat_work2, state), "sampling        : ")
     } else {
-        RandBLAS::DenseDist D(k, n);
+        RandBLAS::DenseDist D(k, n, RandBLAS::DenseDistName::Gaussian);
         TIMED_LINE(
         RandBLAS::fill_dense(D, mat_work1, state), "sampling        : ")
         TIMED_LINE(
@@ -220,7 +220,7 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
         }
     }
     // Step 3: get explicit representation of orth(Q).
-    bool chol_orth = false;
+    bool chol_orth = true;
     TIMED_LINE(
         if (chol_orth) {
         // Apply a preconditioner

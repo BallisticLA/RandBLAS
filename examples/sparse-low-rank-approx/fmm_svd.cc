@@ -30,7 +30,7 @@ std::string parse_args(int argc, char** argv) {
     if (argc > 1) {
         return std::string{argv[1]};
     } else {
-        return "../sparse-low-rank-approx/data-matrices/bcsstk17/bcsstk17.mtx";
+        return "../sparse-data-matrices/bcsstk17/bcsstk17.mtx";
     }
 }
 
