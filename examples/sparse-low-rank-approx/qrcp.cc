@@ -51,9 +51,8 @@ COOMatrix<T> from_matrix_market(std::string fn) {
     COOMatrix<T> out(n_rows, n_cols);
     out.reserve(vals.size());
     for (int i = 0; i < out.nnz; ++i) {
-        // Matrix Market format is 1-indexed.
-        out.rows[i] = rows[i] - 1;
-        out.cols[i] = cols[i] - 1;
+        out.rows[i] = rows[i];
+        out.cols[i] = cols[i];
         out.vals[i] = vals[i];
     }
 
@@ -102,7 +101,7 @@ int lu_row_stabilize(int64_t m, int64_t n, T* mat, int64_t* piv_work) {
     // above: the permutation applied to the rows of mat doesn't matter in our context.
     // below: Need to zero-out the strict lower triangle of mat and scale each row.
     for (int64_t j = 0; j < m-1; ++j) {
-        for (int64_t i = 1; i < m; ++i) {
+        for (int64_t i = j + 1; i < m; ++i) {
             mat[i + j*m] = 0.0;
         }
     }
@@ -249,6 +248,8 @@ int main(int argc, char** argv) {
     auto mat_coo = from_matrix_market<double>(fn);
     auto m = mat_coo.n_rows;
     auto n = mat_coo.n_cols;
+    // RandBLAS::CSRMatrix<double> mat_csr(m, n);
+    // RandBLAS::conversions::coo_to_csr(mat_coo, mat_csr);
     RandBLAS::CSCMatrix<double> mat_csc(m, n);
     RandBLAS::conversions::coo_to_csc(mat_coo, mat_csc);
     /*

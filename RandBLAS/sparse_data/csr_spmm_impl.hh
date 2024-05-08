@@ -24,12 +24,13 @@ static void apply_csr_to_vector_from_left_ik(
     int64_t incAv   // stride between elements of Av
 ) {
     for (int64_t i = 0; i < len_Av; ++i) {
+        T Av_i = Av[i*incAv];
         for (int64_t ell = rowptr[i]; ell < rowptr[i+1]; ++ell) {
             int j = colidxs[ell];
             T Aij = vals[ell];
-            Av[i*incAv] += Aij * v[j*incv];
-            // ^ if v were a matrix, this could be an axpy with the j-th row of v, accumulated into i-th row of Av.
+            Av_i += Aij * v[j*incv];
         }
+        Av[i*incAv] = Av_i;
     }
 }
 
@@ -82,6 +83,42 @@ static void apply_csr_left_jik_p11(
     }
     if (alpha != (T) 1.0) {
         delete [] vals;
+    }
+    return;
+}
+
+template <typename T, RandBLAS::SignedInteger sint_t>
+static void apply_csr_left_ikb_rowmajor(
+    T alpha,
+    int64_t d,
+    int64_t n,
+    int64_t m,
+    CSRMatrix<T, sint_t> &A,
+    const T *B,
+    int64_t ldb,
+    T *C,
+    int64_t ldc
+) {
+    randblas_require(A.index_base == IndexBase::Zero);
+
+    randblas_require(d == A.n_rows);
+    randblas_require(m == A.n_cols);
+
+    #pragma omp parallel default(shared)
+    {
+        #pragma omp for schedule(dynamic)
+        for (int64_t i = 0; i < d; ++i) {
+            // C[i, 0:n] += alpha * A[i, :] @ B[:, 0:n]
+            T* row_C = &C[i*ldc];
+            for (int64_t ell = A.rowptr[i]; ell < A.rowptr[i+1]; ++ell) {
+                // we're working with A[i,k] for k = A.colidxs[ell]
+                // compute C[i, 0:n] += alpha * A[i,k] * B[k, 0:n]
+                T scale = alpha * A.vals[ell];
+                int64_t k = A.colidxs[ell];
+                const T* row_B = &B[k*ldb];
+                blas::axpy(n, scale, row_B, 1, row_C, 1);
+            }
+        }
     }
     return;
 }
