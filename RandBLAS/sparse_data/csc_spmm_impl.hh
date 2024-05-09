@@ -159,7 +159,7 @@ static void apply_csc_left_kib_rowmajor_1p1(
         #if defined(RandBLAS_HAS_OpenMP)
         int t = omp_get_thread_num();
         #else
-        int t = 1;
+        int t = 0;
         #endif
         int i_lower = block_bounds[t];
         int i_upper = block_bounds[t+1];
