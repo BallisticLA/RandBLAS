@@ -141,10 +141,10 @@ static void apply_csc_left_kib_rowmajor_1p1(
 
     int num_threads = 1;
     #if defined(RandBLAS_HAS_OpenMP)
-        #pragma omp parallel 
-        {
-            num_threads = omp_get_num_threads();
-        }
+    #pragma omp parallel 
+    {
+        num_threads = omp_get_num_threads();
+    }
     #endif
 
     int* block_bounds = new int[num_threads + 1]{};
@@ -156,7 +156,11 @@ static void apply_csc_left_kib_rowmajor_1p1(
 
     #pragma omp parallel default(shared)
     {
+        #if defined(RandBLAS_HAS_OpenMP)
         int t = omp_get_thread_num();
+        #else
+        int t = 1;
+        #endif
         int i_lower = block_bounds[t];
         int i_upper = block_bounds[t+1];
         for (int64_t k = 0; k < m; ++k) {
