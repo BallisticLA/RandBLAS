@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 
+# cmake -DCMAKE_BINARY_DIR=`pwd` -DRandBLAS_DIR=`pwd`/../../../RandBLAS-install/lib/cmake -Dlapackpp_DIR=`pwd`/../../../lapackpp-install/lib/cmake/lapackpp ..
+# ^ Example CMake configuration line starting from the build folder one level lower.
+
 project(examples)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
@@ -8,6 +11,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_FLAGS "-O3")
 # ^ THAT'S SO IMPORTANT!!!!
+#   TODO: just set CMAKE_BUILD_TYPE to Release if it's not already given.
 
 # TODO: do a try-catch pattern for finding OpenMP.
 # If we get an error, then check if (1) we're macOS
@@ -90,4 +94,14 @@ target_include_directories(
 )
 target_link_libraries(
     slra_qrcp PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market
+)
+
+add_executable(
+    slra_graphs sparse-low-rank-approx/graphs.cc
+)
+target_include_directories(
+    slra_graphs PUBLIC ${Random123_DIR}
+)
+target_link_libraries(
+    slra_graphs PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market
 )
