@@ -39,6 +39,28 @@ std::string parse_args(int argc, char** argv) {
 }
 
 template <typename T>
+COOMatrix<T> adjacency_mat_from_matrix_market(std::string fn) {
+    int64_t n, n_ = 0;
+    std::vector<int64_t> rows{};
+    std::vector<int64_t> cols{};
+    std::vector<T> vals{};
+    std::ifstream file_stream(fn);
+    fast_matrix_market::read_matrix_market_triplet(
+        file_stream, n, n_, rows,  cols, vals
+    );
+    randblas_require(n == n_); // we must be square.
+    int64_t m = vals.size();
+    COOMatrix<T> out(n, n);
+    out.reserve(m);
+    for (int64_t i = 0; i < m; ++i) {
+        out.rows[i] = rows[i];
+        out.cols[i] = cols[i];
+        out.vals[i] = vals[i];
+    }
+    return out;
+}
+
+template <typename T>
 COOMatrix<T> regularized_laplacian_from_matrix_market(std::string fn, T regularization) {
     randblas_require(regularization >= 0);
 
@@ -227,10 +249,10 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
             precond[i + k*j] = Y[i + k*j];
         }
     }
-    // Step 2: copy A(:, piv(0)), ..., A(:, piv(k)) into dense Q
+    // Step 2: copy A(:, piv(0)-1), ..., A(:, piv(k)-1) into dense Q
     for (int64_t j = 0; j < k; ++j) {
         RandBLAS::util::safe_scal(m, ZERO, Q + j*ldq, 1);
-        for (int64_t ell = A.colptr[piv[j]]; ell < A.colptr[piv[j] + 1]; ++ell) {
+        for (int64_t ell = A.colptr[piv[j]-1]; ell < A.colptr[piv[j]]; ++ell) {
             int64_t i = A.rowidxs[ell];
             Q[i + ldq*j] = A.vals[ell];
         }
@@ -257,7 +279,8 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
 
 int main(int argc, char** argv) {
     auto fn = parse_args(argc, argv);
-    auto L_coo = regularized_laplacian_from_matrix_market(fn, 0.0f);
+    //auto L_coo = regularized_laplacian_from_matrix_market(fn, 0.0f);
+    auto L_coo = adjacency_mat_from_matrix_market<float>(fn);
     auto m = L_coo.n_rows;
     auto n = L_coo.n_cols;
     RandBLAS::CSCMatrix<float> L(m, n);
@@ -266,7 +289,7 @@ int main(int argc, char** argv) {
     std::cout << "\nn_rows  : " << L.n_rows << std::endl;
     std::cout << "n_cols  : " << L.n_cols << std::endl;
     float density = ((float) L.nnz) / ((float) (L.n_rows * L.n_cols));
-    std::cout << "density : " << FOUT(density) << std::endl << std::endl;
+    std::cout << "density : " << FOUT(density) << std::endl;
 
     // Run the randomized algorithm!
     int64_t k = 32;
@@ -276,8 +299,10 @@ int main(int argc, char** argv) {
     RandBLAS::RNGState<r123::Philox4x32> state(0);
 
     auto start_timer = std_clock::now();
+    int64_t p_data_aware = 2;
+    std::cout << "p_data_aware : " << p_data_aware << std::endl << std::endl;
     TIMED_LINE(
-    power_iter_col_sketch(L, k, R, 1, state, Q), "\n\tpower iter sketch  : ")
+    power_iter_col_sketch(L, k, R, p_data_aware, state, Q), "\n\tpower iter sketch  : ")
     TIMED_LINE(
     sketch_to_tqrcp(L, k, Q, m, R, k, piv), "\n\tsketch to QRCP     : ")
     auto stop_timer = std_clock::now();

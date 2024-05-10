@@ -210,10 +210,10 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
             precond[i + k*j] = Y[i + k*j];
         }
     }
-    // Step 2: copy A(:, piv(0)), ..., A(:, piv(k)) into dense Q
+    // Step 2: copy A(:, piv(0)-1), ..., A(:, piv(k)-1) into dense Q
     for (int64_t j = 0; j < k; ++j) {
         RandBLAS::util::safe_scal(m, 0.0, Q + j*ldq, 1);
-        for (int64_t ell = A.colptr[piv[j]]; ell < A.colptr[piv[j] + 1]; ++ell) {
+        for (int64_t ell = A.colptr[piv[j]-1]; ell < A.colptr[piv[j]]; ++ell) {
             int64_t i = A.rowidxs[ell];
             Q[i + ldq*j] = A.vals[ell];
         }
