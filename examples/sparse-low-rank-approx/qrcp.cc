@@ -112,6 +112,10 @@ int lu_row_stabilize(int64_t m, int64_t n, T* mat, int64_t* piv_work) {
     return 0;
 }
 
+#define FINE_GRAINED
+// ^ Toggle that on and off to change macro behavior
+
+#ifdef FINE_GRAINED
 #define TIMED_LINE(_op, _name) { \
         auto _tp0 = std_clock::now(); \
         _op; \
@@ -119,6 +123,9 @@ int lu_row_stabilize(int64_t m, int64_t n, T* mat, int64_t* piv_work) {
         double dtime = (double) duration_cast<microseconds>(_tp1 - _tp0).count(); \
         std::cout << _name << DOUT(dtime / 1e6) << std::endl; \
         }
+#else
+#define TIMED_LINE(_op, _name) { _op; }
+#endif
 
 template <typename T, typename SpMat, typename STATE>
 void power_iter_col_sketch(SpMat &A, int64_t k, T* Y, int64_t p_data_aware, STATE state, T* work) {
@@ -241,24 +248,44 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
     return;
 }
 
-
-
-int main(int argc, char** argv) {
-    auto fn = parse_args(argc, argv);
+void run_many_sizes(std::string fn, int p_data_aware) {
     auto mat_coo = from_matrix_market<double>(fn);
     auto m = mat_coo.n_rows;
     auto n = mat_coo.n_cols;
-    // RandBLAS::CSRMatrix<double> mat_csr(m, n);
-    // RandBLAS::conversions::coo_to_csr(mat_coo, mat_csr);
     RandBLAS::CSCMatrix<double> mat_csc(m, n);
     RandBLAS::conversions::coo_to_csc(mat_coo, mat_csc);
-    /*
-    Effect of various parameters on performance:
-        It's EXTREMELY important to use -O3 if you want reasonably
-        fast sparse matrix conversion inside RandBLAS. We're talking
-        a more-than-10x speedup.
-        
-    */
+    std::cout << "============================================================================\n";
+    std::cout << fn << ", p_data_aware = " << p_data_aware << std::endl;
+    int64_t min_mn = std::min(m, n);
+    for (int64_t k = 8; k < min_mn/4; k = k*2) {
+        double *Q  = new double[m*k]{};
+        double *R = new double[k*n]{};
+        int64_t *piv = new int64_t[n]{};
+        RandBLAS::RNGState<r123::Philox4x32> state(0);
+
+        auto start_timer = std_clock::now();
+        TIMED_LINE(
+        power_iter_col_sketch(mat_csc, k, R, p_data_aware, state, Q), "\n\tpower iter sketch  : ")
+        TIMED_LINE(
+        sketch_to_tqrcp(mat_csc, k, Q, m, R, k, piv), "\n\tsketch to QRCP     : ")
+        auto stop_timer = std_clock::now();
+        double runtime = (double) duration_cast<microseconds>(stop_timer - start_timer).count();
+        std::cout << k << ", " << DOUT(runtime / 1e6) << std::endl;
+        delete [] Q;
+        delete [] R;
+        delete [] piv;
+    }
+    std::cout << "============================================================================\n";
+}
+
+
+void run_one(std::string fn) {
+    auto mat_coo = from_matrix_market<double>(fn);
+    auto m = mat_coo.n_rows;
+    auto n = mat_coo.n_cols;
+    RandBLAS::CSCMatrix<double> mat_csc(m, n);
+    RandBLAS::conversions::coo_to_csc(mat_coo, mat_csc);
+
     std::cout << "\nn_rows  : " << mat_coo.n_rows << std::endl;
     std::cout << "n_cols  : " << mat_coo.n_cols << std::endl;
     double density = ((double) mat_coo.nnz) / ((double) (mat_coo.n_rows * mat_coo.n_cols));
@@ -283,5 +310,13 @@ int main(int argc, char** argv) {
     delete [] Q;
     delete [] R;
     delete [] piv;
+}
+
+
+int main(int argc, char** argv) {
+    auto fn = parse_args(argc, argv);
+    // run_many_sizes(fn, 0);
+    // run_many_sizes(fn, 1);
+    // run_many_sizes(fn, 2);
     return 0;
 }
