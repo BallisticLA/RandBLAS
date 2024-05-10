@@ -158,31 +158,31 @@ void power_iter_col_sketch(SpMat &A, int64_t k, T* Y, int64_t p_data_aware, STAT
     if (p_data_aware % 2 == 0) {
         RandBLAS::DenseDist D(k, m, RandBLAS::DenseDistName::Gaussian);
         TIMED_LINE(
-        RandBLAS::fill_dense(D, mat_work2, state), "sampling        : ")
+        RandBLAS::fill_dense(D, mat_work2, state), "sampling : ")
     } else {
         RandBLAS::DenseDist D(k, n, RandBLAS::DenseDistName::Gaussian);
         TIMED_LINE(
-        RandBLAS::fill_dense(D, mat_work1, state), "sampling        : ")
+        RandBLAS::fill_dense(D, mat_work1, state), "sampling : ")
         TIMED_LINE(
-        right_spmm(Layout::ColMajor, Op::NoTrans, Op::Trans, k, m, n, 1.0, mat_work1, k, A, 0, 0, 0.0, mat_work2, k), "right_spmm      : ")
+        right_spmm(Layout::ColMajor, Op::NoTrans, Op::Trans, k, m, n, 1.0, mat_work1, k, A, 0, 0, 0.0, mat_work2, k), "spmm : ")
         p_done += 1;
         TIMED_LINE(
-        if (lu_stab) {lu_row_stabilize(k, m, mat_work2, piv_work);} else { qr_row_stabilize(k, m, mat_work2, tau_work);} , "stabilization   : ")
+        if (lu_stab) {lu_row_stabilize(k, m, mat_work2, piv_work);} else { qr_row_stabilize(k, m, mat_work2, tau_work);} , "stabilization : ")
     }
 
     while (p_data_aware - p_done > 0) {
         TIMED_LINE(
-        right_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, k, n, m, 1.0, mat_work2, k, A, 0, 0, 0.0, mat_work1, k), "right_spmm      : ")
+        right_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, k, n, m, 1.0, mat_work2, k, A, 0, 0, 0.0, mat_work1, k),  "spmm : ")
         TIMED_LINE(
-        if (lu_stab) {lu_row_stabilize(k, m, mat_work1, piv_work);} else {qr_row_stabilize(k, n, mat_work1, tau_work);}, "stabilization   : ")
+        if (lu_stab) {lu_row_stabilize(k, m, mat_work1, piv_work);} else {qr_row_stabilize(k, n, mat_work1, tau_work);}, "stabilization : ")
         TIMED_LINE(
-        right_spmm(Layout::ColMajor, Op::NoTrans, Op::Trans, k, m, n, 1.0, mat_work1, k, A, 0, 0, 0.0, mat_work2, k), "right_spmm      : ")
+        right_spmm(Layout::ColMajor, Op::NoTrans, Op::Trans, k, m, n, 1.0, mat_work1, k, A, 0, 0, 0.0, mat_work2, k),  "spmm : ")
         TIMED_LINE(
-        if (lu_stab) {lu_row_stabilize(k, m, mat_work2, piv_work);} else { qr_row_stabilize(k, m, mat_work2, tau_work);}, "stabilization   : ")
+        if (lu_stab) {lu_row_stabilize(k, m, mat_work2, piv_work);} else { qr_row_stabilize(k, m, mat_work2, tau_work);},  "stabilization : ")
         p_done += 2;
     }
     TIMED_LINE(
-    right_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, k, n, m, 1.0, mat_work2, k, A, 0, 0, 0.0, Y, k), "right_spmm      : ")
+    right_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, k, n, m, 1.0, mat_work2, k, A, 0, 0, 0.0, Y, k),  "spmm : ")
 
     delete [] tau_work;
     delete [] piv_work;
@@ -211,7 +211,7 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
 
     // Step 1: get the pivots
     TIMED_LINE(
-    lapack::geqp3(k, n, Y, ldy, piv, tau), "\nQRCP of sketch     : ")
+    lapack::geqp3(k, n, Y, ldy, piv, tau), "GEQP3 : ")
     for (int64_t j = 0; j < k; j++) {
         for (int64_t i = 0; i < k; ++i) {
             precond[i + k*j] = Y[i + k*j];
@@ -238,11 +238,11 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
             lapack::geqrf(m, k, Q, ldq, tau);
             lapack::ungqr(m, k, k, Q, ldq, tau);
         },
-    "orth(A(:,piv(:k))) : ")
+    "getQ : ")
     // Step 4: multiply Y = Q'A and pivot Y = Y(:, piv)
     TIMED_LINE(
     RandBLAS::right_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, k, n, m, 1.0, Q, ldq, A, 0, 0, 0.0, Y, ldy);
-    col_swap(k, n, k, Y, ldy, piv), "R = Q' A(:, piv)   : ")
+    col_swap(k, n, k, Y, ldy, piv), "getR : ")
 
     delete [] tau;
     return;
@@ -257,7 +257,7 @@ void run_many_sizes(std::string fn, int p_data_aware) {
     std::cout << "============================================================================\n";
     std::cout << fn << ", p_data_aware = " << p_data_aware << std::endl;
     int64_t min_mn = std::min(m, n);
-    for (int64_t k = 8; k < min_mn/4; k = k*2) {
+    for (int64_t k = 8; k <= 2048; k = k*2) {
         double *Q  = new double[m*k]{};
         double *R = new double[k*n]{};
         int64_t *piv = new int64_t[n]{};
@@ -271,6 +271,38 @@ void run_many_sizes(std::string fn, int p_data_aware) {
         auto stop_timer = std_clock::now();
         double runtime = (double) duration_cast<microseconds>(stop_timer - start_timer).count();
         std::cout << k << ", " << DOUT(runtime / 1e6) << std::endl;
+        delete [] Q;
+        delete [] R;
+        delete [] piv;
+    }
+    std::cout << "============================================================================\n";
+}
+
+void run_fewer_sizes(std::string fn, int p_data_aware) {
+    auto mat_coo = from_matrix_market<double>(fn);
+    auto m = mat_coo.n_rows;
+    auto n = mat_coo.n_cols;
+    RandBLAS::CSCMatrix<double> mat_csc(m, n);
+    RandBLAS::conversions::coo_to_csc(mat_coo, mat_csc);
+    std::cout << "============================================================================\n";
+    std::cout << fn << ", p_data_aware = " << p_data_aware << std::endl;
+    for (int64_t k = 8; k <= 2048; k = k*4) {
+        std::cout << "\nrank " << k << std::endl;
+        double *Q  = new double[m*k]{};
+        double *R = new double[k*n]{};
+        int64_t *piv = new int64_t[n]{};
+        RandBLAS::RNGState<r123::Philox4x32> state(0);
+
+        auto _tp0 = std_clock::now();
+        power_iter_col_sketch(mat_csc, k, R, p_data_aware, state, Q);
+        auto _tp1 = std_clock::now();
+        double sketch_time = (double) duration_cast<microseconds>(_tp1 - _tp0).count();
+        _tp0 = std_clock::now();
+        sketch_to_tqrcp(mat_csc, k, Q, m, R, k, piv);
+        _tp1 = std_clock::now();
+        double proc_time = (double) duration_cast<microseconds>(_tp1 - _tp0).count();
+        std::cout << "sketching : " << DOUT(sketch_time / 1e6) << std::endl;
+        std::cout << "processing : " << DOUT(proc_time / 1e6) << std::endl;
         delete [] Q;
         delete [] R;
         delete [] piv;
@@ -315,8 +347,11 @@ void run_one(std::string fn) {
 
 int main(int argc, char** argv) {
     auto fn = parse_args(argc, argv);
-    // run_many_sizes(fn, 0);
-    // run_many_sizes(fn, 1);
-    // run_many_sizes(fn, 2);
+    // run_fewer_sizes(fn, 0);
+    // run_fewer_sizes(fn, 1);
+    // run_fewer_sizes(fn, 2);
+    run_many_sizes(fn, 0);
+    run_many_sizes(fn, 1);
+    run_many_sizes(fn, 2);
     return 0;
 }
