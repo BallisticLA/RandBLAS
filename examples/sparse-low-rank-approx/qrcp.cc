@@ -27,12 +27,14 @@ using std::chrono::microseconds;
 
 #define DOUT(_d) std::setprecision(8) << _d
 
-std::string parse_args(int argc, char** argv) {
-    if (argc > 1) {
-        return std::string{argv[1]};
-    } else {
-        return "../sparse-data-matrices/N_reactome/N_reactome.mtx";
-    }
+auto parse_args(int argc, char** argv) {
+    std::string mat{"../sparse-data-matrices/N_reactome/N_reactome.mtx"};
+    int k = 4;
+    if (argc > 1)
+        k = atoi(argv[1]);
+    if (argc > 2)
+        mat = argv[2];
+    return std::make_tuple(mat, k);
 }
 
 template <typename T>
@@ -99,23 +101,45 @@ int sketch_orthogonalize_rows(int64_t m, int64_t n, T* A, T* work, int64_t d, in
     // work has at least m*d space.
     randblas_require(d >= 2);
     randblas_require(d >= m);
+    std::vector<T> tau(d, 0.0);
     int64_t vec_nnz = std::min(d/2, (int64_t) 4);
     RandBLAS::SparseDist D{n, d, vec_nnz};
     RandBLAS::SparseSkOp<T> S(D, state);
-    //RandBLAS::util::print_colmaj(m, n, A, "A, before : ");
+    // Simple option (shown here):
+    //      Sketch A in column-major format, then do LQ on the sketch.
+    //      If the sketch looks singular after we decompose it, then we bite the bullet and do LQ on A.
+    //
+    // Fancy option (for a later implementation):
+    //      Compute the sketch in row-major format (this is lying about A's format, but we resolve that by setting transA=T).
+    //      Look at the row-major sketch, interpret it as a transposed column-major sketch, factor the "implicitly de-transposed" version by GEQP3,
+    //      then implicitly transpose back to get the factors for row-pivoted LQ of A_sk:
+    //          A_sk = P R^* Q^*
+    //      Apply M = inv(P R^*) = inv(R^*) P^* to the left of A by TRSM.
+    //      If rank(A) = rank(A_sk) = m, then in exact arithmetic the conditioning of MA should be independent from
+    //      that of A. However, there can be a positive correlation between cond(MA) and cond(A) in finite-precision.
+    //      This happens when cond(A) is very large, and may warrant truncating rows of MA.
+    //      There are many ways to select the size of that row-block. Two options jump out:
+    //          1. Compute (or estimate) the numerical rank of R by a reliable method of your choosing.
+    //          2. Proceed in a similar vein as CQRRPT: estimate the condition number of leading row blocks of MA
+    //             by forming the Gram matrix (MA)(MA)^*, doing Cholesky on it, and computing or estimating the 
+    //             condition numbers of leading submatrices of the Cholesky factor.
+    //
+    //
     RandBLAS::sketch_general(blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans, m, d, n, 1.0, A, m, S, 0.0, work, m);
-    // TODO: use an appropriate version of GEQP3 (must row-pivot instead of column-pivot).
-    std::vector<T> tau(d, 0.0);
     lapack::gelqf(m, d, work, m, tau.data());
     T tol = std::numeric_limits<T>::epsilon()*100;
-    for (int i = 0; i < m; ++i)
-        randblas_require(std::abs(work[i*m + i]) >= tol);
-    //RandBLAS::util::print_colmaj(m, d, work, "work : ");
+    for (int i = 0; i < m; ++i) {
+        if (std::abs(work[i*m + i]) < tol) {
+            // We can't safely invert. Fall back on LQ of A.
+            qr_row_stabilize(m, n, A, tau.data());
+            std::cout << "\n----> Could not safely sketch-orthogonalize. Falling back on GELQF instead.\n\n";
+            return 1;
+        }
+    }
     // L is in the lower triangle of work.
     // Need to transform
     //      A <- inv(L)A
     blas::trsm(blas::Layout::ColMajor, blas::Side::Left, blas::Uplo::Lower, blas::Op::NoTrans, blas::Diag::NonUnit, m, n, 1.0, work, m, A, m);
-    //RandBLAS::util::print_colmaj(m, n, A, "A, after : ");
     return 0;
 }
 
@@ -237,6 +261,26 @@ void power_iter_col_sketch(SpMat &A, int64_t k, T* Y, int64_t p_data_aware, STAT
     return;
 }
 
+template <typename T>
+void print_row_norms(T* mat, int64_t m, int64_t n, std::string s) {
+    std::cout << "Row norms for " << s << " : np.array([";
+    int i;
+    for (i = 0; i < m-1; ++i) {
+        std::cout << DOUT(blas::nrm2(n, mat + i, m)) << ", ";
+    }
+    std::cout << DOUT(blas::nrm2(n, mat + i, m)) << "]) " << std::endl;
+    return;
+}
+
+void print_pivots(int64_t *piv, int64_t k) {
+    std::cout << "Pivots : np.array([";
+    int i;
+    for (i = 0; i < k-1; ++i) {
+        std::cout << piv[i]-1 << ", ";
+    }
+    std::cout << piv[i]-1 << "])" << std::endl;
+}
+
 template <typename T, typename SpMat>
 void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy, int64_t *piv) {
     // On input, Y is a left-sketch of A.
@@ -257,14 +301,12 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
     T* tau = new T[n]{};
     T* precond = new T[k * k]{};
 
+    // ================================================================
     // Step 1: get the pivots
     TIMED_LINE(
     lapack::geqp3(k, n, Y, ldy, piv, tau), "GEQP3 : ")
-    for (int64_t j = 0; j < k; j++) {
-        for (int64_t i = 0; i < k; ++i) {
-            precond[i + k*j] = Y[i + k*j];
-        }
-    }
+
+    // ================================================================
     // Step 2: copy A(:, piv(0)-1), ..., A(:, piv(k)-1) into dense Q
     for (int64_t j = 0; j < k; ++j) {
         RandBLAS::util::safe_scal(m, 0.0, Q + j*ldq, 1);
@@ -273,20 +315,26 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
             Q[i + ldq*j] = A.vals[ell];
         }
     }
+
+    // ================================================================
     // Step 3: get explicit representation of orth(Q).
-    bool chol_orth = false;
     TIMED_LINE(
-        if (chol_orth) {
-        // Apply a preconditioner
-        blas::trsm(Layout::ColMajor, Side::Right, Uplo::Upper, Op::NoTrans, blas::Diag::NonUnit, m, k, 1.0, precond, k, Q, ldq);
-        // safely cholesky-orthogonalize (we don't care about R from a hypothetical CholeskyQR)
-        blas::syrk(Layout::ColMajor, Uplo::Upper, Op::Trans, k, m, 1.0, Q, ldq, 0.0, precond, k);
-        blas::trsm(Layout::ColMajor, Side::Right, Uplo::Upper, Op::NoTrans, blas::Diag::NonUnit, m, k, 1.0, precond, k, Q, ldq);
-        } else {
-            lapack::geqrf(m, k, Q, ldq, tau);
-            lapack::ungqr(m, k, k, Q, ldq, tau);
-        },
-    "getQ : ")
+    //      Extract a preconditioner from the QRCP decomposition of Y.
+    for (int64_t j = 0; j < k; j++) {
+        for (int64_t i = 0; i < k; ++i) {
+            precond[i + k*j] = Y[i + k*j];
+        }
+    }
+    //      Apply the preconditioner: Q = Q / precond.
+    blas::trsm(Layout::ColMajor, Side::Right, Uplo::Upper, Op::NoTrans, blas::Diag::NonUnit, m, k, 1.0, precond, k, Q, ldq);
+    //      Cholesky-orthogonalize the preconditioned matrix:
+    //          precond = chol(Q' * Q, "upper")
+    //          Q = Q / precond.
+    blas::syrk(Layout::ColMajor, Uplo::Upper, Op::Trans, k, m, 1.0, Q, ldq, 0.0, precond, k);
+    lapack::potrf(Uplo::Upper, k, precond, k);
+    blas::trsm(Layout::ColMajor, Side::Right, Uplo::Upper, Op::NoTrans, blas::Diag::NonUnit, m, k, 1.0, precond, k, Q, ldq), "getQ : ")
+    
+    // ================================================================
     // Step 4: multiply Y = Q'A and pivot Y = Y(:, piv)
     TIMED_LINE(
     RandBLAS::right_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, k, n, m, 1.0, Q, ldq, A, 0, 0, 0.0, Y, ldy);
@@ -298,64 +346,50 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
 }
 
 int runall(int argc, char** argv, StabilizationMethod sm) {
-    auto fn = parse_args(argc, argv);
+    auto [fn, _k] = parse_args(argc, argv);
     auto mat_coo = from_matrix_market<double>(fn);
     auto m = mat_coo.n_rows;
     auto n = mat_coo.n_cols;
     RandBLAS::CSCMatrix<double> mat_csc(m, n);
     RandBLAS::conversions::coo_to_csc(mat_coo, mat_csc);
-    /*
-    Effect of various parameters on performance:
-        It's EXTREMELY important to use -O3 if you want reasonably
-        fast sparse matrix conversion inside RandBLAS. We're talking
-        a more-than-10x speedup.
-        
-    */
+
     // std::cout << "\nn_rows  : " << mat_coo.n_rows << std::endl;
     // std::cout << "n_cols  : " << mat_coo.n_cols << std::endl;
     // double density = ((double) mat_coo.nnz) / ((double) (mat_coo.n_rows * mat_coo.n_cols));
     // std::cout << "density : " << DOUT(density) << std::endl << std::endl;
 
     // Run the randomized algorithm!
-    int64_t k = 4;
+    int64_t k = (int64_t) _k;
     double *Q  = new double[m*k]{};
     double *R = new double[k*n]{};
     int64_t *piv = new int64_t[n]{};
     RandBLAS::RNGState<r123::Philox4x32> state(0);
-    int64_t i;
 
     auto start_timer = std_clock::now();
     TIMED_LINE(
     power_iter_col_sketch(mat_csc, k, R, 1, state, Q, sm), "\n\tpower iter sketch  : ")
-    std::cout << "Row norms for Y = SA : np.array([";
-    for (i = 0; i < k-1; ++i) {
-        std::cout << DOUT(blas::nrm2(n, R + i, k)) << ", ";
-    }
-    std::cout << DOUT(blas::nrm2(n, R + i, k)) << "]) " << std::endl;
+    print_row_norms(R, k, n, "Yf");
     TIMED_LINE(
     sketch_to_tqrcp(mat_csc, k, Q, m, R, k, piv), "\n\tsketch to QRCP     : ")
     auto stop_timer = std_clock::now();
     double runtime = (double) duration_cast<microseconds>(stop_timer - start_timer).count();
     //std::cout << "\nTotal runtime      : " << DOUT(runtime / 1e6) << std::endl;
-    std::cout << "Row norms for R : np.array([";
-    for (i = 0; i < k-1; ++i) {
-        std::cout << DOUT(blas::nrm2(n, R + i, k)) << ", ";
-    }
-    std::cout << DOUT(blas::nrm2(n, R + i, k)) << "]) " << std::endl;
+    print_row_norms(R, k, n, "R");
     //RandBLAS::util::print_colmaj(k, k, R, "leading k-by-k submatrix of R");
-    std::cout << "Pivots : np.array([";
-    for (i = 0; i < k-1; ++i) {
-        std::cout << piv[i]-1 << ", ";
-    }
-    std::cout << piv[i]-1 << "])" << std::endl << std::endl;
+    print_pivots(piv, k);
+    std::cout << std::endl;
 
     delete [] Q;
     delete [] R;
     delete [] piv;
+    return 0;
 }
 
 int main(int argc, char** argv) {
+    std::cout << "\nLQ:\n";
     runall(argc, argv, StabilizationMethod::LQ);
+    std::cout << "RandCholQR:\n";
     runall(argc, argv, StabilizationMethod::sketch);
+    std::cout << "Nothing:\n";
     runall(argc, argv, StabilizationMethod::None);
 }
