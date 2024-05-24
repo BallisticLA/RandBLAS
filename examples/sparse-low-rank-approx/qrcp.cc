@@ -31,7 +31,7 @@ std::string parse_args(int argc, char** argv) {
     if (argc > 1) {
         return std::string{argv[1]};
     } else {
-        return "../sparse-data-matrices/bcsstk17/bcsstk17.mtx";
+        return "../sparse-data-matrices/N_reactome/N_reactome.mtx";
     }
 }
 
@@ -93,6 +93,33 @@ int qr_row_stabilize(int64_t m, int64_t n, T* mat, T* vec_work) {
 }
 
 template <typename T>
+int sketch_orthogonalize_rows(int64_t m, int64_t n, T* A, T* work, int64_t d, int32_t key) {
+    RandBLAS::RNGState state(key);
+    // A is wide, m-by-n in column-major format.
+    // work has at least m*d space.
+    randblas_require(d >= 2);
+    randblas_require(d >= m);
+    int64_t vec_nnz = std::min(d/2, (int64_t) 4);
+    RandBLAS::SparseDist D{n, d, vec_nnz};
+    RandBLAS::SparseSkOp<T> S(D, state);
+    //RandBLAS::util::print_colmaj(m, n, A, "A, before : ");
+    RandBLAS::sketch_general(blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans, m, d, n, 1.0, A, m, S, 0.0, work, m);
+    // TODO: use an appropriate version of GEQP3 (must row-pivot instead of column-pivot).
+    std::vector<T> tau(d, 0.0);
+    lapack::gelqf(m, d, work, m, tau.data());
+    T tol = std::numeric_limits<T>::epsilon()*100;
+    for (int i = 0; i < m; ++i)
+        randblas_require(std::abs(work[i*m + i]) >= tol);
+    //RandBLAS::util::print_colmaj(m, d, work, "work : ");
+    // L is in the lower triangle of work.
+    // Need to transform
+    //      A <- inv(L)A
+    blas::trsm(blas::Layout::ColMajor, blas::Side::Left, blas::Uplo::Lower, blas::Op::NoTrans, blas::Diag::NonUnit, m, n, 1.0, work, m, A, m);
+    //RandBLAS::util::print_colmaj(m, n, A, "A, after : ");
+    return 0;
+}
+
+template <typename T>
 int lu_row_stabilize(int64_t m, int64_t n, T* mat, int64_t* piv_work) {
     randblas_require(m < n);
     for (int64_t i = 0; i < m; ++i)
@@ -112,9 +139,6 @@ int lu_row_stabilize(int64_t m, int64_t n, T* mat, int64_t* piv_work) {
     return 0;
 }
 
-#define FINE_GRAINED
-// ^ Toggle that on and off to change macro behavior
-
 #ifdef FINE_GRAINED
 #define TIMED_LINE(_op, _name) { \
         auto _tp0 = std_clock::now(); \
@@ -124,11 +148,18 @@ int lu_row_stabilize(int64_t m, int64_t n, T* mat, int64_t* piv_work) {
         std::cout << _name << DOUT(dtime / 1e6) << std::endl; \
         }
 #else
-#define TIMED_LINE(_op, _name) { _op; }
+#define TIMED_LINE(_op, _name) _op;
 #endif
 
+enum class StabilizationMethod : char {
+    LU = 'L',
+    LQ = 'H',  // householder
+    sketch = 'S',
+    None = 'N'
+};
+
 template <typename T, typename SpMat, typename STATE>
-void power_iter_col_sketch(SpMat &A, int64_t k, T* Y, int64_t p_data_aware, STATE state, T* work) {
+void power_iter_col_sketch(SpMat &A, int64_t k, T* Y, int64_t p_data_aware, STATE state, T* work, StabilizationMethod sm) {
     int64_t m = A.n_rows;
     int64_t n = A.n_cols;
     using RandBLAS::sparse_data::right_spmm;
@@ -150,9 +181,24 @@ void power_iter_col_sketch(SpMat &A, int64_t k, T* Y, int64_t p_data_aware, STAT
     //    Y = S A
     T* mat_work1 = Y;
     T* mat_work2 = work;
+
+    // Messy code to allow for different stabilization methods
     T* tau_work = new T[std::max(n, m)];
     int64_t* piv_work = new int64_t[k];
-    bool lu_stab = true;
+    int64_t sketch_dim = (int64_t) (1.25*m + 1);
+    T* sketch_orth_work = new T[sketch_dim * m]{0.0};
+    auto stab_func = [sm, k, piv_work, tau_work, sketch_orth_work, sketch_dim](T* mat_to_stab, int64_t num_mat_cols, int64_t key) {
+        if (sm == StabilizationMethod::LU) {
+            lu_row_stabilize(k, num_mat_cols, mat_to_stab, piv_work);
+        } else if (sm == StabilizationMethod::LQ) {
+            qr_row_stabilize(k, num_mat_cols, mat_to_stab, tau_work);
+        } else if (sm == StabilizationMethod::sketch) {
+            sketch_orthogonalize_rows(k, num_mat_cols, mat_to_stab, sketch_orth_work, sketch_dim, key);
+        } else if (sm == StabilizationMethod::None) {
+            // do nothing
+        }
+        return;
+    };
 
     int64_t p_done = 0;
     if (p_data_aware % 2 == 0) {
@@ -167,25 +213,27 @@ void power_iter_col_sketch(SpMat &A, int64_t k, T* Y, int64_t p_data_aware, STAT
         right_spmm(Layout::ColMajor, Op::NoTrans, Op::Trans, k, m, n, 1.0, mat_work1, k, A, 0, 0, 0.0, mat_work2, k), "spmm : ")
         p_done += 1;
         TIMED_LINE(
-        if (lu_stab) {lu_row_stabilize(k, m, mat_work2, piv_work);} else { qr_row_stabilize(k, m, mat_work2, tau_work);} , "stabilization : ")
+        stab_func(mat_work2, m, p_done), "stabilization   : ")
     }
 
     while (p_data_aware - p_done > 0) {
         TIMED_LINE(
-        right_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, k, n, m, 1.0, mat_work2, k, A, 0, 0, 0.0, mat_work1, k),  "spmm : ")
+        right_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, k, n, m, 1.0, mat_work2, k, A, 0, 0, 0.0, mat_work1, k), "right_spmm      : ")
+        p_done += 1;
         TIMED_LINE(
-        if (lu_stab) {lu_row_stabilize(k, m, mat_work1, piv_work);} else {qr_row_stabilize(k, n, mat_work1, tau_work);}, "stabilization : ")
+        stab_func(mat_work1, n, p_done), "stabilization   : ")
         TIMED_LINE(
-        right_spmm(Layout::ColMajor, Op::NoTrans, Op::Trans, k, m, n, 1.0, mat_work1, k, A, 0, 0, 0.0, mat_work2, k),  "spmm : ")
+        right_spmm(Layout::ColMajor, Op::NoTrans, Op::Trans, k, m, n, 1.0, mat_work1, k, A, 0, 0, 0.0, mat_work2, k), "right_spmm      : ")
+        p_done += 1;
         TIMED_LINE(
-        if (lu_stab) {lu_row_stabilize(k, m, mat_work2, piv_work);} else { qr_row_stabilize(k, m, mat_work2, tau_work);},  "stabilization : ")
-        p_done += 2;
+        stab_func(mat_work2, m, p_done), "stabilization   : ")
     }
     TIMED_LINE(
     right_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, k, n, m, 1.0, mat_work2, k, A, 0, 0, 0.0, Y, k),  "spmm : ")
 
     delete [] tau_work;
     delete [] piv_work;
+    delete [] sketch_orth_work;
     return;
 }
 
@@ -226,7 +274,7 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
         }
     }
     // Step 3: get explicit representation of orth(Q).
-    bool chol_orth = true;
+    bool chol_orth = false;
     TIMED_LINE(
         if (chol_orth) {
         // Apply a preconditioner
@@ -245,113 +293,69 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
     col_swap(k, n, k, Y, ldy, piv), "getR : ")
 
     delete [] tau;
+    delete [] precond;
     return;
 }
 
-void run_many_sizes(std::string fn, int p_data_aware) {
+int runall(int argc, char** argv, StabilizationMethod sm) {
+    auto fn = parse_args(argc, argv);
     auto mat_coo = from_matrix_market<double>(fn);
     auto m = mat_coo.n_rows;
     auto n = mat_coo.n_cols;
     RandBLAS::CSCMatrix<double> mat_csc(m, n);
     RandBLAS::conversions::coo_to_csc(mat_coo, mat_csc);
-    std::cout << "============================================================================\n";
-    std::cout << fn << ", p_data_aware = " << p_data_aware << std::endl;
-    int64_t min_mn = std::min(m, n);
-    for (int64_t k = 8; k <= 2048; k = k*2) {
-        double *Q  = new double[m*k]{};
-        double *R = new double[k*n]{};
-        int64_t *piv = new int64_t[n]{};
-        RandBLAS::RNGState<r123::Philox4x32> state(0);
-
-        auto start_timer = std_clock::now();
-        TIMED_LINE(
-        power_iter_col_sketch(mat_csc, k, R, p_data_aware, state, Q), "\n\tpower iter sketch  : ")
-        TIMED_LINE(
-        sketch_to_tqrcp(mat_csc, k, Q, m, R, k, piv), "\n\tsketch to QRCP     : ")
-        auto stop_timer = std_clock::now();
-        double runtime = (double) duration_cast<microseconds>(stop_timer - start_timer).count();
-        std::cout << k << ", " << DOUT(runtime / 1e6) << std::endl;
-        delete [] Q;
-        delete [] R;
-        delete [] piv;
-    }
-    std::cout << "============================================================================\n";
-}
-
-void run_fewer_sizes(std::string fn, int p_data_aware) {
-    auto mat_coo = from_matrix_market<double>(fn);
-    auto m = mat_coo.n_rows;
-    auto n = mat_coo.n_cols;
-    RandBLAS::CSCMatrix<double> mat_csc(m, n);
-    RandBLAS::conversions::coo_to_csc(mat_coo, mat_csc);
-    std::cout << "============================================================================\n";
-    std::cout << fn << ", p_data_aware = " << p_data_aware << std::endl;
-    for (int64_t k = 8; k <= 2048; k = k*4) {
-        std::cout << "\nrank " << k << std::endl;
-        double *Q  = new double[m*k]{};
-        double *R = new double[k*n]{};
-        int64_t *piv = new int64_t[n]{};
-        RandBLAS::RNGState<r123::Philox4x32> state(0);
-
-        auto _tp0 = std_clock::now();
-        power_iter_col_sketch(mat_csc, k, R, p_data_aware, state, Q);
-        auto _tp1 = std_clock::now();
-        double sketch_time = (double) duration_cast<microseconds>(_tp1 - _tp0).count();
-        _tp0 = std_clock::now();
-        sketch_to_tqrcp(mat_csc, k, Q, m, R, k, piv);
-        _tp1 = std_clock::now();
-        double proc_time = (double) duration_cast<microseconds>(_tp1 - _tp0).count();
-        std::cout << "sketching : " << DOUT(sketch_time / 1e6) << std::endl;
-        std::cout << "processing : " << DOUT(proc_time / 1e6) << std::endl;
-        delete [] Q;
-        delete [] R;
-        delete [] piv;
-    }
-    std::cout << "============================================================================\n";
-}
-
-
-void run_one(std::string fn) {
-    auto mat_coo = from_matrix_market<double>(fn);
-    auto m = mat_coo.n_rows;
-    auto n = mat_coo.n_cols;
-    RandBLAS::CSCMatrix<double> mat_csc(m, n);
-    RandBLAS::conversions::coo_to_csc(mat_coo, mat_csc);
-
-    std::cout << "\nn_rows  : " << mat_coo.n_rows << std::endl;
-    std::cout << "n_cols  : " << mat_coo.n_cols << std::endl;
-    double density = ((double) mat_coo.nnz) / ((double) (mat_coo.n_rows * mat_coo.n_cols));
-    std::cout << "density : " << DOUT(density) << std::endl << std::endl;
+    /*
+    Effect of various parameters on performance:
+        It's EXTREMELY important to use -O3 if you want reasonably
+        fast sparse matrix conversion inside RandBLAS. We're talking
+        a more-than-10x speedup.
+        
+    */
+    // std::cout << "\nn_rows  : " << mat_coo.n_rows << std::endl;
+    // std::cout << "n_cols  : " << mat_coo.n_cols << std::endl;
+    // double density = ((double) mat_coo.nnz) / ((double) (mat_coo.n_rows * mat_coo.n_cols));
+    // std::cout << "density : " << DOUT(density) << std::endl << std::endl;
 
     // Run the randomized algorithm!
-    int64_t k = 128;
+    int64_t k = 4;
     double *Q  = new double[m*k]{};
     double *R = new double[k*n]{};
     int64_t *piv = new int64_t[n]{};
     RandBLAS::RNGState<r123::Philox4x32> state(0);
+    int64_t i;
 
     auto start_timer = std_clock::now();
     TIMED_LINE(
-    power_iter_col_sketch(mat_csc, k, R, 3, state, Q), "\n\tpower iter sketch  : ")
+    power_iter_col_sketch(mat_csc, k, R, 1, state, Q, sm), "\n\tpower iter sketch  : ")
+    std::cout << "Row norms for Y = SA : np.array([";
+    for (i = 0; i < k-1; ++i) {
+        std::cout << DOUT(blas::nrm2(n, R + i, k)) << ", ";
+    }
+    std::cout << DOUT(blas::nrm2(n, R + i, k)) << "]) " << std::endl;
     TIMED_LINE(
     sketch_to_tqrcp(mat_csc, k, Q, m, R, k, piv), "\n\tsketch to QRCP     : ")
     auto stop_timer = std_clock::now();
     double runtime = (double) duration_cast<microseconds>(stop_timer - start_timer).count();
-    std::cout << "\nTotal runtime      : " << DOUT(runtime / 1e6) << std::endl << std::endl;
+    //std::cout << "\nTotal runtime      : " << DOUT(runtime / 1e6) << std::endl;
+    std::cout << "Row norms for R : np.array([";
+    for (i = 0; i < k-1; ++i) {
+        std::cout << DOUT(blas::nrm2(n, R + i, k)) << ", ";
+    }
+    std::cout << DOUT(blas::nrm2(n, R + i, k)) << "]) " << std::endl;
+    //RandBLAS::util::print_colmaj(k, k, R, "leading k-by-k submatrix of R");
+    std::cout << "Pivots : np.array([";
+    for (i = 0; i < k-1; ++i) {
+        std::cout << piv[i]-1 << ", ";
+    }
+    std::cout << piv[i]-1 << "])" << std::endl << std::endl;
 
     delete [] Q;
     delete [] R;
     delete [] piv;
 }
 
-
 int main(int argc, char** argv) {
-    auto fn = parse_args(argc, argv);
-    // run_fewer_sizes(fn, 0);
-    // run_fewer_sizes(fn, 1);
-    // run_fewer_sizes(fn, 2);
-    run_many_sizes(fn, 0);
-    run_many_sizes(fn, 1);
-    run_many_sizes(fn, 2);
-    return 0;
+    runall(argc, argv, StabilizationMethod::LQ);
+    runall(argc, argv, StabilizationMethod::sketch);
+    runall(argc, argv, StabilizationMethod::None);
 }
