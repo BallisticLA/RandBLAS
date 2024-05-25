@@ -5,6 +5,8 @@ RandBLAS supports high-level randomized linear algebra algorithms (like randomiz
 Our goal is for RandBLAS to become a standard like the BLAS, in that hardware vendors might
 release their own optimized implementations of algorithms which confirm to the RandBLAS API.
 
+For those who are new to randomized linear algebra, we recommend you check out [this superb 35-minute YouTube video](https://www.youtube.com/watch?v=6htbyY3rH1w) on the subject.
+
 ### Source Code
 
 The source code can be obtained at the [RandBLAS github repository](https://github.com/BallisticLA/RandBLAS).
