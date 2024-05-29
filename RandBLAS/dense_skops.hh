@@ -332,38 +332,40 @@ static RNGState<RNG> fill_dense_submat_impl(
     }
     randblas_require(n_cols >= n_scols);
     RNG rng;
-    typename RNG::ctr_type c = seed.counter;
-    typename RNG::key_type k = seed.key;
+    using CTR_t = typename RNG::ctr_type;
+    using KEY_t = typename RNG::key_type;
+    CTR_t c = seed.counter;
+    KEY_t k = seed.key;
     
     int64_t pad = 0;
     // ^ computed such that  n_cols+pad is divisible by RNG::static_size
-    if (n_cols % RNG::ctr_type::static_size != 0) {
-        pad = RNG::ctr_type::static_size - n_cols % RNG::ctr_type::static_size;
+    if (n_cols % CTR_t::static_size != 0) {
+        pad = CTR_t::static_size - n_cols % CTR_t::static_size;
     }
 
     int64_t n_cols_padded = n_cols + pad;
-    // ^ smallest number of columns, greater than or equal to n_cols, that would be divisible by RNG::ctr_type::static_size 
+    // ^ smallest number of columns, greater than or equal to n_cols, that would be divisible by CTR_t::static_size 
     int64_t ptr_padded = ptr + ptr / n_cols * pad;
     // ^ ptr corresponding to the padded matrix
-    int64_t r0_padded = ptr_padded / RNG::ctr_type::static_size;
+    int64_t r0_padded = ptr_padded / CTR_t::static_size;
     // ^ starting counter corresponding to ptr_padded 
-    int64_t r1_padded = (ptr_padded + n_scols - 1) / RNG::ctr_type::static_size;
+    int64_t r1_padded = (ptr_padded + n_scols - 1) / CTR_t::static_size;
     // ^ ending counter corresponding to ptr of the last element of the row
-    int64_t ctr_gap = n_cols_padded / RNG::ctr_type::static_size; 
+    int64_t ctr_gap = n_cols_padded / CTR_t::static_size; 
     // ^ number of counters between the first counter of the row to the first counter of the next row;
-    int64_t s0 = ptr_padded % RNG::ctr_type::static_size; 
-    int64_t e1 = (ptr_padded + n_scols - 1) % RNG::ctr_type::static_size;
+    int64_t s0 = ptr_padded % CTR_t::static_size; 
+    int64_t e1 = (ptr_padded + n_scols - 1) % CTR_t::static_size;
 
     int64_t num_thrds = 1;
-#if defined(RandBLAS_HAS_OpenMP)
+    #if defined(RandBLAS_HAS_OpenMP)
     #pragma omp parallel 
     {
         num_thrds = omp_get_num_threads();
     }
-#endif
+    #endif
 
     //Instead of using thrd_arr just initialize ctr_arr to be zero counters;
-    typename RNG::ctr_type ctr_arr[num_thrds];
+    CTR_t *ctr_arr = new CTR_t[num_thrds];
     for (int i = 0; i < num_thrds; i++) {
         ctr_arr[i] = c;
     }
@@ -381,9 +383,9 @@ static RNGState<RNG> fill_dense_submat_impl(
     #pragma omp for
     for (int row = 0; row < n_srows; row++) {
         
-    #if defined(RandBLAS_HAS_OpenMP)
-        thrd = omp_get_thread_num();
-    #endif
+        #if defined(RandBLAS_HAS_OpenMP)
+            thrd = omp_get_thread_num();
+        #endif
 
         ind = 0;
         r0 = r0_padded + ctr_gap*row;
@@ -392,7 +394,7 @@ static RNGState<RNG> fill_dense_submat_impl(
         cc.incr(r0 - prev);
         prev = r0;
         auto rv =  OP::generate(rng, cc, k);
-        int64_t range = (r1 > r0)? RNG::ctr_type::static_size-1 : e1;
+        int64_t range = (r1 > r0)? CTR_t::static_size - 1 : e1;
         for (i = s0; i <= range; i++) {
             smat[ind + row * lda] = rv[i];
             ind++;
@@ -403,7 +405,7 @@ static RNGState<RNG> fill_dense_submat_impl(
             cc.incr();
             prev++;
             rv = OP::generate(rng, cc, k);
-            for (i = 0; i < RNG::ctr_type::static_size; i++) {
+            for (i = 0; i < CTR_t::static_size; i++) {
                 smat[ind + row * lda] = rv[i];
                 ind++;
             }
@@ -426,12 +428,13 @@ static RNGState<RNG> fill_dense_submat_impl(
     }
     
     //finds the largest counter in the counter array
-    typename RNG::ctr_type max_c = ctr_arr[0];
+    CTR_t max_c = ctr_arr[0];
     for (int i = 1; i < num_thrds; i++) {  
         if (compare_ctr<RNG>(ctr_arr[i], max_c)) {
             max_c = ctr_arr[i];
         }
     }
+    delete [] ctr_arr;
 
     max_c.incr();
     return RNGState<RNG> {max_c, k};
