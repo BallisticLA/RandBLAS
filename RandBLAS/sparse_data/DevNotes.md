@@ -1,7 +1,7 @@
 # Developer Notes for RandBLAS' sparse matrix functionality
 
-RandBLAS provides basic abstractions for CSC, CSR, and COO-format sparse matrices.
-The following RandBLAS functions use these abstractions either directly or indirectly:
+RandBLAS provides abstractions for CSC, CSR, and COO-format sparse matrices.
+The following functions use these abstractions:
 
  * ``left_spmm``, which computes a product of a sparse matrix and a dense matrix when the sparse matrix
     is the left operand. This function is GEMM-like, in that it allows offsets and transposition flags
@@ -10,15 +10,15 @@ The following RandBLAS functions use these abstractions either directly or indir
  * ``sketch_general``, when called with a SparseSkOp object.
  * ``sketch_sparse``, when called with a DenseSkOp object.
 
-Each of those functions is merely a dispatcher of more complicated functions. See below for details on
+Each of those functions is merely a _dispatcher_ of other (lower level) functions. See below for details on
 how the dispatching works.
 
 ## Left_spmm and right_spmm
 
 These functions are implemented in ``RandBLAS/sparse_data/spmm_dispatch.hh``.
+
 ``right_spmm`` is implemented by falling back on ``left_spmm`` with transformed
 values for ``opS, opA`` and ``layout``.
-
 Here's what happens if ``left_spmm`` is called with a sparse matrix ``A``, a dense input matrix ``B``, and a dense output matrix ``C``.
 
  1. If needed, transposition of ``A`` is resolved by creating a lightweight object
@@ -41,35 +41,30 @@ Here's what happens if ``left_spmm`` is called with a sparse matrix ``A``, a den
 
 ## Sketching dense data with sparse operators.
 
-Suppose we call ``sketch_general(...)`` with a SparseSkOp object, ``S``.
-We'll get routed to either ``lskges(...)`` or ``rskges(...)`` in ``skges_to_spmm.hh``, 
-then we'll do the following.
+Sketching dense data with a sparse sketching operator is typically handled by calling ``sketch_general``,
+which is defined in ``skge.hh``.
 
- 0. If necessary, the defining data of ``S`` is sampled with ``RandBLAS::fill_sparse(S)``.
+If we call this function with a SparseSkOp object, ``S``, we'd immediately get routed to
+a function in ``skges_to_spmm.hh``: either ``lskges`` or ``rskges``. Here's what would happen
+after we entered one of those functions:
 
- 1. We obtain a lightweight view of ``S`` as a COOMatrix, and we pass that matrix to ``left_spmm``
-    if inside ``lskges(...)`` or ``right_spmm`` if inside ``rskges(...)``. Recall that ``right_spmm``
-    falls back on an equivalent call to ``left_spmm``.
+ 1. If necessary, we'd sample the defining data of ``S`` with ``RandBLAS::fill_sparse(S)``.
 
- 2. ``left_spmm`` dispatches a low-level kernel based on the sparse matrix format.
-    The kernels for COOMatrix objects can always be found in ``coo_spmm_impl.hh``.
-
- 3. At time of writing, the kernel in ``coo_spmm_impl.hh`` reads the low-level data
-    in ``S`` and produces data for an equivalent CSC format sparse matrix without
-    using the CSCMatrix abstraction. That low-level data is passed to kernels implemented in ``csc_spmm_impl.hh``.
+ 2. We'd obtain a lightweight view of ``S`` as a COOMatrix, and we'd pass that matrix to ``left_spmm``
+    (if inside ``lskges``) or ``right_spmm`` (if inside ``rskges``).
 
 
 ## Sketching sparse data with dense operators
 
-If we call ``sketch_sparse(...)`` with a DenseSkOp object, we'll get routed to either
-``lsksp3(...)`` or ``rsksp3(...)`` in ``sparse_data/sksp3_to_spmm.hh``.
+If we call ``sketch_sparse`` with a DenseSkOp object, we'll get routed to either
+``lsksp3`` or ``rsksp3`` in ``sparse_data/sksp3_to_spmm.hh``.
 Then we'll do the following.
 
- 0. If necessary, we sample the defining data of ``S``. The way that we do this is a
+ 1. If necessary, we sample the defining data of ``S``. The way that we do this is a
     little more complicated than using ``RandBLAS::fill_dense(S)``, but it's similar
     in spirit.
 
- 1. We get our hands on the simple buffer representation of ``S``.  From there,
+ 2. We get our hands on the simple buffer representation of ``S``.  From there,
     we call either ``right_spmm`` if inside ``lsksp3`` or ``left_spmm`` if inside
     ``rsksp3``.
     
@@ -81,9 +76,3 @@ Then we'll do the following.
 
     Recall that ``right_spmm`` is implemented by a simple call to ``left_spmm`` with
     transformed arguments.
-
- 2. ``left_spmm`` dispatches a low-level kernel based on the sparse matrix format.
-    We anticipate that the typical use-case for ``left_spmm`` will involve either
-    a CSC or CSR format matrix. At time of writing, there are two implementations
-    of the compute kernels for both of these formats. We choose between the 
-    kernels based on which should exhibit better cache behavior.
