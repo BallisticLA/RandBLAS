@@ -14,10 +14,6 @@ jobs:
           # os level stuff
           set -x
           brew install googletest llvm
-          export CXX=/opt/homebrew/opt/llvm/bin/clang++
-          export CC=/opt/homebrew/opt/llvm/bin/clang
-          export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
-          export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
 
       - name: install BLAS++
         run: |
@@ -26,8 +22,8 @@ jobs:
           mkdir blaspp-build
           cd blaspp-build
           cmake \
-            -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ \
-            -DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang \
+            -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
+            -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=`pwd`/../blaspp-install \
             -Dbuild_tests=OFF \
@@ -48,8 +44,8 @@ jobs:
           mkdir RandBLAS-build
           cd RandBLAS-build
           cmake \
-            -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ \
-            -DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang \
+            -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
+            -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
             -DCMAKE_BUILD_TYPE=Release \
             -Dblaspp_DIR=`pwd`/../blaspp-install/lib/cmake/blaspp/ \
             -DRandom123_DIR=`pwd`/../Random123-install/include/ \
