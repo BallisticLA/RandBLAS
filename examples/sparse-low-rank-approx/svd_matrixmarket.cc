@@ -99,12 +99,10 @@ void qb_decompose_sparse_matrix(SpMat &A, int64_t k, T* Q, T* B, int64_t p, STAT
     std::string lspmmT_log  = "left_spmm (Trans)     : ";
 
     // Convert to CSC.
-    //      Turns out that CSC's runtime is consistent across the various side_spmm 
-    //      calls. CSR's runtime is not as consistent (right_spmm is much slower) and
-    //      even its "faster" runtime is comparable to CSC's consistent runtime.
-    RandBLAS::sparse_data::CSCMatrix<T> A_csc(A.n_rows, A.n_cols);
+    // CSR would also be okay, but it seems that CSC is faster in this case.
+    RandBLAS::sparse_data::CSCMatrix<T> A_compressed(A.n_rows, A.n_cols);
     TIMED_LINE(
-    RandBLAS::sparse_data::conversions::coo_to_csc(A, A_csc), "COO to CSC            : ")
+    RandBLAS::sparse_data::conversions::coo_to_csc(A, A_compressed), "COO to CSC            : ")
 
     // Step 1: fill S := mat_work2 with the data needed to feed it into power iteration.
     if (p % 2 == 0) {
@@ -116,7 +114,7 @@ void qb_decompose_sparse_matrix(SpMat &A, int64_t k, T* Q, T* B, int64_t p, STAT
         TIMED_LINE(
         RandBLAS::fill_dense(D, mat_work1, state), sample_log)
         TIMED_LINE(
-        left_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, n, k, m, 1.0, A_csc, 0, 0, mat_work1, m, 0.0, mat_work2, n), lspmmT_log)
+        left_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, n, k, m, 1.0, A_compressed, 0, 0, mat_work1, m, 0.0, mat_work2, n), lspmmT_log)
         TIMED_LINE(
         householder_orth(n, k, mat_work2, work), orth_log)
         p_done += 1;
@@ -126,11 +124,11 @@ void qb_decompose_sparse_matrix(SpMat &A, int64_t k, T* Q, T* B, int64_t p, STAT
     while (p - p_done > 0) {
         // Update S = orth(A' * orth(A * S))
         TIMED_LINE(
-        left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, n, 1.0, A_csc, 0, 0, mat_work2, n, 0.0, mat_work1, m), lspmmN_log)
+        left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, n, 1.0, A_compressed, 0, 0, mat_work2, n, 0.0, mat_work1, m), lspmmN_log)
         TIMED_LINE(
         householder_orth(m, k, mat_work1, work), orth_log)
         TIMED_LINE(
-        left_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, n, k, m, 1.0, A_csc, 0, 0, mat_work1, m, 0.0, mat_work2, n), lspmmT_log)
+        left_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, n, k, m, 1.0, A_compressed, 0, 0, mat_work1, m, 0.0, mat_work2, n), lspmmT_log)
         TIMED_LINE(
         householder_orth(n, k, mat_work2, work), orth_log)
         p_done += 2;
@@ -138,11 +136,11 @@ void qb_decompose_sparse_matrix(SpMat &A, int64_t k, T* Q, T* B, int64_t p, STAT
 
     // Step 3: compute Q = orth(A * S) and B = Q'A.
     TIMED_LINE(
-    left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, n, 1.0, A_csc, 0, 0, mat_work2, n, 0.0, Q, m), lspmmN_log)
+    left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, m, k, n, 1.0, A_compressed, 0, 0, mat_work2, n, 0.0, Q, m), lspmmN_log)
     TIMED_LINE(
     householder_orth(m, k, Q, work), orth_log)
     TIMED_LINE(
-    right_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, k, n, m, 1.0, Q, m, A_csc, 0, 0, 0.0, B, k), "right_spmm            : ")
+    right_spmm(Layout::ColMajor, Op::Trans, Op::NoTrans, k, n, m, 1.0, Q, m, A_compressed, 0, 0, 0.0, B, k), "right_spmm            : ")
     return;
 }
 
@@ -191,7 +189,7 @@ int main(int argc, char** argv) {
     auto n = mat_sparse.n_cols;
 
     // Run the randomized algorithm!
-    int64_t k = 12;
+    int64_t k = 64;
     double *U  = new double[m*k]{};
     double *VT = new double[k*n]{}; 
     double *qb_work = new double[std::max(m, n)];
