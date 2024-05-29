@@ -76,7 +76,6 @@ static inline void sorted_nonzero_locations_to_pointer_array(
 ///
 /// Any object :math:`\ttt{M}` of type :math:`\ttt{SpMat}` has the following attributes.
 ///
-///
 ///     .. list-table::
 ///        :widths: 25 30 40
 ///        :header-rows: 1
