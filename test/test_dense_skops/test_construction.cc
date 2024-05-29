@@ -461,7 +461,7 @@ class TestStateUpdate : public ::testing::Test
         RandBLAS::DenseDistName dn
     ) {
         int total = 0;
-        int buff[n_rows*n_cols];
+        int *buff = new int[n_rows*n_cols];
         auto state = RandBLAS::RNGState(key);
         auto state_copy = RandBLAS::RNGState(key);
 
@@ -486,6 +486,7 @@ class TestStateUpdate : public ::testing::Test
         }
 
         ASSERT_TRUE(total == 0);
+        delete [] buff;
     }
     
 };
