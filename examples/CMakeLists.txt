@@ -77,7 +77,7 @@ FetchContent_MakeAvailable(
 )
 
 add_executable(
-    slra_svd_fmm sparse-low-rank-approx/fmm_svd.cc
+    slra_svd_fmm sparse-low-rank-approx/svd_matrixmarket.cc
 )
 target_include_directories(
     slra_svd_fmm PUBLIC ${Random123_DIR}
@@ -87,7 +87,7 @@ target_link_libraries(
 )
 
 add_executable(
-    slra_qrcp sparse-low-rank-approx/qrcp.cc
+    slra_qrcp sparse-low-rank-approx/qrcp_matrixmarket.cc
 )
 target_include_directories(
     slra_qrcp PUBLIC ${Random123_DIR}
@@ -96,12 +96,3 @@ target_link_libraries(
     slra_qrcp PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market
 )
 
-add_executable(
-    slra_graphs sparse-low-rank-approx/graphs.cc
-)
-target_include_directories(
-    slra_graphs PUBLIC ${Random123_DIR}
-)
-target_link_libraries(
-    slra_graphs PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market
-)
