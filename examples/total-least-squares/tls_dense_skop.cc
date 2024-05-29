@@ -163,6 +163,7 @@ int main(int argc, char* argv[]){
     double scale = blas::nrm2(n, true_x, 1);
     std::cout << "||sketch_x - true_x|| / ||true_x||         :  " << distance/scale << "\n\n";
 
+    delete[] delta;
     delete[] true_x;
     delete[] AB;
     delete[] SAB;
