@@ -270,22 +270,22 @@ void power_iter_col_sketch(SpMat &A, int64_t k, T* Y, int64_t p_data_aware, STAT
 
 template <typename T>
 void print_row_norms(T* mat, int64_t m, int64_t n, std::string s) {
-    std::cout << "Row norms for " << s << " : np.array([";
+    std::cout << "Row norms for " << s << " : [ ";
     int i;
     for (i = 0; i < m-1; ++i) {
         std::cout << DOUT(blas::nrm2(n, mat + i, m)) << ", ";
     }
-    std::cout << DOUT(blas::nrm2(n, mat + i, m)) << "]) " << std::endl;
+    std::cout << DOUT(blas::nrm2(n, mat + i, m)) << " ] " << std::endl;
     return;
 }
 
 void print_pivots(int64_t *piv, int64_t k) {
-    std::cout << "Pivots : np.array([";
+    std::cout << "Leading pivots   : [ ";
     int i;
     for (i = 0; i < k-1; ++i) {
         std::cout << piv[i]-1 << ", ";
     }
-    std::cout << piv[i]-1 << "])" << std::endl;
+    std::cout << piv[i]-1 << " ]" << std::endl;
 }
 
 template <typename T, typename SpMat>
@@ -326,7 +326,7 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
     // ================================================================
     // Step 3: get explicit representation of orth(Q).
     TIMED_LINE(
-    //      Extract a preconditioner from the QRCP decomposition of Y.
+    //      Extract a preconditioner from the column-pivoted QR decomposition of Y.
     for (int64_t j = 0; j < k; j++) {
         for (int64_t i = 0; i < k; ++i) {
             precond[i + k*j] = Y[i + k*j];
@@ -352,39 +352,31 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
     return;
 }
 
-int runall(int argc, char** argv, StabilizationMethod sm) {
-    auto [fn, _k] = parse_args(argc, argv);
-    auto mat_coo = from_matrix_market<double>(fn);
-    auto m = mat_coo.n_rows;
-    auto n = mat_coo.n_cols;
-    RandBLAS::CSCMatrix<double> mat_csc(m, n);
-    RandBLAS::conversions::coo_to_csc(mat_coo, mat_csc);
+template <typename SpMat>
+int run(SpMat &A, int64_t k, int64_t power_iteration_steps, StabilizationMethod sm, bool extra_verbose) {
+    auto m = A.n_rows;
+    auto n = A.n_cols;
 
-    // std::cout << "\nn_rows  : " << mat_coo.n_rows << std::endl;
-    // std::cout << "n_cols  : " << mat_coo.n_cols << std::endl;
-    // double density = ((double) mat_coo.nnz) / ((double) (mat_coo.n_rows * mat_coo.n_cols));
-    // std::cout << "density : " << DOUT(density) << std::endl << std::endl;
-
-    // Run the randomized algorithm!
-    int64_t k = (int64_t) _k;
-    double *Q  = new double[m*k]{};
-    double *R = new double[k*n]{};
+    using T = typename SpMat::scalar_t;
+    T *Q  = new T[m*k]{};
+    T *R = new T[k*n]{};
     int64_t *piv = new int64_t[n]{};
     RandBLAS::RNGState<r123::Philox4x32> state(0);
 
     auto start_timer = std_clock::now();
     TIMED_LINE(
-    power_iter_col_sketch(mat_csc, k, R, 2, state, Q, sm), "\n\tpower iter sketch  : ")
-    print_row_norms(R, k, n, "Yf");
+    power_iter_col_sketch(A, k, R, power_iteration_steps, state, Q, sm), "\n\tpower iter sketch  : ")
+    if (extra_verbose)
+        print_row_norms(R, k, n, "Yf");
     TIMED_LINE(
-    sketch_to_tqrcp(mat_csc, k, Q, m, R, k, piv), "\n\tsketch to QRCP     : ")
+    sketch_to_tqrcp(A, k, Q, m, R, k, piv), "\n\tsketch to QRCP     : ")
     auto stop_timer = std_clock::now();
-    double runtime = (double) duration_cast<microseconds>(stop_timer - start_timer).count();
-    //std::cout << "\nTotal runtime      : " << DOUT(runtime / 1e6) << std::endl;
-    print_row_norms(R, k, n, "R");
-    //RandBLAS::util::print_colmaj(k, k, R, "leading k-by-k submatrix of R");
+    if (extra_verbose)
+        print_row_norms(R, k, n, "R ");
     print_pivots(piv, k);
-    std::cout << std::endl;
+
+    T runtime = (T) duration_cast<microseconds>(stop_timer - start_timer).count();
+    std::cout << "Runtime in ms    : " << DOUT(runtime) << std::endl << std::endl;
 
     delete [] Q;
     delete [] R;
@@ -393,12 +385,44 @@ int runall(int argc, char** argv, StabilizationMethod sm) {
 }
 
 int main(int argc, char** argv) {
-    std::cout << "\nLQ:\n";
-    runall(argc, argv, StabilizationMethod::LQ);
-    std::cout << "RandCholQR:\n";
-    runall(argc, argv, StabilizationMethod::sketch);
-    std::cout << "Nothing:\n";
-    runall(argc, argv, StabilizationMethod::None);
-    std::cout << "LU:\n";
-    runall(argc, argv, StabilizationMethod::LU);
+    /*
+    This program should be called from a "build" folder that's one level below RandBLAS/examples.
+
+    If called with two arguments, then the first argument will be the approximation rank,
+    and the second argument will be a path (relative or absolute) to a MatrixMarket file.
+
+    If called with zero or one arguments, we'll assume that there's a file located at 
+        ../sparse-data-matrices/N_reactome/N_reactome.mtx.
+    
+    If called with zero arguments, we'll automatically set the approximation rank to 4.
+    */
+    auto [fn, _k] = parse_args(argc, argv);
+    auto mat_coo = from_matrix_market<double>(fn);
+    auto m = mat_coo.n_rows;
+    auto n = mat_coo.n_cols;
+    int64_t k = (int64_t) _k;
+
+    std::cout << "\nProcessing matrix in " << fn << std::endl;
+    std::cout << "n_rows  : " << mat_coo.n_rows << std::endl;
+    std::cout << "n_cols  : " << mat_coo.n_cols << std::endl;
+    double density = ((double) mat_coo.nnz) / ((double) (mat_coo.n_rows * mat_coo.n_cols));
+    std::cout << "density : " << DOUT(density) << std::endl << std::endl;
+
+    RandBLAS::CSCMatrix<double> mat_csc(m, n);
+    RandBLAS::conversions::coo_to_csc(mat_coo, mat_csc);
+    int64_t power_iter_steps = 2;
+    bool extra_verbose = true;
+
+    std::cout << "Computing rank-" << k << " truncated QRCP.\n";
+    std::cout << "Internally use " << power_iter_steps << " steps of power iteration.\n";
+    std::cout << "Consider four runs, each stabilizing power iteration in a different way.\n\n";
+    std::cout << "Take Q from LQ\n";
+    run(mat_csc, k, power_iter_steps, StabilizationMethod::LQ, extra_verbose);
+    std::cout << "Sketch-orthogonalize\n";
+    run(mat_csc, k, power_iter_steps, StabilizationMethod::sketch, extra_verbose);
+    std::cout << "Do nothing. This is numerically dangerous unless power_iter_steps is extremely small.\n";
+    run(mat_csc, k, power_iter_steps, StabilizationMethod::None, extra_verbose);
+    std::cout << "Take (scaled) U from row-pivoted LU. This may exit with an error!\n";
+    run(mat_csc, k, power_iter_steps, StabilizationMethod::LU, extra_verbose);
+    return 0;
 }
