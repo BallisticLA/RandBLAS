@@ -14,9 +14,10 @@ jobs:
           # os level stuff
           set -x
           brew install googletest llvm
-          echo 'export PATH="/opt/homebrew/opt/llvm/bin:$PATH"' >> /Users/runner/.bash_profile
-          export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
-          # ^ For the current bash session
+          export CXX=/opt/homebrew/opt/llvm/bin/clang++
+          export CC=/opt/homebrew/opt/llvm/bin/clang
+          export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
+          export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
 
       - name: install BLAS++
         run: |
