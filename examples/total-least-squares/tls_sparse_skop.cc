@@ -17,7 +17,6 @@ using std::chrono::duration;
 using std::chrono::milliseconds;
 
 
-//TODO: Read in matrix dimensions 
 //TODO: Have the user choose between dense and sketch sketching operator (4 nnz per col)
 
 void init_noisy_data(int64_t m, int64_t n, int64_t d, double* AB){
@@ -40,6 +39,27 @@ void init_noisy_data(int64_t m, int64_t n, int64_t d, double* AB){
     for (int i = 0; i < m*d; i++){
         AB[m*n + i] += eps[i];   // Add Gaussian Noise to right hand side
     }
+}
+
+template <typename T>
+void total_least_squares(int64_t m, int64_t n, T* AB, int64_t ldab, T* x,  T* work_s, T* work_vt) {
+    // AB is m-by-(n+1) and stored in column-major format with leading dimension "ldab".
+    // Its first n columns contain a matrix "A", and its last column contains a vector "B".
+    //
+    // This function overwrites x with the solution to
+    //      (A+E)x = B+R
+    // where (E, R) solve
+    //      solve min{ ||[E, R]||_F : B+R in range(A+E) }.
+    //
+    // On exit, AB will have been overwritten by its matrix of left singular vectors, 
+    // its singular values will be stored in work_s, and its (transposed) right singular
+    // vectors will be stored in work_vt.
+    lapack::gesdd(lapack::Job::OverwriteVec, m, n+1, AB, ldab, work_s, nullptr, 1, work_vt, n+1);
+    T scale = work_vt[(n+1)*(n+1)-1];
+    for (int i = 0; i < n; i++) {
+        x[i] = -work_vt[n + i*(n+1)] / scale;
+    }
+    return;
 }
 
 /* Let A be a tall data matrix of dimensions m by n where m > n and b be a vector of dimension m.
@@ -76,38 +96,35 @@ int main(int argc, char* argv[]){
     int64_t sk_dim = 2*(n+1);
 
     // Initialize workspace
-    double *AB = new double[m*(n+1)]; // Store [A B] in column major format
+    double *AB = new double[m*(n+1)];
     double *SAB = new double[sk_dim*(n+1)];
-    double *X = new double[n];
-    double *res = new double[n];
-
-    // Initialize workspace for the sketched svd 
-    double *U = new double[sk_dim*sk_dim];
+    double *sketch_x = new double[n];
     double *svals = new double[n+1];
     double *VT = new double[(n+1)*(n+1)];
 
     // Initialize noisy gaussian data
     init_noisy_data(m, n, 1, AB);
 
+    std::cout << "\nDimensions of the augmented matrix [A|B]   :  " << m << " by " << n+1 << '\n'; 
+    std::cout << "Embedding dimension                        :  " << sk_dim << '\n'; 
 
-    // Define the parameters of the sparse distribution 
+    // Sample the sketching operator 
     auto time_constructsketch1 = high_resolution_clock::now();
-    
-    // Initialize sparse distribution struct for the sketching operator
-    uint32_t seed = 0;     // Initialize seed for random number generation
-    RandBLAS::SparseDist Dist = {.n_rows = sk_dim,                            // Number of rows of the sketching operator 
-                                 .n_cols = m,                                 // Number of columns of the sketching operator
-                                 .vec_nnz = 8,                               // Number of non-zero entires per major axis
-                                 .major_axis = RandBLAS::MajorAxis::Short     // Defines the major axis of the sketching operator 
-                                };
-
-    //Construct the sparse sketching operator
+    RandBLAS::SparseDist Dist = {
+        .n_rows = sk_dim,                            // Number of rows of the sketching operator 
+        .n_cols = m,                                 // Number of columns of the sketching operator
+        .vec_nnz = 8,                                // Number of non-zero entires per major-axis vector
+        .major_axis = RandBLAS::MajorAxis::Short     // A "SASO" (aka SJLT, aka OSNAP, aka generalized CountSketch)
+    };
+    uint32_t seed = 1997;
     RandBLAS::SparseSkOp<double> S(Dist, seed);  
     RandBLAS::fill_sparse(S);
     auto time_constructsketch2 = high_resolution_clock::now();
+    double sampling_time = (double) duration_cast<milliseconds>(time_constructsketch2 - time_constructsketch1).count()/1000;
+    std::cout << "\nTime to sample S                           :  " << sampling_time << " seconds" << '\n';
 
     // Sketch AB
-    // SAB = alpha * \op(S) * \op(AB) + beta * SAB
+    // SAB = 1.0 * S * AB +  0.0 * SAB
     auto time_sketch1 = high_resolution_clock::now();
     RandBLAS::sketch_general(
             blas::Layout::ColMajor,    // Matrix storage layout of AB and SAB
@@ -117,57 +134,47 @@ int main(int argc, char* argv[]){
             n + 1,                     // Number of columns of AB and SAB
             m,                         // Number of rows of AB and columns of S
             1.0,                       // Scalar alpha - if alpha is zero AB is not accessed
-            S,                         // A DenseSkOp or SparseSkOp sketching operator
+            S,                         // A DenseSkOp or SparseSkOp
             AB,                        // Matrix to be sketched
             m,                         // Leading dimension of AB
-            0.0,                       // Scalar beta - if beta is zero SAB is not accessed
+            0.0,                       // Scalar beta - if beta is zero the initial value of SAB is not accessed
             SAB,                       // Sketched matrix SAB
             sk_dim                     // Leading dimension of SAB
     );
     auto time_sketch2 = high_resolution_clock::now();
+    double sketching_time = (double) duration_cast<milliseconds>(time_sketch2 - time_sketch1).count()/1000;
+    std::cout << "Time to compute SAB = S * AB               :  " << sketching_time << " seconds\n";
 
-    // Perform SVD operation on SAB
-    auto time_TLS1 = high_resolution_clock::now();
-    lapack::gesdd(lapack::Job::AllVec, sk_dim, (n+1), SAB, sk_dim, svals, U, sk_dim, VT, n+1);
-            
-    for (int i = 0; i < n; i++) {
-        X[i] = VT[n + i*(n+1)]; // Take the right n by 1 block of V
-    }
+    auto time_sketched_TLS1 = high_resolution_clock::now();
+    total_least_squares(sk_dim, n, SAB, sk_dim, sketch_x, svals, VT);
+    auto time_sketched_TLS2 = high_resolution_clock::now();
+    double sketched_solve_time = (double) duration_cast<milliseconds>(time_sketched_TLS2 - time_sketched_TLS1).count()/1000;
+    std::cout << "Time to perform TLS on sketched data       :  " << sketched_solve_time << " seconds\n\n";
 
-    // Scale X by the inverse of the 1 by 1 bottom right block of V
-    blas::scal(n, -1/VT[(n+1)*(n+1)-1], X, 1); 
-    auto time_TLS2 = high_resolution_clock::now();
+    double total_randomized_time = sampling_time + sketching_time + sketched_solve_time;
+    std::cout << "Total time for the randomized TLS method   :  " << total_randomized_time << " seconds\n";
 
-    //Check TLS solution. Expected to be a vector of 1's
-    double res_infnorm = 0;
-    double res_twonorm = 0;
+    double* true_x = new double[n];
+    auto time_true_TLS1 = high_resolution_clock::now();
+    total_least_squares(m, n, AB, m, true_x, svals, VT);
+    auto time_true_TLS2 = high_resolution_clock::now();
+    double true_solve_time = (double) duration_cast<milliseconds>(time_true_TLS2 - time_true_TLS1).count()/1000;
+    std::cout << "Time for the classical TLS method          :  " << true_solve_time << " seconds" << "\n";
+    
+    std::cout << "Speedup of sketched vs classical method    :  " << true_solve_time / total_randomized_time << "\n\n";
 
-    for (int i = 0; i < n; i++) {
-        res[i] = abs(X[i] - 1);
-        res_twonorm += res[i]*res[i];
-        if (res_infnorm < res[i]) {
-            res_infnorm = res[i];
-        }
-    }
+    double* delta = new double[n];
+    blas::copy(n, sketch_x, 1, delta, 1);
+    blas::axpy(n, -1, true_x, 1, delta, 1);
+    double distance = blas::nrm2(n, delta, 1);
+    double scale = blas::nrm2(n, true_x, 1);
+    std::cout << "||sketch_x - true_x|| / ||true_x||         :  " << distance/scale << "\n\n";
 
-    std::cout << "Matrix dimensions:                                                " << m << " by " << n+1 << '\n'; 
-    std::cout << "Sketch dimension:                                                 " << sk_dim << '\n'; 
-    std::cout << "Time to create sparse sketching operator:                         " << (double) duration_cast<milliseconds>(time_constructsketch2 - time_constructsketch1).count()/1000 << " seconds" << '\n';
-    std::cout << "Time to sketch AB:                                                " << (double) duration_cast<milliseconds>(time_sketch2 - time_sketch1).count()/1000 << " seconds" <<'\n';
-    std::cout << "Time to perform TLS on sketched matrix:                           " << (double) duration_cast<milliseconds>(time_TLS2 - time_TLS1).count()/1000 << " seconds" << '\n';
-    std::cout << "Inf-norm distance from TLS solution to vector of all ones:        " << res_infnorm << '\n';
-    std::cout << "Two-norm distance from TLS solution to vector of all ones:        " << sqrt(res_twonorm) << '\n';
-
+    delete[] true_x;
     delete[] AB;
     delete[] SAB;
-    delete[] X;
-    delete[] res;
-    delete[] U;
+    delete[] sketch_x;
     delete[] svals;
     delete[] VT;
     return 0;
 }
-
-
-    
-
