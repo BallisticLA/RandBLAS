@@ -376,7 +376,7 @@ int run(SpMat &A, int64_t k, int64_t power_iteration_steps, StabilizationMethod 
     print_pivots(piv, k);
 
     T runtime = (T) duration_cast<microseconds>(stop_timer - start_timer).count();
-    std::cout << "Runtime in ms    : " << DOUT(runtime) << std::endl << std::endl;
+    std::cout << "Runtime in μs    : " << DOUT(runtime) << std::endl << std::endl;
 
     delete [] Q;
     delete [] R;
