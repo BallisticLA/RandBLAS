@@ -1,8 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
 
-# cmake -DCMAKE_BINARY_DIR=`pwd` -DRandBLAS_DIR=`pwd`/../../../RandBLAS-install/lib/cmake -Dlapackpp_DIR=`pwd`/../../../lapackpp-install/lib/cmake/lapackpp ..
-# ^ Example CMake configuration line starting from the build folder one level lower.
-
 project(examples)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
