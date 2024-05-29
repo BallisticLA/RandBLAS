@@ -1,0 +1,55 @@
+name: openmp-macos
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: configure OS
+        run: |
+          # os level stuff
+          set -x
+          brew install googletest llvm
+
+      - name: install BLAS++
+        run: |
+          cd ..
+          git clone https://github.com/icl-utk-edu/blaspp.git
+          mkdir blaspp-build
+          cd blaspp-build
+          cmake \
+            -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ \
+            -DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=`pwd`/../blaspp-install \
+            -Dbuild_tests=OFF \
+            ../blaspp
+          make -j2 install
+
+      - name: install Random123
+        run: |
+          cd ..
+          git clone https://github.com/DEShawResearch/Random123.git
+          cd Random123/
+          mkdir -p `pwd`/../Random123-install/include
+          cp -rp include/Random123 `pwd`/../Random123-install/include/
+
+      - name: build and test RandBLAS (release)
+        run: |
+          cd ..
+          mkdir RandBLAS-build
+          cd RandBLAS-build
+          cmake \
+            -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ \
+            -DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang \
+            -DCMAKE_BUILD_TYPE=Release \
+            -Dblaspp_DIR=`pwd`/../blaspp-install/lib/cmake/blaspp/ \
+            -DRandom123_DIR=`pwd`/../Random123-install/include/ \
+            -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
+            ../RandBLAS
+          make -j2 install
+          ctest --output-on-failure
