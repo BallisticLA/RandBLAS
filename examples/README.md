@@ -6,7 +6,7 @@ Right now we have two types of examples.
  2. Basic methods for low-rank approximation of sparse matrices. (Three executables.)
 
 There is a _lot_ of code duplication within the ``.cc`` files for a given type of example.
-This is a necessary evil to ensure that each example file can stand on their own.
+This is a necessary evil to ensure that each example file can stand on its own.
 
 ## Building the examples
 The examples are built with CMake. Before building the examples you have to build _and install_
