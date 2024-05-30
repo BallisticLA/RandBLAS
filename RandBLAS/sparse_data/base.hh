@@ -63,6 +63,12 @@ static inline void sorted_nonzero_locations_to_pointer_array(
     return;
 }
 
+// Idea: change all "const" attributes to for SpMatrix to return values from inlined functions. 
+// Looks like there'd be no collision with function/property names for sparse matrix
+// types in Eigen, SuiteSparse, OneMKL, etc.. These inlined functions could return
+// nomincally public members like A._n_rows and A._n_cols, which the user will only change
+// at their own peril.
+
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
 ///
@@ -145,9 +151,11 @@ concept SparseMatrix = requires(SpMat A) {
     { A.n_cols } -> std::convertible_to<const int64_t>;
     { A.nnz } -> std::convertible_to<int64_t>;
     { *(A.vals) } -> std::convertible_to<typename SpMat::scalar_t>;
+    { SpMat(A.n_rows, A.n_cols) };
+    // ^ Is there better way to require a two-argument constructor?
     { A.own_memory } ->  std::convertible_to<const bool>;
-    { SpMat(A.n_rows, A.n_cols) }; // Is there better way to require a two-argument constructor?
-    { A.reserve((int64_t) 10) };  // This will always compile, even though it might error at runtime.
+    // { A.reserve((int64_t) 10) };
+    // ^ Problem: const SpMat objects fail that check.
 };
 
 } // end namespace RandBLAS::sparse_data

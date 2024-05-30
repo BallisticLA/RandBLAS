@@ -121,5 +121,65 @@ static void apply_csc_left_jki_p11(
     return;
 }
 
+template <typename T, RandBLAS::SignedInteger sint_t>
+static void apply_csc_left_kib_rowmajor_1p1(
+    T alpha,
+    int64_t d,
+    int64_t n,
+    int64_t m,
+    CSCMatrix<T, sint_t> &A,
+    const T *B,
+    int64_t ldb,
+    T *C,
+    int64_t ldc
+) {
+    randblas_require(A.index_base == IndexBase::Zero);
+
+    randblas_require(d == A.n_rows);
+    randblas_require(m == A.n_cols);
+
+
+    int num_threads = 1;
+    #if defined(RandBLAS_HAS_OpenMP)
+    #pragma omp parallel 
+    {
+        num_threads = omp_get_num_threads();
+    }
+    #endif
+
+    int* block_bounds = new int[num_threads + 1]{};
+    int block_size = d / num_threads;
+    if (block_size == 0) { block_size = 1;}
+    for (int t = 0; t < num_threads; ++t)
+        block_bounds[t+1] = block_bounds[t] + block_size;
+    block_bounds[num_threads] += d % num_threads;
+
+    #pragma omp parallel default(shared)
+    {
+        #if defined(RandBLAS_HAS_OpenMP)
+        int t = omp_get_thread_num();
+        #else
+        int t = 0;
+        #endif
+        int i_lower = block_bounds[t];
+        int i_upper = block_bounds[t+1];
+        for (int64_t k = 0; k < m; ++k) {
+            // Rank-1 update: C[:,:] += A[:,k] @ B[k,:]
+            const T* row_B = &B[k*ldb];
+            for (int64_t ell = A.colptr[k]; ell < A.colptr[k+1]; ++ell) {
+                int64_t i = A.rowidxs[ell];
+                if (i_lower <= i && i < i_upper) {
+                    T* row_C = &C[i*ldc];
+                    T scale = alpha * A.vals[ell];
+                    blas::axpy(n, scale, row_B, 1, row_C, 1);
+                }
+            }
+        }
+    }
+
+    delete [] block_bounds;
+    return;
+}
+
 }
 #endif
