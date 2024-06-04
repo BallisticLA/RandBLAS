@@ -23,11 +23,6 @@ RandBLAS can be used in distributed environments through its ability to (reprodu
 
 Learn more by reading our `Tutorial <tutorial/index.html>`_ or our `API Reference <api_reference/index.html>`_.
 
-Source Code
------------
-Source code can be obtained at the `RandBLAS github repository <https://github.com/BallisticLA/RandBLAS>`_.
-
-
 Build and Install
 -----------------
 RandBLAS is configured with CMake. The following CMake variables influence the build.
@@ -42,3 +37,9 @@ RandBLAS is configured with CMake. The following CMake variables influence the b
 | Random123_DIR           | The path to your local random123 install           |
 +-------------------------+----------------------------------------------------+
 
+See `INSTALL.md <https://github.com/BallisticLA/RandBLAS/blob/main/INSTALL.md>`_ for the most up-to-date 
+installation instructions.
+
+Source Code
+-----------
+Source code can be obtained at our `github repository <https://github.com/BallisticLA/RandBLAS>`_.
