@@ -68,12 +68,9 @@ RandBLAS' CMake configuration step should automatically detect if OpenMP is avai
 Sometimes the CMake configuration will fail to recognize OpenMP even if it's 
 on your system. This is especially common with the default system compilers on macOS
 (you can execute ``gcc`` or ``g++`` on macOS, but those are just aliased to 
-limited versions of ``clang`` and ``clang++``). So if you're on macOS then we 
-recommend you install new versions of clang/clang++ via Homebrew, and call
-```
-export CC=<path to the clang you got from Homebrew>
-export CXX=<path to the clang++ you got from Homebrew>
-```
+limited versions of ``clang`` and ``clang++``). See [this GitHub issue comment](https://github.com/BallisticLA/RandBLAS/issues/86#issue-2248281376)
+for more info.
+
 
 ## 3. Building and installing RandBLAS
 
