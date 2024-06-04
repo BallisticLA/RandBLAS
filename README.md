@@ -16,18 +16,15 @@ The source code can be found at the [RandBLAS github repository](https://github.
 We have three types of documentation.
  1. Traditional source code comments.
  2. Web documentation, split into a [tutorial](https://randblas.readthedocs.io/en/latest/tutorial/index.html) and an [API reference](https://randblas.readthedocs.io/en/latest/api_reference/index.html).
- 3. Developer notes; [one](https://github.com/BallisticLA/RandBLAS/blob/main/RandBLAS/DevNotes.md) for RandBLAS as a whole and [another](https://github.com/BallisticLA/RandBLAS/blob/main/RandBLAS/sparse_data/DevNotes.md) for our sparse matrix functionality.
+ 3. Developer notes; [one](RandBLAS/DevNotes.md) for RandBLAS as a whole and [another](RandBLAS/sparse_data/DevNotes.md) for our sparse matrix functionality.
 
 Detailed installation instructions are in [INSTALL.md](INSTALL.md).
 
 ### Continuous integration builds
 
 ![Latest Ubuntu (OpenMP)](https://github.com/BallisticLA/RandBLAS/actions/workflows/core-linux.yaml/badge.svg)
-
 ![Latest macOS (serial)](https://github.com/BallisticLA/RandBLAS/actions/workflows/core-macos.yml/badge.svg)
-
 ![Latest macOS (OpenMP)](https://github.com/BallisticLA/RandBLAS/actions/workflows/openmp-macos.yaml/badge.svg)
-
 ![Old macOS (OpenMP)](https://github.com/BallisticLA/RandBLAS/actions/workflows/openmp-macos-13.yaml/badge.svg)
 
 ### Copyright and license
