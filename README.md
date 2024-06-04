@@ -7,10 +7,6 @@ release their own optimized implementations of algorithms which confirm to the R
 
 For those who are new to randomized linear algebra, we recommend you check out [this 35-minute YouTube video](https://www.youtube.com/watch?v=6htbyY3rH1w) on the subject.
 
-### Source code
-
-The source code can be found at the [RandBLAS github repository](https://github.com/BallisticLA/RandBLAS).
-
 ### Documentation
 
 We have three types of documentation.
@@ -31,3 +27,7 @@ Detailed installation instructions are in [INSTALL.md](INSTALL.md).
 
 RandBLAS is licensed under the BSD 3-Clause License.
 See [LICENSE](LICENSE) for information and copyright assertions.
+
+### Source code
+
+The source code can be found at the [RandBLAS github repository](https://github.com/BallisticLA/RandBLAS).
