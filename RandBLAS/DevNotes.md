@@ -1,16 +1,15 @@
 # Developer Notes for RandBLAS
 
-This file has discussions of RandBLAS' implementation that aren't (currently) suitable 
-for the RandBLAS User Guide.
+This file reviews aspects of RandBLAS' implementation that aren't (currently) suitable 
+for our user guide.
 
-## What's where?
 
  * Our basic random number generation is handled by [Random123](https://github.com/DEShawResearch/random123).
    We have small wrappers around Random123 code in ``RandBLAS/base.hh`` and ``RandBLAS/random_gen.hh``.
   
  * ``RandBLAS/dense_skops.hh`` has code for representing and sampling dense sketching operators.
-   The sampling code is complicated because it supports multi-threaded (yet threading invariant!)
-   random (sub)matrix generation.
+   The sampling code is complicated because it supports multi-threaded random (sub)matrix generation, and yet the generated (sub)matrices are the same no matter how many threads
+   you're using.
 
  * ``RandBLAS/sparse_skops.hh`` has code for representing and sampling sparse sketching operators.
    The sampling code has a customized method for repeatedly sampling from an index set without
@@ -36,4 +35,4 @@ for the RandBLAS User Guide.
    The abstractions can either own their associated data or just wrap existing data (say, data
    attached to a sparse matrix in Eigen). RandBLAS has reasonably flexible and high-performance code
    for multiplying a sparse matrix and a dense matrix. All code related to sparse matrices is in
-   ``RandBLAS/sparse_data``. See that folder's ``DevNotes.md`` file for details.
+   ``RandBLAS/sparse_data``. See that folder's [``DevNotes.md``](sparse_data/DevNotes.md) file for details.
