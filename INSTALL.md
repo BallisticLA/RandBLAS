@@ -139,7 +139,7 @@ target_link_libraries(myexec RandBLAS ...)
 ```
 In order to build that CMake project you'd need to specify a build flag ``-DRandBLAS_DIR=X``, where ``X`` is a directory that contains ``RandBLAS.cmake``.
 
-The vast majority of projects that use RandBLAS will also use LAPACK++.
+Most projects that use RandBLAS will also use LAPACK++.
 Here is example CMake code for such a project. Note that it references BLAS++ in the final line (as ``blaspp``),
 but it doesn't have a ``find_package`` command for BLAS++. That's because when CMake is told to find RandBLAS,
 the RandBLAS installation will tell CMake where to find blaspp as a dependency.
