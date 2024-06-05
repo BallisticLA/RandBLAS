@@ -22,10 +22,11 @@ invoked with an additional flag (``-fconcepts``) in order to support this aspect
 C++20 standard. See [this issue](https://github.com/BallisticLA/RandBLAS/issues/90) for more info.
 
 BLAS++ is a C++ API for the Basic Linear Algebra Subroutines.
-It can be installed with GNU make or CMake;
-RandBLAS requires the CMake install of BLAS++. 
+It can be installed with GNU make or CMake.
+If you want to use RandBLAS' CMake build system,
+then it will be necessary to have built and installed BLAS++ via CMake.
 
-Random123 is a collection of counter-based random number generators.
+Random123 is a header-only library of counter-based random number generators.
 
 We give recipes for installing BLAS++ and Random123 below.
 Later on, we'll assume these recipes were executed from a directory
@@ -33,7 +34,7 @@ that contains (or will contain) the ``RandBLAS`` project directory as a subdirec
 
 One can compile and install BLAS++ from
 [source](https://bitbucket.org/icl/blaspp/src/master/) using CMake by running the following.
-Note that all CMake-related terms for BLAS++ use the name ``blaspp`` instead of ``BLAS++``.
+Note that all CMake and system terms for BLAS++ use the name ``blaspp`` instead of ``BLAS++``.
 ```shell
 git clone https://github.com/icl-utk-edu/blaspp.git
 mkdir blaspp-build
@@ -73,6 +74,18 @@ for more info.
 
 
 ## 3. Building and installing RandBLAS
+
+The following CMake variables influence the RandBLAS build.
+
++-------------------------+----------------------------------------------------+
+| CMake Variable          | Description                                        |
++-------------------------+----------------------------------------------------+
+| CMAKE_BUILD_TYPE        | Release or Debug. The default is Release.          |
++-------------------------+----------------------------------------------------+
+| blaspp_DIR              | The path to your local BLAS++ install              |
++-------------------------+----------------------------------------------------+
+| Random123_DIR           | The path to your local random123 install           |
++-------------------------+----------------------------------------------------+
 
 Assuming you used the recipes from Section 1 to get RandBLAS' dependencies,
 you can download, build, and install RandBLAS as follows:
@@ -115,7 +128,7 @@ Here are the conceptual meanings of the recipe's other build flags:
 ## 4. Using RandBLAS in other projects
 
 Once RandBLAS has been compiled and installed it can be used like any other CMake project.
-For instance, the following CMakeLists.txt demonstrates how an executable can
+For instance, the following CMake snippet demonstrates how an executable can
 be linked to the RandBLAS library:
 
 ```cmake
@@ -126,7 +139,7 @@ target_link_libraries(myexec RandBLAS ...)
 ```
 In order to build that CMake project you'd need to specify a build flag ``-DRandBLAS_DIR=X``, where ``X`` is a directory that contains ``RandBLAS.cmake``.
 
-The vast majority of projects that use RandBLAS will also use BLAS++ and LAPACK++.
+The vast majority of projects that use RandBLAS will also use LAPACK++.
 Here is example CMake code for such a project. Note that it references BLAS++ in the final line (as ``blaspp``),
 but it doesn't have a ``find_package`` command for BLAS++. That's because when CMake is told to find RandBLAS,
 the RandBLAS installation will tell CMake where to find blaspp as a dependency.
