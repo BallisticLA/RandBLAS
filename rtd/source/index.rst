@@ -2,8 +2,10 @@
    :hidden:
    :maxdepth: 3
 
+   Installation <installation/index>
    Tutorial <tutorial/index>
    API Reference <api_reference/index>
+   Changelog <updates/index>
 
 .. default-domain:: cpp
 
@@ -21,24 +23,10 @@ All sketches produced by RandBLAS are dense.
 As such, dense data matrices can be sketched with dense or sparse operators, while sparse data matrices can only be sketched with dense operators.
 RandBLAS can be used in distributed environments through its ability to (reproducibly) compute products with *submatrices* of sketching operators.
 
-Learn more by reading our `Tutorial <tutorial/index.html>`_ or our `API Reference <api_reference/index.html>`_.
+Learn more by reading our `tutorial <tutorial/index.html>`_ or our `API reference <api_reference/index.html>`_.
+If we've piqued your interest, try RandBLAS yourself!
+We've got a handy `installation guide <installation/index.html>`_  on this website.
 
-Build and Install
------------------
-RandBLAS is configured with CMake. The following CMake variables influence the build.
-
-+-------------------------+----------------------------------------------------+
-| CMake Variable          | Description                                        |
-+-------------------------+----------------------------------------------------+
-| CMAKE_BUILD_TYPE        | Release or Debug. The default is Release.          |
-+-------------------------+----------------------------------------------------+
-| blaspp_DIR              | The path to your local BLAS++ install              |
-+-------------------------+----------------------------------------------------+
-| Random123_DIR           | The path to your local random123 install           |
-+-------------------------+----------------------------------------------------+
-
-See `INSTALL.md <https://github.com/BallisticLA/RandBLAS/blob/main/INSTALL.md>`_ for the most up-to-date 
-installation instructions.
 
 Source Code
 -----------

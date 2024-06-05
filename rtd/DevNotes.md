@@ -146,3 +146,4 @@ Note: this file needs to be located in ``rtd/sphinxext``. This is because ``conf
     /// @endverbatim
     /// The matrix \math{\op(\mat(A))} is \math{m \times n}.
   ```
+  

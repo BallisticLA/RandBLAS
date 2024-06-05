@@ -131,7 +131,7 @@ static inline void sorted_nonzero_locations_to_pointer_array(
 ///     .. code:: c++
 ///
 ///         ~SpMat() {
-///             if (this-own_memory) {
+///             if (this->own_memory) {
 ///                 delete [] this->vals;
 ///                 // ... class-specific code ...
 ///             }
