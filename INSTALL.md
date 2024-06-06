@@ -77,15 +77,11 @@ for more info.
 
 The following CMake variables influence the RandBLAS build.
 
-+-------------------------+----------------------------------------------------+
-| CMake Variable          | Description                                        |
-+-------------------------+----------------------------------------------------+
-| CMAKE_BUILD_TYPE        | Release or Debug. The default is Release.          |
-+-------------------------+----------------------------------------------------+
-| blaspp_DIR              | The path to your local BLAS++ install              |
-+-------------------------+----------------------------------------------------+
-| Random123_DIR           | The path to your local random123 install           |
-+-------------------------+----------------------------------------------------+
+| CMake Variable   | Description                               |
+|------------------|-------------------------------------------|
+| CMAKE_BUILD_TYPE | Release or Debug. The default is Release. |
+| blaspp_DIR       | The path to your local BLAS++ install     |
+| Random123_DIR    | The path to your local random123 install  |
 
 Assuming you used the recipes from Section 1 to get RandBLAS' dependencies,
 you can download, build, and install RandBLAS as follows:
