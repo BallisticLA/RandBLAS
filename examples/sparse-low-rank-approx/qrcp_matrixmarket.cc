@@ -244,7 +244,7 @@ void power_iter_col_sketch(SpMat &A, int64_t k, T* Y, int64_t p_data_aware, STAT
     // Messy code to allow for different stabilization methods
     T* tau_work = new T[std::max(n, m)];
     int64_t* piv_work = new int64_t[k];
-    int64_t sketch_dim = (int64_t) (1.25*m + 1);
+    int64_t sketch_dim = (int64_t) (1.25*k + 1);
     T* sketch_orth_work = new T[sketch_dim * m]{0.0};
     auto stab_func = [sm, k, piv_work, tau_work, sketch_orth_work, sketch_dim](T* mat_to_stab, int64_t num_mat_cols, int64_t key) {
         if (sm == StabilizationMethod::LU) {
