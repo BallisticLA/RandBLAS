@@ -34,6 +34,7 @@
 
 #include "RandBLAS/config.h"
 #include "RandBLAS/random_gen.hh"
+#include "RandBLAS/exceptions.hh"
 
 #include <blas.hh>
 #include <tuple>
@@ -105,6 +106,53 @@ inline submat_spec_64t offset_and_ldim(
     }
 }
 
+template <typename T>
+void symmetrize(blas::Layout layout, blas::Uplo uplo, T* A, int64_t n, int64_t lda) { 
+
+    auto [inter_row_stride, inter_col_stride] = layout_to_strides(layout, lda);
+    #define matA(_i, _j) A[(_i)*inter_row_stride + (_j)*inter_col_stride]
+    if (uplo == blas::Uplo::Upper) {
+        // copy to lower
+        for (int64_t i = 0; i < n; ++i) {
+            for (int64_t j = i+1; j < n; ++j) {
+                matA(j,i) = matA(i,j);
+            }
+        }
+    } else if (uplo == blas::Uplo::Lower) {
+        // copy to upper
+        for (int64_t i = 0; i < n; ++i) {
+            for (int64_t j = i+1; j < n; ++j) {
+                matA(i,j) = matA(j,i);
+            }
+        }
+    }
+    #undef matA
+    return;
+}
+
+template <typename T>
+void require_symmetric(blas::Layout layout, T* A, int64_t n, int64_t lda, T tol) { 
+
+    auto [inter_row_stride, inter_col_stride] = layout_to_strides(layout, lda);
+    #define matA(_i, _j) A[(_i)*inter_row_stride + (_j)*inter_col_stride]
+    
+    for (int64_t i = 0; i < n; ++i) {
+        for (int64_t j = i+1; j < n; ++j) {
+            T Aij = matA(i,j);
+            T Aji = matA(j,i);
+            T viol = abs(Aij - Aji);
+            T rel_tol = (abs(Aij) +  abs(Aji) + 1)*tol;
+            if (viol > rel_tol) {
+                    randblas_error_if_msg(
+                    viol > rel_tol
+                    "Symmetry check failed. |A(%i,%i) - A(%i,%i)| was %d, which exceeds tolerance of %d", i, j, j, i, viol, rel_tol 
+                );
+            }
+        }
+    }
+    #undef matA
+    return;
+}
 
 template<typename T>
 concept SignedInteger = (std::numeric_limits<T>::is_signed && std::numeric_limits<T>::is_integer);
