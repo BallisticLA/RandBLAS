@@ -144,7 +144,7 @@ void require_symmetric(blas::Layout layout, T* A, int64_t n, int64_t lda, T tol)
             T rel_tol = (abs(Aij) +  abs(Aji) + 1)*tol;
             if (viol > rel_tol) {
                     randblas_error_if_msg(
-                    viol > rel_tol
+                    viol > rel_tol,
                     "Symmetry check failed. |A(%i,%i) - A(%i,%i)| was %d, which exceeds tolerance of %d", i, j, j, i, viol, rel_tol 
                 );
             }
