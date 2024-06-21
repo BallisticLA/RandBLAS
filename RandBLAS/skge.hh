@@ -436,15 +436,6 @@ inline void sketch_general(
 ///
 /// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(X)` either returns a matrix :math:`X`
 /// or its transpose, and :math:`S` is a sketching operator.
-/// 
-/// .. dropdown:: FAQ
-///   :animate: fade-in-slide-down
-///
-///     **What are** :math:`\mat(A)` **and** :math:`\mat(B)` **?**
-///
-///       Their shapes are defined implicitly by :math:`(d, m, n, \opA).`
-///       Their precise contents are determined by :math:`(A, \lda),` :math:`(B, \ldb),`
-///       and "layout", following the same convention as the Level 3 BLAS function "GEMM."
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
@@ -547,15 +538,6 @@ inline void sketch_general(
 ///
 /// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(X)` either returns a matrix :math:`X`
 /// or its transpose, and :math:`S` is a sketching operator.
-/// 
-/// .. dropdown:: FAQ
-///   :animate: fade-in-slide-down
-///
-///     **What are** :math:`\mat(A)` **and** :math:`\mat(B)` **?**
-///
-///       Their shapes are defined implicitly by :math:`(m, d, n, \opA).`
-///       Their precise contents are determined by :math:`(A, \lda),` :math:`(B, \ldb),`
-///       and "layout", following the same convention as the Level 3 BLAS function "GEMM."
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
@@ -644,6 +626,8 @@ inline void sketch_general(
     }
     return sketch_general(layout, opA, opS, m, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);
 };
+
+// MARK: VECTOR, SUBMAT(S)
 
 // =============================================================================
 /// \fn sketch_vector(blas::Op opS, int64_t d, int64_t m, T alpha, SKOP &S,
@@ -757,6 +741,8 @@ inline void sketch_vector(
     }
     return sketch_general(blas::Layout::RowMajor, opS, blas::Op::NoTrans, _d, 1, _m, alpha, S, ro_s, co_s, x, incx, beta, y, incy);
 }
+
+// MARK: VECTOR, FULL(S)
 
 // =============================================================================
 /// \fn sketch_vector(blas::Op opS, T alpha, SKOP &S,
