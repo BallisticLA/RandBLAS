@@ -14,11 +14,24 @@ Computing a sketch: dense data
 Full matrix-matrix operations
 =============================
 
+General matrices
+~~~~~~~~~~~~~~~~
+
 .. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb)
    :project: RandBLAS
 
 .. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SKOP &S, T beta, T *B, int64_t ldb)
    :project: RandBLAS
+
+Symmetric matrices
+~~~~~~~~~~~~~~~~~~
+
+.. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, int64_t d, int64_t n, T alpha, SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+   :project: RandBLAS
+
+.. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, int64_t n, int64_t d, T alpha, const T *A, int64_t lda, SKOP &S, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+   :project: RandBLAS
+
 
 
 Full matrix-vector operations
@@ -36,6 +49,12 @@ Submatrix operations
 
 .. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SKOP &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb)
   :project: RandBLAS
+
+.. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, int64_t d, int64_t n, T alpha, SKOP &S, int64_t ro_s, int64_t co_s, const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+   :project: RandBLAS
+
+.. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, int64_t n, int64_t d, T alpha, const T *A, int64_t lda, SKOP &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+   :project: RandBLAS
 
 .. doxygenfunction:: sketch_vector(blas::Op opS, int64_t d, int64_t m, T alpha, SKOP &S, int64_t ro_s, int64_t co_s, const T *x, int64_t incx, T beta, T *y, int64_t incy)
   :project: RandBLAS

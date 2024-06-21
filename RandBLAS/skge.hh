@@ -64,6 +64,8 @@ using namespace RandBLAS::sparse;
 */
 
 
+// MARK: SUBMAT(S)
+
 // =============================================================================
 /// \fn sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
 ///     int64_t n, int64_t m, T alpha, SKOP &S, int64_t ro_s, int64_t co_s,
@@ -418,6 +420,9 @@ inline void sketch_general(
         S, ro_s, co_s, beta, B, ldb
     );
 }
+
+
+// MARK: FULL(S)
 
 // =============================================================================
 /// \fn sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
