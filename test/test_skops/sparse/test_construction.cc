@@ -30,7 +30,7 @@
 #include <RandBLAS/dense_skops.hh>
 #include <RandBLAS/sparse_skops.hh>
 #include <RandBLAS/util.hh>
-#include "../comparison.hh"
+#include "../../comparison.hh"
 #include <gtest/gtest.h>
 #include <math.h>
 

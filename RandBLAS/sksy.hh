@@ -30,6 +30,7 @@
 #ifndef randblas_sksy_hh
 #define randblas_sksy_hh
 
+#include "RandBLAS/util.hh"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/skge.hh"
 
@@ -64,11 +65,9 @@ inline void sketch_symmetric(
     T beta,
     T* B,
     int64_t ldb,
-    T sym_check_tol = -1
+    T sym_check_tol = 0
 ) {
-    if (sym_check_tol >= 0) {
-        require_symmetric(layout, A, n, lda, sym_check_tol);
-    }
+    RandBLAS::util::require_symmetric(layout, A, n, lda, sym_check_tol);
     sketch_general(layout, blas::Op::NoTrans, blas::Op::NoTrans, n, d, n, alpha, A, lda, S, ro_s, co_s, beta, B, ldb);
 }
 
@@ -87,12 +86,10 @@ inline void sketch_symmetric(
     T beta,
     T* B,
     int64_t ldb,
-    T sym_check_tol = -1
+    T sym_check_tol = 0
 ) {
-    if (sym_check_tol >= 0) {
-        require_symmetric(layout, A, n, lda, sym_check_tol);
-    }
-    sketch_general(layout, blas::Op::NoTrans, blas::Op::NoTrans, d, n, n, alpha, S, ro_s, co_s, A, beta, B, ldb);
+    RandBLAS::util::require_symmetric(layout, A, n, lda, sym_check_tol);
+    sketch_general(layout, blas::Op::NoTrans, blas::Op::NoTrans, d, n, n, alpha, S, ro_s, co_s, A, lda, beta, B, ldb);
 }
 
 } // end namespace RandBLAS

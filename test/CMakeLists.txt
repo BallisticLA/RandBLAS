@@ -8,15 +8,15 @@ if (GTest_FOUND)
     add_executable(RandBLAS_tests
         linop_common.hh
         comparison.hh
-        test_sketch_vector.cc
+        test_skge_wrappers/test_sketch_vector.cc
         # dense sketching operators for dense data matrices
-        test_dense_skops/test_construction.cc
-        test_dense_skops/test_lskge3.cc
-        test_dense_skops/test_rskge3.cc
+        test_skops/dense/test_construction.cc
+        test_skops/dense/test_lskge3.cc
+        test_skops/dense/test_rskge3.cc
         # sparse sketching operators for dense data matrices
-        test_sparse_skops/test_construction.cc
-        test_sparse_skops/test_lskges.cc
-        test_sparse_skops/test_rskges.cc
+        test_skops/sparse/test_construction.cc
+        test_skops/sparse/test_lskges.cc
+        test_skops/sparse/test_rskges.cc
     )
     target_link_libraries(RandBLAS_tests
         RandBLAS
@@ -46,5 +46,5 @@ if (GTest_FOUND)
 endif()
 message(STATUS "Checking for regression tests ... ${tmp}")
 
-add_executable(test_rng_speed test_rng_speed.cc)
+add_executable(test_rng_speed test_basic_rng/benchmark_speed.cc)
 target_link_libraries(test_rng_speed RandBLAS)
