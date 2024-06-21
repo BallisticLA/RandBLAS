@@ -34,7 +34,6 @@
 
 #include "RandBLAS/config.h"
 #include "RandBLAS/random_gen.hh"
-#include "RandBLAS/exceptions.hh"
 
 #include <blas.hh>
 #include <tuple>
@@ -105,6 +104,7 @@ inline submat_spec_64t offset_and_ldim(
         return submat_spec_64t{offset, n_cols};
     }
 }
+
 
 template<typename T>
 concept SignedInteger = (std::numeric_limits<T>::is_signed && std::numeric_limits<T>::is_integer);
