@@ -1,6 +1,7 @@
 ### RandBLAS : A header-only C++ library for sketching in randomized linear algebra
 
-RandBLAS supports high-level randomized linear algebra algorithms (like randomized low-rank SVD) that might be implemented in other libraries.
+RandBLAS facilitates implementation of high-level randomized linear algebra algorithms, like randomized low-rank SVD.
+It does this by providing basic functionality for sketching with a BLAS-like interface.
 
 Our goal is for RandBLAS to become a standard like the BLAS, in that hardware vendors might
 release their own optimized implementations of algorithms which confirm to the RandBLAS API.
