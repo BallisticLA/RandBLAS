@@ -41,33 +41,9 @@
 #include "RandBLAS/sparse_data/conversions.hh"
 
 
-namespace test::sparse_data::common {
+namespace test::test_datastructures::test_spmats {
 
-using namespace RandBLAS::sparse_data;
-using namespace RandBLAS::sparse_data::csr;
-using namespace RandBLAS::sparse_data::conversions;
 using blas::Layout;
-
-template <typename T, typename RNG, RandBLAS::SignedInteger sint_t>
-void sparseskop_to_dense(
-    RandBLAS::SparseSkOp<T, RNG, sint_t> &S0,
-    T *mat,
-    Layout layout
-) {
-    RandBLAS::SparseDist D = S0.dist;
-    for (int64_t i = 0; i < D.n_rows * D.n_cols; ++i)
-        mat[i] = 0.0;
-    auto idx = [D, layout](int64_t i, int64_t j) {
-        return  (layout == Layout::ColMajor) ? (i + j*D.n_rows) : (j + i*D.n_cols);
-    };
-    int64_t nnz = RandBLAS::sparse::nnz(S0);
-    for (int64_t i = 0; i < nnz; ++i) {
-        sint_t row = S0.rows[i];
-        sint_t col = S0.cols[i];
-        T val = S0.vals[i];
-        mat[idx(row, col)] = val;
-    }
-}
 
 template <typename T, typename RNG = r123::Philox4x32>
 void iid_sparsify_random_dense(
@@ -130,7 +106,7 @@ void coo_from_diag(
     T* vals,
     int64_t nnz,
     int64_t offset,
-    COOMatrix<T> &spmat
+    RandBLAS::sparse_data::COOMatrix<T> &spmat
 ) {
     spmat.reserve(nnz);
     int64_t ell = 0;

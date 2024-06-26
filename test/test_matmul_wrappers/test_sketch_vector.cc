@@ -34,7 +34,7 @@
 #include "RandBLAS/util.hh"
 #include "RandBLAS/skge.hh"
 
-#include "../comparison.hh"
+#include "test/comparison.hh"
 
 #include <gtest/gtest.h>
 
@@ -181,13 +181,7 @@ class TestSketchVector : public ::testing::Test
     }
 };
 
-////////////////////////////////////////////////////////////////////////
-//
-//
-//     Sketching vectors (vary tall vs wide operators) 
-//
-//
-////////////////////////////////////////////////////////////////////////
+
 TEST_F(TestSketchVector, test_sketch_vec_tallSK)
 {
     for (uint32_t seed : {0, 1, 2}) {
@@ -195,6 +189,7 @@ TEST_F(TestSketchVector, test_sketch_vec_tallSK)
         test_sketch_vec_tallSK<double>(seed, 1013, 101, 3, 2);
     }
 }
+
 TEST_F(TestSketchVector, test_transpose_compatible)
 {
     for (uint32_t seed : {0, 1, 2}) {

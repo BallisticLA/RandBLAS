@@ -30,6 +30,7 @@
 #ifndef randblas_test_comparisons_hh
 #define randblas_test_comparisons_hh
 
+#include "RandBLAS.hh"
 #include <gtest/gtest.h>
 #include <math.h>
 #include <cmath>
@@ -39,6 +40,8 @@
 
 namespace test::comparison {
 
+using blas::Layout;
+using blas::Op;
 
 /** Tests two floating point numbers for approximate equality.
  * See https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/

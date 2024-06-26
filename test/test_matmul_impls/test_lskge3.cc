@@ -27,7 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include "../../linop_common.hh"
+#include "test/test_matmul_impls/linop_common.hh"
 #include <gtest/gtest.h>
 
 using RandBLAS::DenseDist;
