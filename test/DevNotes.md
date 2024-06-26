@@ -1,13 +1,40 @@
-Developer notes for RandBLAS' testing infrastructure
-====================================================
-
-Meta note:
-
-    Don't defend previous design decisions. Just explain how they work. 
-    That's easier and more useful. Plus, a good explanation will make
-    pros and cons of the decision (more) self-evident.
+# Developer notes for RandBLAS' testing infrastructure
 
 
+This document doesn't don't defend previous design decisions.
+It just explains how things work right now.
+That's easier for me (Riley) to write, and it's more useful to others.
+(Plus, a good description of what we do will make pros and cons of the current approach self-evident.)
+
+None of our testing infrastructure is considered part of the public API.
+
+## Contents
+
+### matmul_wrappers
+
+  * sketch_vector. It reduces to the same sketch_general no matter the type of the sketching operator.
+  * sketch_sparse. It reduces to left_spmm/right_spmm no matter the type of the data matrix. (The
+    sketching operator type is naturally fixed to DenseSkOp.)
+  * sketch_symmetric. It reduces to the same sketch_general no matter the type of the sketching operator.
+
+### matmul_cores
+
+  * lskges, rskges, lskge3, rskge3. The rskgex functions could reduce to lskgex by transposing the
+    product and flipping the layout. Strictly speaking, the rskgex functions don't do that, but they
+    easily could. In any case, we currently have similar tests for rskgex and lskgex.
+  * left_spmm and right_spmm. The right_spmm implementation falls back on left_spmm. Despite this,
+    right_spmm has its own set of tests.
+
+I suspect that the tests for rskgex and right_spmm hit code paths that are currently untested,
+but I haven't actually verified this. 
+
+### next_folder ... 
+
+## Next topic ....
+
+
+
+# OLD
 
 
 Right-multplication by a structured linear operator in a GEMM-like API can
