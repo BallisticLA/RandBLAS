@@ -27,7 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include "test/test_matmul_impls/test_spmm/spmm_test_helpers.hh"
+#include "test/test_matmul_cores/test_spmm/spmm_test_helpers.hh"
 #include <algorithm>
 #include <vector>
 

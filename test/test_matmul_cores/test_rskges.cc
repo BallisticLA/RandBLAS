@@ -27,7 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include "test/test_matmul_impls/linop_common.hh"
+#include "test/test_matmul_cores/linop_common.hh"
 #include <gtest/gtest.h>
 
 using namespace test::linop_common;
@@ -192,7 +192,6 @@ TEST_F(TestRSKGES, sketch_saso_rowMajor_oneThread)
         }
     }
 }
-
 
 TEST_F(TestRSKGES, sketch_laso_rowMajor_oneThread)
 {

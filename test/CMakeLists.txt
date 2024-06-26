@@ -10,11 +10,11 @@ if (GTest_FOUND)
         test_datastructures/test_denseskop.cc
         test_datastructures/test_sparseskop.cc
 
-        test_matmul_impls/linop_common.hh
-        test_matmul_impls/test_lskge3.cc
-        test_matmul_impls/test_rskge3.cc
-        test_matmul_impls/test_lskges.cc
-        test_matmul_impls/test_rskges.cc
+        test_matmul_cores/linop_common.hh
+        test_matmul_cores/test_lskge3.cc
+        test_matmul_cores/test_rskge3.cc
+        test_matmul_cores/test_lskges.cc
+        test_matmul_cores/test_rskges.cc
 
         test_matmul_wrappers/test_sketch_vector.cc
     )
@@ -34,10 +34,10 @@ if (GTest_FOUND)
         test_datastructures/test_spmats/test_coo.cc
         test_datastructures/test_spmats/test_conversions.cc
 
-        test_matmul_impls/test_spmm/spmm_test_helpers.hh
-        test_matmul_impls/test_spmm/test_spmm_csc.cc
-        test_matmul_impls/test_spmm/test_spmm_csr.cc
-        test_matmul_impls/test_spmm/test_spmm_coo.cc
+        test_matmul_cores/test_spmm/spmm_test_helpers.hh
+        test_matmul_cores/test_spmm/test_spmm_csc.cc
+        test_matmul_cores/test_spmm/test_spmm_csr.cc
+        test_matmul_cores/test_spmm/test_spmm_coo.cc
     )
     target_link_libraries(SparseRandBLAS_tests
         RandBLAS
