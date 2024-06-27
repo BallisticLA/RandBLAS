@@ -42,9 +42,6 @@
 #include <cstdio>
 #include <cmath>
 #include <algorithm>
-#if defined(RandBLAS_HAS_OpenMP)
-#include <omp.h>
-#endif
 
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))

@@ -46,8 +46,7 @@ Sketching dense data with a sparse operator is typically handled with ``sketch_g
 which is defined in ``skge.hh``.
 
 If we call this function with a SparseSkOp object, ``S``, we'd immediately get routed to
-a function in ``skges_to_spmm.hh``: either ``lskges`` or ``rskges``. Here's what would happen
-after we entered one of those functions:
+either ``lskges`` or ``rskges``. Here's what would happen after we entered one of those functions:
 
  1. If necessary, we'd sample the defining data of ``S`` with ``RandBLAS::fill_sparse(S)``.
 
@@ -58,7 +57,7 @@ after we entered one of those functions:
 ## Sketching sparse data with dense operators
 
 If we call ``sketch_sparse`` with a DenseSkOp, ``S``, and a sparse matrix, ``A``, then  we'll get routed to either
-``lsksp3`` or ``rsksp3`` in ``sparse_data/sksp3_to_spmm.hh``.
+``lsksp3`` or ``rsksp3``.
 
 From there, we'll do the following.
 

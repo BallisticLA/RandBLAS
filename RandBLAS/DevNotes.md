@@ -23,11 +23,8 @@ for our user guide.
 
  * The ``sketch_general`` functions in ``RandBLAS/skge.hh`` are the main entry point for sketching dense data.
    These functions are small wrappers around functions with more BLAS-like names:
-      * ``lskge3`` and ``rskge3`` in ``RandBLAS/skge3_to_gemm.hh``.
-      * ``lskges`` and ``rskges`` in ``RandBLAS/skges_to_spmm.hh``.
-   The former pair of functions are just fancy wrappers around GEMM.
-   The latter pair of functions trigger a far more opaque call sequence, since they rely on sparse
-   matrix operations.
+      * ``lskge3`` and ``rskge3`` are basically wrappers around GEMM.
+      * ``lskges`` and ``rskges`` trigger an opaque call sequence that uses sparse matrix operations.
 
  * There is no widely accepted standard for sparse BLAS operations. This is a bummer because
    sparse matrices are super important in data science and scientific computing. In view of this,
