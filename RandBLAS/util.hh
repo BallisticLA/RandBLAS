@@ -30,6 +30,7 @@
 #ifndef randblas_util_hh
 #define randblas_util_hh
 
+#include <RandBLAS/exceptions.hh>
 #include <blas.hh>
 #include <cstdio>
 #include <Random123/philox.h>
@@ -174,7 +175,7 @@ void symmetrize(blas::Layout layout, blas::Uplo uplo, T* A, int64_t n, int64_t l
 }
 
 template <typename T>
-void require_symmetric(blas::Layout layout, T* A, int64_t n, int64_t lda, T tol) { 
+void require_symmetric(blas::Layout layout, const T* A, int64_t n, int64_t lda, T tol) { 
     if (tol < 0)
         return;
     auto [inter_row_stride, inter_col_stride] = layout_to_strides(layout, lda);
@@ -187,7 +188,8 @@ void require_symmetric(blas::Layout layout, T* A, int64_t n, int64_t lda, T tol)
             T rel_tol = (abs(Aij) +  abs(Aji) + 1)*tol;
             if (viol > rel_tol) {
                 std::string message = "Symmetry check failed. |A(%i,%i) - A(%i,%i)| was %d, which exceeds tolerance of %d.";
-                randblas_error_if_msg(viol > rel_tol, message, i, j, j, i, viol, rel_tol);
+                auto _message = message.c_str();
+                randblas_error_if_msg(viol > rel_tol, _message, i, j, j, i, viol, rel_tol);
             }
         }
     }
@@ -211,6 +213,48 @@ void transpose_square(T* A, int64_t n, int64_t lda) {
     return;
 }
 
+
+template <typename T>
+void flip_layout(blas::Layout layout_in, int64_t m, int64_t n, std::vector<T> &A, int64_t lda_in, int64_t lda_out) {
+    using blas::Layout;
+    Layout layout_out;
+    int64_t len_buff_A_out;
+    if (layout_in == Layout::ColMajor) {
+        layout_out = Layout::RowMajor;
+        randblas_require(lda_in  >= m);
+        randblas_require(lda_out >= n);
+        len_buff_A_out = lda_out * m;
+    } else {
+        layout_out = Layout::ColMajor;
+        randblas_require(lda_in  >= n);
+        randblas_require(lda_out >= m);
+        len_buff_A_out = lda_out * n;
+    }
+    // irs = inter row stride (stepping down a column)
+    // ics = inter column stride (stepping across a row)
+    auto [irs_in,   ics_in] = layout_to_strides(layout_in,  lda_in);
+    auto [irs_out, ics_out] = layout_to_strides(layout_out, lda_out);
+
+    if (len_buff_A_out >= (int64_t) A.size()) {
+        A.resize(len_buff_A_out);
+    }
+    std::vector<T> A_in(A);
+    T* A_buff_in  = A_in.data();
+    T* A_buff_out = A.data();
+
+    #define A_IN(_i, _j) A_buff_in[(_i)*irs_in + (_j)*ics_in]
+    #define A_OUT(_i, _j) A_buff_out[(_i)*irs_out + (_j)*ics_out]
+    for (int64_t i = 0; i < m; ++i) {
+        for (int64_t j = 0; j < n; ++j) {
+            A_OUT(i,j) = A_IN(i,j);
+        }
+    }
+    A.erase(A.begin() + len_buff_A_out, A.end());
+    A.resize(len_buff_A_out);
+    #undef A_IN
+    #undef A_OUT
+    return;
+}
 
 } // end namespace RandBLAS::util
 
