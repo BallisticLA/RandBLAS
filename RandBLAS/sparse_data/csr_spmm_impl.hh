@@ -35,6 +35,9 @@
 #include "RandBLAS/sparse_data/csr_matrix.hh"
 #include <vector>
 #include <algorithm>
+#if defined(RandBLAS_HAS_OpenMP)
+#include <omp.h>
+#endif
 
 
 namespace RandBLAS::sparse_data::csr {

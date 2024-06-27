@@ -36,6 +36,9 @@
 #include "RandBLAS/sparse_data/csc_spmm_impl.hh"
 #include <vector>
 #include <algorithm>
+#if defined(RandBLAS_HAS_OpenMP)
+#include <omp.h>
+#endif
 
 namespace RandBLAS::sparse_data::coo {
 
