@@ -17,6 +17,7 @@ if (GTest_FOUND)
         test_matmul_cores/test_rskges.cc
 
         test_matmul_wrappers/test_sketch_vector.cc
+        test_matmul_wrappers/test_sketch_symmetric.cc
     )
     target_link_libraries(RandBLAS_tests
         RandBLAS

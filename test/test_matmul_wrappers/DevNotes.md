@@ -1,13 +1,16 @@
 # Notes on functionality tested in test_matmul_wrappers
 
+
 ## Tests for sketch_sparse
 
 
 ## Tests for sketch_symmetric
-
+Right now this falls back on sketch_general, which means it suffices to 
+test with only DenseSkOp.
 
 ## Tests for sketch_vector
-Right now sketch_vector falls back on sketch_general.
+Right now sketch_vector falls back on sketch_general, which means it suffices
+to test with only DenseSkOp.
 There's an argument to be made for it to directly handle
 dispatching of GEMV (for DenseSkOp) and SPMV (for SparseSkOp).
 Additional tests would be warranted if we made that change.
