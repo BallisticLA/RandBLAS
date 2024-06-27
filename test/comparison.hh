@@ -117,6 +117,9 @@ void buffs_approx_equal(
     }
 }
 
+// TODO: Make macros that can automatically inject __PRETTY_FUNCTION__, __FILE__, and __LINE__ into the calls below.
+//       This is slightly complicated by the presence of optional arguments in the function definition.
+
 template <typename T>
 void buffs_approx_equal(
     int64_t size,
