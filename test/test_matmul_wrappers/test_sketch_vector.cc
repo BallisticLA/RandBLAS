@@ -182,7 +182,7 @@ class TestSketchVector : public ::testing::Test
 };
 
 
-TEST_F(TestSketchVector, test_sketch_vec_tallSK)
+TEST_F(TestSketchVector, sketch_vec_tallSK)
 {
     for (uint32_t seed : {0, 1, 2}) {
         test_sketch_vec_tallSK<double>(seed, 1000, 100, 2, 3);
@@ -190,7 +190,7 @@ TEST_F(TestSketchVector, test_sketch_vec_tallSK)
     }
 }
 
-TEST_F(TestSketchVector, test_transpose_compatible)
+TEST_F(TestSketchVector, transpose_compatible)
 {
     for (uint32_t seed : {0, 1, 2}) {
         test_transpose_compatible<double>(seed, 100, 1000, 2, 3);
@@ -198,7 +198,7 @@ TEST_F(TestSketchVector, test_transpose_compatible)
     }
 }
 
-TEST_F(TestSketchVector, test_sketch_vec_wide)
+TEST_F(TestSketchVector, sketch_vec_wide)
 {
     for (uint32_t seed : {0, 1, 2}) {
         test_sketch_vec_wide<double>(seed, 100, 1000, 2, 3);
@@ -206,7 +206,7 @@ TEST_F(TestSketchVector, test_sketch_vec_wide)
     }
 }
 
-TEST_F(TestSketchVector, test_apply_transposed_to_vector)
+TEST_F(TestSketchVector, apply_transposed_to_vector)
 {
     for (uint32_t seed : {0, 1, 2}) {
         test_apply_transposed_to_vector<double>(seed, 100, 1000, 2, 3);
