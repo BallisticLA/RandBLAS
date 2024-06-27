@@ -46,12 +46,192 @@
 #include <typeinfo>
 
 
+namespace RandBLAS::dense {
+
+template<typename RNG>
+bool compare_ctr(typename RNG::ctr_type c1, typename RNG::ctr_type c2) {
+    int len = c1.size();
+    
+    for (int ind = len - 1; ind >= 0; ind--) {
+        if (c1[ind] > c2[ind]) {
+            return true;
+        } else if (c1[ind] < c2[ind]) {
+            return false;
+        }
+    }
+    return false;
+}
+
+/** 
+ * Fill buff with random values so it gives a row-major representation of an n_srows \math{\times} n_scols
+ * submatrix of some implicitly defined parent matrix.
+ * 
+ * The implicit parent matrix is **imagined** as a buffer in row-major order with "n_cols" columns.
+ * "ptr" is the pointer offset for the desired submatrix in the imagined buffer of the parent matrix.
+ *
+ * @tparam T the data type of the matrix
+ * @tparam RNG a random123 CBRNG type
+ * @tparam OP an operator that transforms raw random values into matrix
+ *           elements. See r123ext::uneg11 and r123ext::boxmul.
+ *
+ * @param[in] n_cols
+ *      The number of columns in the implicitly defined parent matrix.
+ * @param[in] smat
+ *      A pointer to a region of memory with space for n_rows \math{\times} lda elements of type T.
+ *      This memory will be filled with random values by wrting rows of length "n_scols"
+ *      with an inter-row stride of length "lda".
+ * @param[in] n_srows
+ *      The number of rows in the submatrix.
+ * @param[in] n_scols
+ *      The number of columns in the submatrix.
+ * @param[in] ptr
+ *      The starting locaiton within the random matrix, for which 
+ *      the submatrix is to be generated
+ * @param[in] seed
+ *      A CBRNG state
+ * @param[in] lda
+ *      If positive then must be >= n_scols.
+ *      Otherwise, we automatically set it to n_scols.
+ *
+ * @returns the updated CBRNG state
+ * 
+ * Notes
+ * -----
+ * If RandBLAS is compiled with OpenMP threading support enabled, the operation is parallelized
+ * using OMP_NUM_THREADS. The sequence of values generated does not depend on the number of threads.
+ * 
+ */
+template<typename T, typename RNG, typename OP>
+static RNGState<RNG> fill_dense_submat_impl(
+    int64_t n_cols,
+    T* smat,
+    int64_t n_srows,
+    int64_t n_scols,
+    int64_t ptr,
+    const RNGState<RNG> & seed,
+    int64_t lda = 0
+) {
+    if (lda <= 0) {
+        lda = n_scols;
+    } else {
+        randblas_require(lda >= n_scols);
+    }
+    randblas_require(n_cols >= n_scols);
+    RNG rng;
+    using CTR_t = typename RNG::ctr_type;
+    using KEY_t = typename RNG::key_type;
+    CTR_t c = seed.counter;
+    KEY_t k = seed.key;
+    
+    int64_t pad = 0;
+    // ^ computed such that  n_cols+pad is divisible by RNG::static_size
+    if (n_cols % CTR_t::static_size != 0) {
+        pad = CTR_t::static_size - n_cols % CTR_t::static_size;
+    }
+
+    int64_t n_cols_padded = n_cols + pad;
+    // ^ smallest number of columns, greater than or equal to n_cols, that would be divisible by CTR_t::static_size 
+    int64_t ptr_padded = ptr + ptr / n_cols * pad;
+    // ^ ptr corresponding to the padded matrix
+    int64_t r0_padded = ptr_padded / CTR_t::static_size;
+    // ^ starting counter corresponding to ptr_padded 
+    int64_t r1_padded = (ptr_padded + n_scols - 1) / CTR_t::static_size;
+    // ^ ending counter corresponding to ptr of the last element of the row
+    int64_t ctr_gap = n_cols_padded / CTR_t::static_size; 
+    // ^ number of counters between the first counter of the row to the first counter of the next row;
+    int64_t s0 = ptr_padded % CTR_t::static_size; 
+    int64_t e1 = (ptr_padded + n_scols - 1) % CTR_t::static_size;
+
+    int64_t num_thrds = 1;
+    #if defined(RandBLAS_HAS_OpenMP)
+    #pragma omp parallel 
+    {
+        num_thrds = omp_get_num_threads();
+    }
+    #endif
+
+    //Instead of using thrd_arr just initialize ctr_arr to be zero counters;
+    CTR_t *ctr_arr = new CTR_t[num_thrds];
+    for (int i = 0; i < num_thrds; i++) {
+        ctr_arr[i] = c;
+    }
+
+    #pragma omp parallel firstprivate(c, k)
+    {
+
+    auto cc = c;
+    int64_t prev = 0;
+    int64_t i;
+    int64_t r0, r1;
+    int64_t ind;
+    int64_t thrd = 0;
+
+    #pragma omp for
+    for (int row = 0; row < n_srows; row++) {
+        
+        #if defined(RandBLAS_HAS_OpenMP)
+            thrd = omp_get_thread_num();
+        #endif
+
+        ind = 0;
+        r0 = r0_padded + ctr_gap*row;
+        r1 = r1_padded + ctr_gap*row; 
+
+        cc.incr(r0 - prev);
+        prev = r0;
+        auto rv =  OP::generate(rng, cc, k);
+        int64_t range = (r1 > r0)? CTR_t::static_size - 1 : e1;
+        for (i = s0; i <= range; i++) {
+            smat[ind + row * lda] = rv[i];
+            ind++;
+        }
+        // middle 
+        int64_t tmp = r0;
+        while( tmp < r1 - 1) {
+            cc.incr();
+            prev++;
+            rv = OP::generate(rng, cc, k);
+            for (i = 0; i < CTR_t::static_size; i++) {
+                smat[ind + row * lda] = rv[i];
+                ind++;
+            }
+            tmp++;
+        }
+
+        // end
+        if ( r1 > r0 ) {
+            cc.incr();
+            prev++;
+            rv = OP::generate(rng, cc, k);
+            for (i = 0; i <= e1; i++) {
+                smat[ind + row * lda] = rv[i];
+                ind++;
+            }
+        }
+        ctr_arr[thrd] = cc;
+    }
+
+    }
+    
+    //finds the largest counter in the counter array
+    CTR_t max_c = ctr_arr[0];
+    for (int i = 1; i < num_thrds; i++) {  
+        if (compare_ctr<RNG>(ctr_arr[i], max_c)) {
+            max_c = ctr_arr[i];
+        }
+    }
+    delete [] ctr_arr;
+
+    max_c.incr();
+    return RNGState<RNG> {max_c, k};
+}
+
+} // end namespace RandBLAS::dense
+
+
 namespace RandBLAS {
+
 // =============================================================================
-/// We call a sketching operator "dense" if (1) it is naturally represented with a
-/// buffer and (2) the natural way to apply that operator to a matrix is
-/// to use the operator's buffer in GEMM.
-///
 /// We support two distributions for dense sketching operators: those whose
 /// entries are iid Gaussians or iid uniform over a symmetric interval.
 /// For implementation reasons, we also expose an option to indicate that an
@@ -287,192 +467,6 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
     }
 }
 
-} // end namespace RandBLAS  (will continue later in this file)
-
-namespace RandBLAS::dense {
-
-template<typename RNG>
-bool compare_ctr(typename RNG::ctr_type c1, typename RNG::ctr_type c2) {
-    int len = c1.size();
-    
-    for (int ind = len - 1; ind >= 0; ind--) {
-        if (c1[ind] > c2[ind]) {
-            return true;
-        } else if (c1[ind] < c2[ind]) {
-            return false;
-        }
-    }
-    return false;
-}
-
-/** 
- * Fill buff with random values so it gives a row-major representation of an n_srows \math{\times} n_scols
- * submatrix of some implicitly defined parent matrix.
- * 
- * The implicit parent matrix is **imagined** as a buffer in row-major order with "n_cols" columns.
- * "ptr" is the pointer offset for the desired submatrix in the imagined buffer of the parent matrix.
- *
- * @tparam T the data type of the matrix
- * @tparam RNG a random123 CBRNG type
- * @tparam OP an operator that transforms raw random values into matrix
- *           elements. See r123ext::uneg11 and r123ext::boxmul.
- *
- * @param[in] n_cols
- *      The number of columns in the implicitly defined parent matrix.
- * @param[in] smat
- *      A pointer to a region of memory with space for n_rows \math{\times} lda elements of type T.
- *      This memory will be filled with random values by wrting rows of length "n_scols"
- *      with an inter-row stride of length "lda".
- * @param[in] n_srows
- *      The number of rows in the submatrix.
- * @param[in] n_scols
- *      The number of columns in the submatrix.
- * @param[in] ptr
- *      The starting locaiton within the random matrix, for which 
- *      the submatrix is to be generated
- * @param[in] seed
- *      A CBRNG state
- * @param[in] lda
- *      If positive then must be >= n_scols.
- *      Otherwise, we automatically set it to n_scols.
- *
- * @returns the updated CBRNG state
- * 
- * Notes
- * -----
- * If RandBLAS is compiled with OpenMP threading support enabled, the operation is parallelized
- * using OMP_NUM_THREADS. The sequence of values generated does not depend on the number of threads.
- * 
- */
-template<typename T, typename RNG, typename OP>
-static RNGState<RNG> fill_dense_submat_impl(
-    int64_t n_cols,
-    T* smat,
-    int64_t n_srows,
-    int64_t n_scols,
-    int64_t ptr,
-    const RNGState<RNG> & seed,
-    int64_t lda = 0
-) {
-    if (lda <= 0) {
-        lda = n_scols;
-    } else {
-        randblas_require(lda >= n_scols);
-    }
-    randblas_require(n_cols >= n_scols);
-    RNG rng;
-    using CTR_t = typename RNG::ctr_type;
-    using KEY_t = typename RNG::key_type;
-    CTR_t c = seed.counter;
-    KEY_t k = seed.key;
-    
-    int64_t pad = 0;
-    // ^ computed such that  n_cols+pad is divisible by RNG::static_size
-    if (n_cols % CTR_t::static_size != 0) {
-        pad = CTR_t::static_size - n_cols % CTR_t::static_size;
-    }
-
-    int64_t n_cols_padded = n_cols + pad;
-    // ^ smallest number of columns, greater than or equal to n_cols, that would be divisible by CTR_t::static_size 
-    int64_t ptr_padded = ptr + ptr / n_cols * pad;
-    // ^ ptr corresponding to the padded matrix
-    int64_t r0_padded = ptr_padded / CTR_t::static_size;
-    // ^ starting counter corresponding to ptr_padded 
-    int64_t r1_padded = (ptr_padded + n_scols - 1) / CTR_t::static_size;
-    // ^ ending counter corresponding to ptr of the last element of the row
-    int64_t ctr_gap = n_cols_padded / CTR_t::static_size; 
-    // ^ number of counters between the first counter of the row to the first counter of the next row;
-    int64_t s0 = ptr_padded % CTR_t::static_size; 
-    int64_t e1 = (ptr_padded + n_scols - 1) % CTR_t::static_size;
-
-    int64_t num_thrds = 1;
-    #if defined(RandBLAS_HAS_OpenMP)
-    #pragma omp parallel 
-    {
-        num_thrds = omp_get_num_threads();
-    }
-    #endif
-
-    //Instead of using thrd_arr just initialize ctr_arr to be zero counters;
-    CTR_t *ctr_arr = new CTR_t[num_thrds];
-    for (int i = 0; i < num_thrds; i++) {
-        ctr_arr[i] = c;
-    }
-
-    #pragma omp parallel firstprivate(c, k)
-    {
-
-    auto cc = c;
-    int64_t prev = 0;
-    int64_t i;
-    int64_t r0, r1;
-    int64_t ind;
-    int64_t thrd = 0;
-
-    #pragma omp for
-    for (int row = 0; row < n_srows; row++) {
-        
-        #if defined(RandBLAS_HAS_OpenMP)
-            thrd = omp_get_thread_num();
-        #endif
-
-        ind = 0;
-        r0 = r0_padded + ctr_gap*row;
-        r1 = r1_padded + ctr_gap*row; 
-
-        cc.incr(r0 - prev);
-        prev = r0;
-        auto rv =  OP::generate(rng, cc, k);
-        int64_t range = (r1 > r0)? CTR_t::static_size - 1 : e1;
-        for (i = s0; i <= range; i++) {
-            smat[ind + row * lda] = rv[i];
-            ind++;
-        }
-        // middle 
-        int64_t tmp = r0;
-        while( tmp < r1 - 1) {
-            cc.incr();
-            prev++;
-            rv = OP::generate(rng, cc, k);
-            for (i = 0; i < CTR_t::static_size; i++) {
-                smat[ind + row * lda] = rv[i];
-                ind++;
-            }
-            tmp++;
-        }
-
-        // end
-        if ( r1 > r0 ) {
-            cc.incr();
-            prev++;
-            rv = OP::generate(rng, cc, k);
-            for (i = 0; i <= e1; i++) {
-                smat[ind + row * lda] = rv[i];
-                ind++;
-            }
-        }
-        ctr_arr[thrd] = cc;
-    }
-
-    }
-    
-    //finds the largest counter in the counter array
-    CTR_t max_c = ctr_arr[0];
-    for (int i = 1; i < num_thrds; i++) {  
-        if (compare_ctr<RNG>(ctr_arr[i], max_c)) {
-            max_c = ctr_arr[i];
-        }
-    }
-    delete [] ctr_arr;
-
-    max_c.incr();
-    return RNGState<RNG> {max_c, k};
-}
-
-} // end namespace RandBLAS::dense
-
-namespace RandBLAS {
-
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
 ///
@@ -644,6 +638,7 @@ RNGState<RNG> fill_dense(
     S.del_buff_on_destruct = true;
     return next_state;
 }
+
 }  // end namespace RandBLAS
 
 #endif
