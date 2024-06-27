@@ -16,7 +16,7 @@ These adaptations are provided through overloaded functions named sketch_general
 
 Out of the functions presented here, only sketch_general has low-level implementations;
 sketch_vector and sketch_symmetric are basic wrappers around sketch_general, and are provided to make
-to make implementations less error-prone for when porting code that currently uses BLAS
+to make implementations less error-prone when porting code that currently uses BLAS
 or a BLAS-like interface.
 
 Analogs to GEMM
