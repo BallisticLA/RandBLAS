@@ -651,13 +651,13 @@ inline void sketch_general(
 ///
 ///     **What are** :math:`\mat(x)` **and** :math:`\mat(y)` **?**
 ///     
-///       Their shapes are defined as tall vectors of dimension :math:`(\mat(x), L_x \times 1),` :math:`(\mat(y), L_y \times 1),`
+///       They are vectors of shapes :math:`(\mat(x), L_x \times 1)` and :math:`(\mat(y), L_y \times 1),`
 ///       where :math:`(L_x, L_y)` are lengths so that :math:`\opS(\submat(S)) \mat(x)` is well-defined and the same shape as :math:`\mat(y).` 
-///       Their precise contents are determined in a way that is identical to the Level 2 BLAS function "GEMV."
+///       Their precise contents are determined in a way that is identical to GEMV from BLAS.
 ///
 ///     **Why no "layout" argument?**
 ///     
-///       The GEMV in CBLAS accepts a parameter that specifies row-major or column-major layout of the matrix.
+///       GEMV in CBLAS accepts a parameter that specifies row-major or column-major layout of the matrix operand.
 ///       Since our matrix is a sketching operator, and since RandBLAS has no notion of the layout of a sketching operator, we do not have a layout parameter.
 ///
 /// .. dropdown:: Full parameter descriptions
@@ -761,15 +761,15 @@ inline void sketch_vector(
 ///
 ///     **What are** :math:`\mat(x)` **and** :math:`\mat(y)` **?**
 ///
-///       Their shapes are defined as tall vectors of dimension :math:`(\mat(x), L_x \times 1),` :math:`(\mat(y), L_y \times 1),`
+///       They are vectors of shapes :math:`(\mat(x), L_x \times 1)` and :math:`(\mat(y), L_y \times 1),`
 ///       where :math:`(L_x, L_y)` are lengths so that :math:`\opS(S) \mat(x)` is well-defined and the same shape as :math:`\mat(y).` 
-///       Their precise contents are determined in a way that is identical to the Level 2 BLAS function "GEMV."
+///       Their precise contents are determined in a way that is identical to GEMV from BLAS.
 ///
 ///     **Why no "layout" argument?**
-///
-///       The GEMV in CBLAS accepts a parameter that specifies row-major or column-major layout of the matrix.
+///     
+///       GEMV in CBLAS accepts a parameter that specifies row-major or column-major layout of the matrix operand.
 ///       Since our matrix is a sketching operator, and since RandBLAS has no notion of the layout of a sketching operator, we do not have a layout parameter.
-/// 
+///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
 ///

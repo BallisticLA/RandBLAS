@@ -322,9 +322,8 @@ inline void sketch_symmetric(
 // MARK: FULL(S)
 
 // =============================================================================
-/// \fn sketch_symmetric(blas::Layout layout, int64_t n,
-///     int64_t d, T alpha,  const T *A, int64_t lda,
-///     SKOP &S,
+/// \fn sketch_symmetric(blas::Layout layout, T alpha, 
+///     const T *A, int64_t lda, SKOP &S,
 ///     T beta, T *B, int64_t ldb, T sym_check_tol = 0
 /// ) 
 /// @verbatim embed:rst:leading-slashes
@@ -333,15 +332,15 @@ inline void sketch_symmetric(
 /// .. math::
 ///     \mat(B) = \alpha \cdot \underbrace{\mat(A)}_{n \times n} \cdot S  + \beta \cdot \underbrace{\mat(B)}_{n \times d},    \tag{$\star$}
 /// 
-/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`S` is a sketching operator.
+/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`S` is an :math:`n \times d` sketching operator.
 ///
 /// .. dropdown:: FAQ
 ///   :animate: fade-in-slide-down
 ///
 ///     **What's** :math:`\mat(A)?`
 ///
-///       It's a symmetric matrix of order :math:`n`. Its precise contents depend on :math:`(A, \lda)`,
-///       according to 
+///       It's a symmetric matrix of order :math:`n`, where :math:`n = \texttt{S.dist.n_cols}`.
+///       Its precise contents depend on :math:`(A, \lda)`, according to 
 ///
 ///             .. math::
 ///                 \mat(A)[i, j] = A[i + j \cdot \lda] = A[i \cdot \lda + j].
@@ -356,7 +355,9 @@ inline void sketch_symmetric(
 ///
 ///     **What's** :math:`\mat(B)?`
 ///
-///       It's an :math:`n \times d` matrix.  Its precise contents depend on :math:`(B,\ldb)` and "layout."
+///      It's an :math:`n \times d` matrix, where  :math:`n = \texttt{S.dist.n_cols}`
+///      and :math:`d = \texttt{S.dist.n_rows}`.
+///      Its precise contents depend on :math:`(B,\ldb)` and "layout."
 ///
 ///       If layout == ColMajor, then
 ///
@@ -378,15 +379,6 @@ inline void sketch_symmetric(
 ///      layout - [in]
 ///       * Either Layout::ColMajor or Layout::RowMajor
 ///       * Matrix storage for :math:`\mat(B).`
-///
-///      n - [in]
-///       * A nonnegative integer.
-///       * The number of rows in :math:`\mat(B).` 
-///       * The number of rows and columns in :math:`\mat(A).`
-///
-///      d - [in]
-///       * A nonnegative integer.
-///       * The number of columns in :math:`\mat(B)` and :math:`S.`
 ///
 ///      alpha - [in]
 ///       * A real scalar.
@@ -423,8 +415,6 @@ template <typename T, typename SKOP>
 inline void sketch_symmetric(
     // B = alpha*A*S + beta*B, where A is a symmetric matrix stored in the format of a general matrix.
     blas::Layout layout,
-    int64_t n, // number of rows in B
-    int64_t d, // number of columns in B
     T alpha,
     const T* A,
     int64_t lda,
@@ -434,14 +424,15 @@ inline void sketch_symmetric(
     int64_t ldb,
     T sym_check_tol = 0
 ) {
+    int64_t n = S.dist.n_rows;
+    int64_t d = S.dist.n_cols;
     RandBLAS::util::require_symmetric(layout, A, n, lda, sym_check_tol);
     sketch_general(layout, blas::Op::NoTrans, blas::Op::NoTrans, n, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);
 }
 
 
 // =============================================================================
-/// \fn sketch_symmetric(blas::Layout layout, int64_t d,
-///     int64_t n, T alpha, SKOP &S,
+/// \fn sketch_symmetric(blas::Layout layout, T alpha, SKOP &S,
 ///     const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0
 /// ) 
 /// @verbatim embed:rst:leading-slashes
@@ -450,7 +441,7 @@ inline void sketch_symmetric(
 /// .. math::
 ///     \mat(B) = \alpha \cdot S \cdot \underbrace{\mat(A)}_{n \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
 /// 
-/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`S` is a sketching operator.
+/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`S` is a :math:`d \times n` sketching operator.
 ///
 /// .. dropdown:: FAQ
 ///   :animate: fade-in-slide-down
@@ -496,15 +487,6 @@ inline void sketch_symmetric(
 ///       * Either Layout::ColMajor or Layout::RowMajor
 ///       * Matrix storage for :math:`\mat(B).`
 ///
-///      d - [in]
-///       * A nonnegative integer.
-///       * The number of rows in :math:`\mat(B)` and :math:`S.`
-///
-///      n - [in]
-///       * A nonnegative integer.
-///       * The number of columns in :math:`\mat(B).` 
-///       * The number of rows and columns in :math:`\mat(A).`
-///
 ///      alpha - [in]
 ///       * A real scalar.
 ///       * If zero, then :math:`A` is not accessed.
@@ -540,8 +522,6 @@ template <typename T, typename SKOP>
 inline void sketch_symmetric(
     // B = alpha*S*A + beta*B
     blas::Layout layout,
-    int64_t d, // number of rows in B
-    int64_t n, // number of columns in B
     T alpha,
     SKOP &S,
     const T* A,
@@ -551,6 +531,8 @@ inline void sketch_symmetric(
     int64_t ldb,
     T sym_check_tol = 0
 ) {
+    int64_t d = S.dist.n_rows;
+    int64_t n = S.dist.n_cols;
     RandBLAS::util::require_symmetric(layout, A, n, lda, sym_check_tol);
     sketch_general(layout, blas::Op::NoTrans, blas::Op::NoTrans, d, n, n, alpha, S, 0, 0, A, lda, beta, B, ldb);
 }
