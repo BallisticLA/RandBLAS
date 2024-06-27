@@ -54,14 +54,14 @@ Analogs to SYMM
   :animate: fade-in-slide-down
   :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, int64_t d, int64_t n, T alpha, SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, T alpha, SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
       :project: RandBLAS
 
 .. dropdown:: :math:`B = \alpha \cdot A \cdot S + \beta \cdot B`
   :animate: fade-in-slide-down
   :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, int64_t n, int64_t d, T alpha, const T *A, int64_t lda, SKOP &S, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, T alpha, const T *A, int64_t lda, SKOP &S, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
       :project: RandBLAS
 
 
