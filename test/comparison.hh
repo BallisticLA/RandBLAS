@@ -30,6 +30,7 @@
 #ifndef randblas_test_comparisons_hh
 #define randblas_test_comparisons_hh
 
+#include "RandBLAS.hh"
 #include <gtest/gtest.h>
 #include <math.h>
 #include <cmath>
@@ -39,6 +40,8 @@
 
 namespace test::comparison {
 
+using blas::Layout;
+using blas::Op;
 
 /** Tests two floating point numbers for approximate equality.
  * See https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/
@@ -113,6 +116,9 @@ void buffs_approx_equal(
         }
     }
 }
+
+// TODO: Make macros that can automatically inject __PRETTY_FUNCTION__, __FILE__, and __LINE__ into the calls below.
+//       This is slightly complicated by the presence of optional arguments in the function definition.
 
 template <typename T>
 void buffs_approx_equal(

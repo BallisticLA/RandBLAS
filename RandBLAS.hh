@@ -36,6 +36,8 @@
 #include <RandBLAS/sparse_skops.hh>
 #include <RandBLAS/dense_skops.hh>
 #include <RandBLAS/skge.hh>
+#include <RandBLAS/skve.hh>
+#include <RandBLAS/sksy.hh>
 #include <RandBLAS/sparse_data/sksp.hh>
 
 #endif

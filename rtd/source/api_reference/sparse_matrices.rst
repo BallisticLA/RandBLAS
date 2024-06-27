@@ -8,7 +8,7 @@
    .. |ttt| mathmacro:: \texttt
 
 ********************************
-Representing sparse data
+Representing sparse matrices
 ********************************
 
 

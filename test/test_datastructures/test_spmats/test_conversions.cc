@@ -27,13 +27,16 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include "test/test_sparse_data/common.hh"
-#include "../comparison.hh"
+#include "../../comparison.hh"
+#include "common.hh"
 #include <vector>
 
 using namespace RandBLAS::sparse_data;
-using namespace test::sparse_data::common;
+using namespace test::test_datastructures::test_spmats;
+using namespace RandBLAS::sparse_data::conversions;
 using namespace RandBLAS::sparse_data::csc;
+using namespace RandBLAS::sparse_data::csr;
+using namespace RandBLAS::sparse_data::coo;
 using blas::Layout;
 
 class TestSparseTranspose : public ::testing::Test 

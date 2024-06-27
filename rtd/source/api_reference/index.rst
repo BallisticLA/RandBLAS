@@ -15,5 +15,5 @@ API Reference
     Computing a sketch: dense data <sketch_dense>
     Representing sparse data <sparse_matrices>
     Computing a sketch: sparse data <sketch_sparse>
-    Other sparse matrix operations <other_sparse>
+    Sparse BLAS operations <other_sparse>
 

@@ -32,7 +32,7 @@
 #include "RandBLAS/random_gen.hh"
 #include "RandBLAS/dense_skops.hh"
 #include "RandBLAS/util.hh"
-#include "../comparison.hh"
+#include "test/comparison.hh"
 
 #include <gtest/gtest.h>
 
@@ -94,8 +94,7 @@ std::ostream &operator<<(std::ostream &os, std::vector<T> &v) {
     return os;
 }
 
-class TestDenseMoments : public ::testing::Test
-{
+class TestDenseMoments : public ::testing::Test {
     protected:
 
     virtual void SetUp(){};
@@ -158,6 +157,7 @@ TEST_F(TestDenseMoments, Uniform)
         test_mean_stddev<double>(key, 203, 503, dn, expect_stddev);
     }
 }
+
 
 class TestSubmatGeneration : public ::testing::Test
 {
@@ -402,6 +402,7 @@ TEST_F(TestFillAxis, long_axis_2x4) {
 TEST_F(TestFillAxis, short_axis_2x4) {
     auto_transpose<float>(2, 4, RandBLAS::MajorAxis::Short);
 }
+
 
 class TestStateUpdate : public ::testing::Test
 {

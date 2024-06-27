@@ -27,7 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include "../linop_common.hh"
+#include "test/test_matmul_cores/linop_common.hh"
 #include <gtest/gtest.h>
 
 using RandBLAS::SparseDist;
@@ -184,7 +184,6 @@ TEST_F(TestLSKGES, sketch_saso_rowMajor_oneThread)
         }
     }
 }
-
 
 TEST_F(TestLSKGES, sketch_laso_rowMajor_oneThread)
 {
