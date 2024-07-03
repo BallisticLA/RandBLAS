@@ -5,6 +5,12 @@ set(tmp FALSE)
 if (GTest_FOUND)
     set(tmp TRUE)
 
+    #####################################################################
+    #
+    #   Tests with dense data and wrappers
+    #
+    #####################################################################
+
     add_executable(RandBLAS_tests
         comparison.hh
         test_datastructures/test_denseskop.cc
@@ -19,12 +25,14 @@ if (GTest_FOUND)
         test_matmul_wrappers/test_sketch_vector.cc
         test_matmul_wrappers/test_sketch_symmetric.cc
     )
-    target_link_libraries(RandBLAS_tests
-        RandBLAS
-        GTest::GTest
-        GTest::Main
-    )
+    target_link_libraries(RandBLAS_tests RandBLAS GTest::GTest GTest::Main)
     gtest_discover_tests(RandBLAS_tests)
+
+    #####################################################################
+    #
+    #   Tests with sparse data
+    #
+    #####################################################################
 
     add_executable(SparseRandBLAS_tests
         comparison.hh
@@ -40,12 +48,21 @@ if (GTest_FOUND)
         test_matmul_cores/test_spmm/test_spmm_csr.cc
         test_matmul_cores/test_spmm/test_spmm_coo.cc
     )
-    target_link_libraries(SparseRandBLAS_tests
-        RandBLAS
-        GTest::GTest
-        GTest::Main
-    )
+    target_link_libraries(SparseRandBLAS_tests RandBLAS GTest::GTest GTest::Main)
     gtest_discover_tests(SparseRandBLAS_tests)
+
+    #####################################################################
+    #
+    #   Statistical tests
+    #
+    #####################################################################
+
+    add_executable(RandBLAS_stats
+        test_basic_rng/rng_common.hh
+        test_basic_rng/test_sample_indices.cc
+    )
+    target_link_libraries(RandBLAS_stats RandBLAS GTest::GTest GTest::Main)
+    gtest_discover_tests(RandBLAS_stats)
 
 endif()
 message(STATUS "Checking for regression tests ... ${tmp}")

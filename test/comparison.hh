@@ -27,8 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef randblas_test_comparisons_hh
-#define randblas_test_comparisons_hh
+#pragma once
 
 #include "RandBLAS.hh"
 #include <gtest/gtest.h>
@@ -239,5 +238,3 @@ void matrices_approx_equal(
 }
 
 } // end namespace test::comparison
-
-#endif
