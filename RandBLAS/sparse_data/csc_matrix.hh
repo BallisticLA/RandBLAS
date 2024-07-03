@@ -27,8 +27,8 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef randblas_sparse_data_csc
-#define randblas_sparse_data_csc
+#pragma once
+
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
@@ -246,7 +246,4 @@ void dense_to_csc(Layout layout, T* mat, T abs_tol, CSCMatrix<T> &spmat) {
     return;
 }
 
-
-}
-
-#endif
+} // end namespace RandBLAS::sparse_data::csc

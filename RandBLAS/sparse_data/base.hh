@@ -26,9 +26,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 //
-
-#ifndef randblas_sparse_data_hh
-#define randblas_sparse_data_hh
+#pragma once
 
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
@@ -193,7 +191,3 @@ namespace RandBLAS {
     using RandBLAS::sparse_data::IndexBase;
     using RandBLAS::sparse_data::SparseMatrix;
 }
-
-
-
-#endif

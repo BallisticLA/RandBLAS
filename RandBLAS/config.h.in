@@ -1,5 +1,4 @@
-#ifndef RandBLAS_config_h
-#define RandBLAS_config_h
+#pragma once
 
 #define RandBLAS_FULL_VERSION "@RandBLAS_FULL_VERSION@"
 #define RandBLAS_VERSION_MAJOR @RandBLAS_VERSION_MAJOR@
@@ -53,5 +52,3 @@
 //
 //   if you are linking to OpenMP.
 //
-
-#endif

@@ -27,8 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef random_gen_hh
-#define random_gen_hh
+#pragma once
 
 /// @file
 
@@ -178,4 +177,3 @@ struct uneg11
 
 } // end of namespace r123ext
 
-#endif

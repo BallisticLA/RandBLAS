@@ -27,8 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef randblas_base_hh
-#define randblas_base_hh
+#pragma once
 
 /// @file
 
@@ -212,5 +211,3 @@ std::ostream &operator<<(
 }
 
 } // end namespace RandBLAS::base
-
-#endif

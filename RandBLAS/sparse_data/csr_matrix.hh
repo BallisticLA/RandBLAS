@@ -27,8 +27,8 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef randblas_sparse_data_csr
-#define randblas_sparse_data_csr
+#pragma once
+
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
@@ -262,4 +262,3 @@ void dense_to_csr(Layout layout, T* mat, T abs_tol, CSRMatrix<T> &spmat) {
 
 
 } // end namespace RandBLAS::sparse_data::csr
-#endif

@@ -26,9 +26,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 //
-
-#ifndef randblas_skge_hh
-#define randblas_skge_hh
+#pragma once
 
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
@@ -1231,6 +1229,3 @@ inline void sketch_general(
 };
 
 }  // end namespace RandBLAS
-
-
-#endif

@@ -27,8 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef randblas_util_hh
-#define randblas_util_hh
+#pragma once
 
 #include <RandBLAS/exceptions.hh>
 #include <blas.hh>
@@ -243,6 +242,76 @@ void flip_layout(blas::Layout layout_in, int64_t m, int64_t n, std::vector<T> &A
     return;
 }
 
-} // end namespace RandBLAS::util
 
-#endif
+template <typename T>
+void weights_to_cdf(T* p, int64_t len_p) {
+    T sum = 0.0;
+    for (int64_t i = 0; i < len_p; ++i) {
+        sum += p[i];
+        p[i] = sum;
+    }
+    blas::scal(len_p, ((T)1.0)/sum, p, 1);
+}
+
+/***
+ * Assume cdf is a buffer specifying a cumulative probability distribution function.
+ * TF is a template parameter for a real floating point type.
+ * 
+ * This function produces "num_samples" from the distribution specified by "cdf" 
+ * and stores them in "samples".
+ */
+template <typename TF, typename int64_t, typename RNG>
+RNGState<RNG> sample_indices_iid(
+    TF* cdf, int64_t len_cdf,  int64_t* samples , int64_t num_samples, RandBLAS::RNGState<RNG> state
+) {
+    auto [ctr, key] = state;
+    RNG gen;
+    auto rv_array = r123ext::uneg11::generate(gen, ctr, key);
+    int64_t len_c = (int64_t) state.len_c;
+    int64_t rv_index = 0;
+    for (int64_t i = 0; i < num_samples; ++i) {
+        if ((i+1) % len_c == 1) {
+            ctr.incr(1);
+            rv_array = r123ext::uneg11::generate(gen, ctr, key);
+            rv_index = 0;
+        }
+        TF random_unif01 = ((TF) (rv_array[rv_index] + 1.0)) / ((TF) 2.0);
+        int64_t sample_index = std::lower_bound(cdf, cdf + len_cdf, random_unif01) - cdf;
+        // ^ uses binary search to set sample_index to the smallest value for which
+        //   random_unif01 < cdf[sample_index].
+        samples[i] = sample_index;
+        rv_index += 1;
+    }
+    return RNGState<RNG>(ctr, key);
+}
+
+/*** 
+ * This function produces "num_samples" from the uniform distribution over
+ * {0, ..., max_index_exclusive - 1} and stores them in "samples".
+ */
+template <typename int64_t, typename RNG>
+RNGState<RNG> sample_indices_iid_uniform(
+    int64_t max_index_exclusive,  int64_t* samples , int64_t num_samples, RandBLAS::RNGState<RNG> state
+) {
+    auto [ctr, key] = state;
+    RNG gen;
+    auto rv_array = r123ext::uneg11::generate(gen, ctr, key);
+    int64_t len_c = (int64_t) state.len_c;
+    int64_t rv_index = 0;
+    double dmie = (double) max_index_exclusive;
+    for (int64_t i = 0; i < num_samples; ++i) {
+        if ((i+1) % len_c == 1) {
+            ctr.incr(1);
+            rv_array = r123ext::uneg11::generate(gen, ctr, key);
+            rv_index = 0;
+        }
+        double random_unif01 = (double) (rv_array[rv_index] + 1.0) / 2.0;
+        int64_t sample_index = (int64_t) dmie * random_unif01;
+        samples[i] = sample_index;
+        rv_index += 1;
+    }
+    return RNGState<RNG>(ctr, key);
+}
+
+
+} // end namespace RandBLAS::util
