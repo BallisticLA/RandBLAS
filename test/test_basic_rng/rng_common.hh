@@ -127,6 +127,16 @@ std::tuple<double,int,double> critical_value_rep(int n, double sig) {
     return {cv, override_sample, override_sig};
 }
 
+template <typename TI>
+double critical_value_rep_mutator(TI &n, double &sig) {
+    int i = significance_rep(sig);
+    sig = significance_levels[i];
+    int j = sample_size_rep(n);
+    n = (TI) sample_sizes[j];
+    double cv = critical_values[i][j];
+    return cv;
+}
+
 }
 
 //

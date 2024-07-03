@@ -62,30 +62,53 @@ class TestSampleIndices : public ::testing::Test
         return;
     }
 
-    static void test_iid_uniform_kolmogorov_smirnov(int64_t N, double significance, int64_t num_samples, uint32_t seed) {
-        randblas_require(N <= (int64_t) 1e6);
-
-        using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep;
-        auto [critical_value, override_ns, override_sig] = critical_value_rep(num_samples, significance);
-        significance = (double) override_sig;
-        num_samples = (int64_t) override_ns;
-
-        RNGState state(seed);
-        std::vector<int64_t> samples(num_samples, -1);
-        RandBLAS::util::sample_indices_iid_uniform(N, samples.data(), num_samples, state);
+    static void index_set_kolmogorov_smirnov_tester(
+        std::vector<int64_t> &samples, std::vector<float> &true_cdf, double critical_value
+    ) {
+        auto num_samples = (int) samples.size();
+        auto N = (int64_t) true_cdf.size();
         std::vector<float> sample_cdf(N, 0.0);
         for (int64_t s : samples)
             sample_cdf[s] += 1;
         RandBLAS::util::weights_to_cdf(sample_cdf.data(), N);
 
+        for (int i = 0; i < num_samples; ++i) {
+            auto diff = (double) std::abs(sample_cdf[i] - true_cdf[i]);
+            ASSERT_LT(diff, critical_value);
+        }
+        return;
+    }
+
+    static void test_iid_uniform_kolmogorov_smirnov(int64_t N, double significance, int64_t num_samples, uint32_t seed) {
+        using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
+        auto critical_value = critical_value_rep_mutator(num_samples, significance);
+
         std::vector<float> true_cdf(N, 1.0);
         RandBLAS::util::weights_to_cdf(true_cdf.data(), N);
 
+        RNGState state(seed);
+        std::vector<int64_t> samples(num_samples, -1);
+        RandBLAS::util::sample_indices_iid_uniform(N, samples.data(), num_samples, state);
 
-        for (int i = 0; i < num_samples; ++i) {
-            float diff = std::abs(sample_cdf[i] - true_cdf[i]);
-            ASSERT_LT(diff, critical_value);
-        }
+        index_set_kolmogorov_smirnov_tester(samples, true_cdf, critical_value);
+        return;
+    }
+
+    static void test_iid_kolmogorov_smirnov(int64_t N, double significance, int64_t num_samples, uint32_t seed) {
+        using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
+        auto critical_value = critical_value_rep_mutator(num_samples, significance);
+
+        // Make the true CDF 
+        std::vector<float> true_cdf{};
+        for (int i = 0; i < N; ++i)
+            true_cdf.push_back(1.0/((float)i + 1.0));
+        RandBLAS::util::weights_to_cdf(true_cdf.data(), N);
+
+        RNGState state(seed);
+        std::vector<int64_t> samples(num_samples, -1);
+        RandBLAS::util::sample_indices_iid(true_cdf.data(), N, samples.data(), num_samples, state);
+
+        index_set_kolmogorov_smirnov_tester(samples, true_cdf, critical_value);
         return;
     }
     
@@ -132,6 +155,28 @@ TEST_F(TestSampleIndices, iid_uniform_ks_skeptical) {
     test_iid_uniform_kolmogorov_smirnov(100,     s, 100000, 0);
     test_iid_uniform_kolmogorov_smirnov(10000,   s, 1000,   0);
     test_iid_uniform_kolmogorov_smirnov(1000000, s, 1000,   0);
+}
+
+
+TEST_F(TestSampleIndices, iid_ks_generous) {
+    double s = 1e-6;
+    test_iid_kolmogorov_smirnov(100,     s, 100000, 0);
+    test_iid_kolmogorov_smirnov(10000,   s, 1000,   0);
+    test_iid_kolmogorov_smirnov(1000000, s, 1000,   0);
+}
+
+TEST_F(TestSampleIndices, iid_ks_moderate) {
+    float s = 1e-4;
+    test_iid_kolmogorov_smirnov(100,     s, 100000, 0);
+    test_iid_kolmogorov_smirnov(10000,   s, 1000,   0);
+    test_iid_kolmogorov_smirnov(1000000, s, 1000,   0);
+}
+
+TEST_F(TestSampleIndices, iid_ks_skeptical) {
+    float s = 1e-2;
+    test_iid_kolmogorov_smirnov(100,     s, 100000, 0);
+    test_iid_kolmogorov_smirnov(10000,   s, 1000,   0);
+    test_iid_kolmogorov_smirnov(1000000, s, 1000,   0);
 }
 
 
