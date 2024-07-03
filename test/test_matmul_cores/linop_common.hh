@@ -27,8 +27,8 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef randblas_test_linop_common_hh
-#define randblas_test_linop_common_hh
+#pragma once
+
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/dense_skops.hh"
@@ -713,5 +713,3 @@ void test_right_apply_to_transposed(
 }
 
 } // end namespace test::linop_common
-
-#endif
