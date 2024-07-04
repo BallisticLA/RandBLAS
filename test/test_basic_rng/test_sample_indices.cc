@@ -94,14 +94,14 @@ class TestSampleIndices : public ::testing::Test
         return;
     }
 
-    static void test_iid_kolmogorov_smirnov(int64_t N, double significance, int64_t num_samples, uint32_t seed) {
+    static void test_iid_kolmogorov_smirnov(int64_t N, int exponent, double significance, int64_t num_samples, uint32_t seed) {
         using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
         auto critical_value = critical_value_rep_mutator(num_samples, significance);
 
         // Make the true CDF 
         std::vector<float> true_cdf{};
         for (int i = 0; i < N; ++i)
-            true_cdf.push_back(1.0/((float)i + 1.0));
+            true_cdf.push_back(std::pow(1.0/((float)i + 1.0), exponent));
         RandBLAS::util::weights_to_cdf(N, true_cdf.data());
 
         RNGState state(seed);
@@ -109,6 +109,42 @@ class TestSampleIndices : public ::testing::Test
         RandBLAS::util::sample_indices_iid(N, true_cdf.data(), num_samples, samples.data(), state);
 
         index_set_kolmogorov_smirnov_tester(samples, true_cdf, critical_value);
+        return;
+    }
+
+    static void test_iid_degenerate_distributions(uint32_t seed) {
+        int64_t N = 100;
+        int64_t num_samples = N*N;
+        std::vector<int64_t> samples(num_samples, -1);
+        RNGState state(seed);
+
+        using RandBLAS::util::weights_to_cdf;
+        using RandBLAS::util::sample_indices_iid;
+
+        // Test case 1: distribution is nonuniform, with mass only on even elements != 10.
+        std::vector<float> true_cdf(N, 0.0);
+        for (int i = 0; i < N; i = i + 2)
+            true_cdf[i] = 1.0f / ((float) i + 1.0f);
+        true_cdf[10] = 0.0;
+        weights_to_cdf(N, true_cdf.data());
+        sample_indices_iid(N, true_cdf.data(), num_samples, samples.data(), state);
+        for (auto s : samples) {
+            ASSERT_FALSE(s == 10 || s % 2 == 1) << "s = " << s;
+        }
+
+        // Test case 2: distribution is trivial (a delta function),
+        // and a negative weight needs to be clipped without error.
+        std::fill(true_cdf.begin(), true_cdf.end(), 0.0);
+        std::fill(samples.begin(), samples.end(), -1);
+        true_cdf[17] = 99.0f;
+        true_cdf[3]  = -std::numeric_limits<float>::epsilon()/10;
+        randblas_require(true_cdf[3] < 0);
+        weights_to_cdf(N, true_cdf.data());
+        ASSERT_GE(true_cdf[17], 0.0f);
+        sample_indices_iid(N, true_cdf.data(), num_samples, samples.data(), state);
+        for (auto s : samples) {
+            ASSERT_EQ(s, 17);
+        }
         return;
     }
     
@@ -136,6 +172,11 @@ TEST_F(TestSampleIndices, smoke_big) {
         test_iid_uniform_smoke(huge_N, 1000, i);
 }
 
+TEST_F(TestSampleIndices, support_of_degenerate_distributions) {
+    for (uint32_t i = 789; i < 799; ++i)
+        test_iid_degenerate_distributions(i);
+}
+
 TEST_F(TestSampleIndices, iid_uniform_ks_generous) {
     double s = 1e-6;
     test_iid_uniform_kolmogorov_smirnov(100,     s, 100000, 0);
@@ -160,49 +201,30 @@ TEST_F(TestSampleIndices, iid_uniform_ks_skeptical) {
 
 TEST_F(TestSampleIndices, iid_ks_generous) {
     double s = 1e-6;
-    test_iid_kolmogorov_smirnov(100,     s, 100000, 0);
-    test_iid_kolmogorov_smirnov(10000,   s, 1000,   0);
-    test_iid_kolmogorov_smirnov(1000000, s, 1000,   0);
+    test_iid_kolmogorov_smirnov(100,      1, s, 100000, 0);
+    test_iid_kolmogorov_smirnov(10000,    1, s, 1000,   0);
+    test_iid_kolmogorov_smirnov(1000000,  1, s, 1000,   0);
+    test_iid_kolmogorov_smirnov(100,      3, s, 100000, 0);
+    test_iid_kolmogorov_smirnov(10000,    3, s, 1000,   0);
+    test_iid_kolmogorov_smirnov(1000000,  3, s, 1000,   0);
 }
 
 TEST_F(TestSampleIndices, iid_ks_moderate) {
     float s = 1e-4;
-    test_iid_kolmogorov_smirnov(100,     s, 100000, 0);
-    test_iid_kolmogorov_smirnov(10000,   s, 1000,   0);
-    test_iid_kolmogorov_smirnov(1000000, s, 1000,   0);
+    test_iid_kolmogorov_smirnov(100,      1, s, 100000, 0);
+    test_iid_kolmogorov_smirnov(10000,    1, s, 1000,   0);
+    test_iid_kolmogorov_smirnov(1000000,  1, s, 1000,   0);
+    test_iid_kolmogorov_smirnov(100,      3, s, 100000, 0);
+    test_iid_kolmogorov_smirnov(10000,    3, s, 1000,   0);
+    test_iid_kolmogorov_smirnov(1000000,  3, s, 1000,   0);
 }
 
 TEST_F(TestSampleIndices, iid_ks_skeptical) {
     float s = 1e-2;
-    test_iid_kolmogorov_smirnov(100,     s, 100000, 0);
-    test_iid_kolmogorov_smirnov(10000,   s, 1000,   0);
-    test_iid_kolmogorov_smirnov(1000000, s, 1000,   0);
+    test_iid_kolmogorov_smirnov(100,      1, s, 100000, 0);
+    test_iid_kolmogorov_smirnov(10000,    1, s, 1000,   0);
+    test_iid_kolmogorov_smirnov(1000000,  1, s, 1000,   0);
+    test_iid_kolmogorov_smirnov(100,      3, s, 100000, 0);
+    test_iid_kolmogorov_smirnov(10000,    3, s, 1000,   0);
+    test_iid_kolmogorov_smirnov(1000000,  3, s, 1000,   0);
 }
-
-
-
-// class TestSampleIndices : public ::testing::Test
-// {
-//     protected:
-    
-//     virtual void SetUp(){};
-
-//     virtual void TearDown(){};
-
-//     template<typename T>
-//     static void test_basic(
-        
-//     ) { 
-//         return;
-//     }
-    
-// };
-
-
-// TEST_F(TestSampleIndices, smoke)
-// {
-//     // do something
-// }
-
-
-

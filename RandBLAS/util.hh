@@ -288,8 +288,6 @@ RNGState<RNG> sample_indices_iid(
         }
         auto random_unif01 = uneg11_to_uneg01<TF>(rv_array[rv_index]);
         int64_t sample_index = std::lower_bound(cdf, cdf + n, random_unif01) - cdf;
-        // ^ uses binary search to set sample_index to the smallest value for which
-        //   random_unif01 < cdf[sample_index].
         samples[i] = sample_index;
         rv_index += 1;
     }
