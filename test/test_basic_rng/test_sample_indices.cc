@@ -70,7 +70,7 @@ class TestSampleIndices : public ::testing::Test
         std::vector<float> sample_cdf(N, 0.0);
         for (int64_t s : samples)
             sample_cdf[s] += 1;
-        RandBLAS::util::weights_to_cdf(sample_cdf.data(), N);
+        RandBLAS::util::weights_to_cdf(N, sample_cdf.data());
 
         for (int i = 0; i < num_samples; ++i) {
             auto diff = (double) std::abs(sample_cdf[i] - true_cdf[i]);
@@ -84,7 +84,7 @@ class TestSampleIndices : public ::testing::Test
         auto critical_value = critical_value_rep_mutator(num_samples, significance);
 
         std::vector<float> true_cdf(N, 1.0);
-        RandBLAS::util::weights_to_cdf(true_cdf.data(), N);
+        RandBLAS::util::weights_to_cdf(N, true_cdf.data());
 
         RNGState state(seed);
         std::vector<int64_t> samples(num_samples, -1);
@@ -102,11 +102,11 @@ class TestSampleIndices : public ::testing::Test
         std::vector<float> true_cdf{};
         for (int i = 0; i < N; ++i)
             true_cdf.push_back(1.0/((float)i + 1.0));
-        RandBLAS::util::weights_to_cdf(true_cdf.data(), N);
+        RandBLAS::util::weights_to_cdf(N, true_cdf.data());
 
         RNGState state(seed);
         std::vector<int64_t> samples(num_samples, -1);
-        RandBLAS::util::sample_indices_iid(true_cdf.data(), N, samples.data(), num_samples, state);
+        RandBLAS::util::sample_indices_iid(N, true_cdf.data(), num_samples, samples.data(), state);
 
         index_set_kolmogorov_smirnov_tester(samples, true_cdf, critical_value);
         return;
