@@ -58,26 +58,6 @@ void safe_scal(int64_t n, T a, T* x, int64_t inc_x) {
 }
 
 template <typename T>
-void genmat(
-	int64_t n_rows,
-	int64_t n_cols,
-	T* mat,
-	uint64_t seed)
-{
-	typedef r123::Philox2x64 CBRNG;
-	CBRNG::key_type key = {{seed}};
-	CBRNG::ctr_type ctr = {{0,0}};
-	CBRNG g;
-	uint64_t prod = n_rows * n_cols;
-	for (uint64_t i = 0; i < prod; ++i)
-	{
-		ctr[0] = i;
-		CBRNG::ctr_type rand = g(ctr, key);
-		mat[i] = r123::uneg11<T>(rand.v[0]);
-	}
-}
-
-template <typename T>
 void print_colmaj(int64_t n_rows, int64_t n_cols, T *a, char label[])
 {
 	int64_t i, j;
