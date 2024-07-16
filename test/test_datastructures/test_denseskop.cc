@@ -304,9 +304,7 @@ TEST_F(TestSubmatGeneration, diag)
 
 #if defined(RandBLAS_HAS_OpenMP)
 template <typename T, typename RNG, typename OP>
-void DenseThreadTest() {
-    int64_t m = 32;
-    int64_t n = 8;
+void DenseThreadTest(int64_t m, int64_t n) {
     int64_t d = m*n;
 
     std::vector<T> base(d);
@@ -319,10 +317,9 @@ void DenseThreadTest() {
     std::cerr << "with 1 thread: " << base << std::endl;
 
     // run with different numbers of threads, and check that the result is the same
-    int n_hyper = std::thread::hardware_concurrency();
-    int n_threads = std::max(n_hyper / 2, 3);
-
+    int n_threads = std::thread::hardware_concurrency();
     for (int i = 2; i <= n_threads; ++i) {
+        std::fill(test.begin(), test.end(), (T) 0.0);
         omp_set_num_threads(i);
         RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(n, test.data(), m, n, 0, state);
         std::cerr << "with " << i << " threads: " << test << std::endl;
@@ -333,11 +330,19 @@ void DenseThreadTest() {
 }
 
 TEST(TestDenseThreading, UniformPhilox) {
-    DenseThreadTest<float,r123::Philox4x32,r123ext::uneg11>();
+    for (int i = 0; i < 10; ++i) {
+        DenseThreadTest<float,r123::Philox4x32,r123ext::uneg11>(32, 8);
+        DenseThreadTest<float,r123::Philox4x32,r123ext::uneg11>(1, 5);
+        DenseThreadTest<float,r123::Philox4x32,r123ext::uneg11>(5, 1);
+    }
 }
 
 TEST(TestDenseThreading, GaussianPhilox) {
-    DenseThreadTest<float,r123::Philox4x32,r123ext::boxmul>();
+    for (int i = 0; i < 10; ++i) {
+        DenseThreadTest<float,r123::Philox4x32,r123ext::boxmul>(32, 8);
+        DenseThreadTest<float,r123::Philox4x32,r123ext::boxmul>(1, 5);
+        DenseThreadTest<float,r123::Philox4x32,r123ext::boxmul>(5, 1);
+    }
 }
 #endif
 

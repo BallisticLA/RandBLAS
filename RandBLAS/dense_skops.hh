@@ -26,9 +26,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 //
-
-#ifndef randblas_dense_hh
-#define randblas_dense_hh
+#pragma once
 
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
@@ -640,5 +638,3 @@ RNGState<RNG> fill_dense(
 }
 
 }  // end namespace RandBLAS
-
-#endif

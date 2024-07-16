@@ -27,8 +27,8 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef randblas_sparse_data_coo_multiply
-#define randblas_sparse_data_coo_multiply
+#pragma once
+
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
@@ -163,5 +163,3 @@ static void apply_coo_left_jki_p11(
 
 
 } // end namespace
-
-#endif

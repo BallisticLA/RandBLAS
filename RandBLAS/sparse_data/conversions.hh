@@ -26,9 +26,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 //
+#pragma once
 
-#ifndef randblas_sparse_data_conversions
-#define randblas_sparse_data_conversions
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
@@ -209,5 +208,3 @@ void reindex_inplace(COOMatrix<T> &A, IndexBase desired) {
 }
 
 } // end namespace RandBLAS::sparse_data::conversions
-
-#endif

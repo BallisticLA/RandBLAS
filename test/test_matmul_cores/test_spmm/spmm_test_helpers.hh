@@ -27,6 +27,8 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
+#pragma once
+
 #include "test/test_datastructures/test_spmats/common.hh"
 #include "test/test_matmul_cores/linop_common.hh"
 #include <gtest/gtest.h>

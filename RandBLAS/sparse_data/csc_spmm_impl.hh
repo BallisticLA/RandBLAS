@@ -27,8 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef randblas_sparse_data_csc_multiply
-#define randblas_sparse_data_csc_multiply
+#pragma once
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
@@ -213,5 +212,4 @@ static void apply_csc_left_kib_rowmajor_1p1(
     return;
 }
 
-}
-#endif
+} // end namespace RandBLAS::sparse_data::csc

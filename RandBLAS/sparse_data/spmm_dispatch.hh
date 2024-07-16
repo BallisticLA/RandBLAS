@@ -27,8 +27,8 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef randblas_sparse_data_spmm_dispatch
-#define randblas_sparse_data_spmm_dispatch
+#pragma once
+
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
@@ -384,5 +384,3 @@ inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int
 }
 
 }
-
-#endif

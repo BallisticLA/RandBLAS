@@ -27,8 +27,8 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef randblas_sparse_data_coo
-#define randblas_sparse_data_coo
+#pragma once
+
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
@@ -409,4 +409,3 @@ void coo_to_dense(const COOMatrix<T> &spmat, Layout layout, T *mat) {
 
 } // end namespace RandBLAS::sparse_data::coo
 
-#endif

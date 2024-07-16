@@ -27,8 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef randblas_base_hh
-#define randblas_base_hh
+#pragma once
 
 /// @file
 
@@ -54,9 +53,18 @@
 /// code common across the project
 namespace RandBLAS {
 
+/**
+ * Stores stride information for a matrix represented as a buffer.
+ * The intended semantics for a buffer "A" and the conceptualized
+ * matrix "mat(A)" are 
+ * 
+ *  mat(A)[i, j] == A[i * inter_row_stride + j * inter_col_stride].
+ * 
+ * for all (i, j) within the bounds of mat(A).
+ */
 struct stride_64t {
-    int64_t inter_row_stride;
-    int64_t inter_col_stride;
+    int64_t inter_row_stride; // step down a column
+    int64_t inter_col_stride; // step along a row
 };
 
 inline stride_64t layout_to_strides(blas::Layout layout, int64_t ldim) {
@@ -212,5 +220,3 @@ std::ostream &operator<<(
 }
 
 } // end namespace RandBLAS::base
-
-#endif

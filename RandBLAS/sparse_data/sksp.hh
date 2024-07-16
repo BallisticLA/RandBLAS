@@ -27,8 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef randblas_sksp_hh
-#define randblas_sksp_hh
+#pragma once
 
 #include "RandBLAS/base.hh"
 #include "RandBLAS/dense_skops.hh"
@@ -625,6 +624,3 @@ inline void sketch_sparse(
 }
 
 }  // end namespace RandBLAS
-
-
-#endif

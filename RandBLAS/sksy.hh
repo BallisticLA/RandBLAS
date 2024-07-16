@@ -27,8 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef randblas_sksy_hh
-#define randblas_sksy_hh
+#pragma once
 
 #include "RandBLAS/util.hh"
 #include "RandBLAS/base.hh"
@@ -538,4 +537,3 @@ inline void sketch_symmetric(
 }
 
 } // end namespace RandBLAS
-#endif

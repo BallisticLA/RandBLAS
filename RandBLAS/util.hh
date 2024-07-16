@@ -27,8 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef randblas_util_hh
-#define randblas_util_hh
+#pragma once
 
 #include <RandBLAS/exceptions.hh>
 #include <blas.hh>
@@ -56,26 +55,6 @@ void safe_scal(int64_t n, T a, T* x, int64_t inc_x) {
     } else {
         blas::scal(n, a, x, inc_x);
     }
-}
-
-template <typename T>
-void genmat(
-	int64_t n_rows,
-	int64_t n_cols,
-	T* mat,
-	uint64_t seed)
-{
-	typedef r123::Philox2x64 CBRNG;
-	CBRNG::key_type key = {{seed}};
-	CBRNG::ctr_type ctr = {{0,0}};
-	CBRNG g;
-	uint64_t prod = n_rows * n_cols;
-	for (uint64_t i = 0; i < prod; ++i)
-	{
-		ctr[0] = i;
-		CBRNG::ctr_type rand = g(ctr, key);
-		mat[i] = r123::uneg11<T>(rand.v[0]);
-	}
 }
 
 template <typename T>
@@ -243,6 +222,85 @@ void flip_layout(blas::Layout layout_in, int64_t m, int64_t n, std::vector<T> &A
     return;
 }
 
-} // end namespace RandBLAS::util
 
-#endif
+template <typename T>
+void weights_to_cdf(int64_t n, T* w, T error_if_below = -std::numeric_limits<T>::epsilon()) {
+    T sum = 0.0;
+    for (int64_t i = 0; i < n; ++i) {
+        T val = w[i];
+        randblas_require(val >= error_if_below);
+        val = std::max(val, (T) 0.0);
+        sum += val;
+        w[i] = sum;
+    }
+    randblas_require(sum >= ((T) std::sqrt(n)) * std::numeric_limits<T>::epsilon());
+    blas::scal(n, ((T)1.0) / sum, w, 1);
+    return;
+}
+
+template <typename TO, typename TI>
+static inline TO uneg11_to_uneg01(TI in) {
+    return ((TO) in + (TO) 1.0)/ ((TO) 2.0);
+}
+
+/***
+ * cdf represents a cumulative distribution function over {0, ..., n - 1}.
+ * 
+ * TF is a template parameter for a real floating point type.
+ * 
+ * We overwrite the "samples" buffer with k (independent) samples from the
+ * distribution specified by cdf.
+ */
+template <typename TF, typename int64_t, typename RNG>
+RNGState<RNG> sample_indices_iid(
+    int64_t n, TF* cdf, int64_t k, int64_t* samples, RandBLAS::RNGState<RNG> state
+) {
+    auto [ctr, key] = state;
+    RNG gen;
+    auto rv_array = r123ext::uneg11::generate(gen, ctr, key);
+    int64_t len_c = (int64_t) state.len_c;
+    int64_t rv_index = 0;
+    for (int64_t i = 0; i < k; ++i) {
+        if ((i+1) % len_c == 1) {
+            ctr.incr(1);
+            rv_array = r123ext::uneg11::generate(gen, ctr, key);
+            rv_index = 0;
+        }
+        auto random_unif01 = uneg11_to_uneg01<TF>(rv_array[rv_index]);
+        int64_t sample_index = std::lower_bound(cdf, cdf + n, random_unif01) - cdf;
+        samples[i] = sample_index;
+        rv_index += 1;
+    }
+    return RNGState<RNG>(ctr, key);
+}
+
+/*** 
+ * Overwrite the "samples" buffer with k (independent) samples from the
+ * uniform distribution over {0, ..., n - 1}.
+ */
+template <typename int64_t, typename RNG>
+RNGState<RNG> sample_indices_iid_uniform(
+    int64_t n,  int64_t* samples , int64_t k, RandBLAS::RNGState<RNG> state
+) {
+    auto [ctr, key] = state;
+    RNG gen;
+    auto rv_array = r123ext::uneg11::generate(gen, ctr, key);
+    int64_t len_c = (int64_t) state.len_c;
+    int64_t rv_index = 0;
+    double dN = (double) n;
+    for (int64_t i = 0; i < k; ++i) {
+        if ((i+1) % len_c == 1) {
+            ctr.incr(1);
+            rv_array = r123ext::uneg11::generate(gen, ctr, key);
+            rv_index = 0;
+        }
+        auto random_unif01 = uneg11_to_uneg01<double>(rv_array[rv_index]);
+        int64_t sample_index = (int64_t) dN * random_unif01;
+        samples[i] = sample_index;
+        rv_index += 1;
+    }
+    return RNGState<RNG>(ctr, key);
+}
+
+
+} // end namespace RandBLAS::util

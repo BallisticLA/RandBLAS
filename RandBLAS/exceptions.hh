@@ -29,9 +29,6 @@
 
 #pragma once
 
-#ifndef RandBLAS_EXCEPTIONS_HH
-#define RandBLAS_EXCEPTIONS_HH
-
 #include <exception>
 #include <cstdarg>
 #include <string>
@@ -164,5 +161,3 @@ inline void abort_if( bool cond, const char* func,  const char* format, ... ) {
 #endif
 
 } // namespace RandBLAS::exceptions
-
-#endif

@@ -26,9 +26,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 //
-
-#ifndef randblas_sparse_skops_hh
-#define randblas_sparse_skops_hh
+#pragma once
 
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
@@ -483,5 +481,3 @@ static auto transpose(SKOP const &S) {
 }
 
 } // end namespace RandBLAS::sparse
-
-#endif
