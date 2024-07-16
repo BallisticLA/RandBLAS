@@ -2,6 +2,7 @@
 
 #include "RandBLAS.hh"
 #include <vector>
+#include <array>
 
 namespace RandBLAS_StatTests {
 
@@ -31,7 +32,7 @@ const std::vector<double> significance_levels {
     0.05, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6
 };
 
-const std::vector<const std::vector<double>> critical_values {{
+const std::array<const std::array<double, 22>, 6> critical_values {{{
     // significance of 0.05
     4.54266591e-01, 3.27333470e-01, 2.34240860e-01, 1.66933746e-01,
     1.18658276e-01, 8.42018587e-02, 5.96844982e-02, 4.22742678e-02,
@@ -79,7 +80,7 @@ const std::vector<const std::vector<double>> critical_values {{
     1.48735960e-02, 1.05183852e-02, 7.43818754e-03, 5.25987011e-03,
     3.71942641e-03, 2.63009921e-03, 1.85979452e-03, 1.31508999e-03,
     9.29917360e-04, 6.57555013e-04
-}};
+}}};
 
 /***
  * Returns the index in significance_levels for the "least significant" value
