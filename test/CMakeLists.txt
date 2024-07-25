@@ -60,9 +60,12 @@ if (GTest_FOUND)
     add_executable(RandBLAS_stats
         test_basic_rng/rng_common.hh
         test_basic_rng/test_sample_indices.cc
+        test_basic_rng/test_r123_kat.cc
     )
     target_link_libraries(RandBLAS_stats RandBLAS GTest::GTest GTest::Main)
     gtest_discover_tests(RandBLAS_stats)
+    file(COPY test_basic_rng/kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/../test/)
+    file(COPY test_basic_rng/kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
 
 endif()
 message(STATUS "Checking for regression tests ... ${tmp}")
