@@ -567,12 +567,28 @@ typename r123::make_signed<T>::type S(T x){ return x; }
         chk<Ftype, Rng>(#u, #Rng, #Ftype, &u<Ftype, Rng::ctr_type::value_type>, _nfail_, _refhist_); \
     }while(0)
 
-void RefHist(std::map<std::string, std::string> &refmap, const char* k, const char *v){
-    refmap[std::string(k)] = std::string(v);
-}
-
-void fillrefhist(std::map<std::string, std::string> &refmap){
-    #include "ut_uniform_reference.mm"
+std::map<std::string, std::string> get_refmap(){
+    using std::string;
+    std::map<string, string> refmap{};
+    refmap[string("u01 Threefry4x32 float")] = string(" 0 0 0 0 0 0 0 0 0 0 0 0 0 301 330 326 320 295 291 298 287 305 307 310 316 314");
+    refmap[string("u01 Threefry4x32 double")]= string(" 0 0 0 0 0 0 0 0 0 0 0 0 0 301 330 326 320 295 291 298 287 305 307 310 316 314");
+    refmap[string("u01 Threefry4x32 long double")] = string(" 0 0 0 0 0 0 0 0 0 0 0 0 0 301 330 326 320 295 291 298 287 305 307 310 316 314");
+    refmap[string("u01 Threefry4x64 float")] = string(" 0 0 0 0 0 0 0 0 0 0 0 0 0 308 295 322 300 316 291 311 289 346 297 310 340 275");
+    refmap[string("u01 Threefry4x64 double")] = string(" 0 0 0 0 0 0 0 0 0 0 0 0 0 308 295 322 300 316 291 311 289 346 297 310 340 275");
+    refmap[string("u01 Threefry4x64 long double")] = string(" 0 0 0 0 0 0 0 0 0 0 0 0 0 308 295 322 300 316 291 311 289 346 297 310 340 275");
+    refmap[string("uneg11 Threefry4x32 float")] = string(" 156 139 148 146 159 148 159 168 142 160 156 161 153 143 158 150 180 174 152 163 157 129 166 151 140 142");
+    refmap[string("uneg11 Threefry4x32 double")] = string(" 156 139 148 146 159 148 159 168 142 160 156 161 153 143 158 150 180 174 152 163 157 129 166 151 140 142");
+    refmap[string("uneg11 Threefry4x32 long double")] = string( " 156 139 148 146 159 148 159 168 142 160 156 161 153 143 158 150 180 174 152 163 157 129 166 151 140 142");
+    refmap[string("uneg11 Threefry4x64 float")] = string( " 159 141 148 184 162 142 155 137 173 187 153 140 135 164 144 146 149 151 171 152 148 137 179 146 145 152");
+    refmap[string("uneg11 Threefry4x64 double")] = string( " 159 141 148 184 162 142 155 137 173 187 153 140 135 164 144 146 149 151 171 152 148 137 179 146 145 152");
+    refmap[string("uneg11 Threefry4x64 long double")] = string( " 159 141 148 184 162 142 155 137 173 187 153 140 135 164 144 146 149 151 171 152 148 137 179 146 145 152");
+    refmap[string("u01fixedpt Threefry4x32 float")] = string( " 0 0 0 0 0 0 0 0 0 0 0 0 0 301 330 326 320 295 291 298 287 305 307 310 316 314");
+    refmap[string("u01fixedpt Threefry4x32 double")] = string( " 0 0 0 0 0 0 0 0 0 0 0 0 0 301 330 326 320 295 291 298 287 305 307 310 316 314");
+    refmap[string("u01fixedpt Threefry4x32 long double")] = string( " 0 0 0 0 0 0 0 0 0 0 0 0 0 301 330 326 320 295 291 298 287 305 307 310 316 314");
+    refmap[string("u01fixedpt Threefry4x64 float")] = string( " 0 0 0 0 0 0 0 0 0 0 0 0 0 308 295 322 300 316 291 311 289 346 297 310 340 275");
+    refmap[string("u01fixedpt Threefry4x64 double")] = string( " 0 0 0 0 0 0 0 0 0 0 0 0 0 308 295 322 300 316 291 311 289 346 297 310 340 275");
+    refmap[string("u01fixedpt Threefry4x64 long double")] = string( " 0 0 0 0 0 0 0 0 0 0 0 0 0 308 295 322 300 316 291 311 289 346 297 310 340 275");
+    return refmap;
 }
 
 template<typename Ftype, typename RNG, typename Utype>
@@ -617,8 +633,7 @@ void chk(const std::string& fname, const std::string& rngname, const std::string
 }
 
 void run_ut_uniform(){
-    std::map<std::string, std::string> refmap{};
-    fillrefhist(refmap);
+    auto refmap = get_refmap();
     int nfail = 0;
     // 18 tests:  3 functions (u01, uneg11, u01fixedpt)
     //          x 2 input sizes (32 bit or 64 bit)
