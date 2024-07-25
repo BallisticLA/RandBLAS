@@ -313,7 +313,7 @@ void run_base_rng_kat() {
     FILE *inpfile;
     const char *p;
     const char *inname;
-    int nfailed;
+    int nfailed = 0;
 
     UnknownKatTracker ukt{};
 
