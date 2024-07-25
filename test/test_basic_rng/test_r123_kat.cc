@@ -172,7 +172,7 @@ void host_execute_tests(kat_instance *tests, unsigned ntests);
 #define MAXUNKNOWNS 20
 
 struct UnknownKatTracker {
-    int num_unknowns;
+    int num_unknowns = 0;
     const char *unknown_names[MAXUNKNOWNS];
     int unknown_counts[MAXUNKNOWNS];
 };
