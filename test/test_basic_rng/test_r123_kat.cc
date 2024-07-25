@@ -43,10 +43,29 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <assert.h>
 #include <math.h>
 #include <Random123/features/compilerfeatures.h>
+#include <sstream>
 
-extern char *progname;
-extern int debug;
-extern int verbose;
+#include <iostream>
+#include <iomanip>
+#include <cassert>
+#include <charconv>
+#include <cassert>
+#include <system_error>
+#include <cstdint>
+#include <Random123/uniform.hpp>
+#include <map>
+#include <string>
+
+
+#define LINESIZE 1024
+
+#if R123_USE_AES_NI
+    int have_aesni = haveAESNI();
+#else
+    int have_aesni = 0;
+#endif
+int verbose = 0;
+int debug = 0;
 
 /* strdup may or may not be in string.h, depending on the value
    of the pp-symbol _XOPEN_SOURCE and other arcana.  Just
@@ -58,13 +77,13 @@ char *ntcsdup(const char *s){
     return p;
 }
 
-/* MSVC doesn't know about strtoull.  Strictly speaking, strtoull
-   isn't standardized in C++98, either, but that seems not to be a
-   problem so we blissfully ignore it and use strtoull (or its MSVC
-   equivalent, _strtoui64) in both C and C++.  If strtoull in C++
-   becomes a problem, we can adopt the prtu strategy (see below) and
-   write C++ versions of strtouNN, that use an istringstream
-   instead. */
+// Functions to read a (portion of) a string in a given base and convert it to
+// an unsigned integer.
+//
+// These functions differ from std::from_chars in how they handle white space.
+// Specifically, they strip leading whitespace, and then they stop reading as
+// soon as they reach a non-numeric character. (Note that the "a" in 257a3673
+// counts as a numeric character if we're reading in hexadecimal format.)
 #ifdef _MSC_FULL_VER
 #define strtoull _strtoui64
 #endif
@@ -83,81 +102,16 @@ uint64_t strtou64(const char *p, char **endp, int base){
     return ret;
 }
 
-/* Strict C++98 doesn't grok %llx or unsigned long long, and with
-   aggressive error-checking, e.g., g++ -pedantic -Wall, will refuse
-   to compile code like:
-
-     fprintf(stderr, "%llx", (R123_ULONG_LONG)v);
-
-   On the other hand, when compiling to a 32-bit target, the only
-   64-bit type is long long, so we're out of luck if we can't use llx.
-   A portable, almost-standard way to do I/O on uint64_t values in C++
-   is to use bona fide C++ I/O streams.  We are still playing
-   fast-and-loose with standards because C++98 doesn't have <stdint.h>
-   and hence doesn't even guarantee that there's a uint64_t, much less
-   that the insertion operator<<(ostream&) works correctly with
-   whatever we've typedef'ed to uint64_t in
-   <features/compilerfeatures.h>.  Hope for the best... */
-#include <iostream>
-#include <limits>
+// A helper function to print unsigned integers in hexadecimal format, with leading zeros if necessary.
 template <typename T>
-void prtu(T val){
-    using namespace std;
-    cerr.width(std::numeric_limits<T>::digits/4);
-    char prevfill = cerr.fill('0');
-    ios_base::fmtflags prevflags = cerr.setf(ios_base::hex, ios_base::basefield);
-    cerr << val;
-    cerr.flags(prevflags);
-    cerr.fill(prevfill);
-    assert(!cerr.bad());
+void prtu(std::ostream& os, T val) {
+    os << std::hex << std::setw(std::numeric_limits<T>::digits / 4) << std::setfill('0') << val;
+    assert(!os.bad());
 }
-void prtu32(uint32_t v){ prtu(v); }
-void prtu64(uint64_t v){ prtu(v); }
 
-
-// #define CHECKNOTEQUAL(x, y)  do { if ((x) != (y)) ; else { \
-//     FAIL() <<  "file  " << __FILE__ << " line " << __LINE__ << " error " << #x << " == " << #y << ". Error code " << errno << "\n";\
-//     exit(1); \
-// } } while (0)
-// #define CHECKEQUAL(x, y)  do { if ((x) == (y)) ; else { \
-//     FAIL() <<  "file  " << __FILE__ << " line " << __LINE__ << " error " << #x << " != " << #y << ". Error code " << errno << "\n";\
-//     exit(1); \
-// } } while (0)
-// #define CHECKZERO(x)  CHECKEQUAL((x), 0)
-// #define CHECKNOTZERO(x)  CHECKNOTEQUAL((x), 0)
-
-#define dprintf(x) do { if (debug < 1) ; else { printf x; fflush(stdout); } } while (0)
-
-#define ALLZEROS(x, K, N) \
-do { \
-    int allzeros = 1; \
-    unsigned xi, xj; \
-    for (xi = 0; xi < (unsigned)(K); xi++)      \
-	for (xj = 0; xj < (unsigned)(N); xj++)          \
-	    allzeros = allzeros & ((x)[xi].v[xj] == 0); \
-    if (allzeros) fprintf(stderr, "%s: Unexpected, all %lu elements of %ux%u had all zeros!\n", progname, (unsigned long)K, (unsigned)N, 8/*CHAR_BITS*/*(unsigned)sizeof(x[0].v[0])); \
-} while(0)
-
-// /* Read in N words of width W into ARR */
-// #define SCANFARRAY(ARR, NAME, N, W) \
-// do { \
-//     int xi, xj; \
-//     unsigned long long xv; \
-//     for (xi = 0; xi < (N); xi++) { \
-//         /* Avoid any cleverness with SCNx##W because Microsoft (as of Visual Studio 10.x) silently trashes the stack by pretending that %hhx is %x). */ \
-// 	const char *xfmt = " %llx%n"; \
-// 	ret = sscanf(cp, xfmt, &xv, &xj); \
-// 	ARR.v[xi] = (uint##W##_t)xv; \
-// 	if (debug > 1) printf("line %d: xfmt for W=%d is \"%s\", got ret=%d xj=%d, %s[%d]=%llx cp=%s", linenum, W, xfmt, ret, xj, #ARR, xi, (unsigned long long) ARR.v[xi], cp); \
-// 	if (ret < 1) { \
-// 	    fprintf(stderr, "%s: ran out of words reading %s on line %d: " #NAME #N "x" #W " %2d %s", \
-// 		    progname, #ARR, linenum, rounds, line); \
-// 	    errs++; \
-// 	    return; \
-// 	} \
-// 	cp += xj; \
-//     } \
-// } while(0)
+// Specializations for uint32_t and uint64_t
+void prtu32(std::ostream& os, uint32_t v) { prtu(os, v); }
+void prtu64(std::ostream& os, uint64_t v) { prtu(os, v); }
 
 #define PRINTARRAY(ARR, fp) \
 do { \
@@ -212,45 +166,31 @@ typedef struct{
     }u;
 } kat_instance;
 
-
-#define LINESIZE 1024
-
-int have_aesni = 0;
-int verbose = 0;
-int debug = 0;
-unsigned nfailed = 0;
-char *progname;
-
-extern void host_execute_tests(kat_instance *tests, unsigned ntests);
+void host_execute_tests(kat_instance *tests, unsigned ntests);
                 
-/* A little hack to keep track of the test vectors that we don't know how to deal with: */
-int nunknowns = 0;
+/* Keep track of the test vectors that we don't know how to deal with: */
 #define MAXUNKNOWNS 20
-const char *unknown_names[MAXUNKNOWNS];
-int unknown_counts[MAXUNKNOWNS];
 
-void register_unknown(const char *name){
+struct UnknownKatTracker {
+    int num_unknowns;
+    const char *unknown_names[MAXUNKNOWNS];
+    int unknown_counts[MAXUNKNOWNS];
+};
+
+void register_unknown(UnknownKatTracker &ukt, const char *name){
     int i;
-    for(i=0; i<nunknowns; ++i){
-        if( strcmp(name, unknown_names[i]) == 0 ){
-            unknown_counts[i]++;
+    for(i=0; i< ukt.num_unknowns; ++i){
+        if( strcmp(name, ukt.unknown_names[i]) == 0 ){
+            ukt.unknown_counts[i]++;
             return;
         }
     }
     if( i >= MAXUNKNOWNS ){
         FAIL() << "Too many unknown rng types. Bye.\n";
-        exit(1);
     }
-    nunknowns++;
-    unknown_names[i] = ntcsdup(name);
-    unknown_counts[i] = 1;
-}
-
-void report_unknowns(){
-    int i;
-    for(i=0; i<nunknowns; ++i){
-        printf("%d test vectors of type %s skipped\n", unknown_counts[i], unknown_names[i]);
-    }
+    ukt.num_unknowns++;
+    ukt.unknown_names[i] = ntcsdup(name);
+    ukt.unknown_counts[i] = 1;
 }
 
 /* read_<GEN>NxW */
@@ -283,8 +223,9 @@ int read_##base##N##x##W(const char *line, kat_instance* tinst){        \
 #include "r123_rngNxW.mm"
 #undef RNGNxW_TPL
 
+
 /* readtest:  dispatch to one of the read_<GEN>NxW functions */
-static int readtest(const char *line, kat_instance* tinst){
+static int readtest(UnknownKatTracker &ukt, const char *line, kat_instance* tinst){
     int nchar;
     char name[LINESIZE];
     if( line[0] == '#') return 0;                                       
@@ -293,7 +234,7 @@ static int readtest(const char *line, kat_instance* tinst){
         /* skip any tests that require AESNI */ 
         if(strncmp(name, "aes", 3)==0 ||
            strncmp(name, "ars", 3)==0){
-            register_unknown(name);
+            register_unknown(ukt, name);
             return 0;
         }
     }
@@ -301,46 +242,48 @@ static int readtest(const char *line, kat_instance* tinst){
 #include "r123_rngNxW.mm"
 #undef RNGNxW_TPL
 
-    register_unknown(name);
+    register_unknown(ukt, name);
     return 0;
 }
 
 #define RNGNxW_TPL(base, N, W) \
-void report_##base##N##x##W##error(const kat_instance *ti){ \
+void report_##base##N##x##W##error(int &nfailed, const kat_instance *ti){ \
  size_t i;                                                     \
  size_t nkey = sizeof(ti->u.base##N##x##W##_data.ukey.v)/sizeof(ti->u.base##N##x##W##_data.ukey.v[0]); \
- fprintf(stderr, "FAIL:  expected: ");                                \
- fprintf(stderr, #base #N "x" #W " %d", ti->nrounds);                   \
- for(i=0; i<N; ++i){                                                    \
-     fprintf(stderr, " "); prtu##W(ti->u.base##N##x##W##_data.ctr.v[i]); \
- }                                                                      \
- for(i=0; i<nkey; ++i){                                                 \
-     fprintf(stderr, " "); prtu##W(ti->u.base##N##x##W##_data.ukey.v[i]); \
- }                                                                      \
- for(i=0; i<N; ++i){                                                    \
-     fprintf(stderr, " "); prtu##W(ti->u.base##N##x##W##_data.expected.v[i]); \
- }                                                                      \
- fprintf(stderr, "\n");                                                 \
-                                                                        \
- fprintf(stderr, "FAIL:  computed: ");                                \
- fprintf(stderr, #base #N "x" #W " %d", ti->nrounds);                   \
- for(i=0; i<N; ++i){                                                    \
-     fprintf(stderr, " "); prtu##W(ti->u.base##N##x##W##_data.ctr.v[i]); \
- }                                                                      \
- for(i=0; i<nkey; ++i){                                                 \
-     fprintf(stderr, " "); prtu##W(ti->u.base##N##x##W##_data.ukey.v[i]); \
- }                                                                      \
- for(i=0; i<N; ++i){                                                    \
-     fprintf(stderr, " "); prtu##W(ti->u.base##N##x##W##_data.computed.v[i]); \
- }                                                                      \
- fprintf(stderr, "\n");                                                 \
- nfailed++;                                                             \
+ std::stringstream ss;                                         \
+ ss << "FAIL:  expected: ";                                    \
+ ss << #base #N "x" #W " " << ti->nrounds;                     \
+ for(i=0; i<N; ++i){                                           \
+     ss << " "; prtu##W(ss, ti->u.base##N##x##W##_data.ctr.v[i]); \
+ }                                                             \
+ for(i=0; i<nkey; ++i){                                        \
+     ss << " "; prtu##W(ss, ti->u.base##N##x##W##_data.ukey.v[i]); \
+ }                                                             \
+ for(i=0; i<N; ++i){                                           \
+     ss << " "; prtu##W(ss, ti->u.base##N##x##W##_data.expected.v[i]); \
+ }                                                             \
+ ss << "\n";                                                   \
+                                                               \
+ ss << "FAIL:  computed: ";                                    \
+ ss << #base #N "x" #W " " << ti->nrounds;                     \
+ for(i=0; i<N; ++i){                                           \
+     ss << " "; prtu##W(ss, ti->u.base##N##x##W##_data.ctr.v[i]); \
+ }                                                             \
+ for(i=0; i<nkey; ++i){                                        \
+     ss << " "; prtu##W(ss, ti->u.base##N##x##W##_data.ukey.v[i]); \
+ }                                                             \
+ for(i=0; i<N; ++i){                                           \
+     ss << " "; prtu##W(ss, ti->u.base##N##x##W##_data.computed.v[i]); \
+ }                                                             \
+ ss << "\n";                                                   \
+ FAIL() << ss.str();                                           \
+ nfailed++;                                                    \
 }
 #include "r123_rngNxW.mm"
 #undef RNGNxW_TPL
 
 // dispatch to one of the report_<GEN>NxW() functions
-void analyze_tests(const kat_instance *tests, unsigned ntests){
+void analyze_tests(int &nfailed, const kat_instance *tests, unsigned ntests){
     unsigned i;
     char zeros[512] = {0};
     for(i=0; i<ntests; ++i){
@@ -348,11 +291,11 @@ void analyze_tests(const kat_instance *tests, unsigned ntests){
         switch(tests[i].method){
 #define RNGNxW_TPL(base, N, W) case base##N##x##W##_e: \
             if (memcmp(zeros, ti->u.base##N##x##W##_data.expected.v, N*W/8)==0){ \
-                fprintf(stderr, "kat expected all zeros?   Something is wrong with the test harness!\n"); \
+                FAIL() << "kat expected all zeros?   Something is wrong with the test harness!\n"; \
                 nfailed++; \
             } \
             if (memcmp(ti->u.base##N##x##W##_data.computed.v, ti->u.base##N##x##W##_data.expected.v, N*W/8)) \
-		report_##base##N##x##W##error(ti); \
+		report_##base##N##x##W##error(nfailed, ti); \
 	    break;
 #include "r123_rngNxW.mm"
 #undef RNGNxW_TPL
@@ -363,34 +306,27 @@ void analyze_tests(const kat_instance *tests, unsigned ntests){
 
 #define NTESTS 1000
 
-void run() {
+void run_base_rng_kat() {
     kat_instance *tests;
     unsigned t, ntests = NTESTS;
     char linebuf[LINESIZE];
     FILE *inpfile;
     const char *p;
     const char *inname;
-    // char filename[LINESIZE];
-    
-    progname = "kat tests ";
+    int nfailed;
+
+    UnknownKatTracker ukt{};
+
     inname = "./kat_vectors.txt";
 	inpfile = fopen(inname, "r");
-	if (inpfile == NULL) {
+	if (inpfile == NULL)
         FAIL() << "Error opening input file " << inname << " for reading. Received error code " << errno << "\n";
-	    exit(1);
-	}
-    if ((p = getenv("KATC_VERBOSE")) != NULL) {
-	    verbose = atoi(p);
-    }
-    if ((p = getenv("KATC_DEBUG")) != NULL) {
-	    debug = atoi(p);
-    }
 
-#if R123_USE_AES_NI
-    have_aesni = haveAESNI();
-#else
-    have_aesni = 0;
-#endif
+    if ((p = getenv("KATC_VERBOSE")) != NULL)
+	    verbose = atoi(p);
+  
+    if ((p = getenv("KATC_DEBUG")) != NULL)
+	    debug = atoi(p);
 
     tests = (kat_instance *) malloc(sizeof(tests[0])*ntests);
     if (tests == NULL) {
@@ -405,20 +341,21 @@ void run() {
                 FAIL() << "Could not grow tests to " << (unsigned long) ntests << " bytes.\n";
             }
         }
-        if( readtest(linebuf, &tests[t]) )
+        if( readtest(ukt, linebuf, &tests[t]) )
             ++t;
     }
     if(t==ntests){
 	    FAIL() << "No more space for tests?  Recompile with a larger NTESTS\n";
-	    exit(1);
     }
     tests[t].method = last; // N.B  *not* t++ - the 'ntests' value passed to host_execute_tests does not count the 'last' one.
 
-    report_unknowns();
+    for(int i=0; i< ukt.num_unknowns; ++i){
+        printf("%d test vectors of type %s skipped\n", ukt.unknown_counts[i], ukt.unknown_names[i]);
+    }
     printf("Perform %lu tests.\n", (unsigned long)t);
     host_execute_tests(tests, t);
 
-    analyze_tests(tests, t);
+    analyze_tests(nfailed, tests, t);
     free(tests);
     if(nfailed != 0)
         FAIL() << "Failed " << nfailed << " out of " << t << std::endl;
@@ -617,8 +554,115 @@ void host_execute_tests(kat_instance *tests, unsigned ntests){
     dev_execute_tests(tests, ntests);
 }
 
-class TestRandom123 : public ::testing::Test { };
 
-TEST_F(TestRandom123, kat) {
-    run();
+using namespace r123;
+
+template <typename T>
+typename r123::make_unsigned<T>::type U(T x){ return x; }
+
+template <typename T>
+typename r123::make_signed<T>::type S(T x){ return x; }
+        
+#define Chk(u, Rng, Ftype, _nfail_, _refhist_) do{                            \
+        chk<Ftype, Rng>(#u, #Rng, #Ftype, &u<Ftype, Rng::ctr_type::value_type>, _nfail_, _refhist_); \
+    }while(0)
+
+void RefHist(std::map<std::string, std::string> &refmap, const char* k, const char *v){
+    refmap[std::string(k)] = std::string(v);
+}
+
+void fillrefhist(std::map<std::string, std::string> &refmap){
+    #include "ut_uniform_reference.mm"
+}
+
+template<typename Ftype, typename RNG, typename Utype>
+void chk(const std::string& fname, const std::string& rngname, const std::string& ftypename, Utype f, int &nfail, std::map<std::string, std::string> &refmap){
+    std::string key = fname + " " + rngname + " " + ftypename;
+    RNG rng;
+    typedef typename RNG::ukey_type ukey_type;
+    typedef typename RNG::ctr_type ctr_type;
+    typedef typename RNG::key_type key_type;
+
+    ctr_type c = {{}};
+    ukey_type uk = {{}};
+    key_type k = uk;
+    // 26 bins - 13 greater than 0 and 13 less.  Why 13?  Because a
+    // prime number seems less likely to tickle the rounding-related
+    // corner cases, which is aruably both good and bad.
+    const int NBINS=26;
+    
+    int hist[NBINS] = {};
+    for(int i=0; i<1000; ++i){
+        c = c.incr();
+        ctr_type r = rng(c, k);
+        for(int j=0; j<ctr_type::static_size; ++j){
+            Ftype u = f(r[j]);
+            //printf("%s %llx, %.17g\n", key.c_str(), (long long)r[j], (double)u);
+            R123_ASSERT( u >= -1.);
+            R123_ASSERT( u <= 1.);
+            int idx = (int) ((u + Ftype(1.))*Ftype(NBINS/2));
+            hist[idx]++;
+        }
+    }
+    std::ostringstream oss;
+    for(int i=0; i<NBINS; ++i){
+        oss << " " << hist[i];
+    }
+    if( oss.str() != refmap[key] ){
+        std::stringstream ss{};
+        ss << "MISMTACH : " << key << ":\n\tcomputed histogram  = " << oss.str() << "\n\treference histogram = " << refmap[key] << std::endl;
+        nfail++;
+        FAIL() << ss.str();
+    }
+}
+
+void run_ut_uniform(){
+    std::map<std::string, std::string> refmap{};
+    fillrefhist(refmap);
+    int nfail = 0;
+    // 18 tests:  3 functions (u01, uneg11, u01fixedpt)
+    //          x 2 input sizes (32 bit or 64 bit)
+    //          x 3 output sizes (float, double, long double)
+    Chk(u01, Threefry4x32, float, nfail, refmap);
+    Chk(u01, Threefry4x32, double, nfail, refmap);
+    Chk(u01, Threefry4x32, long double, nfail, refmap);
+
+#if R123_USE_64BIT
+    Chk(u01, Threefry4x64, float, nfail, refmap);
+    Chk(u01, Threefry4x64, double, nfail, refmap);
+    Chk(u01, Threefry4x64, long double, nfail, refmap);
+#endif
+
+    Chk(uneg11, Threefry4x32, float, nfail, refmap);
+    Chk(uneg11, Threefry4x32, double, nfail, refmap);
+    Chk(uneg11, Threefry4x32, long double, nfail, refmap);
+
+#if R123_USE_64BIT
+    Chk(uneg11, Threefry4x64, float, nfail, refmap);
+    Chk(uneg11, Threefry4x64, double, nfail, refmap);
+    Chk(uneg11, Threefry4x64, long double, nfail, refmap);
+#endif
+    
+    Chk(u01fixedpt, Threefry4x32, float, nfail, refmap);
+    Chk(u01fixedpt, Threefry4x32, double, nfail, refmap);
+    Chk(u01fixedpt, Threefry4x32, long double, nfail, refmap);
+
+#if R123_USE_64BIT
+    Chk(u01fixedpt, Threefry4x64, float, nfail, refmap);
+    Chk(u01fixedpt, Threefry4x64, double, nfail, refmap);
+    Chk(u01fixedpt, Threefry4x64, long double, nfail, refmap);
+#endif
+
+    ASSERT_EQ(nfail, 0);
+    return;
+}
+
+class TestRandom123KnownAnswers : public ::testing::Test { };
+
+TEST_F(TestRandom123KnownAnswers, base_generators) {
+    run_base_rng_kat();
+}
+
+TEST_F(TestRandom123KnownAnswers, uniform_histograms) {
+    run_ut_uniform();
 }
