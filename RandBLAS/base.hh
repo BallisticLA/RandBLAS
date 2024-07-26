@@ -135,8 +135,7 @@ enum class MajorAxis : char {
  * (typically of length 2 or 4), and can be distinct from one another.
  * 
  * @tparam RNG A CBRNG type in defined in Random123. We've found that Philox-based
- * CBRNGs work best for our purposes. Strictly speaking, we allow all Random123 CBRNGs
- * besides those based on AES.
+ * CBRNGs work best for our purposes, but we also support Threefry-based CBRNGS.
  */
 template <typename RNG = r123::Philox4x32>
 struct RNGState

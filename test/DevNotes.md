@@ -4,7 +4,7 @@
 This document doesn't don't defend previous design decisions.
 It just explains how things work right now.
 That's easier for me (Riley) to write, and it's more useful to others.
-(Plus, a good description of what we do will make pros and cons of the current approach self-evident.)
+(Plus, it helps make the pros and cons of the current approach self-evident.)
 
 None of our testing infrastructure is considered part of the public API.
 
@@ -28,10 +28,19 @@ None of our testing infrastructure is considered part of the public API.
 I suspect that the tests for rskgex and right_spmm hit code paths that are currently untested,
 but I haven't actually verified this. 
 
-### next_folder ... 
+### test_basic_rng
 
-## Next topic ....
+  * test_r123_kat.cc has deterministic tests for Random123. The tests comapre generated values
+    to reference values computed ahead of time. The tests are __extremely__ messy, since they're
+    adapted from tests in the official Random123 repository, and Random123 needs to handle a far wider
+    range of compilers and languages than we assume for RandBLAS.
 
+  * test_sample_indices.cc includes statistical tests for sampling from an index set with or without
+    replacement. 
+
+  * rng_common.hh includes data for statistical tables (e.g., for Kolmogorov-Smirnov tests) and helper
+    functions to compute quantities associated with certain probability distributions (e.g., mean
+    and variance of the hypergeometric distribution).
 
 
 # OLD
@@ -65,7 +74,7 @@ Specifics:
     easy enough to have it reduce directly to GEMM, and reducing 
     directly to GEMM had the advantage of improved readibility. We don't
     test all possible combinations of flags (we omit when both arguments
-    are transposed) but the combinationed we leave untested are unrelated
+    are transposed) but the combination we leave untested are unrelated
     to flow-of-control.
 
     RSKGES reduces to right_spmm, which does indeed fall back on

@@ -73,8 +73,7 @@ static inline void sincospi(double x, double *s, double *c) {
 #include <Random123/array.h>
 #include <Random123/philox.h>
 #include <Random123/threefry.h>
-#include <Random123/ars.h>
-// NOTE: we do not support Random123's AES generator.
+// NOTE: we do not support Random123's AES or ARS generators.
 #include <Random123/boxmuller.hpp>
 #include <Random123/uniform.hpp>
 
