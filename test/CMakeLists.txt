@@ -12,11 +12,9 @@ if (GTest_FOUND)
     #####################################################################
 
     add_executable(RandBLAS_tests
-        comparison.hh
         test_datastructures/test_denseskop.cc
         test_datastructures/test_sparseskop.cc
 
-        test_matmul_cores/linop_common.hh
         test_matmul_cores/test_lskge3.cc
         test_matmul_cores/test_rskge3.cc
         test_matmul_cores/test_lskges.cc
@@ -35,15 +33,11 @@ if (GTest_FOUND)
     #####################################################################
 
     add_executable(SparseRandBLAS_tests
-        comparison.hh
-
-        test_datastructures/test_spmats/common.hh
         test_datastructures/test_spmats/test_csc.cc
         test_datastructures/test_spmats/test_csr.cc
         test_datastructures/test_spmats/test_coo.cc
         test_datastructures/test_spmats/test_conversions.cc
 
-        test_matmul_cores/test_spmm/spmm_test_helpers.hh
         test_matmul_cores/test_spmm/test_spmm_csc.cc
         test_matmul_cores/test_spmm/test_spmm_csr.cc
         test_matmul_cores/test_spmm/test_spmm_coo.cc
@@ -58,14 +52,14 @@ if (GTest_FOUND)
     #####################################################################
 
     add_executable(RandBLAS_stats
-        test_basic_rng/rng_common.hh
-        test_basic_rng/test_sample_indices.cc
-        test_basic_rng/test_r123_kat.cc
+        test_basic_rng/test_continuous.cc
+        test_basic_rng/test_discrete.cc
+        test_basic_rng/test_r123.cc
     )
     target_link_libraries(RandBLAS_stats RandBLAS GTest::GTest GTest::Main)
     gtest_discover_tests(RandBLAS_stats)
-    file(COPY test_basic_rng/kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/../test/)
-    file(COPY test_basic_rng/kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
+    file(COPY test_basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/../test/)
+    file(COPY test_basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
 
 endif()
 message(STATUS "Checking for regression tests ... ${tmp}")

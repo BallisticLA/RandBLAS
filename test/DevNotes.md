@@ -30,13 +30,13 @@ but I haven't actually verified this.
 
 ### test_basic_rng
 
-  * test_r123_kat.cc has deterministic tests for Random123. The tests comapre generated values
+  * test_r123.cc has deterministic tests for Random123. The tests comapre generated values
     to reference values computed ahead of time. The tests are __extremely__ messy, since they're
     adapted from tests in the official Random123 repository, and Random123 needs to handle a far wider
     range of compilers and languages than we assume for RandBLAS.
 
-  * test_sample_indices.cc includes statistical tests for sampling from an index set with or without
-    replacement. 
+  * test_discrete.cc includes statistical tests for sampling from an index set with or without
+    replacement.
 
   * rng_common.hh includes data for statistical tables (e.g., for Kolmogorov-Smirnov tests) and helper
     functions to compute quantities associated with certain probability distributions (e.g., mean

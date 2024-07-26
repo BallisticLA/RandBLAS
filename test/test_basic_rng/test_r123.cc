@@ -139,11 +139,19 @@ do { \
     fflush(fp); \
 } while(0)
 
-// MARK: code generation
+// MARK: Base generator test
 //
-// The code from here until the next MARK uses a compiler directive
-// metaprogramming technique to define a bunch of similarly named
-// identifiers. The idenfiers are ...
+// There's a lot of code involved in this test. The code can roughly
+// be broken down into three categories.
+//
+// Category 1: code generated from compiler directives
+//
+//   This pattern is left over from our adaptation of Random123 tests,
+//   which have to compile whether interpreted as C or C++ source. It
+//   uses compiler directives to accomplish what something roughly 
+//   equivalent to C++ templating and metaprogramming.
+//
+//   The code specifically generates the following identifiers.
 //
 //      method_e::<GEN>NxW_e        (enum members)
 //      <GEN>NxW_kat                (structs)
@@ -151,9 +159,16 @@ do { \
 //      read_<GEN>NxW               (functions)
 //      report_<GEN>NxWerror        (functions)
 //
-// This code pattern was needed when the tests had to compile as 
-// valid C programs. We've changed style very slightly to reflect
-// our specialization to C++.
+// Category 2: helper functions
+//
+//   The base_rng_test_[arrange,act,assert] functions are slight adaptations
+//   of functions that appeared in Random123 testing infrastructure. Their 
+//   names indicte their roles in the common "arrange, act, assert" pattern of
+//   writing unit tests. Their precise descriptions are complicated.
+//   
+// Category 3: the main runner
+//
+//   This manages all calls to the helper functions defined in Category 2.
 //
 
 enum method_e{
@@ -250,12 +265,6 @@ void report_##base##N##x##W##error(int &nfailed, const kat_instance *ti){ \
 }
 #include "r123_rngNxW.mm"
 #undef RNGNxW_TPL
-
-// MARK: Base generator test
-//
-//  Helper functions here are modified from the original Random123 tests
-//  follow the "arrange, act, assert" pattern of unit testing. 
-//
 
 struct UnknownKatTracker {
     const static int MAXUNKNOWNS = 20;
@@ -447,7 +456,7 @@ void run_all_base_rng_kats() {
 
     UnknownKatTracker ukt{};
 
-    inname = "./kat_vectors.txt";
+    inname = "./r123_kat_vectors.txt";
 	inpfile = fopen(inname, "r");
 	if (inpfile == NULL)
         FAIL() << "Error opening input file " << inname << " for reading. Received error code " << errno << "\n";
@@ -658,7 +667,7 @@ void run_ut_uniform(){
     return;
 }
 
-// MARK: Test class and fixtures
+// MARK: Googletest stuff
 
 class TestRandom123KnownAnswers : public ::testing::Test { };
 
