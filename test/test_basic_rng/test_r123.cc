@@ -54,6 +54,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <utility>
 #include <stdexcept>
 
+#include <RandBLAS/base.hh>
+#include <RandBLAS/random_gen.hh>
+
 #include <Random123/philox.h>
 #include <Random123/threefry.h>
 #include <Random123/uniform.hpp>
@@ -667,14 +670,110 @@ void run_ut_uniform(){
     return;
 }
 
-// MARK: Googletest stuff
+// MARK: my tests + Googletest
 
-class TestRandom123KnownAnswers : public ::testing::Test { };
+class TestRandom123 : public ::testing::Test { 
 
-TEST_F(TestRandom123KnownAnswers, base_generators) {
+    protected:
+    
+    static void test_incr() {
+        using RNG = r123::Philox4x32;
+        RandBLAS::RNGState<RNG> s(0);
+        // The "counter" array of s is a 4*32=128 bit unsigned integer.
+        //
+        //      Each block is interpreted in the usual way (i.e., no need to consider differences
+        //      between big-endian and little-endian representations). 
+        //
+        //      Looking across blocks, we read as as a little-endian number in base IMAX = 2^32 - 1.
+        //      That is, if we initialize s.counter = {0,0,0,0} and then call s.counter.incr(IMAX),
+        //      we should have s.counter = {IMAX, 0, 0, 0}, and if we make another call 
+        //      s.counter.incr(9), then we should see s.counter = {8, 1, 0, 0}. Put another way,
+        //      if c = s.counter, then we have
+        //
+        //        (128-bit integer) c == c[0] + 2^{32}*c[1] +  2^{64}*c[2] + 2^{96}*c[3]  (mod 2^128 - 1)
+        //
+        //       where 0 <= c[i] <= IMAX
+        //
+        uint64_t i32max = std::numeric_limits<uint32_t>::max();
+        auto c = s.counter;
+        ASSERT_EQ(c[0], 0);
+        ASSERT_EQ(c[1], 0);
+        ASSERT_EQ(c[2], 0);
+        ASSERT_EQ(c[3], 0);
+
+        c.incr(i32max);
+        ASSERT_EQ(c[0], i32max);
+        ASSERT_EQ(c[1], 0);
+        ASSERT_EQ(c[2], 0);
+        ASSERT_EQ(c[3], 0);
+
+        c.incr(1);
+        ASSERT_EQ(c[0], 0);
+        ASSERT_EQ(c[1], 1);
+        ASSERT_EQ(c[2], 0);
+        ASSERT_EQ(c[3], 0);
+
+        c.incr(3);
+        ASSERT_EQ(c[0], 3);
+        ASSERT_EQ(c[1], 1);
+        ASSERT_EQ(c[2], 0);
+        ASSERT_EQ(c[3], 0);
+
+        uint64_t two32  = ((uint64_t) 1) << 32;
+
+        c = {0,0,0,0};
+        c.incr(two32-1);
+        ASSERT_EQ(c[0], i32max);
+        ASSERT_EQ(c[1], 0);
+        ASSERT_EQ(c[2], 0);
+        ASSERT_EQ(c[3], 0);
+
+        c = {0,0,0,0};
+        c.incr(two32);
+        ASSERT_EQ(c[0], 0);
+        ASSERT_EQ(c[1], 1);
+        ASSERT_EQ(c[2], 0);
+        ASSERT_EQ(c[3], 0);
+
+        // Let's construct 2^32 * (2^32 - 1), which is equal to (ctr_type) {0, (uint32_t) i32max, 0, 0}.
+        //
+        //  Do this using the identity 
+        //      2^32 * (2^32 - 1) == 2^64 - 2^32
+        //                        == 2^63 + 2^63 - 2^32.
+        //
+        // Then construct 2^64, using 2^64 = (2^63) + (2^63 - 2^32) + (2^32)
+        uint64_t two63  = ((uint64_t) 1) << 63;
+        c = {0,0,0,0};
+        c.incr(two63);
+        c.incr(two63 - two32);
+        ASSERT_EQ(c[0], 0);
+        ASSERT_EQ(c[1], i32max);
+        ASSERT_EQ(c[2], 0);
+        ASSERT_EQ(c[3], 0);
+        c.incr(two32);
+        ASSERT_EQ(c[0], 0);
+        ASSERT_EQ(c[1], 0);
+        ASSERT_EQ(c[2], 1);
+        ASSERT_EQ(c[3], 0);
+
+        c = {(uint32_t) i32max, (uint32_t) i32max, (uint32_t) i32max, 0};
+        c.incr(1);
+        ASSERT_EQ(c[0], 0);
+        ASSERT_EQ(c[1], 0);
+        ASSERT_EQ(c[2], 0);
+        ASSERT_EQ(c[3], 1);
+        return;
+    }
+};
+
+TEST_F(TestRandom123, base_generators) {
     run_all_base_rng_kats();
 }
 
-TEST_F(TestRandom123KnownAnswers, uniform_histograms) {
+TEST_F(TestRandom123, uniform_histograms) {
     run_ut_uniform();
+}
+
+TEST_F(TestRandom123, big_incr) {
+    test_incr();
 }
