@@ -44,6 +44,69 @@
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
+namespace RandBLAS::sparse {
+
+template <typename RNG, typename SD>
+static RNGState<RNG> compute_next_state(SD dist, RNGState<RNG> seed_state) {
+    return RNGState<RNG>(0);
+}
+
+// =============================================================================
+/// WARNING: this function is not part of the public API.
+///
+template <typename T, typename RNG, SignedInteger sint_t>
+static RNGState<RNG> repeated_fisher_yates(
+    const RNGState<RNG> &state,
+    int64_t vec_nnz,
+    int64_t dim_major,
+    int64_t dim_minor,
+    sint_t *idxs_major,
+    sint_t *idxs_minor,
+    T *vals
+) {
+    randblas_error_if(vec_nnz > dim_major);
+    std::vector<sint_t> vec_work(dim_major);
+    for (sint_t j = 0; j < dim_major; ++j)
+        vec_work[j] = j;
+    std::vector<sint_t> pivots(vec_nnz);
+    RNG gen;
+    auto [ctr, key] = state;
+    for (sint_t i = 0; i < dim_minor; ++i) {
+        sint_t offset = i * vec_nnz;
+        auto ctri = ctr;
+        ctri.incr(offset);
+        for (sint_t j = 0; j < vec_nnz; ++j) {
+            // one step of Fisher-Yates shuffling
+            auto rv = gen(ctri, key);
+            sint_t ell = j + rv[0] % (dim_major - j);
+            pivots[j] = ell;
+            sint_t swap = vec_work[ell];
+            vec_work[ell] = vec_work[j];
+            vec_work[j] = swap;
+            // update (rows, cols, vals)
+            idxs_major[j + offset] = (sint_t) swap;
+            vals[j + offset] = (rv[1] % 2 == 0) ? 1.0 : -1.0;
+            idxs_minor[j + offset] = (sint_t) i;
+            // increment counter
+            ctri.incr();
+        }
+        // Restore vec_work for next iteration of Fisher-Yates.
+        //      This isn't necessary from a statistical perspective,
+        //      but it makes it easier to generate submatrices of
+        //      a given SparseSkOp.
+        for (sint_t j = 1; j <= vec_nnz; ++j) {
+            sint_t jj = vec_nnz - j;
+            sint_t swap = idxs_major[jj + offset];
+            sint_t ell = pivots[jj];
+            vec_work[jj] = vec_work[ell];
+            vec_work[ell] = swap;
+        }
+        ctr = ctri;
+    }
+    return RNGState<RNG> {ctr, key};
+}
+}
+
 namespace RandBLAS {
 // =============================================================================
 /// A distribution over sparse matrices.
@@ -110,7 +173,7 @@ struct SparseSkOp {
     // ---------------------------------------------------------------------------
     ///  The state that should be used by the next call to an RNG *after* the
     ///  full sketching operator has been sampled.
-    RNGState<RNG> next_state;
+    const RNGState<RNG> next_state;
 
     // ---------------------------------------------------------------------------
     /// We need workspace to store a representation of the sampled sketching
@@ -178,7 +241,42 @@ struct SparseSkOp {
         sint_t *cols,
         T *vals,
         bool known_filled = true
-    );
+    ) : // variable definitions
+        n_rows(dist.n_rows),
+        n_cols(dist.n_cols),
+        dist(dist),
+        seed_state(state),
+        own_memory(false),
+        next_state(sparse::compute_next_state(dist, seed_state))
+    {   // sanity checks
+        randblas_require(this->dist.n_rows > 0);
+        randblas_require(this->dist.n_cols > 0);
+        randblas_require(this->dist.vec_nnz > 0);
+        // actual work
+        this->rows = rows;
+        this->cols = cols;
+        this->vals = vals;
+        this->known_filled = known_filled;
+    };
+
+    // Useful for shallow copies (possibly with transposition)
+    SparseSkOp(
+        SparseDist dist,
+        const RNGState<RNG> &seed_state,
+        sint_t *rows,
+        sint_t *cols,
+        T *vals,
+        const RNGState<RNG> &next_state
+    ) : n_rows(dist.n_rows), n_cols(dist.n_cols), dist(dist), seed_state(seed_state), next_state(next_state), own_memory(false) {
+        randblas_require(this->dist.n_rows > 0);
+        randblas_require(this->dist.n_cols > 0);
+        randblas_require(this->dist.vec_nnz > 0);
+        // actual work
+        this->rows = rows;
+        this->cols = cols;
+        this->vals = vals;
+        this->known_filled = known_filled;
+    }
 
     SparseSkOp(
         SparseDist dist,
@@ -207,7 +305,29 @@ struct SparseSkOp {
     SparseSkOp(
         SparseDist dist,
         const RNGState<RNG> &state
-    );
+    ) :  // variable definitions
+        n_rows(dist.n_rows),
+        n_cols(dist.n_cols),
+        dist(dist),
+        seed_state(state),
+        next_state(sparse::compute_next_state(dist, seed_state)),
+        own_memory(true)
+    {   // sanity checks
+        randblas_require(this->dist.n_rows > 0);
+        randblas_require(this->dist.n_cols > 0);
+        randblas_require(this->dist.vec_nnz > 0);
+        // actual work
+        int64_t minor_ax_len;
+        if (this->dist.major_axis == MajorAxis::Short) {
+            minor_ax_len = MAX(this->dist.n_rows, this->dist.n_cols);
+        } else { 
+            minor_ax_len = MIN(this->dist.n_rows, this->dist.n_cols);
+        }
+        int64_t nnz = this->dist.vec_nnz * minor_ax_len;
+        this->rows = new sint_t[nnz];
+        this->cols = new sint_t[nnz];
+        this->vals = new T[nnz];
+    }
 
     SparseSkOp(
         SparseDist dist,
@@ -216,68 +336,12 @@ struct SparseSkOp {
 
 
     //  Destructor
-    ~SparseSkOp();
-};
-
-
-template <typename T, typename RNG, SignedInteger sint_t>
-SparseSkOp<T,RNG,sint_t>::SparseSkOp(
-    SparseDist dist,
-    const RNGState<RNG> &state
-) :  // variable definitions
-    n_rows(dist.n_rows),
-    n_cols(dist.n_cols),
-    dist(dist),
-    seed_state(state),
-    own_memory(true)
-{   // sanity checks
-    randblas_require(this->dist.n_rows > 0);
-    randblas_require(this->dist.n_cols > 0);
-    randblas_require(this->dist.vec_nnz > 0);
-    // actual work
-    int64_t minor_ax_len;
-    if (this->dist.major_axis == MajorAxis::Short) {
-        minor_ax_len = MAX(this->dist.n_rows, this->dist.n_cols);
-    } else { 
-        minor_ax_len = MIN(this->dist.n_rows, this->dist.n_cols);
-    }
-    int64_t nnz = this->dist.vec_nnz * minor_ax_len;
-    this->rows = new sint_t[nnz];
-    this->cols = new sint_t[nnz];
-    this->vals = new T[nnz];
-};
-
-template <typename T, typename RNG, SignedInteger sint_t>
-SparseSkOp<T,RNG,sint_t>::SparseSkOp(
-    SparseDist dist,
-    const RNGState<RNG> &state,
-    sint_t *rows,
-    sint_t *cols,
-    T *vals,
-    bool known_filled
-) :  // variable definitions
-    n_rows(dist.n_rows),
-    n_cols(dist.n_cols),
-    dist(dist),
-    seed_state(state),
-    own_memory(false)
-{   // sanity checks
-    randblas_require(this->dist.n_rows > 0);
-    randblas_require(this->dist.n_cols > 0);
-    randblas_require(this->dist.vec_nnz > 0);
-    // actual work
-    this->rows = rows;
-    this->cols = cols;
-    this->vals = vals;
-    this->known_filled = known_filled;
-};
-
-template <typename T, typename RNG, SignedInteger sint_t>
-SparseSkOp<T,RNG,sint_t>::~SparseSkOp() {
-    if (this->own_memory) {
-        delete [] this->rows;
-        delete [] this->cols;
-        delete [] this->vals;
+    ~SparseSkOp() {
+        if (this->own_memory) {
+            delete [] this->rows;
+            delete [] this->cols;
+            delete [] this->vals;
+        }
     }
 };
 
@@ -297,7 +361,7 @@ SparseSkOp<T,RNG,sint_t>::~SparseSkOp() {
 ///     algorithm.
 ///     
 template <typename T, typename RNG, SignedInteger sint_t>
-RNGState<RNG> fill_sparse(
+void fill_sparse(
     SparseSkOp<T,RNG,sint_t> & S
 ) {
     int64_t long_ax_len = MAX(S.dist.n_rows, S.dist.n_cols);
@@ -308,18 +372,19 @@ RNGState<RNG> fill_sparse(
     sint_t *long_ax_idxs = (is_wide) ? S.cols : S.rows;
 
     if (S.dist.major_axis == MajorAxis::Short) {
-        S.next_state = repeated_fisher_yates(
+        sparse::repeated_fisher_yates(
             S.seed_state, S.dist.vec_nnz, short_ax_len, long_ax_len,
             short_ax_idxs, long_ax_idxs, S.vals
         );
     } else {
-        S.next_state = repeated_fisher_yates(
+        sparse::repeated_fisher_yates(
             S.seed_state, S.dist.vec_nnz, long_ax_len, short_ax_len,
             long_ax_idxs, short_ax_idxs, S.vals
         );
     }
+    // TODO: add check that S.next_state == output from the repeated_fisher_yates function.
     S.known_filled = true;
-    return S.next_state;
+    return;
 }
 
 template <typename SKOP>
@@ -352,60 +417,6 @@ void print_sparse(SKOP const &S0) {
     std::cout << std::endl;
 }
 
-// =============================================================================
-/// WARNING: this function is not part of the public API.
-///
-template <typename T, typename RNG, SignedInteger sint_t>
-static auto repeated_fisher_yates(
-    const RNGState<RNG> &state,
-    int64_t vec_nnz,
-    int64_t dim_major,
-    int64_t dim_minor,
-    sint_t *idxs_major,
-    sint_t *idxs_minor,
-    T *vals
-) {
-    randblas_error_if(vec_nnz > dim_major);
-    std::vector<sint_t> vec_work(dim_major);
-    for (sint_t j = 0; j < dim_major; ++j)
-        vec_work[j] = j;
-    std::vector<sint_t> pivots(vec_nnz);
-    RNG gen;
-    auto [ctr, key] = state;
-    for (sint_t i = 0; i < dim_minor; ++i) {
-        sint_t offset = i * vec_nnz;
-        auto ctri = ctr;
-        ctri.incr(offset);
-        for (sint_t j = 0; j < vec_nnz; ++j) {
-            // one step of Fisher-Yates shuffling
-            auto rv = gen(ctri, key);
-            sint_t ell = j + rv[0] % (dim_major - j);
-            pivots[j] = ell;
-            sint_t swap = vec_work[ell];
-            vec_work[ell] = vec_work[j];
-            vec_work[j] = swap;
-            // update (rows, cols, vals)
-            idxs_major[j + offset] = (sint_t) swap;
-            vals[j + offset] = (rv[1] % 2 == 0) ? 1.0 : -1.0;
-            idxs_minor[j + offset] = (sint_t) i;
-            // increment counter
-            ctri.incr();
-        }
-        // Restore vec_work for next iteration of Fisher-Yates.
-        //      This isn't necessary from a statistical perspective,
-        //      but it makes it easier to generate submatrices of
-        //      a given SparseSkOp.
-        for (sint_t j = 1; j <= vec_nnz; ++j) {
-            sint_t jj = vec_nnz - j;
-            sint_t swap = idxs_major[jj + offset];
-            sint_t ell = pivots[jj];
-            vec_work[jj] = vec_work[ell];
-            vec_work[ell] = swap;
-        }
-        ctr = ctri;
-    }
-    return RNGState<RNG> {ctr, key};
-}
 
 } // end namespace RandBLAS
 

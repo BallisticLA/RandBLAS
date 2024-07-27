@@ -179,6 +179,22 @@ void transpose_square(T* A, int64_t n, int64_t lda) {
     return;
 }
 
+template <typename T>
+void omatcopy(int64_t m, int64_t n, const T* A, int64_t irs_a, int64_t ics_a, T* B, int64_t irs_b, int64_t ics_b) {
+    // TODO:
+    //     1. Order the loops with consideration to cache efficiency.
+    //     2. Vectorize one of the loops with blas::copy or std::memcpy.
+    #define MAT_A(_i, _j) A[(_i)*irs_a + (_j)*ics_a]
+    #define MAT_B(_i, _j) B[(_i)*irs_b + (_j)*ics_b]
+    for (int64_t i = 0; i < m; ++i) {
+        for (int64_t j = 0; j < n; ++j) {
+            MAT_B(i,j) = MAT_A(i,j);
+        }
+    }
+    #undef MAT_A
+    #undef MAT_B
+    return;
+}
 
 template <typename T>
 void flip_layout(blas::Layout layout_in, int64_t m, int64_t n, std::vector<T> &A, int64_t lda_in, int64_t lda_out) {
@@ -207,18 +223,9 @@ void flip_layout(blas::Layout layout_in, int64_t m, int64_t n, std::vector<T> &A
     std::vector<T> A_in(A);
     T* A_buff_in  = A_in.data();
     T* A_buff_out = A.data();
-
-    #define A_IN(_i, _j) A_buff_in[(_i)*irs_in + (_j)*ics_in]
-    #define A_OUT(_i, _j) A_buff_out[(_i)*irs_out + (_j)*ics_out]
-    for (int64_t i = 0; i < m; ++i) {
-        for (int64_t j = 0; j < n; ++j) {
-            A_OUT(i,j) = A_IN(i,j);
-        }
-    }
+    omatcopy(m, n, A_buff_in, irs_in, ics_in, A_buff_out, irs_out, ics_out);
     A.erase(A.begin() + len_buff_A_out, A.end());
     A.resize(len_buff_A_out);
-    #undef A_IN
-    #undef A_OUT
     return;
 }
 

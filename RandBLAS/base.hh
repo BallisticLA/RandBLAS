@@ -118,6 +118,23 @@ template<typename T>
 concept SignedInteger = (std::numeric_limits<T>::is_signed && std::numeric_limits<T>::is_integer);
 
 
+template <SignedInteger TI, SignedInteger TO = int64_t>
+inline TO safe_signed_int_product(TI a, TI b) {
+    if (a == 0 || b == 0) {
+        return 0;
+    }
+    TO c = a * b;
+    TO b_check = c / a;
+    TO a_check = c / b;
+    if ((a_check != a) || (b_check != b)) {
+        std::stringstream s;
+        s << "Overflow when multiplying a (=" << a << ") and b(=" << b << "), which resulted in " << c << ".\n";
+        throw std::overflow_error(s.str());
+    }
+    return c;
+}
+
+
 enum class MajorAxis : char {
     // ---------------------------------------------------------------------------
     ///  short-axis vectors (cols of a wide matrix, rows of a tall matrix)
@@ -125,7 +142,11 @@ enum class MajorAxis : char {
 
     // ---------------------------------------------------------------------------
     ///  long-axis vectors (rows of a wide matrix, cols of a tall matrix)
-    Long = 'L'
+    Long = 'L',
+
+    // ---------------------------------------------------------------------------
+    ///  Undefined (used when row-major vs column-major must be explicit)
+    Undefined = 'U'
 };
 
 
