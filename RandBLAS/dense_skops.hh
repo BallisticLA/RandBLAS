@@ -67,6 +67,13 @@ static inline RNGState<RNG> compute_next_state(DD dist, RNGState<RNG> state) {
     return RNGState<RNG>(0);
 }
 
+template <typename T_IN, typename T_OUT>
+inline void copy_promote(int n, const T_IN &a, T_OUT* b) {
+    for (int i = 0; i < n; ++i)
+        b[i] = static_cast<T_OUT>(a[i]);
+    return;
+}
+
 /** 
  * Fill buff with random values so it gives a row-major representation of an n_srows \math{\times} n_scols
  * submatrix of some implicitly defined parent matrix.
@@ -127,25 +134,28 @@ static RNGState<RNG> fill_dense_submat_impl(
     using KEY_t = typename RNG::key_type;
     CTR_t c = seed.counter;
     KEY_t k = seed.key;
+    int64_t ctr_size = CTR_t::static_size;
     
     int64_t pad = 0;
     // ^ computed such that  n_cols+pad is divisible by RNG::static_size
-    if (n_cols % CTR_t::static_size != 0) {
-        pad = CTR_t::static_size - n_cols % CTR_t::static_size;
+    if (n_cols % ctr_size != 0) {
+        pad = ctr_size - n_cols % ctr_size;
     }
+    
 
     int64_t n_cols_padded = n_cols + pad;
-    // ^ smallest number of columns, greater than or equal to n_cols, that would be divisible by CTR_t::static_size 
+    // ^ smallest number of columns, greater than or equal to n_cols, that would be divisible by ctr_size 
     int64_t ptr_padded = ptr + ptr / n_cols * pad;
     // ^ ptr corresponding to the padded matrix
-    int64_t r0_padded = ptr_padded / CTR_t::static_size;
+    int64_t ctr_mat_start = ptr_padded / ctr_size;
     // ^ starting counter corresponding to ptr_padded 
-    int64_t r1_padded = (ptr_padded + n_scols - 1) / CTR_t::static_size;
+    int64_t ctr_mat_row_end = (ptr_padded + n_scols - 1) / ctr_size;
     // ^ ending counter corresponding to ptr of the last element of the row
-    int64_t ctr_gap = n_cols_padded / CTR_t::static_size; 
+    int64_t ctr_inter_row_stride = n_cols_padded / ctr_size;
     // ^ number of counters between the first counter of the row to the first counter of the next row;
-    int64_t s0 = ptr_padded % CTR_t::static_size; 
-    int64_t e1 = (ptr_padded + n_scols - 1) % CTR_t::static_size;
+    int64_t s0 = ptr_padded % ctr_size; 
+    int64_t e1 = 1 + (ptr_padded + n_scols - 1) % ctr_size;
+    int64_t multiple_incrs_per_row = (ctr_mat_start < ctr_mat_row_end) ;
 
     int64_t num_thrds = 1;
     #if defined(RandBLAS_HAS_OpenMP)
@@ -154,20 +164,14 @@ static RNGState<RNG> fill_dense_submat_impl(
         num_thrds = omp_get_num_threads();
     }
     #endif
-
-    //Instead of using thrd_arr just initialize ctr_arr to be zero counters;
-    CTR_t *ctr_arr = new CTR_t[num_thrds];
-    for (int i = 0; i < num_thrds; i++) {
-        ctr_arr[i] = c;
-    }
+    CTR_t *ctr_arr = new CTR_t[num_thrds]{c};
 
     #pragma omp parallel firstprivate(c, k)
     {
 
     auto cc = c;
     int64_t prev = 0;
-    int64_t i;
-    int64_t r0, r1;
+    int64_t row_ctr_start, row_ctr_end;
     int64_t ind;
     int64_t thrd = 0;
 
@@ -175,44 +179,39 @@ static RNGState<RNG> fill_dense_submat_impl(
     for (int64_t row = 0; row < n_srows; row++) {
         
         #if defined(RandBLAS_HAS_OpenMP)
-            thrd = omp_get_thread_num();
+        thrd = omp_get_thread_num();
         #endif
 
-        ind = 0;
-        int64_t __r01_offset = safe_signed_int_product(ctr_gap, row);
-        r0 = r0_padded + __r01_offset;
-        r1 = r1_padded + __r01_offset; 
-
-        cc.incr(r0 - prev);
-        prev = r0;
+        int64_t __r01_offset = safe_signed_int_product(ctr_inter_row_stride, row);
+        row_ctr_start = ctr_mat_start   + __r01_offset;
+        row_ctr_end   = ctr_mat_row_end + __r01_offset; 
+    
+        T* smat_curr_row = smat + row*lda;
+        cc.incr(row_ctr_start - prev);
+        prev = row_ctr_start;
         auto rv =  OP::generate(rng, cc, k);
-        int64_t range = (r1 > r0)? CTR_t::static_size - 1 : e1;
-        for (i = s0; i <= range; i++) {
-            smat[ind + row * lda] = rv[i];
-            ind++;
+        int64_t first_block_len = ((multiple_incrs_per_row) ? ctr_size : e1) - s0;
+        // beginning
+        for (int i = 0; i < first_block_len; i++) {
+            smat_curr_row[i] = rv[i+s0];
         }
+        ind = first_block_len;
         // middle 
-        int64_t tmp = r0;
-        while( tmp < r1 - 1) {
+        int64_t implicit_ctr = row_ctr_start;
+        while( implicit_ctr < row_ctr_end - 1) {
             cc.incr();
             prev++;
             rv = OP::generate(rng, cc, k);
-            for (i = 0; i < CTR_t::static_size; i++) {
-                smat[ind + row * lda] = rv[i];
-                ind++;
-            }
-            tmp++;
+            copy_promote(ctr_size, rv, smat_curr_row + ind);
+            ind = ind + ctr_size;
+            implicit_ctr++;
         }
-
         // end
-        if ( r1 > r0 ) {
+        if ( row_ctr_start < row_ctr_end ) {
             cc.incr();
             prev++;
             rv = OP::generate(rng, cc, k);
-            for (i = 0; i <= e1; i++) {
-                smat[ind + row * lda] = rv[i];
-                ind++;
-            }
+            copy_promote(e1, rv, smat_curr_row + ind);
         }
         ctr_arr[thrd] = cc;
     }
