@@ -52,9 +52,9 @@ if (GTest_FOUND)
     #####################################################################
 
     add_executable(RandBLAS_stats
-        test_basic_rng/test_continuous.cc
-        test_basic_rng/test_discrete.cc
         test_basic_rng/test_r123.cc
+        test_basic_rng/test_discrete.cc
+        test_basic_rng/test_continuous.cc
     )
     target_link_libraries(RandBLAS_stats RandBLAS GTest::GTest GTest::Main)
     gtest_discover_tests(RandBLAS_stats)
