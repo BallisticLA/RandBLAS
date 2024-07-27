@@ -48,12 +48,6 @@
 namespace RandBLAS::dense {
 
 
-template <typename RNG, typename DD>
-static inline RNGState<RNG> compute_next_state(DD dist, RNGState<RNG> state) {
-    // Need logic that depends on DenseDistName.
-    return RNGState<RNG>(0);
-}
-
 template <typename T_IN, typename T_OUT>
 inline void copy_promote(int n, const T_IN &a, T_OUT* b) {
     for (int i = 0; i < n; ++i)
@@ -182,6 +176,25 @@ static RNGState<RNG> fill_dense_submat_impl(
     CTR_t max_c = c;
     max_c.incr(n_srows * ctr_inter_row_stride);
     return RNGState<RNG> {max_c, k};
+}
+
+template <typename RNG, typename DD>
+RNGState<RNG> compute_next_state(DD dist, RNGState<RNG> state) {
+    if (dist.major_axis == MajorAxis::Undefined) {
+        // implies dist.family = DenseDistName::BlackBox
+        return state;
+    }
+    int64_t major_len = major_axis_length(dist);
+    int64_t minor_len = dist.n_rows + (dist.n_cols - major_len);
+    int64_t ctr_size = RNG::ctr_type::static_size;
+    int64_t pad = 0;
+    if (major_len % ctr_size != 0) {
+        pad = ctr_size - major_len % ctr_size;
+    }
+    int64_t ctr_major_axis_stride = (major_len + pad) / ctr_size;
+    int64_t full_incr = safe_signed_int_product(ctr_major_axis_stride, minor_len);
+    state.counter.incr(full_incr);
+    return state;
 }
 
 } // end namespace RandBLAS::dense

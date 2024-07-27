@@ -46,10 +46,6 @@
 
 namespace RandBLAS::sparse {
 
-template <typename RNG, typename SD>
-static RNGState<RNG> compute_next_state(SD dist, RNGState<RNG> seed_state) {
-    return RNGState<RNG>(0);
-}
 
 // =============================================================================
 /// WARNING: this function is not part of the public API.
@@ -73,11 +69,11 @@ static RNGState<RNG> repeated_fisher_yates(
     auto [ctr, key] = state;
     for (sint_t i = 0; i < dim_minor; ++i) {
         sint_t offset = i * vec_nnz;
-        auto ctri = ctr;
-        ctri.incr(offset);
+        auto ctr_work = ctr;
+        ctr_work.incr(offset);
         for (sint_t j = 0; j < vec_nnz; ++j) {
             // one step of Fisher-Yates shuffling
-            auto rv = gen(ctri, key);
+            auto rv = gen(ctr_work, key);
             sint_t ell = j + rv[0] % (dim_major - j);
             pivots[j] = ell;
             sint_t swap = vec_work[ell];
@@ -88,7 +84,7 @@ static RNGState<RNG> repeated_fisher_yates(
             vals[j + offset] = (rv[1] % 2 == 0) ? 1.0 : -1.0;
             idxs_minor[j + offset] = (sint_t) i;
             // increment counter
-            ctri.incr();
+            ctr_work.incr();
         }
         // Restore vec_work for next iteration of Fisher-Yates.
         //      This isn't necessary from a statistical perspective,
@@ -101,10 +97,23 @@ static RNGState<RNG> repeated_fisher_yates(
             vec_work[jj] = vec_work[ell];
             vec_work[ell] = swap;
         }
-        ctr = ctri;
     }
     return RNGState<RNG> {ctr, key};
 }
+
+template <typename RNG, typename SD>
+static RNGState<RNG> compute_next_state(SD dist, RNGState<RNG> state) {
+    int64_t minor_len;
+    if (dist.major_axis == MajorAxis::Short) {
+        minor_len = std::min(dist.n_rows, dist.n_cols);
+    } else {
+        minor_len = std::max(dist.n_rows, dist.n_cols);
+    }
+    int64_t full_incr = minor_len * dist.vec_nnz;
+    state.counter.incr(full_incr);
+    return state;
+}
+
 }
 
 namespace RandBLAS {
