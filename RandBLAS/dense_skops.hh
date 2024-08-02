@@ -432,20 +432,32 @@ struct DenseSkOp {
 ///   .. |ncols| mathmacro:: \mathtt{n\_cols}
 ///   .. |ioff| mathmacro:: \mathtt{i\_off}
 ///   .. |joff| mathmacro:: \mathtt{j\_off}
+///   .. |layout| mathmacro:: \mathtt{layout}
 ///
 /// @endverbatim
 /// Fill \math{\buff} so that (1) \math{\mat(\buff)} is a submatrix of
 /// an _implicit_ random sample from \math{\D}, and (2) \math{\mat(\buff)}
-/// is determined by reading from \math{\buff} in "layout" order.
+/// is determined by reading from \math{\buff} in \math{\layout} order.
 /// 
 /// If we denote the implicit sample from \math{\D} by \math{S}, then we have
 /// @verbatim embed:rst:leading-slashes
 /// .. math::
 ///     \mat(\buff) = S[\ioff:(\ioff + \nrows),\, \joff:(\joff + \ncols)]
 /// @endverbatim
-/// on exit. If the specified layout is different from the natural layout
-/// associated with \math{\D} (via its MajorAxis and dimensions) then we will
-/// allocate extra workspace needed for an out-of-place transposition.
+/// on exit.
+///
+/// This function is for generating low-level representations of matrices
+/// that are equivalent to a submatrix of a RandBLAS DenseSkOp, but 
+/// without using the DenseSkOp abstraction. This can be useful if you want
+/// to sketch a structured matrix that RandBLAS doesn't support (like a symmetric
+/// matrix whose values are only stored in the upper or lower triangle).
+///
+/// Note that since the entries of \math{\buff} are sampled iid from a common
+/// distribution, the value of \math{\layout} is unlikely to have mathematical significance.
+/// However, the value of \math{\layout} can affect this function's efficiency.
+/// For best efficiency we recommend \math{\layout = \mathtt{dist\_to\_layout}(\D).}
+/// If a different value of \math{\layout} is used, then this function will internally
+/// allocate extra memory for an out-of-place change of storage order.
 ///
 /// @param[in] layout
 ///     blas::Layout::RowMajor or blas::Layout::ColMajor
@@ -476,7 +488,7 @@ struct DenseSkOp {
 /// 
 template<typename T, typename RNG>
 RNGState<RNG> fill_dense(
-    blas::Layout required_layout,
+    blas::Layout layout,
     const DenseDist &D,
     int64_t n_rows,
     int64_t n_cols,
@@ -519,11 +531,11 @@ RNGState<RNG> fill_dense(
         }
     }
     int64_t size_mat = n_rows * n_cols;
-    if (required_layout != natural_layout) {
+    if (layout != natural_layout) {
         T* flip_work = new T[size_mat];
         blas::copy(size_mat, buff, 1, flip_work, 1);
         auto [irs_nat, ics_nat] = layout_to_strides(natural_layout, n_rows, n_cols);
-        auto [irs_req, ics_req] = layout_to_strides(required_layout, n_rows, n_cols);
+        auto [irs_req, ics_req] = layout_to_strides(layout, n_rows, n_cols);
         util::omatcopy(n_rows, n_cols, flip_work, irs_nat, ics_nat, buff, irs_req, ics_req);
         delete [] flip_work;
     }
