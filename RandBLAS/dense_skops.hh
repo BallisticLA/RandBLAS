@@ -369,25 +369,6 @@ struct DenseSkOp {
     /////////////////////////////////////////////////////////////////////
 
     DenseSkOp(
-        DenseDist dist,
-        RNGState<RNG> const &state,
-        T *buff
-    ) : // variable definitions
-        n_rows(dist.n_rows),
-        n_cols(dist.n_cols),
-        dist(dist),
-        seed_state(state),
-        next_state(dense::compute_next_state(dist, state)),
-        buff(buff),
-        layout(dist_to_layout(dist))
-    {   // sanity checks
-        randblas_require(this->dist.n_rows > 0);
-        randblas_require(this->dist.n_cols > 0);
-        if (dist.family == DenseDistName::BlackBox)
-            randblas_require(this->buff != nullptr);
-    }
-
-    DenseSkOp(
         int64_t n_rows,
         int64_t n_cols,
         DenseDist dist,
@@ -417,7 +398,21 @@ struct DenseSkOp {
     DenseSkOp(
         DenseDist dist,
         RNGState<RNG> const &state
-    ) : DenseSkOp(dist, state, nullptr) {};
+    ) : // variable definitions
+        n_rows(dist.n_rows),
+        n_cols(dist.n_cols),
+        dist(dist),
+        seed_state(state),
+        next_state(dense::compute_next_state(dist, state)),
+        buff(nullptr),
+        layout(dist_to_layout(dist)
+    ) {
+        // sanity checks
+        randblas_require(this->dist.n_rows > 0);
+        randblas_require(this->dist.n_cols > 0);
+        if (dist.family == DenseDistName::BlackBox)
+            randblas_require(this->buff != nullptr);
+    };
 
     // Destructor
     ~DenseSkOp() {
