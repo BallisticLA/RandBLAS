@@ -363,11 +363,6 @@ struct SparseSkOp {
 ///
 /// @param[in] S
 ///     SparseSkOp object.
-///
-/// @return
-///     An RNGState object. This is the state that should be used the next 
-///     time the program needs to generate random numbers for a randomized
-///     algorithm.
 ///     
 template <typename T, typename RNG, SignedInteger sint_t>
 void fill_sparse(

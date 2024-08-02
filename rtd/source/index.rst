@@ -13,15 +13,17 @@
 RandBLAS: sketching for randomized numerical linear algebra
 ===========================================================
 
-RandBLAS is a C++ library for dimension reduction via random linear transformations.
-These random linear transformations are called *sketching operators*.
-The act of applying a sketching operator -- that is, the act of *sketching* -- is of fundamental importance to randomized numerical linear algebra.
+RandBLAS is a C++ library for randomized linear dimension reduction -- an operation commonly known as *sketching*.
+We built RandBLAS to make it easier to write, debug, and deploy high-performance implementations of sketching-based algorithms.
 
 RandBLAS is efficient, flexible, and reliable.
 It uses CPU-based OpenMP acceleration to apply its sketching operators to dense or sparse data matrices stored in main memory.
+
 All sketches produced by RandBLAS are dense.
-As such, dense data matrices can be sketched with dense or sparse operators, while sparse data matrices can only be sketched with dense operators.
-RandBLAS can be used in distributed environments through its ability to (reproducibly) compute products with *submatrices* of sketching operators.
+If you have RandBLAS and an LAPACK-like library at your disposal, you can implement
+a huge range of shared-memory randomized algorithms for matrix computations.
+RandBLAS can be used in distributed environments through its ability to compute products with *submatrices* of sketching operators, 
+without ever realizing the entire sketching operator in memory.
 
 Learn more by reading our `tutorial <tutorial/index.html>`_ or our `API reference <api_reference/index.html>`_.
 If we've piqued your interest, try RandBLAS yourself!

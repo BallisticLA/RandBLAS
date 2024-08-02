@@ -116,7 +116,7 @@ class TestDenseMoments : public ::testing::Test {
         // Construct the sketching operator
         RandBLAS::DenseDist D(n_rows, n_cols, dn);
         auto state = RandBLAS::RNGState(key);
-        auto [layout, next_state] = RandBLAS::fill_dense(D, A.data(), state);
+        auto next_state = RandBLAS::fill_dense(D, A.data(), state);
 
         // Compute the entrywise empirical mean and standard deviation.
         T mean = std::accumulate(A.data(), A.data() + size, 0.0) /size;
@@ -433,7 +433,7 @@ class TestStateUpdate : public ::testing::Test
         RandBLAS::DenseDist D(n_rows, n_cols, dn);
 
         auto state = RandBLAS::RNGState(key);
-        auto [layout, next_state] = RandBLAS::fill_dense(D, A.data(), state);
+        auto next_state = RandBLAS::fill_dense(D, A.data(), state);
         RandBLAS::fill_dense(D, B.data(), next_state);
 
         ASSERT_TRUE(!(A == B));
@@ -476,7 +476,7 @@ class TestStateUpdate : public ::testing::Test
         auto state1 = RandBLAS::RNGState(key);
 
         // Concatenates two matrices generated from state and next_state
-        auto [layout, next_state] = RandBLAS::fill_dense(D1, A.data(), state);
+        auto next_state = RandBLAS::fill_dense(D1, A.data(), state);
         RandBLAS::fill_dense(D3, A.data() + (int64_t) (D1.n_rows * D1.n_cols), next_state);
 
         RandBLAS::fill_dense(D2, B.data(), state1);
@@ -504,7 +504,7 @@ class TestStateUpdate : public ::testing::Test
 
         typename RNG::ctr_type c_ref = state_copy.counter;
 
-        auto [layout, final_state] = RandBLAS::fill_dense(D, buff, state);
+        auto final_state = RandBLAS::fill_dense(D, buff, state);
         auto c = final_state.counter;
         int c_len = c.size();
 

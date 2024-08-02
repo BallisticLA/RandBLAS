@@ -166,12 +166,8 @@ void lsksp3(
     // B = op(submat(S)) @ op(submat(A))
     auto [rows_submat_S, cols_submat_S] = dims_before_op(d, m, opS);
     if (!S.buff) {
-        T *buff = new T[rows_submat_S * cols_submat_S];
-        fill_dense(S.dist, rows_submat_S, cols_submat_S, ro_s, co_s, buff, S.seed_state);
-        DenseDist D{rows_submat_S, cols_submat_S, DenseDistName::BlackBox, S.dist.major_axis};
-        DenseSkOp S_(D, S.seed_state, buff);
-        lsksp3(layout, opS, opA, d, n, m, alpha, S_, 0, 0, A, ro_a, co_a, beta, B, ldb);
-        delete [] buff;
+        auto submat_S = submatrix_as_blackbox(S, rows_submat_S, cols_submat_S, ro_s, co_s);
+        lsksp3(layout, opS, opA, d, n, m, alpha, submat_S, 0, 0, A, ro_a, co_a, beta, B, ldb);
         return;
     }
 
@@ -324,12 +320,8 @@ void rsksp3(
 ) {
     auto [rows_submat_S, cols_submat_S] = dims_before_op(n, d, opS);
     if (!S.buff) {
-        T *buff = new T[rows_submat_S * cols_submat_S];
-        fill_dense(S.dist, rows_submat_S, cols_submat_S, ro_s, co_s, buff, S.seed_state);
-        DenseDist D{rows_submat_S, cols_submat_S, DenseDistName::BlackBox, S.dist.major_axis};
-        DenseSkOp S_(D, S.seed_state, buff);
-        rsksp3(layout, opA, opS, m, d, n, alpha, A, ro_a, co_a, S_, 0, 0, beta, B, ldb);
-        delete [] buff;
+        auto submat_S = submatrix_as_blackbox(S, rows_submat_S, cols_submat_S, ro_s, co_s);
+        rsksp3(layout, opA, opS, m, d, n, alpha, A, ro_a, co_a, submat_S, 0, 0, beta, B, ldb);
         return;
     }
     auto [rows_submat_A, cols_submat_A] = dims_before_op(m, n, opA);

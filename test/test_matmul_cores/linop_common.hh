@@ -72,8 +72,8 @@ template <typename T, typename RNG=r123::Philox4x32>
 auto random_matrix(int64_t m, int64_t n, RNGState<RNG> s) {
     std::vector<T> A(m * n);
     DenseDist DA(m, n);
-    auto [layout, next_state] = RandBLAS::fill_dense(DA, A.data(), s);
-    std::tuple<std::vector<T>, Layout, RNGState<RNG>> t{A, layout, next_state};
+    auto next_state = RandBLAS::fill_dense(DA, A.data(), s);
+    std::tuple<std::vector<T>, Layout, RNGState<RNG>> t{A, RandBLAS::dist_to_layout(DA), next_state};
     return t;
 }
 
