@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include <RandBLAS/base.hh>
 #include <RandBLAS/exceptions.hh>
 #include <blas.hh>
 #include <cstdio>
@@ -260,7 +261,7 @@ static inline TO uneg11_to_uneg01(TI in) {
  */
 template <typename TF, typename int64_t, typename RNG>
 RNGState<RNG> sample_indices_iid(
-    int64_t n, TF* cdf, int64_t k, int64_t* samples, RandBLAS::RNGState<RNG> state
+    int64_t n, TF* cdf, int64_t k, int64_t* samples, RNGState<RNG> state
 ) {
     auto [ctr, key] = state;
     RNG gen;
@@ -287,7 +288,7 @@ RNGState<RNG> sample_indices_iid(
  */
 template <typename int64_t, typename RNG>
 RNGState<RNG> sample_indices_iid_uniform(
-    int64_t n,  int64_t* samples , int64_t k, RandBLAS::RNGState<RNG> state
+    int64_t n,  int64_t k, int64_t* samples, RNGState<RNG> state
 ) {
     auto [ctr, key] = state;
     RNG gen;

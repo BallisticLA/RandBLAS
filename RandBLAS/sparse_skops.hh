@@ -102,7 +102,7 @@ static RNGState<RNG> repeated_fisher_yates(
 }
 
 template <typename RNG, typename SD>
-static RNGState<RNG> compute_next_state(SD dist, RNGState<RNG> state) {
+RNGState<RNG> compute_next_state(SD dist, RNGState<RNG> state) {
     int64_t minor_len;
     if (dist.major_axis == MajorAxis::Short) {
         minor_len = std::min(dist.n_rows, dist.n_cols);

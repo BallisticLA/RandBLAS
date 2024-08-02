@@ -16,4 +16,5 @@ API Reference
     Representing sparse data <sparse_matrices>
     Computing a sketch: sparse data <sketch_sparse>
     Sparse BLAS operations <other_sparse>
+    Utilities for index sampling <index_sampling_utils>
 

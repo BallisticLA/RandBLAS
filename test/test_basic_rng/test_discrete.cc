@@ -53,7 +53,7 @@ class TestSampleIndices : public ::testing::Test
     static void test_iid_uniform_smoke(int64_t N, int64_t k, uint32_t seed) { 
         RNGState state(seed);
         std::vector<int64_t> samples(k, -1);
-        RandBLAS::util::sample_indices_iid_uniform(N, samples.data(), k, state);
+        RandBLAS::util::sample_indices_iid_uniform(N, k, samples.data(), state);
         int64_t* data = samples.data();
         for (int64_t i = 0; i < k; ++i) {
             ASSERT_LT(data[i], N);
@@ -88,7 +88,7 @@ class TestSampleIndices : public ::testing::Test
 
         RNGState state(seed);
         std::vector<int64_t> samples(num_samples, -1);
-        RandBLAS::util::sample_indices_iid_uniform(N, samples.data(), num_samples, state);
+        RandBLAS::util::sample_indices_iid_uniform(N, num_samples, samples.data(), state);
 
         index_set_kolmogorov_smirnov_tester(samples, true_cdf, critical_value);
         return;
