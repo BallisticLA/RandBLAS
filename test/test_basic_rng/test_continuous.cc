@@ -121,23 +121,46 @@ class TestContinuous : public ::testing::Test {
 
 TEST_F(TestContinuous, uneg11_ks_generous) {
     double s = 1e-6;
-    run<double>(s, 100000, DenseDistName::Uniform, 0);
-    run<double>(s, 10000,  DenseDistName::Uniform, 0);
-    run<double>(s, 1000,   DenseDistName::Uniform, 0);
+    for (uint32_t i = 999; i < 1011; ++i) {
+        run<double>(s, 100000, DenseDistName::Uniform, i);
+        run<double>(s, 10000,  DenseDistName::Uniform, i*i);
+        run<double>(s, 1000,   DenseDistName::Uniform, i*i*i);
+    }
 }
-
 
 TEST_F(TestContinuous, uneg11_ks_moderate) {
     double s = 1e-4;
     run<float>(s, 100000, DenseDistName::Uniform, 0);
     run<float>(s, 10000,  DenseDistName::Uniform, 0);
-    run<float>(s, 1000,   DenseDistName::Uniform, 0); // might fail?
+    run<float>(s, 1000,   DenseDistName::Uniform, 0);
 }
-
 
 TEST_F(TestContinuous, uneg11_ks_skeptical) {
     double s = 1e-2;
     run<float>(s, 100000, DenseDistName::Uniform, 0);
     run<float>(s, 10000,  DenseDistName::Uniform, 0);
     run<float>(s, 1000,   DenseDistName::Uniform, 0);
+}
+
+TEST_F(TestContinuous, guassian_ks_generous) {
+    double s = 1e-6;
+    for (uint32_t i = 99; i < 103; ++i) {
+        run<double>(s, 100000, DenseDistName::Gaussian, i);
+        run<double>(s, 10000,  DenseDistName::Gaussian, i*i);
+        run<double>(s, 1000,   DenseDistName::Gaussian, i*i*i);
+    }
+}
+
+TEST_F(TestContinuous, guassian_ks_moderate) {
+    double s = 1e-4;
+    run<float>(s, 100000, DenseDistName::Gaussian, 0);
+    run<float>(s, 10000,  DenseDistName::Gaussian, 0);
+    run<float>(s, 1000,   DenseDistName::Gaussian, 0);
+}
+
+TEST_F(TestContinuous, guassian_ks_skeptical) {
+    double s = 1e-2;
+    run<float>(s, 100000, DenseDistName::Gaussian, 0);
+    run<float>(s, 10000,  DenseDistName::Gaussian, 0);
+    run<float>(s, 1000,   DenseDistName::Gaussian, 0);
 }
