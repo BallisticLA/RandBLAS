@@ -30,7 +30,9 @@
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/util.hh"
+#include "RandBLAS/dense_skops.hh"
 using RandBLAS::RNGState;
+using RandBLAS::DenseDistName;
 #include "rng_common.hh"
 
 #include <algorithm>
@@ -40,43 +42,102 @@ using RandBLAS::RNGState;
 #include <set>
 #include <vector>
 #include <gtest/gtest.h>
+#include <stdexcept>
 
 
-class TestContinuous : public ::testing::Test
-{
+
+class TestContinuous : public ::testing::Test {
     protected:
-    
-    virtual void SetUp(){};
 
-    virtual void TearDown(){};
-
+    // This is really for distributions whose CDFs "F" are continuous and strictly increasing
+    // on the interval [a, b] where F(a) = 0 and F(b) = 1.
+ 
+    template <typename T>
     static void kolmogorov_smirnov_tester(
-        // std::vector<int64_t> &samples, std::vector<float> &true_cdf, double critical_value
-    ) {
-        // TODO: WRITE ME
-        
-        // auto num_samples = (int) samples.size();
-        // auto N = (int64_t) true_cdf.size();
-        // std::vector<float> sample_cdf(N, 0.0);
-        // for (int64_t s : samples)
-        //     sample_cdf[s] += 1;
-        // RandBLAS::util::weights_to_cdf(N, sample_cdf.data());
-
-        // for (int i = 0; i < num_samples; ++i) {
-        //     auto diff = (double) std::abs(sample_cdf[i] - true_cdf[i]);
-        //     ASSERT_LT(diff, critical_value);
-        // }
+        std::vector<T> &samples, double critical_value, DenseDistName dn
+    ) { 
+        auto F_true = [dn](T x) {
+            if (dn == DenseDistName::Gaussian) {
+                return RandBLAS_StatTests::standard_normal_cdf(x);
+            } else if (dn == DenseDistName::Uniform) {
+                return RandBLAS_StatTests::uniform_neg11_cdf(x);
+            } else {
+                std::string msg = "Unrecognized distributions name";
+                throw std::runtime_error(msg);
+            }
+        };
+        auto N = (int) samples.size();
+        /** 
+         *  Let L(x) = |F_empirical(x) - F_true(x)|. The KS test testatistic is
+         *
+         *      ts = sup_{all x} L(x).
+         * 
+         *  Now set s = sorted(samples), and partition the real line into
+         * 
+         *      I_0     = (-infty,  s[0  ]),  ...
+         *      I_1     = [s[0  ],  s[1  ]),  ...
+         *      I_2     = [s[1  ],  s[2  ]),  ...
+         *      I_{N-1} = [s[N-2],  s[N-1]),  ...
+         *      I_N     = [s[N-1],  +infty).
+         * 
+         *  Then, provided F_true is continuous, we have 
+         * 
+         *      sup{ L(x) : x in I_j } = max{ 
+         *              |F_true(inf(I_j)) - j/N|, |F_true(sup(I_j)) - j/N|
+         *      }
+         * 
+         *  for j = 0, ..., N.
+         */
+        samples.push_back( std::numeric_limits<T>::infinity());
+        samples.push_back(-std::numeric_limits<T>::infinity());
+        std::sort(samples.begin(), samples.end(), [](T a, T b) {return (a < b);});
+        for (int64_t j = 0; j <= N; ++j) {
+            T temp1 = F_true(samples[j    ]);
+            T temp2 = F_true(samples[j + 1]);
+            T empirical = ((T)j)/((T)N);
+            T val1 = std::abs(temp1 - empirical);
+            T val2 = std::abs(temp2 - empirical);
+            T supLx_on_Ij = std::max(val1, val2);
+            ASSERT_LE(supLx_on_Ij, critical_value) 
+                << "\nj = " << j << " of N = " << N
+                << "\nF_true(inf(I_j)) = " << temp1 
+                << "\nF_true(sup(I_j)) = " << temp2 
+                << "\nI_j = [" << samples[j] << ", " << samples[j+1] << ")";
+        }
         return;
     }
 
-    template <typename t>
-    static void run_uneg11() {
-
-    }
-
     template <typename T>
-    static void run_gaussian() {
-
+    static void run(double significance, int64_t num_samples, DenseDistName dn, uint32_t seed) {
+        using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
+        auto critical_value = critical_value_rep_mutator(num_samples, significance);
+        RNGState state(seed);
+        std::vector<T> samples(num_samples, -1);
+        RandBLAS::fill_dense({num_samples, 1, dn, RandBLAS::MajorAxis::Long}, samples.data(), state);
+        kolmogorov_smirnov_tester(samples, critical_value, dn);
+        return;
     }
 };
 
+TEST_F(TestContinuous, uneg11_ks_generous) {
+    double s = 1e-6;
+    run<double>(s, 100000, DenseDistName::Uniform, 0);
+    run<double>(s, 10000,  DenseDistName::Uniform, 0);
+    run<double>(s, 1000,   DenseDistName::Uniform, 0);
+}
+
+
+TEST_F(TestContinuous, uneg11_ks_moderate) {
+    double s = 1e-4;
+    run<float>(s, 100000, DenseDistName::Uniform, 0);
+    run<float>(s, 10000,  DenseDistName::Uniform, 0);
+    run<float>(s, 1000,   DenseDistName::Uniform, 0); // might fail?
+}
+
+
+TEST_F(TestContinuous, uneg11_ks_skeptical) {
+    double s = 1e-2;
+    run<float>(s, 100000, DenseDistName::Uniform, 0);
+    run<float>(s, 10000,  DenseDistName::Uniform, 0);
+    run<float>(s, 1000,   DenseDistName::Uniform, 0);
+}

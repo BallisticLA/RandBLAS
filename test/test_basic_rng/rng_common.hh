@@ -140,7 +140,7 @@ inline int sample_size_rep(int n) {
     randblas_require(SMALLEST_SAMPLE <= n && n <= LARGEST_SAMPLE);
     int num_sample_sizes = (int) sample_sizes.size();
     for (int i = 0; i < num_sample_sizes; ++i) {
-        if (sample_sizes[i] <= n)
+        if (sample_sizes[i] >= n)
             return i;
     }
     // This code shouldn't be reachable!
@@ -221,6 +221,23 @@ inline double hypergeometric_variance(int64_t N, int64_t K, int64_t D) {
     auto t2 = (dN - dK) / dN;
     auto t3 = (dN - dD) / (dN - 1.0);
     return dD * t1 * t2 * t3;
+}
+
+// MARK: continuous distributions
+
+template <typename T>
+inline T standard_normal_cdf(T x) {
+    double dx = (double) x;
+    return (T) std::erfc(-dx / std::sqrt(2)) / 2;
+}
+
+template <typename T>
+inline T uniform_neg11_cdf(T x) {
+    if (x <= -1)
+        return 0;
+    if (x >= 1)
+        return 1;
+    return (x + 1) / 2;
 }
 
 } // end namespace RandBLAS_StatTests

@@ -579,7 +579,7 @@ RNGState<RNG> fill_dense(
     T *buff,
     const RNGState<RNG> &seed
 ) {
-    return fill_dense(dist_to_layout(D), D, D.n_rows, D.n_cols, 0, 0,  buff, seed);
+    return fill_dense(dist_to_layout(D), D, D.n_rows, D.n_cols, 0, 0, buff, seed);
 }
 
 // ============================================================================= 

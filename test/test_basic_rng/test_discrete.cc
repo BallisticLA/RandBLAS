@@ -65,15 +65,16 @@ class TestSampleIndices : public ::testing::Test
     static void index_set_kolmogorov_smirnov_tester(
         std::vector<int64_t> &samples, std::vector<float> &true_cdf, double critical_value
     ) {
-        auto num_samples = (int) samples.size();
         auto N = (int64_t) true_cdf.size();
         std::vector<float> sample_cdf(N, 0.0);
         for (int64_t s : samples)
             sample_cdf[s] += 1;
         RandBLAS::util::weights_to_cdf(N, sample_cdf.data());
 
-        for (int i = 0; i < num_samples; ++i) {
-            auto diff = (double) std::abs(sample_cdf[i] - true_cdf[i]);
+        for (int i = 0; i < N; ++i) {
+            float F_empirical = sample_cdf[i];
+            float F_true = true_cdf[i];
+            auto diff = (double) std::abs(F_empirical - F_true);
             ASSERT_LT(diff, critical_value);
         }
         return;
@@ -94,7 +95,7 @@ class TestSampleIndices : public ::testing::Test
         return;
     }
 
-    static void test_iid_kolmogorov_smirnov(int64_t N, int exponent, double significance, int64_t num_samples, uint32_t seed) {
+    static void test_iid_kolmogorov_smirnov(int64_t N, float exponent, double significance, int64_t num_samples, uint32_t seed) {
         using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
         auto critical_value = critical_value_rep_mutator(num_samples, significance);
 
