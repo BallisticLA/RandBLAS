@@ -176,6 +176,21 @@ double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observed_k) {
     return out;
 }
 
+// Call hypergeometric_pmf for a range to make hypergeometric_pmf_arr
+std::vector<double> hypergeometric_pmf_arr(int64_t N, int64_t D)
+{
+    std::vector<double> pmf(D + 1);
+    for (int64_t k = 0; k <= D; ++k)
+    {
+        if (k > N || D > N || k > D) {
+            pmf[k] = 0.0;
+        } else {
+            pmf[k] = RandBLAS_StatTests::hypergeometric_pmf(N, D, D, k);
+        }
+    }
+    return pmf;
+}
+
 double hypergeometric_mean(int64_t N, int64_t K, int64_t D) {
     double dN = (double) N;
     double dK = (double) K;
@@ -195,3 +210,53 @@ double hypergeometric_variance(int64_t N, int64_t K, int64_t D) {
 }
 
 } // end namespace RandBLAS_StatTests
+
+
+
+//
+// MARK Kolmogorov-Smirnov Calculations
+//
+
+// Function to compute the K-S statistic
+double ks_stat(const std::vector<double> &cdf1, const std::vector<double> &cdf2)
+{
+    assert(cdf1.size() == cdf2.size()); // Vectors must be of same size to perform test
+
+    // Loop through and keep track of max
+    double max_diff = 0.0;
+    for (size_t i = 0; i < cdf1.size(); ++i)
+    {
+        double diff = std::abs(cdf1[i] - cdf2[i]);
+        if (diff > max_diff)
+        {
+            max_diff = diff;
+        }
+    }
+    return max_diff;
+}
+
+// Function to find the most extreme significance value for a given K-S test statistic
+double ks_stat_to_signif(double ks_statistic, int64_t num_samples)
+{
+    using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
+    using RandBLAS_StatTests::KolmogorovSmirnovConstants::significance_levels;
+
+    double most_extreme_significance = 1.0; // Default to 100% significance
+
+    // Iterate over predefined significance levels from lowest to highest
+    for (auto it = significance_levels.rbegin(); it != significance_levels.rend(); ++it)
+    {
+        double sig = *it;
+        double critical_value = critical_value_rep_mutator(num_samples, sig);
+        std::cout << "Checking significance level: " << sig << " with critical value: " << critical_value << std::endl; // Debug print statement
+
+        if (ks_statistic > critical_value)
+        {
+            most_extreme_significance = sig;
+            // Once a significance level is found, break the loop
+            break;
+        }
+    }
+
+    return most_extreme_significance;
+}
