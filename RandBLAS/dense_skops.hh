@@ -327,6 +327,21 @@ inline int64_t major_axis_length(
         std::max(D.n_rows, D.n_cols) : std::min(D.n_rows, D.n_cols);
 }
 
+template <typename T>
+inline T isometry_scale_factor(DenseDist D) {
+    T common = std::pow((T) std::min(D.n_rows, D.n_cols), -0.5);
+    if (D.family == DenseDistName::Gaussian) {
+        return common;
+    } else if (D.family == DenseDistName::Uniform) {
+        // the variance of an r.v. distributed Unif[-1, 1] is 4/12=1/3.
+        return 3*common;
+    } else {
+        throw std::runtime_error("Unrecognized distribution.");
+    }
+}
+
+
+
 // =============================================================================
 /// A sample from a distribution over dense sketching operators.
 ///

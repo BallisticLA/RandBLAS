@@ -153,7 +153,18 @@ struct SparseDist {
     const MajorAxis major_axis = MajorAxis::Short;
 };
 
-using RandBLAS::SignedInteger;
+template <typename T>
+inline T isometry_scale_factor(SparseDist D) {
+    T vec_nnz = (T) D.vec_nnz;
+    if (D.major_axis == MajorAxis::Short) {
+        return std::pow(vec_nnz, -0.5); 
+    } else {
+        T minor_ax_len = (T) std::min(D.n_rows, D.n_cols);
+        T major_ax_len = (T) std::max(D.n_rows, D.n_cols);
+        return std::sqrt( major_ax_len / (vec_nnz * minor_ax_len) );
+    }
+}
+
 
 // =============================================================================
 /// A sample from a prescribed distribution over sparse matrices.
