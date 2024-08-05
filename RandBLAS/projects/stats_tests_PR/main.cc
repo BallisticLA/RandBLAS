@@ -45,7 +45,7 @@ int main()
     std::cout << "Hypergeometric PMF for d=" << d << ", k=" << k << ", observed_k=5: " << pmf_test << std::endl;
 
     // Generate the theoretical hypergeometric CDF and print it
-    // std::vector<double> theoretical_pmf = hypergeometric_pmf_arr(d, k);
+    // std::vector<double> theoretical_pmf = hypergeometric_pmf_arr(d, d, k);
     // std::cout << "Theoretical PMF: ";
     // for (const auto &val : theoretical_pmf) {
     //     std::cout << val << " ";

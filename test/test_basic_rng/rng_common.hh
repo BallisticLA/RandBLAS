@@ -176,12 +176,11 @@ double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observed_k) {
 }
 
 // Call hypergeometric_pmf for a range to make hypergeometric_pmf_arr
-std::vector<double> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D, int64_t observed_k) {
+std::vector<double> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D) {
     randblas_require(0 <= K && K <= N);
     randblas_require(0 <= D && D <= N);
-    randblas_require(0 <= observed_k && observed_k <= K);
     std::vector<double> pmf(D + 1);
-    for (int64_t k = 0; k <= D; ++k)
+    for (int64_t observed_k = 0; observed_k <= D; ++observed_k)
     {
         pmf[k] = hypergeometric_pmf(N, K, D, observed_k);
     }
