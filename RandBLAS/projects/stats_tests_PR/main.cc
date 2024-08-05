@@ -13,8 +13,8 @@
 
 int main()
 {
-    const int64_t d = 100; // Range
-    const int64_t k = 60; // Number of selected elements
+    const int64_t d = 9; // Range
+    const int64_t k = 7; // Number of selected elements
     const int64_t n = 32; // Number of samples
     double sig = 0.01; // Significance value for KS test
 
