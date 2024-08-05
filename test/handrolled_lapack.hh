@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include "RandBLAS/util.hh"
+
 #include <blas.hh>
 #include <iostream>
 #include <vector>
@@ -101,6 +103,7 @@ void qr_block_cgs(int64_t m, int64_t n, T* A, T* R, std::vector<T>& work, int64_
     }
 }
 
+
 template <typename T>
 void qr_block_cgs(int64_t n, T* A, T* R, int64_t b = 64) {
     b = std::min(b, n);
@@ -109,3 +112,53 @@ void qr_block_cgs(int64_t n, T* A, T* R, int64_t b = 64) {
     qr_block_cgs(n, n, A, R, work, b);
 }
 
+/**
+ * Use QR iteration to compute all eigenvalues of a positive definite matrix A.
+ * Run for at most "max_iters" iteration.
+ * 
+ * In each iteration we'll perform some non-standard work to estimate the accuracy of
+ * the eigenvalues. To explain, suppose "R" is our current triangular factor. We'll 
+ * compute the Gram matrix G = R'R. The eigenvalues of G are the squares of the
+ * singular values of R, and the singular values of R are equal to the eigenvaleus of A.
+ * Therefore our estimate for the eigenvalues of A will be the square root of diag(G). 
+ * We can terminate the algorithm once the relative radius of each Gershgorin disc
+ * falls below reltol.
+ *
+ * 
+ */
+template <typename T>
+void eig_qr_iteration(int64_t n, T* A, T* eigvals, T reltol, int64_t max_iters, int64_t b = 8) {
+    std::vector<T> workspace(2 * n * n);
+    T* R = workspace.data();
+    T* G = R + n * n;
+
+    using blas::Op;
+    using blas::Layout;
+    using blas::Uplo;
+
+    for (int64_t iter = 0; iter < max_iters; ++iter) {
+        qr_block_cgs(n, n, A, R, workspace, b);
+        blas::syrk(Layout::ColMajor, Uplo::Upper, Op::Trans, n, n, (T) 1.0, R, n, (T) 0.0, G, n);
+        RandBLAS::util::symmetrize(Layout::ColMajor, Uplo::Upper, G, n, n);
+        for (int64_t i = 0; i < n; ++i)
+            eigvals[i] = std::sqrt(G[i * n + i]);
+        
+        bool converged = true;
+        int64_t i = 0;
+        while(i < n && converged) {
+            T radius = 0.0;
+            for (int64_t j = 0; j < n; ++j) {
+                if (i != j)
+                    radius += std::abs(G[i * n + j]);
+            }
+            converged = radius <= reltol*G[i * n + i];
+            ++i;
+        }
+        if (converged)
+            break;
+        // Update A = R * Q
+        blas::gemm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, n, n, n, (T) 1.0, R, n, A, n, (T) 0.0, G, n);
+        blas::copy(n * n, G, 1, A, 1);
+    }
+    return;
+}
