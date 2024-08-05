@@ -182,7 +182,7 @@ std::vector<double> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D) {
     std::vector<double> pmf(D + 1);
     for (int64_t observed_k = 0; observed_k <= D; ++observed_k)
     {
-        pmf[k] = hypergeometric_pmf(N, K, D, observed_k);
+        pmf[observed_k] = hypergeometric_pmf(N, K, D, observed_k);
     }
     return pmf;
 }
