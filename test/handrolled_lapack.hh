@@ -8,7 +8,7 @@
 
 
 template <typename T>
-void potrf_upper_colmajor_sequential(int64_t n, T* A, int64_t lda) {
+void potrf_upper_sequential(int64_t n, T* A, int64_t lda) {
     for (int64_t j = 0; j < n; ++j) {
         if (A[j + j * lda] <= 0) {
             std::stringstream s;
@@ -28,7 +28,7 @@ void potrf_upper_colmajor_sequential(int64_t n, T* A, int64_t lda) {
 }
 
 template <typename T>
-void potrf_upper_colmajor(int64_t n, T* A, int64_t b = 64) {
+void potrf_upper(int64_t n, T* A, int64_t b = 64) {
     auto layout = blas::Layout::ColMajor;
     auto uplo = blas::Uplo::Upper;
     for (int64_t k = 0; k < n; k += b) {
@@ -36,7 +36,7 @@ void potrf_upper_colmajor(int64_t n, T* A, int64_t b = 64) {
 
         int64_t offset = k + k * n;
         // Perform Cholesky decomposition on the current block
-        potrf_upper_colmajor_sequential(curr_b, A + offset, n);
+        potrf_upper_sequential(curr_b, A + offset, n);
 
         if (k + curr_b < n) {
             // Update the trailing submatrix
@@ -56,13 +56,13 @@ void potrf_upper_colmajor(int64_t n, T* A, int64_t b = 64) {
 }
 
 template <typename T>
-void chol_qr_colmajor(int64_t m, int64_t n, T* A, T* R, int64_t chol_block_size = 32) {
+void chol_qr(int64_t m, int64_t n, T* A, T* R, int64_t chol_block_size = 32) {
     int64_t lda = m;
     auto layout = blas::Layout::ColMajor;
     auto uplo = blas::Uplo::Upper;
     std::fill(R, R + n*n, (T) 0.0);
     blas::syrk(layout, uplo, blas::Op::Trans, n, m, (T) 1.0, A, lda, (T) 0.0, R, n);
-    potrf_upper_colmajor(n, R, chol_block_size);
+    potrf_upper(n, R, chol_block_size);
     blas::trsm(layout, blas::Side::Right, uplo, blas::Op::NoTrans, blas::Diag::NonUnit, m, n, (T) 1.0, R, n, A, lda);
 }
 
@@ -77,7 +77,7 @@ void qr_block_cgs(int64_t m, int64_t n, T* A, T* R, std::vector<T>& work, int64_
     }
     auto layout = blas::Layout::ColMajor;
     using blas::Op;
-    chol_qr_colmajor(m, b, A, work.data(), b);
+    chol_qr(m, b, A, work.data(), b);
     T one  = (T) 1.0;
     T zero = (T) 0.0;
     T* R1 = work.data();
