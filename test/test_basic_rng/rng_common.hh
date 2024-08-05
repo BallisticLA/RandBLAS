@@ -152,7 +152,6 @@ double log_binomial_coefficient(int64_t n, int64_t k) {
     return result;
 }
 
-
 //
 // MARK: hypergeometric 
 //
