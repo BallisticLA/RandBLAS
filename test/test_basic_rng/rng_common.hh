@@ -145,10 +145,8 @@ double critical_value_rep_mutator(TI &n, double &sig) {
 //
 
 double log_binomial_coefficient(int64_t n, int64_t k) {
-    std::cout << "k: " << k << " n: " << n << std::endl;
-    if (k > n) {
-        throw std::invalid_argument("Invalid argument: k cannot be greater than n");
-    }
+    randblas_require(0 <= k && k <= n);
+
     double result = 0.0;
     for (int64_t i = 1; i <= k; ++i) {
         result += std::log(static_cast<double>(n - i + 1)) - std::log(static_cast<double>(i));
