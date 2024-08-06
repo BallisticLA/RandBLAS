@@ -253,7 +253,7 @@ static inline TO uneg11_to_uneg01(TI in) {
  */
 template <typename TF, typename int64_t, typename RNG>
 RNGState<RNG> sample_indices_iid(
-    int64_t n, TF* cdf, int64_t k, int64_t* samples, RNGState<RNG> state
+    int64_t n, TF* cdf, int64_t k, int64_t* samples, RandBLAS::RNGState<RNG> state
 ) {
     auto [ctr, key] = state;
     RNG gen;
