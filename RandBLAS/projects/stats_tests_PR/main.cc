@@ -13,8 +13,8 @@
 
 int main()
 {
-    const int64_t d = 9; // Range
-    const int64_t k = 7; // Number of selected elements
+    const int64_t d = 64; // Range
+    const int64_t k = 32; // Number of selected elements
     const int64_t n = 32; // Number of samples
     double sig = 0.01; // Significance value for KS test
 
@@ -41,8 +41,9 @@ int main()
     std::cout << std::endl;
 
     // Calculate and print a specific value of the hypergeometric PMF
-    double pmf_test = RandBLAS_StatTests::hypergeometric_pmf(d, d, k, 5);
-    std::cout << "Hypergeometric PMF for d=" << d << ", k=" << k << ", observed_k=5: " << pmf_test << std::endl;
+    int observed_k = 64;
+    double pmf_test = RandBLAS_StatTests::hypergeometric_pmf(d, k, k, 0);
+    std::cout << "Hypergeometric PMF for d=" << d << ", k=" << k << ", observed_k=" << observed_k << ", PMF Value: " << pmf_test << std::endl;
 
     // Generate the theoretical hypergeometric CDF and print it
     // std::vector<double> theoretical_pmf = hypergeometric_pmf_arr(d, d, k);

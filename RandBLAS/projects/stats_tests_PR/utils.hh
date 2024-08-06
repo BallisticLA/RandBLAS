@@ -12,7 +12,34 @@
 
 
 
+//
+// Mark: Things I'm testing with that I have here so I don't have to recompile RandBLAS repeatedly
+//
+double hypergeometric_pmf2(int64_t N, int64_t K, int64_t D, int64_t observed_k) {
+    randblas_require(0 <= K && K <= N);
+    randblas_require(0 <= D && D <= N);
+    randblas_require(0 <= observed_k && observed_k <= K);
 
+    // Special case where the probability is zero
+    if (observed_k > K || D > N || observed_k > D) {
+        return 0.0;
+    }
+
+    double lognum = RandBLAS_StatTests::log_binomial_coefficient(N - K, D - observed_k) + RandBLAS_StatTests::log_binomial_coefficient(K, observed_k);
+    double logden = RandBLAS_StatTests::log_binomial_coefficient(N, D);
+    double exparg = lognum - logden;
+    double out = std::exp(exparg);
+    if (std::isnan(out)) {
+            return 0.0;  // Small probabilies will be nan, so we return 0.0
+        }
+    return out;
+}
+
+
+
+//
+// Mark: Function that I'm not sure where to put in RandBLAS
+//
 
 // Count how many values are less than or equal to vec_nnz in vec_nnz size blocks of idxs_major, then scale to make a pdf
 // We use vec_nnz as a stand-in for k, and can simply check less than or equal instead of shared elements by a symmetry argument!
@@ -44,8 +71,9 @@ std::vector<double> fisher_yates_pmf(const std::vector<int64_t> &idxs_major, int
 }
 
 
+
 //
-// Mark: OLD
+// Mark: OLD things I might want later
 //
 
 // // Perform the Kolmogorov-Smirnov test for fisher_yates with a given 'k, d, and n'
