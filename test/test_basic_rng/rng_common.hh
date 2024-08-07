@@ -132,6 +132,7 @@ template <typename TI>
 double critical_value_rep_mutator(TI &n, double &sig) {
     int i = significance_rep(sig);
     sig = significance_levels[i];
+    std::cout << "Significance level: " << sig << std::endl;
     int j = sample_size_rep(n);
     n = (TI) sample_sizes[j];
     double cv = critical_values[i][j];
@@ -168,10 +169,11 @@ double log_binomial_coefficient(int64_t n, int64_t k) {
 double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observed_k) {
     randblas_require(0 <= K && K <= N);
     randblas_require(0 <= D && D <= N);
-    randblas_require(0 <= observed_k && observed_k <= K);
-    randblas_require(D - observed_k <= N - K);
+    int64_t min_observed_k = std::max<int64_t>(0, D-(N-K));  // If you are picking more elements than non-distinguished elements, the difference becomes the minimum
+    int64_t max_observed_k = std::min<int64_t>(D, K);  // Can't pick more distinguished elements than there are in the set
+    randblas_require(min_observed_k <= observed_k && observed_k <= max_observed_k);
 
-    double lognum = log_binomial_coefficient(N - K, D - K) + log_binomial_coefficient(K, observed_k);
+    double lognum = log_binomial_coefficient(N - K, D - observed_k) + log_binomial_coefficient(K, observed_k);
     double logden = log_binomial_coefficient(N, D);
     double exparg = lognum - logden;
     double out = std::exp(exparg);
@@ -179,13 +181,16 @@ double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observed_k) {
     return out;
 }
 
-// Call hypergeometric_pmf for a range to make hypergeometric_pmf_arr
 std::vector<double> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D) {
     randblas_require(0 <= K && K <= N);
     randblas_require(0 <= D && D <= N);
-    std::vector<double> pmf(D + 1);
-    for (int64_t observed_k = 0; observed_k <= D; ++observed_k)
+    int64_t min_observed_k = std::max<int64_t>(0, D-(N-K));  // If you are picking more elements than non-distinguished elements, the difference becomes the minimum
+    int64_t max_observed_k = std::min<int64_t>(D, K);  // Can't pick more distinguished elements than there are in the set
+    std::vector<double> pmf(max_observed_k - min_observed_k + 1);
+    for (int64_t observed_k = min_observed_k; observed_k <= max_observed_k; ++observed_k)
     {
+        std::cout << "N: " << N << " K: " << K << " D: " << D << std::endl;
+        std::cout << "Observed k: " << observed_k << std::endl;
         pmf[observed_k] = hypergeometric_pmf(N, K, D, observed_k);
     }
     return pmf;
@@ -227,6 +232,8 @@ std::pair<int,double> ks_check_critval(const std::vector<double> &cdf1, const st
         if (diff > critical_value) {
             return {i, diff}; // the test failed.
         }
+        // print diff and critval
+        std::cout << "Diff: " << diff << " CritVal: " << critical_value << std::endl;
     }
     return {-1, 0.0};  // interpret a negative return value as the test passing.
 }
