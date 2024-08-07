@@ -225,6 +225,17 @@ double hypergeometric_variance(int64_t N, int64_t K, int64_t D) {
 // Function to check the KS-Stat against crit values
 std::pair<int,double> ks_check_critval(const std::vector<double> &cdf1, const std::vector<double> &cdf2, double critical_value)
 {
+    // print cdf1 and cdf2
+    std::cout << "CDF1: ";
+    for (auto i : cdf1) {
+        std::cout << i << " ";
+    }
+    std::cout << std::endl;
+    std::cout << "CDF2: ";
+    for (auto i : cdf2) {
+        std::cout << i << " ";
+    }
+    std::cout << std::endl;
     assert(cdf1.size() == cdf2.size()); // Vectors must be of same size to perform test
 
     for (size_t i = 0; i < cdf1.size(); ++i) {
