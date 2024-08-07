@@ -127,15 +127,11 @@ bool fisher_yates_test(int64_t d, int64_t k, int64_t n, double sig = 0.01, bool 
 
 void exhaustive_fisher_yates_tests(int64_t d, int64_t n, double sig = 0.01, bool debug = false) {
     for (int64_t k = 0; k <= d; ++k) {
-        std::cout << "Test1" << std::endl;
         if (debug) {
             std::cout << "Testing d=" << d << " k=" << k << " n=" << n << " sig=" << sig << std::endl;
         }
-        std::cout << "Test2" << std::endl;
         if(fisher_yates_test(d, k, n, sig, debug)) {
-            std::cout << "Test3" << std::endl;
             break;
         }
-        std::cout << "Test4" << std::endl;
     }
 }
