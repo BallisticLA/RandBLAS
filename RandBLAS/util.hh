@@ -59,8 +59,7 @@ void safe_scal(int64_t n, T a, T* x, int64_t inc_x) {
 }
 
 template <typename T>
-void print_colmaj(int64_t n_rows, int64_t n_cols, T *a, const char label[])
-{
+void print_colmaj(int64_t n_rows, int64_t n_cols, T *a, const char label[]) {
 	int64_t i, j;
     T val;
 	std::cout << "\n" << label << std::endl;

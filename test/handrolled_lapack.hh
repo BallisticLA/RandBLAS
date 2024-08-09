@@ -17,9 +17,7 @@ int potrf_upper_sequential(int64_t n, T* A, int64_t lda) {
     // Could implement as lower triangular and then call transpose_square.
     for (int64_t j = 0; j < n; ++j) {
         if (A[j + j * lda] <= 0) {
-            // std::stringstream s;
-            std::cout << "Cholesky failed at index " << j << " of " << n << ".";
-            // throw std::runtime_error(s.str());
+            std::cout << "Cholesky failed at index " << (j+1) << " of " << n << ".";
             return j+1;
         }
         A[j + j * lda] = std::sqrt(A[j + j * lda]);
@@ -121,7 +119,6 @@ void qr_block_cgs(int64_t m, int64_t n, T* A, T* R, int64_t ldr, T* work, int64_
     return;
 }
 
-
 // We'll resize bigwork to be length at least (n*n + max(n, 2*b) * b).
 template <typename T>
 void qr_block_cgs2(int64_t m, int64_t n, T* A, T* R, std::vector<T> &bigwork, int64_t b = 64) {
@@ -192,7 +189,6 @@ int64_t posdef_eig_chol_iteration(int64_t n, T* A, T* eigvals, T reltol, int64_t
     using blas::Op;
     using blas::Layout;
     using blas::Uplo;
-    // int64_t n, const T* A, int64_t &k, int64_t* S,  T* F, int64_t b, STATE state
     int64_t iter = 0;
     bool converged = false;
     RandBLAS::RNGState state(1234567);
@@ -230,109 +226,6 @@ T power_method(int64_t n, FUNC &A, T* v, T tol, RandBLAS::RNGState<RNG> state) {
         blas::scal(n, (T)1.0/norm, v, 1);
     }
     return lambda;
-}
-
-/**
- * @brief Lanczos Algorithm to find the largest eigenvalue of a symmetric positive definite matrix.
- *
- * @tparam scalar_t a real scalar type.
- * @param A a callable, where an evaluation of the form A(x, y) overwrites y = A*x.
- * @param n The order of the matrix (number of rows and columns).
- * @param m The number of Lanczos iterations to perform.
- * @param eigenvector Pointer to the output vector that will store the approximated eigenvector corresponding to the largest eigenvalue.
- * @param max_iter The maximum number of iterations for the power method used to compute the largest eigenvalue of the tridiagonal matrix (default is 1000).
- * @param tol The tolerance for convergence of the power method (default is 1e-6).
- * @return The approximated largest eigenvalue of the matrix.
- * 
- * @endcode
- */
-template <typename real_t, typename FUNC>
-std::pair<real_t,int64_t> lanczos(int64_t n, FUNC &A, int64_t lan_iter, int64_t pow_iter, real_t tol = 1e-6) {
-    // Allocate workspace
-    std::vector<real_t> workspace(4 * n + 4 * lan_iter + 1 + n*(lan_iter+1), 0.0);
-    real_t* u     = workspace.data();
-    real_t* v     = u + n;
-    real_t* w     = v + n;
-    real_t* alpha = w + n;
-    real_t* beta  = alpha + lan_iter;
-    real_t* b0    = beta  + lan_iter + 1;
-    real_t* b1    = b0    + lan_iter;
-    real_t* Q     = b1    + lan_iter;
-
-    auto normalize = [](int64_t k, real_t* vec) {
-        real_t scale = ((real_t) 1.0) / blas::nrm2(k, vec, 1);
-        blas::scal(k, scale, vec, 1);
-    };
-
-    RandBLAS::RNGState state(8739);
-    auto next_state = RandBLAS::fill_dense(blas::Layout::ColMajor, {n, 1}, n, 1, 0, 0, w, state);
-    normalize(n, w);
-    blas::copy(n, w, 1, Q, 1);
-    A(w, v); // v =  Aw
-    alpha[0] = blas::dot(n, w, 1, v, 1); // alpha[0] = w'v
-    for (int i = 0; i < n; ++i) { v[i] -= alpha[0]*w[i]; } // v = v - alpha[0] w
-    beta[0] = blas::nrm2(n, v, 1); // beta[0] = ||v||
-    int64_t k = 0;
-    while (k < lan_iter && beta[k] >= tol) {
-        for (int i = 0; i < n; ++i) { real_t t = w[i];  w[i] = v[i] / beta[k]; v[i] = -beta[k] * t; }
-        A(w, u);
-        for (int i = 0; i < n; ++i) { v[i] += u[i]; }
-        k = k + 1;
-        alpha[k] = blas::dot(n, w, 1, v, 1);
-        for (int i = 0; i < n; ++i) { v[i] -= alpha[k]*w[i]; }
-        //
-        // Update the Lanczos vectors; using complete reorthogonalization with modified Gram-Schmidt
-        //
-        real_t* q_k = Q + (k-1)*n;
-        blas::copy(n, w, 1, q_k, 1);
-        real_t norm_w = blas::nrm2(n, q_k, 1);
-        blas::scal(n, (real_t)1.0 / norm_w, q_k, 1);
-        // update q_k = (I - Q_k Q_k') q_k, where Q_k = Q[:, 1:(k-1)]
-        //      u    = Q_k' q_k
-        //      q_k -= Q_k u
-        blas::gemv(blas::Layout::ColMajor,   blas::Op::Trans, n, k-1, (real_t)  1.0, Q, n, q_k, 1, (real_t) 0.0,   u, 1);
-        blas::gemv(blas::Layout::ColMajor, blas::Op::NoTrans, n, k-1, (real_t) -1.0, Q, n,   u, 1, (real_t) 1.0, q_k, 1);
-        // update v = (I - Q_{k+1} Q_{k+1}') v, which should do nothing in exact arithmetic.
-        blas::gemv(blas::Layout::ColMajor,   blas::Op::Trans, n, k,  1.0, Q, n, v, 1, (real_t) 0.0, u, 1);
-        blas::gemv(blas::Layout::ColMajor, blas::Op::NoTrans, n, k, -1.0, Q, n, u, 1, (real_t) 1.0, v, 1);
-        beta[k] = blas::nrm2(n, v, 1);
-    }
-    lan_iter = k;
-
-    auto T_func = [lan_iter, alpha, beta](const real_t* x, real_t* y) {
-        // Apply the tridiagonal matrix defined by (alpha, beta) to
-        // the vector x and store the result in y.
-        std::fill(y, y + lan_iter, 0.0);
-        for (int64_t i = 0; i < lan_iter; ++i) {
-            y[i] += alpha[i] * x[i];
-            if (i > 0) {
-                y[i] += beta[i - 1] * x[i - 1];
-            }
-            if (i < lan_iter - 1) {
-                y[i] += beta[i] * x[i + 1];
-            }
-        }
-        return;
-    };
-
-    // Compute the largest lambda of the tridiagonal matrix T
-    // For simplicity, we use the power method on T
-    RandBLAS::fill_dense(blas::Layout::ColMajor, {lan_iter, 1}, lan_iter, 1, 0, 0, b0, next_state);
-    normalize(lan_iter, b0);
-    real_t lambda = 0.0;
-    int64_t iter = 0;
-    for (; iter < pow_iter; ++iter) {
-        T_func(b0, b1);
-        real_t lambda_next = blas::dot(lan_iter, b0, 1, b1, 1);
-        if (std::abs(lambda_next - lambda) < tol) {
-            lambda = lambda_next;
-            break;
-        }
-        lambda = lambda_next;
-        blas::copy(lan_iter, b1, 1, b0, 1);
-        normalize(lan_iter, b0);
-    }
-    return {lambda, iter};
 }
 
 }
