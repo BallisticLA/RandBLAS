@@ -81,6 +81,17 @@ bool approx_equal(T A, T B, std::ostream &str,
     return false;
 }
 
+template <typename T>
+void approx_equal(T A, T B, const char* testName, const char* fileName, int lineNo, T atol, T rtol) {
+    std::ostringstream oss;
+    if (!approx_equal(A, B, oss, atol, rtol)) {
+        FAIL() << std::endl << fileName << ":" << lineNo << std::endl
+            << testName << std::endl << "Test failed. " << oss.str() << std::endl;
+        oss.str("");
+    }
+    return;
+}
+
 
 
 /** Test two arrays are approximately equal elementwise.

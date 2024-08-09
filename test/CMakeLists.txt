@@ -61,6 +61,18 @@ if (GTest_FOUND)
     file(COPY test_basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/../test/)
     file(COPY test_basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
 
+    #####################################################################
+    #
+    #   Meta tests (test our testing infrastructure)
+    #
+    #####################################################################
+
+    add_executable(MetaRandBLAS_tests
+        test_handrolled_lapack.cc
+    )
+    target_link_libraries(MetaRandBLAS_tests RandBLAS GTest::GTest GTest::Main)
+    gtest_discover_tests(MetaRandBLAS_tests)
+
 endif()
 message(STATUS "Checking for regression tests ... ${tmp}")
 

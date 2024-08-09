@@ -334,7 +334,7 @@ inline T isometry_scale_factor(DenseDist D) {
         return common;
     } else if (D.family == DenseDistName::Uniform) {
         // the variance of an r.v. distributed Unif[-1, 1] is 4/12=1/3.
-        return 3*common;
+        return std::sqrt(3)*common;
     } else {
         throw std::runtime_error("Unrecognized distribution.");
     }

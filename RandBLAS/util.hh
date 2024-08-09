@@ -59,7 +59,7 @@ void safe_scal(int64_t n, T a, T* x, int64_t inc_x) {
 }
 
 template <typename T>
-void print_colmaj(int64_t n_rows, int64_t n_cols, T *a, char label[])
+void print_colmaj(int64_t n_rows, int64_t n_cols, T *a, const char label[])
 {
 	int64_t i, j;
     T val;
@@ -118,8 +118,7 @@ std::string type_name() { // call as type_name<obj>()
 }
 
 template <typename T>
-void symmetrize(blas::Layout layout, blas::Uplo uplo, T* A, int64_t n, int64_t lda) { 
-
+void symmetrize(blas::Layout layout, blas::Uplo uplo, int64_t n, T* A, int64_t lda) { 
     auto [inter_row_stride, inter_col_stride] = layout_to_strides(layout, lda);
     #define matA(_i, _j) A[(_i)*inter_row_stride + (_j)*inter_col_stride]
     if (uplo == blas::Uplo::Upper) {
@@ -136,6 +135,29 @@ void symmetrize(blas::Layout layout, blas::Uplo uplo, T* A, int64_t n, int64_t l
                 matA(i,j) = matA(j,i);
             }
         }
+    }
+    #undef matA
+    return;
+}
+
+template <typename T>
+void overwrite_triangle(blas::Layout layout, blas::Uplo to_overwrite, int64_t n, int64_t strict_offset, T val,  T* A, int64_t lda) {
+    auto [inter_row_stride, inter_col_stride] = layout_to_strides(layout, lda);
+    #define matA(_i, _j) A[(_i)*inter_row_stride + (_j)*inter_col_stride]
+    if (to_overwrite == blas::Uplo::Upper) {
+        for (int64_t i = 0; i < n; ++i) {
+            for (int64_t j = i + strict_offset; j < n; ++j) {
+                matA(i,j) = val;
+            }
+        }
+    } else if (to_overwrite == blas::Uplo::Lower) {
+        for (int64_t i = 0; i < n; ++i) {
+            for (int64_t j = i + strict_offset; j < n; ++j) {
+                matA(j,i) = val;
+            }
+        }
+    } else {
+        throw std::runtime_error("Invalid argument for UPLO.");
     }
     #undef matA
     return;
