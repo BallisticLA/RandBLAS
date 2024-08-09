@@ -289,7 +289,7 @@ class TestHandrolledEigvals : public ::testing::Test {
     void run_general_posdef(int n, int b, uint32_t key) {
         std::vector<T> eigvals_expect(n);
         for (int i = 0; i < n; ++i) {
-            eigvals_expect[i] = 1.0 / (1 + (T)i);
+            eigvals_expect[i] = 2.0 / (1 + (T)i);
         }
         auto A = posdef_with_random_eigvecs(eigvals_expect, key);
         std::vector<T> eigvals_actual(n);
@@ -305,23 +305,124 @@ class TestHandrolledEigvals : public ::testing::Test {
         test::comparison::approx_equal(max_eig_actual, eigvals_expect[0  ], __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
         return;
     }
+
+    template <typename T>
+    void run_lanczos_general_posdef(int n, uint32_t key) {
+        std::vector<T> eigvals_expect(n);
+        for (int i = 0; i < n; ++i) {
+            eigvals_expect[i] = 2.0 / std::sqrt((1 + (T)i));
+        }
+        auto _A = posdef_with_random_eigvecs(eigvals_expect, key);
+
+        T* A_buff = _A.data();
+        hr_lapack::potrf_upper(n, A_buff, n);
+        auto layout = blas::Layout::ColMajor;
+        auto uplo = blas::Uplo::Upper;
+        auto diag = blas::Diag::NonUnit;
+        auto A = [layout, uplo, diag, A_buff, n](const T* x, T* y) {
+            blas::copy(n, x, 1, y, 1);
+            blas::trmv(layout, uplo, blas::Op::NoTrans, diag, n, A_buff, n, y, 1);
+            blas::trmv(layout, uplo, blas::Op::Trans,   diag, n, A_buff, n, y, 1);
+            return;
+        };
+        auto invA = [layout, uplo, diag, A_buff, n](const T* x, T* y) {
+            blas::copy(n, x, 1, y, 1);
+            blas::trsv(layout, uplo, blas::Op::Trans,   diag, n, A_buff, n, y, 1);
+            blas::trsv(layout, uplo, blas::Op::NoTrans, diag, n, A_buff, n, y, 1);
+            return;
+        };
+
+        int64_t lan_iter = n;
+        int64_t pow_iter = 5*n;
+        auto [lambda_max, iters0] = hr_lapack::lanczos<T>(n,    A, lan_iter, pow_iter);
+        auto [lambda_min, iters1] = hr_lapack::lanczos<T>(n, invA, lan_iter, pow_iter);
+        lambda_min = 1.0/lambda_min;
+
+        T tol = 1e-3;
+        std::cout << "Iters for max: " << iters0 << ". Iters for min: " << iters1 << ".\n";
+        std::cout << "min_comp / min_actual = " << lambda_min / eigvals_expect[n-1] << std::endl;
+        std::cout << "max_comp / max_actual = " << lambda_max / eigvals_expect[0] << std::endl;
+        test::comparison::approx_equal(lambda_min, eigvals_expect[n-1], __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
+        test::comparison::approx_equal(lambda_max, eigvals_expect[0  ], __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
+        return;
+    }
+
+    template <typename T>
+    void run_power_general_posdef(int n, uint32_t key) {
+        std::vector<T> eigvals_expect(n);
+        for (int i = 0; i < n; ++i) {
+            eigvals_expect[i] = 2.0 / std::sqrt((1 + (T)i));
+        }
+        auto _A = posdef_with_random_eigvecs(eigvals_expect, key);
+
+        std::vector<T> A_copy(_A);
+        T* A_buff = A_copy.data();
+        auto layout = blas::Layout::ColMajor;
+        auto A = [layout, A_buff, n](const T* x, T* y) {
+            blas::gemv(layout, blas::Op::NoTrans, n, n, 1.0, A_buff, n, x, 1, 0.0, y, 1);
+            return;
+        };
+
+        auto uplo = blas::Uplo::Upper;
+        auto diag = blas::Diag::NonUnit;
+        hr_lapack::potrf_upper(n, _A.data(), n); // A = R'R
+        std::vector<T> _invA(n*n, 0.0);
+        for (int i = 0; i < n; ++i)
+            _invA[i + i*n] = 1.0;
+        blas::trsm(layout, blas::Side::Left, uplo, blas::Op::Trans, diag, n, n, 1.0, _A.data(), n, _invA.data(), n);
+        // ^ since we applied the inverse of a transposed upper-triangular, we have a lower-triangular result.
+        //   need to zero out the upper triangle for the next step.
+        RandBLAS::util::overwrite_triangle(layout, blas::Uplo::Upper, n, 1, 0.0, _invA.data(), n);
+        blas::trsm(layout, blas::Side::Left, uplo, blas::Op::NoTrans, diag, n, n, 1.0, _A.data(), n, _invA.data(), n);
+        T* invA_buff = _invA.data();
+        auto invA = [layout, invA_buff, n](const T* x, T* y) {
+            blas::gemv(layout, blas::Op::NoTrans, n, n, 1.0, invA_buff, n, x, 1, 0.0, y, 1);
+            return;
+        };
+
+        std::vector<T> work(n, 0.0);
+        T tol = 1e-3;
+        RandBLAS::RNGState state(key + 1);
+        auto lambda_max = hr_lapack::power_method<T>(n,    A, work.data(), tol, state);
+        auto lambda_min = hr_lapack::power_method<T>(n, invA, work.data(), tol, state);
+        lambda_min = 1.0/lambda_min;
+
+        std::cout << "min_comp / min_actual = " << lambda_min / eigvals_expect[n-1] << std::endl;
+        std::cout << "max_comp / max_actual = " << lambda_max / eigvals_expect[0] << std::endl;
+        test::comparison::approx_equal(lambda_min, eigvals_expect[n-1], __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
+        test::comparison::approx_equal(lambda_max, eigvals_expect[0  ], __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
+        return;
+    }
 };
 
+TEST_F(TestHandrolledEigvals, power_smallish) {
+    run_power_general_posdef<double>(10, 0);
+    run_power_general_posdef<double>(50, 0);
+    run_power_general_posdef<double>(100, 0);
+}
+
 TEST_F(TestHandrolledEigvals, diag) {
-    run_diag<double>(5, 2);
-    run_diag<double>(10, 5);
-    run_diag<double>(100, 10);
+    run_diag<double>(5, 1);
+    run_diag<double>(10, 1);
+    run_diag<double>(100, 1);
 }
 
 TEST_F(TestHandrolledEigvals, general_posdef_smallish) {
-    run_general_posdef<double>(  5,  2, 0);
-    run_general_posdef<double>( 10,  2, 0);
-    run_general_posdef<double>(100, 10, 0);
+    run_general_posdef<double>(  5,  1, 0);
+    run_general_posdef<double>( 10,  1, 0);
+    run_general_posdef<double>(100,  1, 0);
 }
 
-TEST_F(TestHandrolledEigvals, general_posdef_medium) {
+TEST_F(TestHandrolledEigvals, power_medium) {
     // 1000 or bigger is way too slow.
-    run_general_posdef<double>( 512,  64, 0);
-    run_general_posdef<double>( 512,  64, 1);
+    run_power_general_posdef<double>( 512, 0);
+    run_power_general_posdef<double>( 512, 1);
 }
+
+TEST_F(TestHandrolledEigvals, power_largish) {
+    // 1000 or bigger is way too slow.
+    run_power_general_posdef<double>( 1024, 0);
+    run_power_general_posdef<double>( 1024, 1);
+}
+
 
