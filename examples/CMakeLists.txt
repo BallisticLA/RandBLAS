@@ -6,8 +6,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_CXX_FLAGS "-O3")
-# ^ THAT'S SO IMPORTANT!!!!
+set(CMAKE_CXX_FLAGS "-O1")
+# ^ Doing something other than -O0 is important for good performance.
 #   TODO: just set CMAKE_BUILD_TYPE to Release if it's not already given.
 
 # TODO: do a try-catch pattern for finding OpenMP.

@@ -74,7 +74,7 @@ void iid_sparsify_random_dense(
 ) { 
     auto spar = new T[n_rows * n_cols];
     auto dist = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::DenseDistName::Uniform);
-    auto [unused, next_state] = RandBLAS::fill_dense(dist, spar, state);
+    auto next_state = RandBLAS::fill_dense(dist, spar, state);
 
     auto temp = new T[n_rows * n_cols];
     auto D_mat = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::DenseDistName::Uniform);

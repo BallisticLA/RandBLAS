@@ -190,14 +190,8 @@ void lskge3(
 ){
     auto [rows_submat_S, cols_submat_S] = dims_before_op(d, m, opS);
     if (!S.buff) {
-        // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
-        // of that sketching operator, and then call LSKGE3 with that new object.
-        T *buff = new T[rows_submat_S * cols_submat_S];
-        fill_dense(S.dist, rows_submat_S, cols_submat_S, ro_s, co_s, buff, S.seed_state);
-        DenseDist D{rows_submat_S, cols_submat_S, DenseDistName::BlackBox, S.dist.major_axis};
-        DenseSkOp S_(D, S.seed_state, buff);
-        lskge3(layout, opS, opA, d, n, m, alpha, S_, 0, 0, A, lda, beta, B, ldb);
-        delete [] buff;
+        auto submat_S = submatrix_as_blackbox(S, rows_submat_S, cols_submat_S, ro_s, co_s);
+        lskge3(layout, opS, opA, d, n, m, alpha, submat_S, 0, 0, A, lda, beta, B, ldb);
         return;
     }
     randblas_require( S.dist.n_rows >= rows_submat_S + ro_s );
@@ -345,12 +339,8 @@ void rskge3(
     if (!S.buff) {
         // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
         // of that sketching operator, and then call RSKGE3 with that new object.
-        T *buff = new T[rows_submat_S * cols_submat_S];
-        fill_dense(S.dist, rows_submat_S, cols_submat_S, ro_s, co_s, buff, S.seed_state);
-        DenseDist D{rows_submat_S, cols_submat_S, DenseDistName::BlackBox, S.dist.major_axis};
-        DenseSkOp S_(D, S.seed_state, buff);
-        rskge3(layout, opA, opS, m, d, n, alpha, A, lda, S_, 0, 0, beta, B, ldb);
-        delete [] buff;
+        auto submat_S = submatrix_as_blackbox(S, rows_submat_S, cols_submat_S, ro_s, co_s);
+        rskge3(layout, opA, opS, m, d, n, alpha, A, lda, submat_S, 0, 0, beta, B, ldb);
         return;
     }
     randblas_require( S.dist.n_rows >= rows_submat_S + ro_s );

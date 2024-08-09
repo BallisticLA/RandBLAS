@@ -51,7 +51,7 @@ class TestLSKGE3 : public ::testing::Test
         blas::Layout layout
     ) {
         DenseDist D(d, m);
-        DenseSkOp<T> S0(D, seed, nullptr);
+        DenseSkOp<T> S0(D, seed);
         if (preallocate)
             RandBLAS::fill_dense(S0);
         test_left_apply_submatrix_to_eye<T>(1.0, S0, d, m, 0, 0, layout, 0.0);
@@ -65,7 +65,7 @@ class TestLSKGE3 : public ::testing::Test
         blas::Layout layout
     ) {
         DenseDist Dt(m, d);
-        DenseSkOp<T> S0(Dt, seed, nullptr);
+        DenseSkOp<T> S0(Dt, seed);
         RandBLAS::fill_dense(S0);
         test_left_apply_transpose_to_eye<T>(S0, layout);
     }
@@ -103,7 +103,7 @@ class TestLSKGE3 : public ::testing::Test
         randblas_require(m0 > m);
         randblas_require(n0 > n);
         DenseDist D(d, m);
-        DenseSkOp<T> S0(D, seed_S0, nullptr);
+        DenseSkOp<T> S0(D, seed_S0);
         test_left_apply_to_submatrix<T>(S0, n, m0, n0, A_ro, A_co, layout);
     }
 

@@ -51,7 +51,3 @@ RNGNxW_TPL(philox, 4, 64)
 RNGNxW_TPL(threefry, 2, 64)
 RNGNxW_TPL(threefry, 4, 64)
 #endif
-#if R123_USE_AES_NI
-RNGNxW_TPL(ars, 4, 32)
-RNGNxW_TPL(aesni, 4, 32)
-#endif

@@ -73,8 +73,7 @@ static inline void sincospi(double x, double *s, double *c) {
 #include <Random123/array.h>
 #include <Random123/philox.h>
 #include <Random123/threefry.h>
-#include <Random123/ars.h>
-// NOTE: we do not support Random123's AES generator.
+// NOTE: we do not support Random123's AES or ARS generators.
 #include <Random123/boxmuller.hpp>
 #include <Random123/uniform.hpp>
 
@@ -152,9 +151,9 @@ struct uneg11
      *
      * @tparam RNG a random123 CBRNG type
      *
-     * @param[in] a random123 CBRNG instance used to generate the sequence
-     * @param[in] the CBRNG counter
-     * @param[in] the CBRNG key
+     * @param[in] rng: a random123 CBRNG instance used to generate the sequence
+     * @param[in] c: CBRNG counter
+     * @param[in] k: CBRNG key
      *
      * @returns a std::array<N,T> where N is the CBRNG's ctr_type::static_size
      *          and T is deduced from the RNG's counter element type : float

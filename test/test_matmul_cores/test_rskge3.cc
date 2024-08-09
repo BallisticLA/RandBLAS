@@ -52,7 +52,7 @@ class TestRSKGE3 : public ::testing::Test
         Layout layout
     ) {
         DenseDist D(m, d);
-        DenseSkOp<T> S0(D, seed, nullptr);
+        DenseSkOp<T> S0(D, seed);
         if (preallocate)
             RandBLAS::fill_dense(S0);
         test_right_apply_submatrix_to_eye<T>(1.0, S0, m, d, 0, 0, layout, 0.0, 0);
@@ -66,7 +66,7 @@ class TestRSKGE3 : public ::testing::Test
         Layout layout
     ) {
         DenseDist Dt(d, m);
-        DenseSkOp<T> S0(Dt, seed, nullptr);
+        DenseSkOp<T> S0(Dt, seed);
         test_right_apply_tranpose_to_eye<T>(S0, layout);
     }
 
@@ -99,7 +99,7 @@ class TestRSKGE3 : public ::testing::Test
         Layout layout
     ) {
         DenseDist D(n, d);
-        DenseSkOp<T> S0(D, seed_S0, nullptr);
+        DenseSkOp<T> S0(D, seed_S0);
         test_right_apply_to_submatrix<T>(S0, m, m0, n0, A_ro, A_co, layout);
     }
 
