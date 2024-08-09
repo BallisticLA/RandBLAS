@@ -296,7 +296,7 @@ class TestHandrolledEigvals : public ::testing::Test {
         int64_t iters = 1000;
         T tol = 1e-3;
         auto iter = hr_lapack::posdef_eig_chol_iteration(n, A.data(), eigvals_actual.data(), tol, iters, b);
-        std::cout << "Number of QR iterations : " << iter << std::endl;
+        std::cout << "Number of iterations  : " << iter << std::endl;
         T min_eig_actual = *std::min_element(eigvals_actual.begin(), eigvals_actual.end());
         T max_eig_actual = *std::max_element(eigvals_actual.begin(), eigvals_actual.end());
         std::cout << "min_comp / min_actual " << min_eig_actual / eigvals_expect[n-1] << std::endl;
@@ -312,39 +312,13 @@ class TestHandrolledEigvals : public ::testing::Test {
         for (int i = 0; i < n; ++i) {
             eigvals_expect[i] = 2.0 / std::sqrt((1 + (T)i));
         }
-        auto _A = posdef_with_random_eigvecs(eigvals_expect, key);
+        auto A = posdef_with_random_eigvecs(eigvals_expect, key);
 
-        std::vector<T> A_copy(_A);
-        T* A_buff = A_copy.data();
-        auto layout = blas::Layout::ColMajor;
-        auto A = [layout, A_buff, n](const T* x, T* y) {
-            blas::gemv(layout, blas::Op::NoTrans, n, n, (T) 1.0, A_buff, n, x, 1, (T) 0.0, y, 1);
-            return;
-        };
-
-        auto uplo = blas::Uplo::Upper;
-        auto diag = blas::Diag::NonUnit;
-        hr_lapack::potrf_upper(n, _A.data(), n); // A = R'R
-        std::vector<T> _invA(n*n, 0.0);
-        for (int i = 0; i < n; ++i)
-            _invA[i + i*n] = 1.0;
-        blas::trsm(layout, blas::Side::Left, uplo, blas::Op::Trans, diag, n, n, (T) 1.0, _A.data(), n, _invA.data(), n);
-        // ^ since we applied the inverse of a transposed upper-triangular, we have a lower-triangular result.
-        //   need to zero out the upper triangle for the next step.
-        RandBLAS::util::overwrite_triangle(layout, blas::Uplo::Upper, n, 1, (T) 0.0, _invA.data(), n);
-        blas::trsm(layout, blas::Side::Left, uplo, blas::Op::NoTrans, diag, n, n, (T) 1.0, _A.data(), n, _invA.data(), n);
-        T* invA_buff = _invA.data();
-        auto invA = [layout, invA_buff, n](const T* x, T* y) {
-            blas::gemv(layout, blas::Op::NoTrans, n, n, (T) 1.0, invA_buff, n, x, 1, (T) 0.0, y, 1);
-            return;
-        };
-
-        std::vector<T> work(n, 0.0);
+        std::vector<T> ourwork(2*n, 0.0);
+        std::vector<T> subwork{};
         T tol = 1e-3;
-        RandBLAS::RNGState state(key + 1);
-        auto lambda_max = hr_lapack::power_method<T>(n,    A, work.data(), tol, state);
-        auto lambda_min = hr_lapack::power_method<T>(n, invA, work.data(), tol, state);
-        lambda_min = 1.0/lambda_min;
+        RNGState state(key + 1);
+        auto [lambda_max, lambda_min, ignore] = hr_lapack::extremal_eigvals_powermethod(n, A.data(), ourwork.data(), tol, state, subwork);
 
         std::cout << "min_comp / min_actual = " << lambda_min / eigvals_expect[n-1] << std::endl;
         std::cout << "max_comp / max_actual = " << lambda_max / eigvals_expect[0] << std::endl;

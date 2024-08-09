@@ -11,6 +11,8 @@
 
 namespace hr_lapack {
 
+using RandBLAS::RNGState;
+
 template <typename T>
 int potrf_upper_sequential(int64_t n, T* A, int64_t lda) {
     // Cache access is much better if the matrix is lower triangular.
@@ -209,8 +211,8 @@ int64_t posdef_eig_chol_iteration(int64_t n, T* A, T* eigvals, T reltol, int64_t
 }
 
 template <typename T, typename FUNC, typename RNG>
-T power_method(int64_t n, FUNC &A, T* v, T tol, RandBLAS::RNGState<RNG> state) {
-    RandBLAS::fill_dense(blas::Layout::ColMajor, {n, 1}, n, 1, 0, 0, v, state);
+std::pair<T, RNGState<RNG>> power_method(int64_t n, FUNC &A, T* v, T tol, const RNGState<RNG> &state) {
+    auto next_state = RandBLAS::fill_dense(blas::Layout::ColMajor, {n, 1}, n, 1, 0, 0, v, state);
     std::vector<T> work(n, 0.0);
     T* u = work.data();
     T norm = blas::nrm2(n, v, 1);
@@ -225,7 +227,51 @@ T power_method(int64_t n, FUNC &A, T* v, T tol, RandBLAS::RNGState<RNG> state) {
         norm = blas::nrm2(n, v, 1);
         blas::scal(n, (T)1.0/norm, v, 1);
     }
-    return lambda;
+    return {lambda, next_state};
+}
+
+template <typename T, typename RNG>
+std::tuple<T, T, RNGState<RNG>> extremal_eigvals_powermethod(int64_t n, const T* A, T* eigvecs, T tol, const RNGState<RNG> &state,  std::vector<T> work) {
+    auto layout = blas::Layout::ColMajor;
+    RandBLAS::util::require_symmetric(layout, A, n, n, (T) 0.0);
+
+    // Compute the dominant eigenpair. Nothing fancy here.
+    auto A_func = [layout, A, n](const T* x, T* y) {
+        blas::gemv(layout, blas::Op::NoTrans, n, n, (T) 1.0, A, n, x, 1, (T) 0.0, y, 1);
+    };
+    auto [lambda_max, next_state] = power_method<T>(n, A_func, eigvecs, tol, state);
+
+    // To compute the smallest eigenpair we'll explicitly invert A. This requires
+    // 2n^2 workspace: n^2 workspace for Cholesky of A (since we don't want to destroy A)
+    // and another n^2 workspace for TRSMs with the Cholesky factor to get invA.
+    //
+    // Note: we *could* use less workspace if we were willing to access invA as a linear
+    // operator using two calls to TRSV when needed. But this ends up being much slower
+    // than explicit inversion for the values of (n, tol) that we care about.
+    //
+    if ((int64_t) work.size() < 2*n*n)
+        work.resize(2*n*n);
+    T* chol = work.data();
+    blas::copy(n*n, A, 1, chol, 1);
+    potrf_upper(n, chol, n);
+    T* invA = chol + n*n;
+    std::fill(invA, invA + n*n, 0.0);
+    for (int i = 0; i < n; ++i)
+        invA[i + i*n] = 1.0;
+    auto uplo   = blas::Uplo::Upper;
+    auto diag   = blas::Diag::NonUnit;
+    blas::trsm(layout, blas::Side::Left, uplo, blas::Op::Trans,   diag, n, n, (T) 1.0, chol, n, invA, n);
+    blas::trsm(layout, blas::Side::Left, uplo, blas::Op::NoTrans, diag, n, n, (T) 1.0, chol, n, invA, n);
+
+    // Now that we have invA explicitly, getting its dominant eigenpair is effortless.
+    auto invA_func = [layout, invA, n](const T* x, T* y) {
+        blas::gemv(layout, blas::Op::NoTrans, n, n, (T) 1.0, invA, n, x, 1, (T) 0.0, y, 1);
+        return;
+    };
+    auto [lambda_min, final_state] = power_method<T>(n, invA_func, eigvecs + n, tol, next_state);
+    lambda_min = 1.0/lambda_min;
+
+    return {lambda_max, lambda_min, final_state};
 }
 
 }
