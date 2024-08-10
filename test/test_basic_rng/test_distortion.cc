@@ -36,15 +36,12 @@ using RandBLAS::DenseDistName;
 using RandBLAS::RNGState;
 
 #include "rng_common.hh"
+#include "../handrolled_lapack.hh"
 
-#include <lapack.hh>
 #include <iostream>
 #include <vector>
 #include <gtest/gtest.h>
 
-// function [N_] = get_min_dimension(p_, tau_)
-//     N_ = ceil( ((sqrt(2*log(1 ./ p_)) + 1) ./ tau_).^2 );
-// end
 
 int64_t get_min_dimension(double p, double tau) {
     double val = std::sqrt(-2 * std::log(p)) + 1;
@@ -53,19 +50,11 @@ int64_t get_min_dimension(double p, double tau) {
     return (int64_t) std::ceil(val);
 }
 
-// TODO: implement Cholesky and Krylov subspace method for computing condition number.
-/*
-
-
-*/
-
 class TestSubspaceDistortion : public ::testing::Test {
     protected:
 
     template <typename T>
-    void run_gaussian(
-        T distortion, T tau, T p_fail_bound, uint32_t key
-    ) {
+    void run_gaussian(T distortion, T tau, T p_fail_bound, uint32_t key) {
         /**
          *  Generate a d-by-N Gaussian matrix, where d = gamma*N,
          *  gamma = (r/delta)^2, and N is the smallest integer where n > N implies
@@ -97,12 +86,47 @@ class TestSubspaceDistortion : public ::testing::Test {
          *  N = ceil( ( [sqrt(2*log(1/p)) + 1] / tau )^2 )
          *  
          */ 
+        auto layout = blas::Layout::ColMajor;
         int64_t N = get_min_dimension(p_fail_bound, tau);
-        int64_t d = std::ceil( std::pow((1 + tau) / distortion, 2) );
+        int64_t d = std::ceil( std::pow((1 + tau) / distortion, 2) * N );
         DenseDist D(d, N, DenseDistName::Gaussian);
         std::vector<T> S(d*N);
-        RandBLAS::fill_dense(D, S.data(), {key});
-        // need LAPACK ...
+        std::cout << "(d, N) = ( " << d << ", " << N << " )\n";
+        RandBLAS::RNGState<r123::Philox4x32> state(key);
+        auto next_state = RandBLAS::fill_dense(D, S.data(), state);
+        blas::scal(d*N, (T)1.0/std::sqrt(d), S.data(), 1);
+        std::vector<T> G(N*N, 0.0);
+        blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, N, d, (T)1.0, S.data(), d, (T)0.0, G.data(), N);
+        RandBLAS::util::symmetrize(layout, blas::Uplo::Upper, N, G.data(), N);
+        
+        std::vector<T> eigvecs(2*N, 0.0);
+        std::vector<T> subwork{};
+        auto [lambda_max, lambda_min, ignore] = hr_lapack::exeigs_powermethod(N, G.data(), eigvecs.data(), (T) 1e-2, state, subwork);
+        T sigma_max = std::sqrt(lambda_max);
+        T sigma_min = std::sqrt(lambda_min);
+        ASSERT_LE(sigma_max, 1+distortion);
+        ASSERT_GE(sigma_min, 1-distortion);
         return;
     }
 };
+
+TEST_F(TestSubspaceDistortion, gaussian_float_tau_100_fail_00001) {
+    uint32_t key = 8673309;
+    float p_fail = 1e-3;
+    for (uint32_t i = 0; i < 3; ++i ) {
+        run_gaussian<float>(0.50f, 1.0f, p_fail, key + i);
+        run_gaussian<float>(0.25f, 1.0f, p_fail, key + i);
+        run_gaussian<float>(0.10f, 1.0f, p_fail, key + i);
+    }
+}
+
+TEST_F(TestSubspaceDistortion, gaussian_float_tau_020_fail_00001) {
+    uint32_t key = 8673309;
+    float p_fail = 1e-3;
+    for (uint32_t i = 0; i < 3; ++i ) {
+        run_gaussian<float>(0.75f, 0.2f, p_fail, key + i);
+        run_gaussian<float>(0.50f, 0.2f, p_fail, key + i);
+        run_gaussian<float>(0.25f, 0.2f, p_fail, key + i);
+    }
+}
+

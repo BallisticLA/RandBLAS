@@ -231,7 +231,7 @@ std::pair<T, RNGState<RNG>> power_method(int64_t n, FUNC &A, T* v, T tol, const 
 }
 
 template <typename T, typename RNG>
-std::tuple<T, T, RNGState<RNG>> extremal_eigvals_powermethod(int64_t n, const T* A, T* eigvecs, T tol, const RNGState<RNG> &state,  std::vector<T> work) {
+std::tuple<T, T, RNGState<RNG>> exeigs_powermethod(int64_t n, const T* A, T* eigvecs, T tol, const RNGState<RNG> &state,  std::vector<T> work) {
     auto layout = blas::Layout::ColMajor;
     RandBLAS::util::require_symmetric(layout, A, n, n, (T) 0.0);
 

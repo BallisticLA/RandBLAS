@@ -178,6 +178,8 @@ void require_symmetric(blas::Layout layout, const T* A, int64_t n, int64_t lda, 
                 std::string message = "Symmetry check failed. |A(%i,%i) - A(%i,%i)| was %d, which exceeds tolerance of %d.";
                 auto _message = message.c_str();
                 randblas_error_if_msg(viol > rel_tol, _message, i, j, j, i, viol, rel_tol);
+                // ^ TODO: fix this macro. Apparently it doesn't print out all that I'd like. Example I just got:
+                //  "Symmetry check failed. |A(0,1) - A(1,0)| was 1610612736, which exceeds toleranc, in function require_symmetric" thrown in the test body.
             }
         }
     }

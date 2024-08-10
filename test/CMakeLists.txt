@@ -55,11 +55,13 @@ if (GTest_FOUND)
         test_basic_rng/test_r123.cc
         test_basic_rng/test_discrete.cc
         test_basic_rng/test_continuous.cc
+        test_basic_rng/test_distortion.cc
     )
     target_link_libraries(RandBLAS_stats RandBLAS GTest::GTest GTest::Main)
     gtest_discover_tests(RandBLAS_stats)
+    file(COPY test_basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+    file(COPY test_basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/..)
     file(COPY test_basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/../test/)
-    file(COPY test_basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
 
     #####################################################################
     #

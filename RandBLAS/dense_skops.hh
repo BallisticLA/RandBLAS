@@ -501,7 +501,7 @@ struct DenseSkOp {
 ///      A CBRNG state
 ///      - Used to define \math{S} as a sample from \math{\D}.
 /// 
-template<typename T, typename RNG>
+template<typename T, typename RNG = r123::Philox4x32>
 RNGState<RNG> fill_dense(
     blas::Layout layout,
     const DenseDist &D,
@@ -588,7 +588,7 @@ RNGState<RNG> fill_dense(
 ///     - If this function returns a layout that is undesirable then it is
 ///       the caller's responsibility to perform a transpose as needed.
 /// 
-template <typename T, typename RNG>
+template <typename T, typename RNG = r123::Philox4x32>
 RNGState<RNG> fill_dense(
     const DenseDist &D,
     T *buff,

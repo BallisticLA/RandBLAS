@@ -318,7 +318,7 @@ class TestHandrolledEigvals : public ::testing::Test {
         std::vector<T> subwork{};
         T tol = 1e-3;
         RNGState state(key + 1);
-        auto [lambda_max, lambda_min, ignore] = hr_lapack::extremal_eigvals_powermethod(n, A.data(), ourwork.data(), tol, state, subwork);
+        auto [lambda_max, lambda_min, ignore] = hr_lapack::exeigs_powermethod(n, A.data(), ourwork.data(), tol, state, subwork);
 
         std::cout << "min_comp / min_actual = " << lambda_min / eigvals_expect[n-1] << std::endl;
         std::cout << "max_comp / max_actual = " << lambda_max / eigvals_expect[0] << std::endl;
@@ -345,7 +345,7 @@ TEST_F(TestHandrolledEigvals, power_medium) {
     run_power_general_posdef<double>( 512, 1 );
 }
 
-TEST_F(TestHandrolledEigvals, power_largish) {
+TEST_F(TestHandrolledEigvals, power_largeish) {
     run_power_general_posdef<float>( 1024, 0 );
     run_power_general_posdef<float>( 1024, 1 );
 }
