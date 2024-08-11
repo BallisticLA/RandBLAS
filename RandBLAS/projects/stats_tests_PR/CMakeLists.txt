@@ -18,7 +18,7 @@ find_package(OpenMP REQUIRED)
 message(STATUS "Found OpenMP: ${OpenMP_FOUND}")
 
 # Set the path to the RandBLAS installation
-set(RandBLAS_DIR "/Users/r9w/Coding/Projects/RandNLA/RandBLAS-install/lib/cmake")
+set(RandBLAS_DIR "${RandBLAS_DIR}")
 message(STATUS "RandBLAS directory set to: ${RandBLAS_DIR}")
 
 message(STATUS "Checking for RandBLAS ... ")
@@ -37,7 +37,8 @@ target_include_directories(
     fisher_test PUBLIC
     ${CMAKE_SOURCE_DIR}
     ${RandBLAS_INCLUDE_DIRS}
-    /Users/r9w/Coding/Projects/RandNLA/RandBLAS/test/test_basic_rng
+    # /Users/r9w/Coding/Projects/RandNLA/RandBLAS/test/test_basic_rng
+    /home/weaverr/Personal_Projects/CPP_practice/RandBLAS/RandBLAS/test/test_basic_rng
 )
 message(STATUS "RandBLAS include directories: ${RandBLAS_INCLUDE_DIRS}")
 

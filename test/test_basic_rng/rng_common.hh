@@ -111,7 +111,7 @@ int sample_size_rep(int n) {
     randblas_require(SMALLEST_SAMPLE <= n && n <= LARGEST_SAMPLE);
     int num_sample_sizes = (int) sample_sizes.size();
     for (int i = 0; i < num_sample_sizes; ++i) {
-        if (sample_sizes[i] >= n)
+        if (sample_sizes[i] <= n)
             return i;
     }
     // This code shouldn't be reachable!
@@ -132,7 +132,6 @@ template <typename TI>
 double critical_value_rep_mutator(TI &n, double &sig) {
     int i = significance_rep(sig);
     sig = significance_levels[i];
-    std::cout << "Significance level: " << sig << std::endl;
     int j = sample_size_rep(n);
     n = (TI) sample_sizes[j];
     double cv = critical_values[i][j];
@@ -146,13 +145,13 @@ double critical_value_rep_mutator(TI &n, double &sig) {
 //
 
 double log_binomial_coefficient(int64_t n, int64_t k) {
-    randblas_require(0 <= k && k <= n);
     double result = 0.0;
     for (int64_t i = 1; i <= k; ++i) {
         result += std::log(static_cast<double>(n - i + 1)) - std::log(static_cast<double>(i));
     }
     return result;
 }
+
 
 //
 // MARK: hypergeometric 
@@ -166,12 +165,19 @@ double log_binomial_coefficient(int64_t n, int64_t k) {
  *      This function returns the probability that the sample of D items will contain observed_k elements
  *      from the distinguished set.
  */
-double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observed_k) {
+double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observed_k)
+{
     randblas_require(0 <= K && K <= N);
     randblas_require(0 <= D && D <= N);
-    int64_t min_observed_k = std::max<int64_t>(0, D-(N-K));  // If you are picking more elements than non-distinguished elements, the difference becomes the minimum
-    int64_t max_observed_k = std::min<int64_t>(D, K);  // Can't pick more distinguished elements than there are in the set
-    randblas_require(min_observed_k <= observed_k && observed_k <= max_observed_k);
+    randblas_require(0 <= observed_k && observed_k <= K);
+    /***
+     * The values in the following line are outside the bounds of observed_k in the hypergeometric
+     * distribution. However, it may be beneficial to simply return the value 0 and always have the pmf
+     * go from to K. This way, the caller can always index into the pmf array with the observed_k value
+     * without needing to think hard about the bounds for which the pmf is plausible.
+     */
+    if (observed_k < D - (N - K) || observed_k > D) // These values are outside the bounds of observed_k
+        return 0.0;
 
     double lognum = log_binomial_coefficient(N - K, D - observed_k) + log_binomial_coefficient(K, observed_k);
     double logden = log_binomial_coefficient(N, D);
@@ -181,17 +187,15 @@ double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observed_k) {
     return out;
 }
 
-std::vector<double> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D) {
+std::vector<double> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D)
+{
     randblas_require(0 <= K && K <= N);
     randblas_require(0 <= D && D <= N);
-    int64_t min_observed_k = std::max<int64_t>(0, D-(N-K));  // If you are picking more elements than non-distinguished elements, the difference becomes the minimum
-    int64_t max_observed_k = std::min<int64_t>(D, K);  // Can't pick more distinguished elements than there are in the set
-    std::vector<double> pmf(max_observed_k - min_observed_k + 1);
-    for (int64_t observed_k = min_observed_k; observed_k <= max_observed_k; ++observed_k)
+
+    std::vector<double> pmf(K + 1);
+    for (int64_t i = 0; i <= K; ++i)
     {
-        std::cout << "N: " << N << " K: " << K << " D: " << D << std::endl;
-        std::cout << "Observed k: " << observed_k << std::endl;
-        pmf[observed_k] = hypergeometric_pmf(N, K, D, observed_k);
+        pmf[i] = hypergeometric_pmf(N, K, D, i);
     }
     return pmf;
 }
@@ -214,37 +218,24 @@ double hypergeometric_variance(int64_t N, int64_t K, int64_t D) {
     return dD * t1 * t2 * t3;
 }
 
-} // end namespace RandBLAS_StatTests
-
-
-
 //
 // MARK Kolmogorov-Smirnov Calculations
 //
 
 // Function to check the KS-Stat against crit values
-std::pair<int,double> ks_check_critval(const std::vector<double> &cdf1, const std::vector<double> &cdf2, double critical_value)
+std::pair<int, double> ks_check_critval(const std::vector<double> &cdf1, const std::vector<double> &cdf2, double critical_value)
 {
-    // print cdf1 and cdf2
-    std::cout << "CDF1: ";
-    for (auto i : cdf1) {
-        std::cout << i << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "CDF2: ";
-    for (auto i : cdf2) {
-        std::cout << i << " ";
-    }
-    std::cout << std::endl;
     assert(cdf1.size() == cdf2.size()); // Vectors must be of same size to perform test
 
-    for (size_t i = 0; i < cdf1.size(); ++i) {
+    for (size_t i = 0; i < cdf1.size(); ++i)
+    {
         double diff = std::abs(cdf1[i] - cdf2[i]);
-        if (diff > critical_value) {
+        if (diff > critical_value)
+        {
             return {i, diff}; // the test failed.
         }
-        // print diff and critval
-        std::cout << "Diff: " << diff << " CritVal: " << critical_value << std::endl;
     }
-    return {-1, 0.0};  // interpret a negative return value as the test passing.
+    return {-1, 0.0}; // interpret a negative return value as the test passing.
 }
+
+} // end namespace RandBLAS_StatTests
