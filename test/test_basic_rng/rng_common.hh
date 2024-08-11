@@ -171,10 +171,10 @@ double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observed_k)
     randblas_require(0 <= D && D <= N);
     randblas_require(0 <= observed_k && observed_k <= K);
     /***
-     * The values in the following line are outside the bounds of observed_k in the hypergeometric
-     * distribution. However, it may be beneficial to simply return the value 0 and always have the pmf
-     * go from to K. This way, the caller can always index into the pmf array with the observed_k value
-     * without needing to think hard about the bounds for which the pmf is plausible.
+     * The values in the following line are outside the valid range of `observed_k` for the hypergeometric
+     * distribution. However, it may be useful to return 0 for these cases, ensuring that the pmf array
+     * always covers the full range from 0 to K. This allows the caller to index into the pmf array
+     * using any `observed_k` value without having to account for the specific bounds where the pmf is non-zero.
      */
     if (observed_k < D - (N - K) || observed_k > D) // These values are outside the bounds of observed_k
         return 0.0;
