@@ -30,6 +30,9 @@
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/util.hh"
+#include <RandBLAS/random_gen.hh>
+#include <RandBLAS/exceptions.hh>
+#include <RandBLAS.hh/sparse_skops.hh>
 using RandBLAS::RNGState;
 #include "rng_common.hh"
 
@@ -39,6 +42,12 @@ using RandBLAS::RNGState;
 #include <random>
 #include <set>
 #include <vector>
+#include <string>
+#include <limits>
+#include <cstdint>
+#include <numeric>
+#include <tuple>
+#include <cassert>
 #include <gtest/gtest.h>
 
 
@@ -50,6 +59,9 @@ class TestSampleIndices : public ::testing::Test
 
     virtual void TearDown(){};
 
+    //
+    // Mark: With Replacement Tests
+    //
     static void test_iid_uniform_smoke(int64_t N, int64_t k, uint32_t seed) { 
         RNGState state(seed);
         std::vector<int64_t> samples(k, -1);
@@ -148,6 +160,100 @@ class TestSampleIndices : public ::testing::Test
         }
         return;
     }
+
+    //
+    // Mark: Without Replacement Tests
+    //
+
+    std::vector<float> fisher_yates_cdf(const std::vector<int64_t> &idxs_major, int64_t N, int64_t K, int64_t num_samples)
+    {
+        using RandBLAS::util::weights_to_cdf;
+        std::vector<float> empirical_cdf;
+
+        // If K is 0, then there's nothing to count over and we should just return 1
+        if (K == 0)
+        {
+            empirical_cdf.push_back(1.0);
+        }
+        else
+        {
+            // Count how many values in idxs_major are less than K across the samples
+            std::vector<int64_t> counter(K + 1, 0);
+            for (int64_t i = 0; i < K * num_samples; i += K)
+            {
+                int count = 0;
+                for (int64_t j = 0; j < K; ++j)
+                {
+                    if (idxs_major[i + j] < K)
+                    {
+                        count += 1;
+                    }
+                }
+                counter[count] += 1;
+            }
+
+            // Copy counter and normalize to get empirical_cdf
+            empirical_cdf.resize(counter.size());
+            std::copy(counter.begin(), counter.end(), empirical_cdf.begin());
+            weights_to_cdf(empirical_cdf.size(), empirical_cdf.data());
+        }
+
+        return empirical_cdf;
+    }
+
+    static void fisher_yates_kolmogorov_smirnov_tester(
+        const std::vector<int64_t> &idxs_major, std::vector<float> &true_cdf, double critical_value, int64_t N, int64_t K, int64_t num_samples
+    ) {
+        using RandBLAS_StatTests::ks_critical_value;
+        // Calculate the empirical cdf and check critval
+        std::vector<float> empirical_cdf = fisher_yates_cdf(idxs_major, N, K, num_samples);
+        std::pair<int, double> result = ks_check_critval(true_cdf, empirical_cdf, critical_value);
+
+        std::cout << std::endl;
+        if (result.first != -1)
+        {
+            std::cout << std::endl;
+            std::cout << "KS test failed at index " << result.first << " with difference " << result.second << " and critical value " << critical_value << std::endl;
+            std::cout << "Test parameters: " << "N=" << N << " " << "K=" << K << " " << "num_samples=" << num_samples << std::endl;
+        }
+        return;
+    }
+
+    static void single_test_fisher_yates_kolmogorov_smirnov(int64_t N, int64_t K, double significance, int64_t num_samples, uint32_t seed)
+    {
+        using RandBLAS::repeat_fisher_yates;
+        using RandBLAS_StatTests::hypergeometric_pmf_arr;
+        using RandBLAS::util::weights_to_cdf;
+        using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
+
+        // Initialize arguments for repeated_fisher_yates
+        std::vector<int64_t> idxs_major(K * num_samples);
+        std::vector<int64_t> idxs_minor(K * num_samples);
+        std::vector<double> vals(K * num_samples);
+        RNGState state(seed);
+
+        // Generate repeated Fisher-Yates in idxs_major
+        state = repeated_fisher_yates(
+            state, K, N, num_samples, // K=vec_nnz, N=dim_major, num_samples=dim_minor
+            idxs_major.data(), idxs_minor.data(), vals.data());
+
+        // Generate the true hypergeometric cdf
+        std::vector<float> true_pmf = hypergeometric_pmf_arr(N, K, K);
+        weights_to_cdf(true_pmf.size(), true_pmf.data());
+        std::vector<float> true_cdf = true_pmf; // Rename for clarity
+
+        // Compute the critval and check against it
+        auto critical_value = critical_value_rep_mutator(num_samples, significance);
+        fisher_yates_kolmogorov_smirnov_tester(idxs_major, true_cdf, crit_value);
+    }
+
+    static void test_fisher_yates_kolmogorov_smirnov(int64_t N, int64_t num_samples, double significance, uint32_t seed)
+    {
+        for (int64_t K = 0; K <= N; ++K)
+        {
+            single_test_fisher_yates_kolmogorov_smirnov(N, K, significance, num_samples, seed);
+        }
+    }
     
 };
 
@@ -228,4 +334,29 @@ TEST_F(TestSampleIndices, iid_ks_skeptical) {
     test_iid_kolmogorov_smirnov(100,      3, s, 100000, 0);
     test_iid_kolmogorov_smirnov(10000,    3, s, 1000,   0);
     test_iid_kolmogorov_smirnov(1000000,  3, s, 1000,   0);
+}
+
+
+TEST_F(TestSampleIndices, fisher_yates_ks_generous)
+{
+    double s = 1e-6;
+    test_fisher_yates_kolmogorov_smirnov(100, s, 10000, 0);
+    test_fisher_yates_kolmogorov_smirnov(10000, s, 1000, 0);
+    test_fisher_yates_kolmogorov_smirnov(100000, s, 1000, 0);
+}
+
+TEST_F(TestSampleIndices, fisher_yates_ks_moderate)
+{
+    double s = 1e-4;
+    test_fisher_yates_kolmogorov_smirnov(100, s, 10000, 0);
+    test_fisher_yates_kolmogorov_smirnov(10000, s, 1000, 0);
+    test_fisher_yates_kolmogorov_smirnov(100000, s, 1000, 0);
+}
+
+TEST_F(TestSampleIndices, fisher_yates_ks_skeptical)
+{
+    double s = 1e-2;
+    test_fisher_yates_kolmogorov_smirnov(100, s, 10000, 0);
+    test_fisher_yates_kolmogorov_smirnov(10000, s, 1000, 0);
+    test_fisher_yates_kolmogorov_smirnov(100000, s, 1000, 0);
 }

@@ -187,7 +187,7 @@ double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observed_k)
     return out;
 }
 
-std::vector<double> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D)
+std::vector<float> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D)
 {
     randblas_require(0 <= K && K <= N);
     randblas_require(0 <= D && D <= N);
@@ -223,7 +223,7 @@ double hypergeometric_variance(int64_t N, int64_t K, int64_t D) {
 //
 
 // Function to check the KS-Stat against crit values
-std::pair<int, double> ks_check_critval(const std::vector<double> &cdf1, const std::vector<double> &cdf2, double critical_value)
+std::pair<int, double> ks_check_critval(const std::vector<float> &cdf1, const std::vector<float> &cdf2, double critical_value)
 {
     assert(cdf1.size() == cdf2.size()); // Vectors must be of same size to perform test
 
