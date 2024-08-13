@@ -248,14 +248,40 @@ class TestSampleIndices : public ::testing::Test
         return;
     }
 
-    static void test_fisher_yates_kolmogorov_smirnov(int64_t N, int64_t num_samples, double significance, uint32_t seed)
+    static int64_t special_increment_k(int64_t K, int64_t N, const std::vector<int64_t> &K_bounds = {9, 99})
     {
-        for (int64_t K = 0; K <= N; ++K)
+        //
+        // Example evolution of K with N=1000: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14, 23, 39, 64, 100,
+        //
+        double exp_base = std::pow(10.0, 1.0 / 10.0); // Log base to give 10 steps for each order of magnitude
+
+        if (K <= K_bounds[0])
         {
-            single_test_fisher_yates_kolmogorov_smirnov(N, K, significance, num_samples, seed);
+            // Step one-by-one up to K_bounds[0] (e.g., 9)
+            return K + 1;
+        }
+        else if (K <= K_bounds[1])
+        {
+            // Step in square root scale up to K_bounds[1] (e.g., 99)
+            return static_cast<int64_t>(std::pow(std::sqrt(K) + 1, 2));
+        }
+        else
+        {
+            // Step in log-scale after K_bounds[1]
+            return static_cast<int64_t>(K * exp_base);
         }
     }
-    
+
+    static void test_fisher_yates_kolmogorov_smirnov(int64_t N, double significance, int64_t num_samples, uint32_t seed)
+    {
+        int64_t K = 0;
+        while (K <= N)
+        {
+            single_test_fisher_yates_kolmogorov_smirnov(N, K, significance, num_samples, seed);
+            K = special_increment_k(K, N);
+        }
+    }
+
 };
 
 
@@ -341,23 +367,26 @@ TEST_F(TestSampleIndices, iid_ks_skeptical) {
 TEST_F(TestSampleIndices, fisher_yates_ks_generous)
 {
     double s = 1e-6;
+    test_fisher_yates_kolmogorov_smirnov(10, s, 10000, 0);
     test_fisher_yates_kolmogorov_smirnov(100, s, 10000, 0);
-    test_fisher_yates_kolmogorov_smirnov(10000, s, 1000, 0);
-    test_fisher_yates_kolmogorov_smirnov(100000, s, 1000, 0);
+    test_fisher_yates_kolmogorov_smirnov(1000, s, 1000, 0);
+    test_fisher_yates_kolmogorov_smirnov(10000, s, 100, 0);
 }
 
 TEST_F(TestSampleIndices, fisher_yates_ks_moderate)
 {
     double s = 1e-4;
+    test_fisher_yates_kolmogorov_smirnov(10, s, 10000, 0);
     test_fisher_yates_kolmogorov_smirnov(100, s, 10000, 0);
-    test_fisher_yates_kolmogorov_smirnov(10000, s, 1000, 0);
-    test_fisher_yates_kolmogorov_smirnov(100000, s, 1000, 0);
+    test_fisher_yates_kolmogorov_smirnov(1000, s, 1000, 0);
+    test_fisher_yates_kolmogorov_smirnov(10000, s, 100, 0);
 }
 
 TEST_F(TestSampleIndices, fisher_yates_ks_skeptical)
 {
     double s = 1e-2;
+    test_fisher_yates_kolmogorov_smirnov(10, s, 10000, 0);
     test_fisher_yates_kolmogorov_smirnov(100, s, 10000, 0);
-    test_fisher_yates_kolmogorov_smirnov(10000, s, 1000, 0);
-    test_fisher_yates_kolmogorov_smirnov(100000, s, 1000, 0);
+    test_fisher_yates_kolmogorov_smirnov(1000, s, 1000, 0);
+    test_fisher_yates_kolmogorov_smirnov(10000, s, 100, 0);
 }
