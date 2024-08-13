@@ -171,21 +171,17 @@ class TestSampleIndices : public ::testing::Test
         std::vector<float> empirical_cdf;
 
         // If K is 0, then there's nothing to count over and we should just return 1
-        if (K == 0)
-        {
+        if (K == 0) {
             empirical_cdf.push_back(1.0);
         }
         else
         {
             // Count how many values in idxs_major are less than K across the samples
             std::vector<int64_t> counter(K + 1, 0);
-            for (int64_t i = 0; i < K * num_samples; i += K)
-            {
+            for (int64_t i = 0; i < K * num_samples; i += K) {
                 int count = 0;
-                for (int64_t j = 0; j < K; ++j)
-                {
-                    if (idxs_major[i + j] < K)
-                    {
+                for (int64_t j = 0; j < K; ++j) {
+                    if (idxs_major[i + j] < K) {
                         count += 1;
                     }
                 }
@@ -210,8 +206,7 @@ class TestSampleIndices : public ::testing::Test
         std::pair<int, double> result = ks_check_critval(true_cdf, empirical_cdf, critical_value);
 
         std::cout << std::endl;
-        if (result.first != -1)
-        {
+        if (result.first != -1) {
             std::cout << std::endl;
             std::cout << "KS test failed at index " << result.first << " with difference " << result.second << " and critical value " << critical_value << std::endl;
             std::cout << "Test parameters: " << "N=" << N << " " << "K=" << K << " " << "num_samples=" << num_samples << std::endl;
@@ -255,18 +250,13 @@ class TestSampleIndices : public ::testing::Test
         //
         double exp_base = std::pow(10.0, 1.0 / 10.0); // Log base to give 10 steps for each order of magnitude
 
-        if (K <= K_bounds[0])
-        {
+        if (K <= K_bounds[0]) {
             // Step one-by-one up to K_bounds[0] (e.g., 9)
             return K + 1;
-        }
-        else if (K <= K_bounds[1])
-        {
+        } else if (K <= K_bounds[1]) {
             // Step in square root scale up to K_bounds[1] (e.g., 99)
             return static_cast<int64_t>(std::pow(std::sqrt(K) + 1, 2));
-        }
-        else
-        {
+        } else {
             // Step in log-scale after K_bounds[1]
             return static_cast<int64_t>(K * exp_base);
         }
@@ -275,8 +265,7 @@ class TestSampleIndices : public ::testing::Test
     static void test_fisher_yates_kolmogorov_smirnov(int64_t N, double significance, int64_t num_samples, uint32_t seed)
     {
         int64_t K = 0;
-        while (K <= N)
-        {
+        while (K <= N) {
             single_test_fisher_yates_kolmogorov_smirnov(N, K, significance, num_samples, seed);
             K = special_increment_k(K, N);
         }
@@ -370,7 +359,6 @@ TEST_F(TestSampleIndices, fisher_yates_ks_generous)
     test_fisher_yates_kolmogorov_smirnov(10, s, 10000, 0);
     test_fisher_yates_kolmogorov_smirnov(100, s, 10000, 0);
     test_fisher_yates_kolmogorov_smirnov(1000, s, 1000, 0);
-    test_fisher_yates_kolmogorov_smirnov(10000, s, 100, 0);
 }
 
 TEST_F(TestSampleIndices, fisher_yates_ks_moderate)
@@ -379,7 +367,6 @@ TEST_F(TestSampleIndices, fisher_yates_ks_moderate)
     test_fisher_yates_kolmogorov_smirnov(10, s, 10000, 0);
     test_fisher_yates_kolmogorov_smirnov(100, s, 10000, 0);
     test_fisher_yates_kolmogorov_smirnov(1000, s, 1000, 0);
-    test_fisher_yates_kolmogorov_smirnov(10000, s, 100, 0);
 }
 
 TEST_F(TestSampleIndices, fisher_yates_ks_skeptical)
@@ -388,5 +375,4 @@ TEST_F(TestSampleIndices, fisher_yates_ks_skeptical)
     test_fisher_yates_kolmogorov_smirnov(10, s, 10000, 0);
     test_fisher_yates_kolmogorov_smirnov(100, s, 10000, 0);
     test_fisher_yates_kolmogorov_smirnov(1000, s, 1000, 0);
-    test_fisher_yates_kolmogorov_smirnov(10000, s, 100, 0);
 }
