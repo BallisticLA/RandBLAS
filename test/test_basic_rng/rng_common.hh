@@ -193,8 +193,7 @@ std::vector<float> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D)
     randblas_require(0 <= D && D <= N);
 
     std::vector<float> pmf(K + 1);
-    for (int64_t i = 0; i <= K; ++i)
-    {
+    for (int64_t i = 0; i <= K; ++i) {
         pmf[i] = hypergeometric_pmf(N, K, D, i);
     }
     return pmf;
@@ -227,11 +226,9 @@ std::pair<int, double> ks_check_critval(const std::vector<float> &cdf1, const st
 {
     assert(cdf1.size() == cdf2.size()); // Vectors must be of same size to perform test
 
-    for (size_t i = 0; i < cdf1.size(); ++i)
-    {
+    for (size_t i = 0; i < cdf1.size(); ++i) {
         double diff = std::abs(cdf1[i] - cdf2[i]);
-        if (diff > critical_value)
-        {
+        if (diff > critical_value) {
             return {i, diff}; // the test failed.
         }
     }
