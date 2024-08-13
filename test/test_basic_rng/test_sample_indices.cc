@@ -174,8 +174,7 @@ class TestSampleIndices : public ::testing::Test
         if (K == 0) {
             empirical_cdf.push_back(1.0);
         }
-        else
-        {
+        else {
             // Count how many values in idxs_major are less than K across the samples
             std::vector<int64_t> counter(K + 1, 0);
             for (int64_t i = 0; i < K * num_samples; i += K) {
