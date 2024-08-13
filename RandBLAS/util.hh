@@ -280,7 +280,8 @@ RNGState<RNG> sample_indices_iid(
  */
 template <typename int64_t, typename RNG>
 RNGState<RNG> sample_indices_iid_uniform(
-    int64_t n,  int64_t k, int64_t* samples, RNGState<RNG> state
+    // int64_t n,  int64_t k, int64_t* samples, RNGState<RNG> state
+    int64_t n,  int64_t* samples , int64_t k, RandBLAS::RNGState<RNG> state
 ) {
     auto [ctr, key] = state;
     RNG gen;

@@ -504,7 +504,8 @@ class TestStateUpdate : public ::testing::Test
 
         typename RNG::ctr_type c_ref = state_copy.counter;
 
-        auto [layout, final_state] = RandBLAS::fill_dense(D, buff, state);
+        // auto [layout, final_state] = RandBLAS::fill_dense(D, buff, state);
+        auto next_state = RandBLAS::fill_dense(D, A.data(), state);
         auto c = final_state.counter;
         int c_len = c.size();
 
