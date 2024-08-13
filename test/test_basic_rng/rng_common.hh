@@ -192,7 +192,7 @@ std::vector<float> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D)
     randblas_require(0 <= K && K <= N);
     randblas_require(0 <= D && D <= N);
 
-    std::vector<double> pmf(K + 1);
+    std::vector<float> pmf(K + 1);
     for (int64_t i = 0; i <= K; ++i)
     {
         pmf[i] = hypergeometric_pmf(N, K, D, i);

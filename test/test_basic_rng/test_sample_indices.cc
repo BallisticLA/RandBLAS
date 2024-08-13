@@ -32,7 +32,7 @@
 #include "RandBLAS/util.hh"
 #include <RandBLAS/random_gen.hh>
 #include <RandBLAS/exceptions.hh>
-#include <RandBLAS.hh/sparse_skops.hh>
+#include <RandBLAS/sparse_skops.hh>
 using RandBLAS::RNGState;
 #include "rng_common.hh"
 
@@ -165,7 +165,7 @@ class TestSampleIndices : public ::testing::Test
     // Mark: Without Replacement Tests
     //
 
-    std::vector<float> fisher_yates_cdf(const std::vector<int64_t> &idxs_major, int64_t N, int64_t K, int64_t num_samples)
+    static std::vector<float> fisher_yates_cdf(const std::vector<int64_t> &idxs_major, int64_t K, int64_t num_samples)
     {
         using RandBLAS::util::weights_to_cdf;
         std::vector<float> empirical_cdf;
@@ -204,7 +204,8 @@ class TestSampleIndices : public ::testing::Test
     static void fisher_yates_kolmogorov_smirnov_tester(
         const std::vector<int64_t> &idxs_major, std::vector<float> &true_cdf, double critical_value, int64_t N, int64_t K, int64_t num_samples
     ) {
-        using RandBLAS_StatTests::ks_critical_value;
+        using TestSampleIndices::fisher_yates_cdf;
+        using RandBLAS_StatTests::ks_check_critval;
         // Calculate the empirical cdf and check critval
         std::vector<float> empirical_cdf = fisher_yates_cdf(idxs_major, N, K, num_samples);
         std::pair<int, double> result = ks_check_critval(true_cdf, empirical_cdf, critical_value);
@@ -216,12 +217,11 @@ class TestSampleIndices : public ::testing::Test
             std::cout << "KS test failed at index " << result.first << " with difference " << result.second << " and critical value " << critical_value << std::endl;
             std::cout << "Test parameters: " << "N=" << N << " " << "K=" << K << " " << "num_samples=" << num_samples << std::endl;
         }
-        return;
     }
 
     static void single_test_fisher_yates_kolmogorov_smirnov(int64_t N, int64_t K, double significance, int64_t num_samples, uint32_t seed)
     {
-        using RandBLAS::repeat_fisher_yates;
+        using RandBLAS::repeated_fisher_yates;
         using RandBLAS_StatTests::hypergeometric_pmf_arr;
         using RandBLAS::util::weights_to_cdf;
         using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
@@ -244,7 +244,9 @@ class TestSampleIndices : public ::testing::Test
 
         // Compute the critval and check against it
         auto critical_value = critical_value_rep_mutator(num_samples, significance);
-        fisher_yates_kolmogorov_smirnov_tester(idxs_major, true_cdf, crit_value);
+        fisher_yates_kolmogorov_smirnov_tester(idxs_major, true_cdf, critical_value, N, K, num_samples);
+
+        return;
     }
 
     static void test_fisher_yates_kolmogorov_smirnov(int64_t N, int64_t num_samples, double significance, uint32_t seed)
