@@ -176,8 +176,8 @@ double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observed_k)
      * always covers the full range from 0 to K. This allows the caller to index into the pmf array
      * using any `observed_k` value without having to account for the specific bounds where the pmf is non-zero.
     //  */
-    // if (observed_k < D - (N - K) || observed_k > D) // These values are outside the bounds of observed_k
-    //     return 0.0;
+    if (observed_k < D - (N - K) || observed_k > D) // These values are outside the bounds of observed_k
+        return 0.0;
 
     double lognum = log_binomial_coefficient(N - K, D - observed_k) + log_binomial_coefficient(K, observed_k);
     double logden = log_binomial_coefficient(N, D);
@@ -187,18 +187,18 @@ double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observed_k)
     return out;
 }
 
-// std::vector<float> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D)
-// {
-//     randblas_require(0 <= K && K <= N);
-//     randblas_require(0 <= D && D <= N);
+std::vector<float> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D)
+{
+    randblas_require(0 <= K && K <= N);
+    randblas_require(0 <= D && D <= N);
 
-//     std::vector<float> pmf(K + 1);
-//     for (int64_t i = 0; i <= K; ++i)
-//     {
-//         pmf[i] = hypergeometric_pmf(N, K, D, i);
-//     }
-//     return pmf;
-// }
+    std::vector<float> pmf(K + 1);
+    for (int64_t i = 0; i <= K; ++i)
+    {
+        pmf[i] = hypergeometric_pmf(N, K, D, i);
+    }
+    return pmf;
+}
 
 double hypergeometric_mean(int64_t N, int64_t K, int64_t D) {
     double dN = (double) N;
@@ -223,19 +223,19 @@ double hypergeometric_variance(int64_t N, int64_t K, int64_t D) {
 //
 
 // Function to check the KS-Stat against crit values
-// std::pair<int, double> ks_check_critval(const std::vector<float> &cdf1, const std::vector<float> &cdf2, double critical_value)
-// {
-//     assert(cdf1.size() == cdf2.size()); // Vectors must be of same size to perform test
+std::pair<int, double> ks_check_critval(const std::vector<float> &cdf1, const std::vector<float> &cdf2, double critical_value)
+{
+    assert(cdf1.size() == cdf2.size()); // Vectors must be of same size to perform test
 
-//     for (size_t i = 0; i < cdf1.size(); ++i)
-//     {
-//         double diff = std::abs(cdf1[i] - cdf2[i]);
-//         if (diff > critical_value)
-//         {
-//             return {i, diff}; // the test failed.
-//         }
-//     }
-//     return {-1, 0.0}; // interpret a negative return value as the test passing.
-// }
+    for (size_t i = 0; i < cdf1.size(); ++i)
+    {
+        double diff = std::abs(cdf1[i] - cdf2[i]);
+        if (diff > critical_value)
+        {
+            return {i, diff}; // the test failed.
+        }
+    }
+    return {-1, 0.0}; // interpret a negative return value as the test passing.
+}
 
 } // end namespace RandBLAS_StatTests
