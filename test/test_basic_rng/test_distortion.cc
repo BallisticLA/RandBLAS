@@ -43,74 +43,80 @@ using RandBLAS::RNGState;
 #include <gtest/gtest.h>
 
 
-int64_t get_min_dimension(double p, double tau) {
-    double val = std::sqrt(-2 * std::log(p)) + 1;
-    val /= tau;
-    val *= val;
-    return (int64_t) std::ceil(val);
-}
-
 class TestSubspaceDistortion : public ::testing::Test {
     protected:
 
     template <typename T>
-    void run_gaussian(T distortion, T tau, T p_fail_bound, uint32_t key) {
-        /**
-         *  Generate a d-by-N Gaussian matrix, where d = gamma*N,
-         *  gamma = (r/delta)^2, and N is the smallest integer where n > N implies
-         *  n*(r - 1  - 1/sqrt(n))^2 >= 2*log(1/p_fail_bound).
-         *  One can verify that this value for N is given as
-         *      N = ceil( ([sqrt(2*log(1/p)) + 1]/(r-1))^2 )   if   r > 1
-         * 
-         *  With probability at least 1 - p_fail_bound, the spectrum
-         *  of the generated matrix will lay in the interval
-         *  [1 - distortion, 1 + distortion].
-         * 
-         * ----------------------
-         * Temporary notes
-         * ----------------------
-         * Find N = min{ n : exp(-t^2 gamma n ) <= p_fail_bound }, where
-         *       t := delta - (gamma)^{-1/2}(1 + 1/sqrt(n)), and 
-         *   gamma := (r/delta)^2.
-         * 
-         * Choosing gamma of this form with r > 1 ensures that no 
-         * matter the value of delta in (0, 1) there always an N
-         * so that probability bound holds whenever n >= N. We know of no bounds
-         * available when r is in (0, 1).
-         * 
-         * ---------------------
-         * if delta = 1/sqrt(2) then we're looking at gamma = 2*r^2.
-         * Or, setting r = 1 + tau for tau > 0, we're looking at gamma=2*(1+tau)^2
-         * to get convergence rate tau in the sense that we fall below a target
-         * failure probability once
-         *  N = ceil( ( [sqrt(2*log(1/p)) + 1] / tau )^2 )
-         *  
-         */ 
+    void run_general(DenseDistName name, T distortion, int64_t d, int64_t N, uint32_t key) {
         auto layout = blas::Layout::ColMajor;
-        int64_t N = get_min_dimension(p_fail_bound, tau);
-        int64_t d = std::ceil( std::pow((1 + tau) / distortion, 2) * N );
-        DenseDist D(d, N, DenseDistName::Gaussian);
+        DenseDist D(d, N, name);
         std::vector<T> S(d*N);
         std::cout << "(d, N) = ( " << d << ", " << N << " )\n";
         RandBLAS::RNGState<r123::Philox4x32> state(key);
         auto next_state = RandBLAS::fill_dense(D, S.data(), state);
-        blas::scal(d*N, (T)1.0/std::sqrt(d), S.data(), 1);
+        T inv_stddev = (name == DenseDistName::Gaussian) ? (T) 1.0 : (T) 1.0;
+        blas::scal(d*N, inv_stddev / std::sqrt(d), S.data(), 1);
         std::vector<T> G(N*N, 0.0);
         blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, N, d, (T)1.0, S.data(), d, (T)0.0, G.data(), N);
         RandBLAS::util::symmetrize(layout, blas::Uplo::Upper, N, G.data(), N);
         
         std::vector<T> eigvecs(2*N, 0.0);
         std::vector<T> subwork{};
-        auto [lambda_max, lambda_min, ignore] = hr_lapack::exeigs_powermethod(N, G.data(), eigvecs.data(), (T) 1e-2, state, subwork);
+        T powermethod_reltol = 1e-2;
+        T powermethod_failprob = 1e-6;
+        auto [lambda_max, lambda_min, ignore] = hr_lapack::exeigs_powermethod(
+            N, G.data(), eigvecs.data(), powermethod_reltol, powermethod_failprob, state, subwork
+        );
         T sigma_max = std::sqrt(lambda_max);
         T sigma_min = std::sqrt(lambda_min);
         ASSERT_LE(sigma_max, 1+distortion);
         ASSERT_GE(sigma_min, 1-distortion);
         return;
     }
+
+    template <typename T>
+    void run_gaussian(T distortion, T tau, T p_fail_bound, uint32_t key) {
+        /**
+         *  Generate a d-by-N random matrix, where d = gamma*N,
+         *  gamma = ((1 + tau)/delta)^2, and N is the smallest integer where n > N implies
+         *  n*(tau  - 1/sqrt(n))^2 >= 2*log(1/p_fail_bound).
+         *  One can verify that this value for N is given as
+         *      N = ceil( ([sqrt(2*log(1/p)) + 1]/ tau )^2 )
+         * 
+         * ----------------------
+         * Temporary notes
+         * ----------------------
+         * Find N = min{ n : exp(-t^2 gamma n ) <= p_fail_bound }, where
+         *       t := delta - (gamma)^{-1/2}(1 + 1/sqrt(n)), and 
+         *   gamma := ((1+tau)/delta)^2.
+         * 
+         * Choosing gamma of this form with tau > 0 ensures that no 
+         * matter the value of delta in (0, 1) there always an N
+         * so that probability bound holds whenever n >= N.
+         * 
+         */ 
+        double val = std::sqrt(-2 * std::log(p_fail_bound)) + 1;
+        val /= tau;
+        val *= val;
+        int64_t N = (int64_t) std::ceil(val);
+        int64_t d = std::ceil( std::pow((1 + tau) / distortion, 2) * N );
+        run_general<T>(DenseDistName::Gaussian, distortion, d, N, key);
+        return;
+    }
+
+    template <typename T>
+    void run_uniform(T distortion, T rate, T p_fail_bound, uint32_t key) {
+        int64_t N = std::ceil(std::log((T)2 / p_fail_bound) / rate);
+        T c6 = 1.0; // definitely not high enough.
+        T epsnet_spectralnorm_factor = 1.0; // should be 4.0
+        T theta = epsnet_spectralnorm_factor * c6 * (rate + std::log(9));
+        int64_t d = std::ceil(N * theta * std::pow(distortion, -2));
+        run_general<T>(DenseDistName::Uniform, distortion, d, N, key);
+        return;
+    }
 };
 
-TEST_F(TestSubspaceDistortion, gaussian_float_tau_100_fail_00001) {
+TEST_F(TestSubspaceDistortion, gaussian_float_rate_100_fail_00001) {
     uint32_t key = 8673309;
     float p_fail = 1e-3;
     for (uint32_t i = 0; i < 3; ++i ) {
@@ -120,13 +126,34 @@ TEST_F(TestSubspaceDistortion, gaussian_float_tau_100_fail_00001) {
     }
 }
 
-TEST_F(TestSubspaceDistortion, gaussian_float_tau_020_fail_00001) {
+TEST_F(TestSubspaceDistortion, gaussian_float_rate_002_fail_00001) {
     uint32_t key = 8673309;
     float p_fail = 1e-3;
+    float tau = 0.2f; // the convergence rate depends on tau^2.
     for (uint32_t i = 0; i < 3; ++i ) {
-        run_gaussian<float>(0.75f, 0.2f, p_fail, key + i);
-        run_gaussian<float>(0.50f, 0.2f, p_fail, key + i);
-        run_gaussian<float>(0.25f, 0.2f, p_fail, key + i);
+        run_gaussian<float>(0.75f, tau, p_fail, key + i);
+        run_gaussian<float>(0.50f, tau, p_fail, key + i);
+        run_gaussian<float>(0.25f, tau, p_fail, key + i);
     }
 }
 
+TEST_F(TestSubspaceDistortion, uniform_float_rate_100_fail_00001) {
+    uint32_t key = 8673309;
+    float p_fail = 1e-3;
+    for (uint32_t i = 0; i < 3; ++i ) {
+        run_uniform<float>(0.50f, 1.0f, p_fail, key + i);
+        run_uniform<float>(0.25f, 1.0f, p_fail, key + i);
+        run_uniform<float>(0.10f, 1.0f, p_fail, key + i);
+    }
+}
+
+TEST_F(TestSubspaceDistortion, uniform_float_rate_004_fail_00001) {
+    uint32_t key = 8673309;
+    float p_fail = 1e-3;
+    float rate = 0.04;
+    for (uint32_t i = 0; i < 3; ++i ) {
+        run_uniform<float>(0.50f, rate, p_fail, key + i);
+        run_uniform<float>(0.25f, rate, p_fail, key + i);
+        run_uniform<float>(0.10f, rate, p_fail, key + i);
+    }
+}

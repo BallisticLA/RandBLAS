@@ -210,17 +210,36 @@ int64_t posdef_eig_chol_iteration(int64_t n, T* A, T* eigvals, T reltol, int64_t
     return (converged) ? iter : -iter;
 }
 
+template <typename T>
+inline int64_t required_powermethod_iters(int64_t n, T p_fail, T tol) {
+    T pi = 4*std::atan(1.0);
+    int64_t expectation_bound = (int64_t) std::ceil(( 1.0 + std::log(std::sqrt(pi * (T)n)) )/ tol );
+
+    T temp0 = 1 - tol;
+    T temp1 = std::log(1 / temp0);
+    T temp2 = tol * p_fail * p_fail;
+    int64_t probability_bound_1 = (int64_t) std::log(std::exp(1.) +  (T)0.27 * temp0 * temp1 / temp2) / temp1;
+    int64_t probability_bound_2 = (int64_t) std::log(std::sqrt(n) / p_fail) / temp1;
+    int64_t probability_bound   = std::min(probability_bound_1, probability_bound_2);
+
+    // std::cout << "(n, p, eps) = " << n << ", " << p_fail << ", " << tol << std::endl;
+    // std::cout << "Power iters bound for expectation : " << expectation_bound << std::endl;
+    // std::cout << "Power iters bound for probability : " << probability_bound << std::endl;
+    int64_t num_iters = std::max(expectation_bound, probability_bound);
+    return num_iters;
+}
+
 template <typename T, typename FUNC, typename RNG>
-std::pair<T, RNGState<RNG>> power_method(int64_t n, FUNC &A, T* v, T tol, const RNGState<RNG> &state) {
+std::pair<T, RNGState<RNG>> power_method(int64_t n, FUNC &A, T* v, T tol, T failure_prob, const RNGState<RNG> &state) {
     auto next_state = RandBLAS::fill_dense(blas::Layout::ColMajor, {n, 1}, n, 1, 0, 0, v, state);
     std::vector<T> work(n, 0.0);
     T* u = work.data();
     T norm = blas::nrm2(n, v, 1);
     blas::scal(n, (T)1.0/norm, v, 1);
     T lambda = 0.0;
-    T pi = 4*std::atan(1.0);
-    int64_t max_iter = (int64_t) std::ceil(( 1.0 + std::log(std::sqrt(pi * (T)n)) )/ tol );
-    for (int64_t iter = 0; iter < max_iter; ++iter) {
+    //
+    int64_t num_iters = required_powermethod_iters(n, failure_prob, tol);
+    for (int64_t iter = 0; iter < num_iters; ++iter) {
         A(v, u);
         lambda = blas::dot(n, v, 1, u, 1);
         blas::copy(n, u, 1, v, 1);
@@ -230,8 +249,19 @@ std::pair<T, RNGState<RNG>> power_method(int64_t n, FUNC &A, T* v, T tol, const 
     return {lambda, next_state};
 }
 
+// Note that if we're only interested in subspace embedding distortion then it would suffice to just bound
+// the eigenvalue of A-I with largest absolute value (which might be negative). If we went with that approach
+// then we could make do with one run of a power method instead of running the power method on A and inv(A).
+//
+// The convergence results I know for the power method that don't require a spectral gap are specifically
+// for PSD matrices. Now, we could just run the power method implicitly on the PSD matrix (A - I)^2.
+// This require the same number of matrix-vector multiplications, but it remove the need for ever
+// accessing inv(A) as a linear operator (which we do right now by decomposing A and forming invA explicitly,
+// so we can get away with GEMV). That's useful if A is a fast operator (whether or not that's the case 
+// might be delicate since it's a Gram matrix of a sketch S*U).
+//
 template <typename T, typename RNG>
-std::tuple<T, T, RNGState<RNG>> exeigs_powermethod(int64_t n, const T* A, T* eigvecs, T tol, const RNGState<RNG> &state,  std::vector<T> work) {
+std::tuple<T, T, RNGState<RNG>> exeigs_powermethod(int64_t n, const T* A, T* eigvecs, T tol, T failure_prob, const RNGState<RNG> &state,  std::vector<T> work) {
     auto layout = blas::Layout::ColMajor;
     RandBLAS::util::require_symmetric(layout, A, n, n, (T) 0.0);
 
@@ -239,7 +269,7 @@ std::tuple<T, T, RNGState<RNG>> exeigs_powermethod(int64_t n, const T* A, T* eig
     auto A_func = [layout, A, n](const T* x, T* y) {
         blas::gemv(layout, blas::Op::NoTrans, n, n, (T) 1.0, A, n, x, 1, (T) 0.0, y, 1);
     };
-    auto [lambda_max, next_state] = power_method<T>(n, A_func, eigvecs, tol, state);
+    auto [lambda_max, next_state] = power_method<T>(n, A_func, eigvecs, tol, failure_prob, state);
 
     // To compute the smallest eigenpair we'll explicitly invert A. This requires
     // 2n^2 workspace: n^2 workspace for Cholesky of A (since we don't want to destroy A)
@@ -268,7 +298,7 @@ std::tuple<T, T, RNGState<RNG>> exeigs_powermethod(int64_t n, const T* A, T* eig
         blas::gemv(layout, blas::Op::NoTrans, n, n, (T) 1.0, invA, n, x, 1, (T) 0.0, y, 1);
         return;
     };
-    auto [lambda_min, final_state] = power_method<T>(n, invA_func, eigvecs + n, tol, next_state);
+    auto [lambda_min, final_state] = power_method<T>(n, invA_func, eigvecs + n, tol, failure_prob, next_state);
     lambda_min = 1.0/lambda_min;
 
     return {lambda_max, lambda_min, final_state};

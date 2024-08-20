@@ -47,7 +47,6 @@
 
 namespace RandBLAS::dense {
 
-
 template <typename T_IN, typename T_OUT>
 inline void copy_promote(int n, const T_IN &a, T_OUT* b) {
     for (int i = 0; i < n; ++i)
@@ -95,15 +94,7 @@ inline void copy_promote(int n, const T_IN &a, T_OUT* b) {
  * 
  */
 template<typename T, typename RNG, typename OP>
-static RNGState<RNG> fill_dense_submat_impl(
-    int64_t n_cols,
-    T* smat,
-    int64_t n_srows,
-    int64_t n_scols,
-    int64_t ptr,
-    const RNGState<RNG> & seed,
-    int64_t lda = 0
-) {
+static RNGState<RNG> fill_dense_submat_impl(int64_t n_cols, T* smat, int64_t n_srows, int64_t n_scols, int64_t ptr, const RNGState<RNG> &seed, int64_t lda = 0) {
     if (lda <= 0) {
         lda = n_scols;
     } else {
@@ -225,7 +216,6 @@ enum class DenseDistName : char {
     BlackBox = 'B'
 };
 
-
 // =============================================================================
 /// A distribution over dense sketching operators.
 struct DenseDist {
@@ -302,9 +292,7 @@ struct DenseDist {
 };
 
 
-inline blas::Layout dist_to_layout(
-    const DenseDist &D
-) {
+inline blas::Layout dist_to_layout(const DenseDist &D) {
     randblas_require(D.major_axis != MajorAxis::Undefined);
     bool is_wide = D.n_rows < D.n_cols;
     bool fa_long = D.major_axis == MajorAxis::Long;
@@ -319,9 +307,7 @@ inline blas::Layout dist_to_layout(
     }
 }
 
-inline int64_t major_axis_length(
-    const DenseDist &D
-) {
+inline int64_t major_axis_length(const DenseDist &D) {
     randblas_require(D.major_axis != MajorAxis::Undefined);
     return (D.major_axis == MajorAxis::Long) ? 
         std::max(D.n_rows, D.n_cols) : std::min(D.n_rows, D.n_cols);
@@ -334,12 +320,11 @@ inline T isometry_scale_factor(DenseDist D) {
         return common;
     } else if (D.family == DenseDistName::Uniform) {
         // the variance of an r.v. distributed Unif[-1, 1] is 4/12=1/3.
-        return std::sqrt(3)*common;
+        return common;
     } else {
         throw std::runtime_error("Unrecognized distribution.");
     }
 }
-
 
 
 // =============================================================================
@@ -502,16 +487,7 @@ struct DenseSkOp {
 ///      - Used to define \math{S} as a sample from \math{\D}.
 /// 
 template<typename T, typename RNG = r123::Philox4x32>
-RNGState<RNG> fill_dense(
-    blas::Layout layout,
-    const DenseDist &D,
-    int64_t n_rows,
-    int64_t n_cols,
-    int64_t ro_s,
-    int64_t co_s,
-    T* buff,
-    const RNGState<RNG> &seed
-) {
+RNGState<RNG> fill_dense(blas::Layout layout, const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s, T* buff, const RNGState<RNG> &seed) {
     using RandBLAS::dense::fill_dense_submat_impl;
     randblas_require(D.n_rows >= n_rows + ro_s);
     randblas_require(D.n_cols >= n_cols + co_s);
@@ -536,6 +512,7 @@ RNGState<RNG> fill_dense(
         }
         case DenseDistName::Uniform: {
             next_state = fill_dense_submat_impl<T,RNG,r123ext::uneg11>(ma_len, buff, n_rows_, n_cols_, ptr, seed);
+            blas::scal(n_rows_ * n_cols_, (T)std::sqrt(3), buff, 1);
             break;
         }
         case DenseDistName::BlackBox: {
@@ -589,11 +566,7 @@ RNGState<RNG> fill_dense(
 ///       the caller's responsibility to perform a transpose as needed.
 /// 
 template <typename T, typename RNG = r123::Philox4x32>
-RNGState<RNG> fill_dense(
-    const DenseDist &D,
-    T *buff,
-    const RNGState<RNG> &seed
-) {
+RNGState<RNG> fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed) {
     return fill_dense(dist_to_layout(D), D, D.n_rows, D.n_cols, 0, 0, buff, seed);
 }
 
@@ -611,9 +584,7 @@ RNGState<RNG> fill_dense(
 ///     A DenseSkOp object.
 ///    
 template <typename T, typename RNG>
-void fill_dense(
-    DenseSkOp<T,RNG> &S
-) {
+void fill_dense(DenseSkOp<T,RNG> &S) {
     randblas_require(S.buff == nullptr);
     randblas_require(S.dist.family != DenseDistName::BlackBox);
     S.buff = new T[S.dist.n_rows * S.dist.n_cols];
