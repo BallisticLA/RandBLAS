@@ -198,10 +198,20 @@ inline double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observ
     randblas_require(0 <= K && K <= N);
     randblas_require(0 <= D && D <= N);
     randblas_require(0 <= observed_k && observed_k <= K);
+    /***
+     * The values in the following line are outside the valid range of `observed_k` for the hypergeometric
+     * distribution. However, it may be useful to return 0 for these cases, ensuring that the pmf array
+     * always covers the full range from 0 to K. This allows the caller to index into the pmf array
+     * using any `observed_k` value without having to account for the specific bounds where the pmf is non-zero.
+    //  */
+    if (observed_k < D - (N - K) || observed_k > D) // These values are outside the bounds of observed_k
+        return 0.0;
+
     double lognum = log_binomial_coefficient(N - K, D - observed_k) + log_binomial_coefficient(K, observed_k);
     double logden = log_binomial_coefficient(N, D);
     double exparg = lognum - logden;
     double out = std::exp(exparg);
+
     return out;
 }
 
