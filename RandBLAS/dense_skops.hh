@@ -358,7 +358,7 @@ struct DenseSkOp {
 
     T *buff = nullptr;                      // memory
     blas::Layout layout;                    // matrix storage order
-    bool del_buff_on_destruct = false;      // only applies if fill_dense(S) has been called.å
+    bool del_buff_on_destruct = false;      // only applies if fill_dense(S) has been called.
 
 
     /////////////////////////////////////////////////////////////////////
