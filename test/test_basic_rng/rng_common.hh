@@ -169,6 +169,20 @@ double critical_value_rep_mutator(TI &n, double &sig) {
 
 }
 
+// Function to check the KS-Stat against crit values
+template <typename T>
+std::pair<int, double> ks_check_critval(const std::vector<T> &cdf1, const std::vector<T> &cdf2, double critical_value) {
+    assert(cdf1.size() == cdf2.size()); // Vectors must be of same size to perform test
+
+    for (size_t i = 0; i < cdf1.size(); ++i) {
+        double diff = std::abs(cdf1[i] - cdf2[i]);
+        if (diff > critical_value) {
+            return {i, diff}; // the test failed.
+        }
+    }
+    return {-1, 0.0}; // interpret a negative return value as the test passing.
+}
+
 //
 // MARK: combinatorics
 //
@@ -215,6 +229,18 @@ inline double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observ
     return out;
 }
 
+template <typename T>
+std::vector<T> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D) {
+    randblas_require(0 <= K && K <= N);
+    randblas_require(0 <= D && D <= N);
+
+    std::vector<float> pmf(K + 1);
+    for (int64_t i = 0; i <= K; ++i) {
+        pmf[i] = hypergeometric_pmf(N, K, D, i);
+    }
+    return pmf;
+}
+
 inline double hypergeometric_mean(int64_t N, int64_t K, int64_t D) {
     double dN = (double) N;
     double dK = (double) K;
@@ -242,12 +268,12 @@ inline T standard_normal_cdf(T x) {
 }
 
 template <typename T>
-inline T uniform_neg11_cdf(T x) {
-    if (x <= -1)
+inline T uniform_syminterval_cdf(T x, T radius) {
+    if (x <= -radius)
         return 0;
-    if (x >= 1)
+    if (x >= radius)
         return 1;
-    return (x + 1) / 2;
+    return (x + radius) / (2*radius);
 }
 
 } // end namespace RandBLAS_StatTests

@@ -60,7 +60,7 @@ class TestScalarDistributions : public ::testing::Test {
             if (dn == DenseDistName::Gaussian) {
                 return RandBLAS_StatTests::standard_normal_cdf(x);
             } else if (dn == DenseDistName::Uniform) {
-                return RandBLAS_StatTests::uniform_neg11_cdf(x);
+                return RandBLAS_StatTests::uniform_syminterval_cdf(x, (T) std::sqrt(3));
             } else {
                 std::string msg = "Unrecognized distributions name";
                 throw std::runtime_error(msg);

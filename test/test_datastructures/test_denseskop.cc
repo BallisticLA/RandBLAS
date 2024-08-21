@@ -149,7 +149,7 @@ TEST_F(TestDenseMoments, Gaussian)
 TEST_F(TestDenseMoments, Uniform)
 {
     auto dn = RandBLAS::DenseDistName::Uniform;
-    double expect_stddev = 1.0 / sqrt(3.0);
+    double expect_stddev = 1.0;
     for (uint32_t key : {0, 1, 2})
     {
         test_mean_stddev<float>(key, 500, 500, dn, (float) expect_stddev);
