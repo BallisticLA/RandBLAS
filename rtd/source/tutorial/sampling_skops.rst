@@ -50,7 +50,7 @@ However, the *recommended* constructors for these classes just accept two parame
 a representation of a distribution (i.e., a DenseDist or a SparseDist) and an RNGState.
 
 For example, the following code produces a :math:`10000 \times 50` dense sketching operator 
-whose entries are iid samples from the uniform distribution over :math:`[-1, 1]`.
+whose entries are iid samples from the standard normal distribution.
 
    .. code:: c++
 

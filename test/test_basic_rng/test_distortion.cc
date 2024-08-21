@@ -116,7 +116,7 @@ class TestSubspaceDistortion : public ::testing::Test {
     }
 };
 
-TEST_F(TestSubspaceDistortion, gaussian_float_rate_100_fail_00001) {
+TEST_F(TestSubspaceDistortion, gaussian_rate_100_fail_0001) {
     uint32_t key = 8673309;
     float p_fail = 1e-3;
     for (uint32_t i = 0; i < 3; ++i ) {
@@ -126,7 +126,7 @@ TEST_F(TestSubspaceDistortion, gaussian_float_rate_100_fail_00001) {
     }
 }
 
-TEST_F(TestSubspaceDistortion, gaussian_float_rate_002_fail_00001) {
+TEST_F(TestSubspaceDistortion, gaussian_rate_004_fail_0001) {
     uint32_t key = 8673309;
     float p_fail = 1e-3;
     float tau = 0.2f; // the convergence rate depends on tau^2.
@@ -137,7 +137,7 @@ TEST_F(TestSubspaceDistortion, gaussian_float_rate_002_fail_00001) {
     }
 }
 
-TEST_F(TestSubspaceDistortion, uniform_float_rate_100_fail_00001) {
+TEST_F(TestSubspaceDistortion, uniform_rate_100_fail_0001) {
     uint32_t key = 8673309;
     float p_fail = 1e-3;
     for (uint32_t i = 0; i < 3; ++i ) {
@@ -147,7 +147,7 @@ TEST_F(TestSubspaceDistortion, uniform_float_rate_100_fail_00001) {
     }
 }
 
-TEST_F(TestSubspaceDistortion, uniform_float_rate_004_fail_00001) {
+TEST_F(TestSubspaceDistortion, uniform_rate_004_fail_0001) {
     uint32_t key = 8673309;
     float p_fail = 1e-3;
     float rate = 0.04;

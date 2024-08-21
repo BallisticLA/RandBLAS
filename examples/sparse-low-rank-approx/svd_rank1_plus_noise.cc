@@ -85,7 +85,7 @@ void iid_sparsify_random_dense(
     #define MAT(_i, _j)  mat[(_i) * stride_row + (_j) * stride_col]
     for (int64_t i = 0; i < n_rows; ++i) {
         for (int64_t j = 0; j < n_cols; ++j) {
-            T v = (SPAR(i, j) + 1.0) / 2.0;
+            T v = (SPAR(i, j) + std::sqrt(3)) / 2.0*std::sqrt(3);
             if (v < prob_of_zero) {
                 MAT(i, j) = 0.0;
             } else {
@@ -190,7 +190,7 @@ void make_noise_matrix(double noise_scale, int64_t m, int64_t n, double prob_of_
     //  NOTE: it would be more efficient to sample vec_nnz*vec_nnz elements without replacement from the index set
     //  from 0 to m*n-1, then de-vectorize those indices (in either row-major or col-major interpretation) and
     //  only sample the values of the nonzeros for these pre-determined structural nonzeros. The current implementation
-    //  has to generate to dense m-by-n matrices whose entries are iid uniform [-1, 1].
+    //  has to generate to dense m-by-n matrices whose entries are iid uniform [-sqrt(3), sqrt(3)].
     //
     using T = typename SpMat::scalar_t;
     using sint_t = typename SpMat::index_t;

@@ -203,11 +203,12 @@ namespace RandBLAS {
 /// that can be used in GEMM.
 enum class DenseDistName : char {
     // ---------------------------------------------------------------------------
-    ///  Indicates the Gaussian distribution with mean 0 and standard deviation 1.
+    ///  Indicates the Gaussian distribution with mean 0 and variance 1.
     Gaussian = 'G',
 
     // ---------------------------------------------------------------------------
-    ///  Indicates the uniform distribution over [-1, 1].
+    ///  Indicates the uniform distribution over [-r, r] where r := sqrt(3)
+    ///  is the radius that provides for a variance of 1.
     Uniform = 'U',
 
     // ---------------------------------------------------------------------------
@@ -268,12 +269,13 @@ struct DenseDist {
 
     // ---------------------------------------------------------------------------
     ///  A distribution over matrices of shape (n_rows, n_cols) with entries drawn
-    ///  iid from either the standard normal distribution or the uniform distribution
-    ///  over [-1, 1]. 
+    ///  iid from either the default choice of standard normal distribution, or from
+    ///  the uniform distribution over [-r, r], where r := sqrt(3) provides for
+    ///  unit variance.
     DenseDist(
         int64_t n_rows,
         int64_t n_cols,
-        DenseDistName dn = DenseDistName::Uniform
+        DenseDistName dn = DenseDistName::Gaussian
     ) : n_rows(n_rows), n_cols(n_cols), family(dn), major_axis( (dn == DenseDistName::BlackBox) ? MajorAxis::Undefined : MajorAxis::Long) { }
 
     DenseDist(
@@ -315,15 +317,12 @@ inline int64_t major_axis_length(const DenseDist &D) {
 
 template <typename T>
 inline T isometry_scale_factor(DenseDist D) {
-    T common = std::pow((T) std::min(D.n_rows, D.n_cols), -0.5);
-    if (D.family == DenseDistName::Gaussian) {
-        return common;
-    } else if (D.family == DenseDistName::Uniform) {
-        // the variance of an r.v. distributed Unif[-1, 1] is 4/12=1/3.
-        return common;
-    } else {
+    if (D.family == DenseDistName::BlackBox) {
         throw std::runtime_error("Unrecognized distribution.");
     }
+    // When we sample from the scalar distributions we always
+    // scale things so they're variance-1. 
+    return std::pow((T) std::min(D.n_rows, D.n_cols), -0.5);
 }
 
 
