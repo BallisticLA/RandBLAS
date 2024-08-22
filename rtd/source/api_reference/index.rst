@@ -11,10 +11,7 @@ API Reference
 .. toctree::
     :maxdepth: 2
 
-    Sketching operators and where to find them <skops_and_dists>
-    Computing a sketch: dense data <sketch_dense>
-    Representing sparse data <sparse_matrices>
-    Computing a sketch: sparse data <sketch_sparse>
-    Sparse BLAS operations <other_sparse>
+    Sketching operators <skops_and_dists>
+    Working with dense data <sketch_dense>
+    Working with sparse data <sketch_sparse_combined>
     Utilities for index sampling <index_sampling_utils>
-

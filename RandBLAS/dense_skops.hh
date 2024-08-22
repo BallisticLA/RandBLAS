@@ -441,7 +441,7 @@ struct DenseSkOp {
 /// we have
 /// @verbatim embed:rst:leading-slashes
 /// .. math::
-///     \mat(\buff)[i,j] = \matS[\ioff + i, \joff + j]
+///     \mat(\buff)_{ij} = \matS_{(i+\ioff)(\joff + j)}
 /// @endverbatim
 /// assuming the standard convention of zero-indexing.
 ///
