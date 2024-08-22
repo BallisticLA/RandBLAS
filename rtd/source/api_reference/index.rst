@@ -12,4 +12,4 @@ API Reference
     Sketching operators <skops_and_dists>
     Working with dense data <sketch_dense>
     Working with sparse data <sketch_sparse>
-    Utilities for index sampling <index_sampling_utils>
+    Utilities <utilities>

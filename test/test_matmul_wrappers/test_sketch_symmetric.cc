@@ -54,7 +54,7 @@ void random_symmetric_mat(int64_t n, T* A, int64_t lda, STATE s) {
     // whose entries in the upper triangle are iid, then symmetrizing that matrix, then
     // zeroing out all entries outside the leading principal submatrix of order n.
     RandBLAS::fill_dense(Layout::ColMajor, {lda, lda}, n, n, 0, 0, A, s);
-    RandBLAS::util::symmetrize(Layout::ColMajor, Uplo::Upper, n, A, lda);
+    RandBLAS::symmetrize(Layout::ColMajor, Uplo::Upper, n, A, lda);
     return;
 }
 

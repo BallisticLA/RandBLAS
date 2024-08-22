@@ -17,8 +17,14 @@
    .. |ttt| mathmacro:: \texttt
 
 ******************************************
-Computing a sketch: dense data
+Working with dense data in RandBLAS
 ******************************************
+
+TODO: add a few words about the data model.
+
+
+Sketching dense matrices and vectors 
+====================================
 
 RandBLAS has adaptions of GEMM, GEMV, and SYMM when one of their matrix operands is a sketching operator.
 These adaptations are provided through overloaded functions named sketch_general, sketch_vector, and sketch_symmetric.
@@ -28,8 +34,10 @@ sketch_vector and sketch_symmetric are basic wrappers around sketch_general, and
 to make implementations less error-prone when porting code that currently uses BLAS
 or a BLAS-like interface.
 
+
+
 Analogs to GEMM
-===============
+---------------
 
 .. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxS)\cdot \op(\mtxA) + \beta \cdot  \mtxB`
     :animate: fade-in-slide-down
@@ -57,7 +65,7 @@ Analogs to GEMM
 
 
 Analogs to SYMM
-===============
+---------------
 
 .. dropdown:: :math:`\mtxB = \alpha \cdot \mtxS \cdot \mtxA + \beta \cdot \mtxB`
   :animate: fade-in-slide-down
@@ -87,7 +95,7 @@ Analogs to SYMM
 
 
 Analogs to GEMV
-===============
+---------------
 
 .. dropdown:: :math:`\mtxy = \alpha \cdot \op(\mtxS) \cdot \mtxx + \beta \cdot \mtxy`
     :animate: fade-in-slide-down
@@ -103,3 +111,15 @@ Analogs to GEMV
     .. doxygenfunction:: sketch_vector(blas::Op opS, int64_t d, int64_t m, T alpha, SKOP &S, int64_t ro_s, int64_t co_s, const T *x, int64_t incx, T beta, T *y, int64_t incy)
       :project: RandBLAS
 
+
+Matrix format utility functions
+===============================
+
+.. doxygenfunction:: RandBLAS::symmetrize(blas::Layout layout, blas::Uplo uplo, int64_t n, T* A, int64_t lda)
+   :project: RandBLAS
+
+.. doxygenfunction:: RandBLAS::transpose_square(T* A, int64_t n, int64_t lda)
+   :project: RandBLAS
+
+.. doxygenfunction:: RandBLAS::overwrite_triangle(blas::Layout layout, blas::Uplo to_overwrite, int64_t n, int64_t strict_offset, T val,  T* A, int64_t lda)
+   :project: RandBLAS

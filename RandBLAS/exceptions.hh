@@ -87,6 +87,8 @@ inline void throw_if( bool cond, const char* condstr, const char* func )
     #define RandBLAS_ATTR_FORMAT(I, F) __attribute__((format( printf, I, F )))
 #endif
 
+#define RandBLAS_ERROR_MESSAGE_SIZE 256
+
 // -----------------------------------------------------------------------------
 // internal helper function; throws Error if cond is true
 // uses printf-style format for error message
@@ -98,7 +100,7 @@ inline void throw_if( bool cond, const char* condstr, const char* func, const ch
 inline void throw_if( bool cond, const char* condstr, const char* func, const char* format, ... ) {
     UNUSED(condstr);
     if (cond) {
-        char buf[80];
+        char buf[RandBLAS_ERROR_MESSAGE_SIZE];
         va_list va;
         va_start( va, format );
         vsnprintf( buf, sizeof(buf), format, va );
@@ -116,7 +118,7 @@ inline void abort_if( bool cond, const char* func,  const char* format, ... )
 
 inline void abort_if( bool cond, const char* func,  const char* format, ... ) {
     if (cond) {
-        char buf[80];
+        char buf[RandBLAS_ERROR_MESSAGE_SIZE];
         va_list va;
         va_start( va, format );
         vsnprintf( buf, sizeof(buf), format, va );

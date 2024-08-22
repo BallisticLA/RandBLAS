@@ -58,7 +58,7 @@ class TestSubspaceDistortion : public ::testing::Test {
         blas::scal(d*N, inv_stddev / std::sqrt(d), S.data(), 1);
         std::vector<T> G(N*N, 0.0);
         blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, N, d, (T)1.0, S.data(), d, (T)0.0, G.data(), N);
-        RandBLAS::util::symmetrize(layout, blas::Uplo::Upper, N, G.data(), N);
+        RandBLAS::symmetrize(layout, blas::Uplo::Upper, N, G.data(), N);
         
         std::vector<T> eigvecs(2*N, 0.0);
         std::vector<T> subwork{};
