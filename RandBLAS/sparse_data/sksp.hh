@@ -47,25 +47,10 @@ namespace RandBLAS::sparse_data {
 /// Sketch from the left in an SpMM-like operation
 ///
 /// .. math::
-///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(S))}_{d \times m} \cdot \underbrace{\op(\submat(A))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
+///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(\mtxS))}_{d \times m} \cdot \underbrace{\op(\submat(\mtxA))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
 ///
-/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(X)` either returns a matrix :math:`X`
-/// or its transpose, :math:`A` is a sparse matrix, and :math:`S` is a dense sketching operator.
-/// 
-/// .. dropdown:: FAQ
-///   :animate: fade-in-slide-down
-///
-///     **What's** :math:`\mat(B)` **?**
-///
-///       It's matrix of shape :math:`d \times n`. Its contents are determined by :math:`(B, \ldb)`
-///       and "layout", following the same convention as the Level 3 BLAS function "GEMM."
-///
-///     **What are** :math:`\submat(S)` **and** :math:`\submat(A)` **?**
-///
-///       Their shapes are determined implicitly by :math:`(\opS, d, m)` and :math:`(\opA, n, m)`.
-///       If :math:`{\submat(X)}` is of shape :math:`r \times c`,
-///       then it is the :math:`r \times c` submatrix of :math:`{X}` whose upper-left corner
-///       appears at index :math:`(\texttt{ro_x}, \texttt{co_x})` of :math:`{X}`.
+/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(\mtxX)` either returns a matrix :math:`\mtxX`
+/// or its transpose, :math:`\mtxA` is a sparse matrix, and :math:`\mtxS` is a dense sketching operator.
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
@@ -75,58 +60,58 @@ namespace RandBLAS::sparse_data {
 ///       * Matrix storage for :math:`\mat(B)`.
 ///
 ///      opS - [in]
-///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(S)) = \submat(S)`.
-///       * If :math:`\opS` = Trans, then :math:`\op(\submat(S)) = \submat(S)^T`.
+///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(\mtxS)) = \submat(\mtxS)`.
+///       * If :math:`\opS` = Trans, then :math:`\op(\submat(\mtxS)) = \submat(\mtxS)^T`.
 ///
 ///      opA - [in]
-///       * If :math:`\opA` = NoTrans, then :math:`\op(\submat(A)) = \submat(A)`.
-///       * If :math:`\opA` = Trans, then :math:`\op(\submat(A)) = \submat(A)^T`.
+///       * If :math:`\opA` = NoTrans, then :math:`\op(\submat(\mtxA)) = \submat(\mtxA)`.
+///       * If :math:`\opA` = Trans, then :math:`\op(\submat(\mtxA)) = \submat(\mtxA)^T`.
 ///
 ///      d - [in]
 ///       * A nonnegative integer.
 ///       * The number of rows in :math:`\mat(B)`.
-///       * The number of rows in :math:`\op(\submat(S))`.
+///       * The number of rows in :math:`\op(\submat(\mtxS))`.
 ///
 ///      n - [in]
 ///       * A nonnegative integer.
 ///       * The number of columns in :math:`\mat(B)`.
-///       * The number of columns in :math:`\op(\mat(A))`.
+///       * The number of columns in :math:`\op(\mat(\mtxA))`.
 ///
 ///      m - [in]
 ///       * A nonnegative integer.
-///       * The number of columns in :math:`\op(\submat(S))`
-///       * The number of rows in :math:`\op(\mat(A))`.
+///       * The number of columns in :math:`\op(\submat(\mtxS))`
+///       * The number of rows in :math:`\op(\mat(\mtxA))`.
 ///
 ///      alpha - [in]
 ///       * A real scalar.
 ///
 ///      S - [in]
 ///       * A DenseSkOp object.
-///       * Defines :math:`\submat(S)`.
+///       * Defines :math:`\submat(\mtxS)`.
 ///
 ///      ro_s - [in]
 ///       * A nonnegative integer.
-///       * The rows of :math:`\submat(S)` are a contiguous subset of rows of :math:`S`.
-///       * The rows of :math:`\submat(S)` start at :math:`S[\texttt{ro_s}, :]`.
+///       * The rows of :math:`\submat(\mtxS)` are a contiguous subset of rows of :math:`\mtxS`.
+///       * The rows of :math:`\submat(\mtxS)` start at :math:`S[\texttt{ro_s}, :]`.
 ///
 ///      co_s - [in]
 ///       * A nonnegative integer.
-///       * The columns of :math:`\submat(S)` are a contiguous subset of columns of :math:`S`.
-///       * The columns :math:`\submat(S)` start at :math:`S[:,\texttt{co_s}]`. 
+///       * The columns of :math:`\submat(\mtxS)` are a contiguous subset of columns of :math:`\mtxS`.
+///       * The columns :math:`\submat(\mtxS)` start at :math:`S[:,\texttt{co_s}]`. 
 ///
 ///      A - [in]
 ///       * A RandBLAS sparse matrix object.
-///       * Defines :math:`\submat(A)`.
+///       * Defines :math:`\submat(\mtxA)`.
 ///
 ///      ro_a - [in]
 ///       * A nonnegative integer.
-///       * The rows of :math:`\submat(A)` are a contiguous subset of rows of :math:`A`.
-///       * The rows of :math:`\submat(A)` start at :math:`A[\texttt{ro_a}, :]`.
+///       * The rows of :math:`\submat(\mtxA)` are a contiguous subset of rows of :math:`\mtxA`.
+///       * The rows of :math:`\submat(\mtxA)` start at :math:`\mtxA[\texttt{ro_a}, :]`.
 ///
 ///      co_a - [in]
 ///       * A nonnegative integer.
-///       * The columns of :math:`\submat(A)` are a contiguous subset of columns of :math:`A`.
-///       * The columns :math:`\submat(A)` start at :math:`A[:,\texttt{co_a}]`. 
+///       * The columns of :math:`\submat(\mtxA)` are a contiguous subset of columns of :math:`\mtxA`.
+///       * The columns :math:`\submat(\mtxA)` start at :math:`\mtxA[:,\texttt{co_a}]`. 
 ///
 ///      beta - [in]
 ///       * A real scalar.
@@ -150,8 +135,8 @@ void lsksp3(
     blas::Op opS,
     blas::Op opA,
     int64_t d, // B is d-by-n
-    int64_t n, // op(submat(A)) is m-by-n
-    int64_t m, // op(submat(S)) is d-by-m
+    int64_t n, // op(submat(\mtxA)) is m-by-n
+    int64_t m, // op(submat(\mtxS)) is d-by-m
     T alpha,
     DenseSkOp<T, RNG> &S,
     int64_t ro_s,
@@ -163,7 +148,7 @@ void lsksp3(
     T *B,
     int64_t ldb
 ) {
-    // B = op(submat(S)) @ op(submat(A))
+    // B = op(submat(\mtxS)) @ op(submat(\mtxA))
     auto [rows_submat_S, cols_submat_S] = dims_before_op(d, m, opS);
     if (!S.buff) {
         auto submat_S = submatrix_as_blackbox(S, rows_submat_S, cols_submat_S, ro_s, co_s);
@@ -202,25 +187,10 @@ void lsksp3(
 /// Sketch from the right in an SpMM-like operation
 ///
 /// .. math::
-///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(A))}_{m \times n} \cdot \underbrace{\op(\submat(S))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
+///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(\mtxA))}_{m \times n} \cdot \underbrace{\op(\submat(\mtxS))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
 ///
-/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(X)` either returns a matrix :math:`X`
-/// or its transpose, :math:`A` is a sparse matrix, and :math:`S` is a dense sketching operator.
-/// 
-/// .. dropdown:: FAQ
-///   :animate: fade-in-slide-down
-///
-///     **What's** :math:`\mat(B)` **?**
-///
-///       It's matrix of shape :math:`m \times d`. Its contents are determined by :math:`(B, \ldb)`
-///       and "layout", following the same convention as the Level 3 BLAS function "GEMM."
-///
-///     **What are** :math:`\submat(S)` **and** :math:`\submat(A)` **?**
-///
-///       Their shapes are determined implicitly by :math:`(\opS, n, d)` and :math:`(\opA, m, n)`.
-///       If :math:`{\submat(X)}` is of shape :math:`r \times c`,
-///       then it is the :math:`r \times c` submatrix of :math:`{X}` whose upper-left corner
-///       appears at index :math:`(\texttt{ro_x}, \texttt{co_x})` of :math:`{X}`.
+/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(\mtxX)` either returns a matrix :math:`\mtxX`
+/// or its transpose, :math:`\mtxA` is a sparse matrix, and :math:`\mtxS` is a dense sketching operator.
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
@@ -230,58 +200,58 @@ void lsksp3(
 ///       * Matrix storage for :math:`\mat(B)`.
 ///
 ///      opA - [in]
-///       * If :math:`\opA` == NoTrans, then :math:`\op(\submat(A)) = \submat(A)`.
-///       * If :math:`\opA` == Trans, then :math:`\op(\submat(A)) = \submat(A)^T`.
+///       * If :math:`\opA` == NoTrans, then :math:`\op(\submat(\mtxA)) = \submat(\mtxA)`.
+///       * If :math:`\opA` == Trans, then :math:`\op(\submat(\mtxA)) = \submat(\mtxA)^T`.
 ///
 ///      opS - [in]
-///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(S)) = \submat(S)`.
-///       * If :math:`\opS` = Trans, then :math:`\op(\submat(S)) = \submat(S)^T`.
+///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(\mtxS)) = \submat(\mtxS)`.
+///       * If :math:`\opS` = Trans, then :math:`\op(\submat(\mtxS)) = \submat(\mtxS)^T`.
 ///
 ///      m - [in]
 ///       * A nonnegative integer.
 ///       * The number of rows in :math:`\mat(B)`.
-///       * The number of rows in :math:`\op(\submat(A))`.
+///       * The number of rows in :math:`\op(\submat(\mtxA))`.
 ///
 ///      d - [in]
 ///       * A nonnegative integer.
 ///       * The number of columns in :math:`\mat(B)`
-///       * The number of columns in :math:`\op(\submat(S))`.
+///       * The number of columns in :math:`\op(\submat(\mtxS))`.
 ///
 ///      n - [in]
 ///       * A nonnegative integer.
-///       * The number of columns in :math:`\op(\submat(A))`
-///       * The number of rows in :math:`\op(\submat(S))`.
+///       * The number of columns in :math:`\op(\submat(\mtxA))`
+///       * The number of rows in :math:`\op(\submat(\mtxS))`.
 ///
 ///      alpha - [in]
 ///       * A real scalar.
 ///
 ///      A - [in]
 ///       * A RandBLAS sparse matrix object.
-///       * Defines :math:`\submat(A)`.
+///       * Defines :math:`\submat(\mtxA)`.
 ///
 ///      ro_a - [in]
 ///       * A nonnegative integer.
-///       * The rows of :math:`\submat(A)` are a contiguous subset of rows of :math:`A`.
-///       * The rows of :math:`\submat(A)` start at :math:`A[\texttt{ro_a}, :]`.
+///       * The rows of :math:`\submat(\mtxA)` are a contiguous subset of rows of :math:`\mtxA`.
+///       * The rows of :math:`\submat(\mtxA)` start at :math:`\mtxA[\texttt{ro_a}, :]`.
 ///
 ///      co_a - [in]
 ///       * A nonnegative integer.
-///       * The columns of :math:`\submat(A)` are a contiguous subset of columns of :math:`A`.
-///       * The columns :math:`\submat(A)` start at :math:`A[:,\texttt{co_a}]`. 
+///       * The columns of :math:`\submat(\mtxA)` are a contiguous subset of columns of :math:`\mtxA`.
+///       * The columns :math:`\submat(\mtxA)` start at :math:`\mtxA[:,\texttt{co_a}]`. 
 ///
 ///      S - [in]
 ///       * A DenseSkOp object.
-///       * Defines :math:`\submat(S)`.
+///       * Defines :math:`\submat(\mtxS)`.
 ///
 ///      ro_s - [in]
 ///       * A nonnegative integer.
-///       * The rows of :math:`\submat(S)` are a contiguous subset of rows of :math:`S`.
-///       * The rows of :math:`\submat(S)` start at :math:`S[\texttt{ro_s}, :]`.
+///       * The rows of :math:`\submat(\mtxS)` are a contiguous subset of rows of :math:`\mtxS`.
+///       * The rows of :math:`\submat(\mtxS)` start at :math:`\mtxS[\texttt{ro_s}, :]`.
 ///
 ///      co_s - [in]
 ///       * A nonnegative integer.
-///       * The columns of :math:`\submat(S)` are a contiguous subset of columns of :math:`S`.
-///       * The columns :math:`\submat(S)` start at :math:`S[:,\texttt{co_s}]`. 
+///       * The columns of :math:`\submat(\mtxS)` are a contiguous subset of columns of :math:`\mtxS`.
+///       * The columns :math:`\submat(\mtxS)` start at :math:`\mtxS[:,\texttt{co_s}]`. 
 ///
 ///      beta - [in]
 ///       * A real scalar.
@@ -305,8 +275,8 @@ void rsksp3(
     blas::Op opA,
     blas::Op opS,
     int64_t m, // B is m-by-d
-    int64_t d, // op(submat(A)) is m-by-n
-    int64_t n, // op(submat(S)) is n-by-d
+    int64_t d, // op(submat(\mtxA)) is m-by-n
+    int64_t n, // op(submat(\mtxS)) is n-by-d
     T alpha,
     SpMat &A,
     int64_t ro_a,
@@ -363,25 +333,10 @@ using namespace RandBLAS::sparse_data;
 /// Sketch from the left in an SpMM-like operation
 ///
 /// .. math::
-///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(S))}_{d \times m} \cdot \underbrace{\op(\submat(A))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
+///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(\mtxS))}_{d \times m} \cdot \underbrace{\op(\submat(\mtxA))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
 ///
-/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(X)` either returns a matrix :math:`X`
-/// or its transpose, :math:`A` is a sparse matrix, and :math:`S` is a dense sketching operator.
-/// 
-/// .. dropdown:: FAQ
-///   :animate: fade-in-slide-down
-///
-///     **What's** :math:`\mat(B)` **?**
-///
-///       It's matrix of shape :math:`d \times n`. Its contents are determined by :math:`(B, \ldb)`
-///       and "layout", following the same convention as the Level 3 BLAS function "GEMM."
-///
-///     **What are** :math:`\submat(S)` **and** :math:`\submat(A)` **?**
-///
-///       Their shapes are determined implicitly by :math:`(\opS, d, m)` and :math:`(\opA, n, m)`.
-///       If :math:`{\submat(X)}` is of shape :math:`r \times c`,
-///       then it is the :math:`r \times c` submatrix of :math:`{X}` whose upper-left corner
-///       appears at index :math:`(\texttt{ro_x}, \texttt{co_x})` of :math:`{X}`.
+/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(\mtxX)` either returns a matrix :math:`\mtxX`
+/// or its transpose, :math:`\mtxA` is a sparse matrix, and :math:`\mtxS` is a dense sketching operator.
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
@@ -391,27 +346,27 @@ using namespace RandBLAS::sparse_data;
 ///       * Matrix storage for :math:`\mat(B)`.
 ///
 ///      opS - [in]
-///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(S)) = \submat(S)`.
-///       * If :math:`\opS` = Trans, then :math:`\op(\submat(S)) = \submat(S)^T`.
+///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(\mtxS)) = \submat(\mtxS)`.
+///       * If :math:`\opS` = Trans, then :math:`\op(\submat(\mtxS)) = \submat(\mtxS)^T`.
 ///
 ///      opA - [in]
-///       * If :math:`\opA` = NoTrans, then :math:`\op(\submat(A)) = \submat(A)`.
-///       * If :math:`\opA` = Trans, then :math:`\op(\submat(A)) = \submat(A)^T`.
+///       * If :math:`\opA` = NoTrans, then :math:`\op(\submat(\mtxA)) = \submat(\mtxA)`.
+///       * If :math:`\opA` = Trans, then :math:`\op(\submat(\mtxA)) = \submat(\mtxA)^T`.
 ///
 ///      d - [in]
 ///       * A nonnegative integer.
 ///       * The number of rows in :math:`\mat(B)`.
-///       * The number of rows in :math:`\op(\submat(S))`.
+///       * The number of rows in :math:`\op(\submat(\mtxS))`.
 ///
 ///      n - [in]
 ///       * A nonnegative integer.
 ///       * The number of columns in :math:`\mat(B)`.
-///       * The number of columns in :math:`\op(\mat(A))`.
+///       * The number of columns in :math:`\op(\submat(\mtxA))`.
 ///
 ///      m - [in]
 ///       * A nonnegative integer.
-///       * The number of columns in :math:`\op(\submat(S))`
-///       * The number of rows in :math:`\op(\mat(A))`.
+///       * The number of columns in :math:`\op(\submat(\mtxS))`
+///       * The number of rows in :math:`\op(\submat(\mtxA))`.
 ///
 ///      alpha - [in]
 ///       * A real scalar.
@@ -419,31 +374,31 @@ using namespace RandBLAS::sparse_data;
 ///
 ///      S - [in]
 ///       * A DenseSkOp object.
-///       * Defines :math:`\submat(S)`.
+///       * Defines :math:`\submat(\mtxS)`.
 ///
 ///      ro_s - [in]
 ///       * A nonnegative integer.
-///       * The rows of :math:`\submat(S)` are a contiguous subset of rows of :math:`S`.
-///       * The rows of :math:`\submat(S)` start at :math:`S[\texttt{ro_s}, :]`.
+///       * The rows of :math:`\submat(\mtxS)` are a contiguous subset of rows of :math:`\mtxS`.
+///       * The rows of :math:`\submat(\mtxS)` start at :math:`\mtxS[\texttt{ro_s}, :]`.
 ///
 ///      co_s - [in]
 ///       * A nonnegative integer.
-///       * The columns of :math:`\submat(S)` are a contiguous subset of columns of :math:`S`.
-///       * The columns :math:`\submat(S)` start at :math:`S[:,\texttt{co_s}]`. 
+///       * The columns of :math:`\submat(\mtxS)` are a contiguous subset of columns of :math:`\mtxS`.
+///       * The columns :math:`\submat(\mtxS)` start at :math:`\mtxS[:,\texttt{co_s}]`. 
 ///
 ///      A - [in]
 ///       * A RandBLAS sparse matrix object.
-///       * Defines :math:`\submat(A)`.
+///       * Defines :math:`\submat(\mtxA)`.
 ///
 ///      ro_a - [in]
 ///       * A nonnegative integer.
-///       * The rows of :math:`\submat(A)` are a contiguous subset of rows of :math:`A`.
-///       * The rows of :math:`\submat(A)` start at :math:`A[\texttt{ro_a}, :]`.
+///       * The rows of :math:`\submat(\mtxA)` are a contiguous subset of rows of :math:`\mtxA`.
+///       * The rows of :math:`\submat(\mtxA)` start at :math:`\mtxA[\texttt{ro_a}, :]`.
 ///
 ///      co_a - [in]
 ///       * A nonnegative integer.
-///       * The columns of :math:`\submat(A)` are a contiguous subset of columns of :math:`A`.
-///       * The columns :math:`\submat(A)` start at :math:`A[:,\texttt{co_a}]`. 
+///       * The columns of :math:`\submat(\mtxA)` are a contiguous subset of columns of :math:`\mtxA`.
+///       * The columns :math:`\submat(\mtxA)` start at :math:`\mtxA[:,\texttt{co_a}]`. 
 ///
 ///      beta - [in]
 ///       * A real scalar.
@@ -467,8 +422,8 @@ inline void sketch_sparse(
     blas::Op opS,
     blas::Op opA,
     int64_t d, // B is d-by-n
-    int64_t n, // op(submat(A)) is m-by-n
-    int64_t m, // op(submat(S)) is d-by-m
+    int64_t n, // op(submat(\mtxA)) is m-by-n
+    int64_t m, // op(submat(\mtxS)) is d-by-m
     T alpha,
     DenseSkOp<T, RNG> &S,
     int64_t ro_s,
@@ -494,25 +449,10 @@ inline void sketch_sparse(
 /// Sketch from the right in an SpMM-like operation
 ///
 /// .. math::
-///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(A))}_{m \times n} \cdot \underbrace{\op(\submat(S))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
+///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(\mtxA))}_{m \times n} \cdot \underbrace{\op(\submat(\mtxS))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
 ///
-/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(X)` either returns a matrix :math:`X`
-/// or its transpose, :math:`A` is a sparse matrix, and :math:`S` is a dense sketching operator.
-/// 
-/// .. dropdown:: FAQ
-///   :animate: fade-in-slide-down
-///
-///     **What's** :math:`\mat(B)` **?**
-///
-///       It's matrix of shape :math:`m \times d`. Its contents are determined by :math:`(B, \ldb)`
-///       and "layout", following the same convention as the Level 3 BLAS function "GEMM."
-///
-///     **What are** :math:`\submat(S)` **and** :math:`\submat(A)` **?**
-///
-///       Their shapes are determined implicitly by :math:`(\opS, n, d)` and :math:`(\opA, m, n)`.
-///       If :math:`{\submat(X)}` is of shape :math:`r \times c`,
-///       then it is the :math:`r \times c` submatrix of :math:`{X}` whose upper-left corner
-///       appears at index :math:`(\texttt{ro_x}, \texttt{co_x})` of :math:`{X}`.
+/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(\mtxX)` either returns a matrix :math:`\mtxX`
+/// or its transpose, :math:`\mtxA` is a sparse matrix, and :math:`\mtxS` is a dense sketching operator.
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
@@ -522,27 +462,27 @@ inline void sketch_sparse(
 ///       * Matrix storage for :math:`\mat(B)`.
 ///
 ///      opA - [in]
-///       * If :math:`\opA` == NoTrans, then :math:`\op(\submat(A)) = \submat(A)`.
-///       * If :math:`\opA` == Trans, then :math:`\op(\submat(A)) = \submat(A)^T`.
+///       * If :math:`\opA` == NoTrans, then :math:`\op(\submat(\mtxA)) = \submat(\mtxA)`.
+///       * If :math:`\opA` == Trans, then :math:`\op(\submat(\mtxA)) = \submat(\mtxA)^T`.
 ///
 ///      opS - [in]
-///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(S)) = \submat(S)`.
-///       * If :math:`\opS` = Trans, then :math:`\op(\submat(S)) = \submat(S)^T`.
+///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(\mtxS)) = \submat(\mtxS)`.
+///       * If :math:`\opS` = Trans, then :math:`\op(\submat(\mtxS)) = \submat(\mtxS)^T`.
 ///
 ///      m - [in]
 ///       * A nonnegative integer.
 ///       * The number of rows in :math:`\mat(B)`.
-///       * The number of rows in :math:`\op(\submat(A))`.
+///       * The number of rows in :math:`\op(\submat(\mtxA))`.
 ///
 ///      d - [in]
 ///       * A nonnegative integer.
 ///       * The number of columns in :math:`\mat(B)`
-///       * The number of columns in :math:`\op(\submat(S))`.
+///       * The number of columns in :math:`\op(\submat(\mtxS))`.
 ///
 ///      n - [in]
 ///       * A nonnegative integer.
-///       * The number of columns in :math:`\op(\submat(A))`
-///       * The number of rows in :math:`\op(\submat(S))`.
+///       * The number of columns in :math:`\op(\submat(\mtxA))`
+///       * The number of rows in :math:`\op(\submat(\mtxS))`.
 ///
 ///      alpha - [in]
 ///       * A real scalar.
@@ -550,31 +490,31 @@ inline void sketch_sparse(
 ///
 ///      S - [in]
 ///       * A DenseSkOp object.
-///       * Defines :math:`\submat(S)`.
+///       * Defines :math:`\submat(\mtxS)`.
 ///
 ///      ro_s - [in]
 ///       * A nonnegative integer.
-///       * The rows of :math:`\submat(S)` are a contiguous subset of rows of :math:`S`.
-///       * The rows of :math:`\submat(S)` start at :math:`S[\texttt{ro_s}, :]`.
+///       * The rows of :math:`\submat(\mtxS)` are a contiguous subset of rows of :math:`\mtxS`.
+///       * The rows of :math:`\submat(\mtxS)` start at :math:`\mtxS[\texttt{ro_s}, :]`.
 ///
 ///      co_s - [in]
 ///       * A nonnegative integer.
-///       * The columns of :math:`\submat(S)` are a contiguous subset of columns of :math:`S`.
-///       * The columns :math:`\submat(S)` start at :math:`S[:,\texttt{co_s}]`. 
+///       * The columns of :math:`\submat(\mtxS)` are a contiguous subset of columns of :math:`\mtxS`.
+///       * The columns :math:`\submat(\mtxS)` start at :math:`\mtxS[:,\texttt{co_s}]`. 
 ///
 ///      A - [in]
 ///       * A RandBLAS sparse matrix object.
-///       * Defines :math:`\submat(A)`.
+///       * Defines :math:`\submat(\mtxA)`.
 ///
 ///      ro_a - [in]
 ///       * A nonnegative integer.
-///       * The rows of :math:`\submat(A)` are a contiguous subset of rows of :math:`A`.
-///       * The rows of :math:`\submat(A)` start at :math:`A[\texttt{ro_a}, :]`.
+///       * The rows of :math:`\submat(\mtxA)` are a contiguous subset of rows of :math:`\mtxA`.
+///       * The rows of :math:`\submat(\mtxA)` start at :math:`\mtxA[\texttt{ro_a}, :]`.
 ///
 ///      co_a - [in]
 ///       * A nonnegative integer.
-///       * The columns of :math:`\submat(A)` are a contiguous subset of columns of :math:`A`.
-///       * The columns :math:`\submat(A)` start at :math:`A[:,\texttt{co_a}]`. 
+///       * The columns of :math:`\submat(\mtxA)` are a contiguous subset of columns of :math:`\mtxA`.
+///       * The columns :math:`\submat(\mtxA)` start at :math:`\mtxA[:,\texttt{co_a}]`. 
 ///
 ///      beta - [in]
 ///       * A real scalar.
@@ -598,8 +538,8 @@ inline void sketch_sparse(
     blas::Op opA,
     blas::Op opS,
     int64_t m, // B is m-by-d
-    int64_t d, // op(submat(A)) is m-by-n
-    int64_t n, // op(submat(S)) is n-by-d
+    int64_t d, // op(submat(\mtxA)) is m-by-n
+    int64_t n, // op(submat(\mtxS)) is n-by-d
     T alpha,
     SpMat &A,
     int64_t ro_a,

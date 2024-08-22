@@ -58,7 +58,7 @@ namespace RandBLAS {
  * The intended semantics for a buffer "A" and the conceptualized
  * matrix "mat(A)" are 
  * 
- *  mat(A)[i, j] == A[i * inter_row_stride + j * inter_col_stride].
+ *  mat(A)_{ij} == A[i * inter_row_stride + j * inter_col_stride].
  * 
  * for all (i, j) within the bounds of mat(A).
  */

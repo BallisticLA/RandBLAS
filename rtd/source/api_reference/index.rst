@@ -1,5 +1,3 @@
-.. :sd_hide_title:
-.. ^ uncomment that if you want to prevent the header from rendering.
 
 #############
 API Reference

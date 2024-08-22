@@ -1,4 +1,3 @@
-  
    .. |op| mathmacro:: \operatorname{op}
    .. |mat| mathmacro:: \operatorname{mat}
    .. |submat| mathmacro:: \operatorname{submat}
@@ -8,6 +7,11 @@
    .. |opA| mathmacro:: \texttt{opA}
    .. |opB| mathmacro:: \texttt{opB}
    .. |opS| mathmacro:: \texttt{opS}
+   .. |mtxA| mathmacro:: \mathbf{A}
+   .. |mtxB| mathmacro:: \mathbf{B}
+   .. |mtxC| mathmacro:: \mathbf{C}
+   .. |mtxS| mathmacro:: \mathbf{S}
+   .. |mtxX| mathmacro:: \mathbf{X}
    .. |ttt| mathmacro:: \texttt
 
 ************************************
