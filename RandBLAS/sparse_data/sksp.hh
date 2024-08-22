@@ -325,15 +325,14 @@ using namespace RandBLAS::sparse_data;
 // MARK: SKSP overloads, sub
 
 // =============================================================================
-/// \fn sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
-///     int64_t n, int64_t m, T alpha, DenseSkOp<T,RNG> &S, int64_t ro_s, int64_t co_s,
-///     SpMat &A, int64_t ro_a, int64_t co_a, T beta, T *B, int64_t ldb
+/// \fn sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,  int64_t n, int64_t m,
+///     T alpha, DenseSkOp &S, int64_t ro_s, int64_t co_s, SpMat &A, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
 /// Sketch from the left in an SpMM-like operation
 ///
 /// .. math::
-///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(\mtxS))}_{d \times m} \cdot \underbrace{\op(\submat(\mtxA))}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
+///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(\mtxS))}_{d \times m} \cdot \underbrace{\op(\mtxA)}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
 ///
 /// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(\mtxX)` either returns a matrix :math:`\mtxX`
 /// or its transpose, :math:`\mtxA` is a sparse matrix, and :math:`\mtxS` is a dense sketching operator.
@@ -350,8 +349,8 @@ using namespace RandBLAS::sparse_data;
 ///       * If :math:`\opS` = Trans, then :math:`\op(\submat(\mtxS)) = \submat(\mtxS)^T`.
 ///
 ///      opA - [in]
-///       * If :math:`\opA` = NoTrans, then :math:`\op(\submat(\mtxA)) = \submat(\mtxA)`.
-///       * If :math:`\opA` = Trans, then :math:`\op(\submat(\mtxA)) = \submat(\mtxA)^T`.
+///       * If :math:`\opA` = NoTrans, then :math:`\op(\mtxA) = \mtxA`.
+///       * If :math:`\opA` = Trans, then :math:`\op(\mtxA) = \mtxA^T`.
 ///
 ///      d - [in]
 ///       * A nonnegative integer.
@@ -361,12 +360,12 @@ using namespace RandBLAS::sparse_data;
 ///      n - [in]
 ///       * A nonnegative integer.
 ///       * The number of columns in :math:`\mat(B)`.
-///       * The number of columns in :math:`\op(\submat(\mtxA))`.
+///       * The number of columns in :math:`\op(\mtxA)`.
 ///
 ///      m - [in]
 ///       * A nonnegative integer.
 ///       * The number of columns in :math:`\op(\submat(\mtxS))`
-///       * The number of rows in :math:`\op(\submat(\mtxA))`.
+///       * The number of rows in :math:`\op(\mtxA)`.
 ///
 ///      alpha - [in]
 ///       * A real scalar.
@@ -388,17 +387,6 @@ using namespace RandBLAS::sparse_data;
 ///
 ///      A - [in]
 ///       * A RandBLAS sparse matrix object.
-///       * Defines :math:`\submat(\mtxA)`.
-///
-///      ro_a - [in]
-///       * A nonnegative integer.
-///       * The rows of :math:`\submat(\mtxA)` are a contiguous subset of rows of :math:`\mtxA`.
-///       * The rows of :math:`\submat(\mtxA)` start at :math:`\mtxA[\texttt{ro_a}, :]`.
-///
-///      co_a - [in]
-///       * A nonnegative integer.
-///       * The columns of :math:`\submat(\mtxA)` are a contiguous subset of columns of :math:`\mtxA`.
-///       * The columns :math:`\submat(\mtxA)` start at :math:`\mtxA[:,\texttt{co_a}]`. 
 ///
 ///      beta - [in]
 ///       * A real scalar.
@@ -416,7 +404,7 @@ using namespace RandBLAS::sparse_data;
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B`.
 ///
 /// @endverbatim
-template <typename T, SparseMatrix SpMat, typename RNG>
+template <SparseMatrix SpMat, typename DenseSkOp, typename T = DenseSkOp::scalar_t>
 inline void sketch_sparse(
     blas::Layout layout,
     blas::Op opS,
@@ -425,31 +413,28 @@ inline void sketch_sparse(
     int64_t n, // op(submat(\mtxA)) is m-by-n
     int64_t m, // op(submat(\mtxS)) is d-by-m
     T alpha,
-    DenseSkOp<T, RNG> &S,
+    DenseSkOp &S,
     int64_t ro_s,
     int64_t co_s,
     SpMat &A,
-    int64_t ro_a,
-    int64_t co_a,
     T beta,
     T *B,
     int64_t ldb
 ) {
-    sparse_data::lsksp3(layout, opS, opA, d, n, m, alpha, S, ro_s, co_s, A, ro_a, co_a, beta, B, ldb);
+    sparse_data::lsksp3(layout, opS, opA, d, n, m, alpha, S, ro_s, co_s, A, 0, 0, beta, B, ldb);
     return;
 }
 
 
 // =============================================================================
 /// \fn sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
-///     int64_t n, int64_t m, T alpha, SpMat &A, int64_t ro_a, int64_t co_a,
-///     DenseSkOp<T,RNG> &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb
+///     int64_t n, int64_t m, T alpha, SpMat &A, DenseSkOp &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
 /// Sketch from the right in an SpMM-like operation
 ///
 /// .. math::
-///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(\mtxA))}_{m \times n} \cdot \underbrace{\op(\submat(\mtxS))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
+///     \mat(B) = \alpha \cdot \underbrace{\op(\mtxA)}_{m \times n} \cdot \underbrace{\op(\submat(\mtxS))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
 ///
 /// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(\mtxX)` either returns a matrix :math:`\mtxX`
 /// or its transpose, :math:`\mtxA` is a sparse matrix, and :math:`\mtxS` is a dense sketching operator.
@@ -462,8 +447,8 @@ inline void sketch_sparse(
 ///       * Matrix storage for :math:`\mat(B)`.
 ///
 ///      opA - [in]
-///       * If :math:`\opA` == NoTrans, then :math:`\op(\submat(\mtxA)) = \submat(\mtxA)`.
-///       * If :math:`\opA` == Trans, then :math:`\op(\submat(\mtxA)) = \submat(\mtxA)^T`.
+///       * If :math:`\opA` == NoTrans, then :math:`\op(\mtxA) = \mtxA`.
+///       * If :math:`\opA` == Trans, then :math:`\op(\mtxA) = \mtxA^T`.
 ///
 ///      opS - [in]
 ///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(\mtxS)) = \submat(\mtxS)`.
@@ -472,7 +457,7 @@ inline void sketch_sparse(
 ///      m - [in]
 ///       * A nonnegative integer.
 ///       * The number of rows in :math:`\mat(B)`.
-///       * The number of rows in :math:`\op(\submat(\mtxA))`.
+///       * The number of rows in :math:`\op(\mtxA)`.
 ///
 ///      d - [in]
 ///       * A nonnegative integer.
@@ -481,7 +466,7 @@ inline void sketch_sparse(
 ///
 ///      n - [in]
 ///       * A nonnegative integer.
-///       * The number of columns in :math:`\op(\submat(\mtxA))`
+///       * The number of columns in :math:`\op(\mtxA)`
 ///       * The number of rows in :math:`\op(\submat(\mtxS))`.
 ///
 ///      alpha - [in]
@@ -504,17 +489,6 @@ inline void sketch_sparse(
 ///
 ///      A - [in]
 ///       * A RandBLAS sparse matrix object.
-///       * Defines :math:`\submat(\mtxA)`.
-///
-///      ro_a - [in]
-///       * A nonnegative integer.
-///       * The rows of :math:`\submat(\mtxA)` are a contiguous subset of rows of :math:`\mtxA`.
-///       * The rows of :math:`\submat(\mtxA)` start at :math:`\mtxA[\texttt{ro_a}, :]`.
-///
-///      co_a - [in]
-///       * A nonnegative integer.
-///       * The columns of :math:`\submat(\mtxA)` are a contiguous subset of columns of :math:`\mtxA`.
-///       * The columns :math:`\submat(\mtxA)` start at :math:`\mtxA[:,\texttt{co_a}]`. 
 ///
 ///      beta - [in]
 ///       * A real scalar.
@@ -532,7 +506,7 @@ inline void sketch_sparse(
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B`.
 ///
 /// @endverbatim
-template <typename T, SparseMatrix SpMat, typename RNG>
+template <SparseMatrix SpMat, typename DenseSkOp, typename T = DenseSkOp::scalar_t>
 inline void sketch_sparse(
     blas::Layout layout,
     blas::Op opA,
@@ -542,16 +516,14 @@ inline void sketch_sparse(
     int64_t n, // op(submat(\mtxS)) is n-by-d
     T alpha,
     SpMat &A,
-    int64_t ro_a,
-    int64_t co_a,
-    DenseSkOp<T, RNG> &S,
+    DenseSkOp &S,
     int64_t ro_s,
     int64_t co_s,
     T beta,
     T *B,
     int64_t ldb
 ) {
-    sparse_data::rsksp3(layout, opA, opS, m, d, n, alpha, A, ro_a, co_a, S, ro_s, co_s, beta, B, ldb);
+    sparse_data::rsksp3(layout, opA, opS, m, d, n, alpha, A, 0, 0, S, ro_s, co_s, beta, B, ldb);
     return;
 }
 
