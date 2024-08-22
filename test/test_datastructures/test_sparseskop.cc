@@ -77,7 +77,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
 
     template <RandBLAS::SignedInteger sint_t>
     void proper_saso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
-        using RNG = RandBLAS::SparseSkOp<float>::RNG_t;
+        using RNG = RandBLAS::SparseSkOp<float>::state_t::generator;
         RandBLAS::SparseSkOp<float, RNG, sint_t> S0(
             {d, m, vec_nnzs[nnz_index], RandBLAS::MajorAxis::Short}, keys[key_index]
         );
@@ -91,7 +91,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
 
     template <RandBLAS::SignedInteger sint_t>
     void proper_laso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
-        using RNG = RandBLAS::SparseSkOp<float>::RNG_t;
+        using RNG = RandBLAS::SparseSkOp<float>::state_t::generator;
         RandBLAS::SparseSkOp<float, RNG, sint_t> S0(
             {d, m, vec_nnzs[nnz_index], RandBLAS::MajorAxis::Long}, keys[key_index]
         );

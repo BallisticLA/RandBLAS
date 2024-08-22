@@ -172,9 +172,9 @@ inline T isometry_scale_factor(SparseDist D) {
 template <typename T, typename RNG = r123::Philox4x32, SignedInteger sint_t = int64_t>
 struct SparseSkOp {
 
-    using RNG_t = RNG;
-    using T_t = T;
     using index_t = sint_t;
+    using state_t = RNGState<RNG>;
+    using scalar_t = T;
 
     const int64_t n_rows;
     const int64_t n_cols;
@@ -375,16 +375,16 @@ struct SparseSkOp {
 /// @param[in] S
 ///     SparseSkOp object.
 ///     
-template <typename T, typename RNG, SignedInteger sint_t>
-void fill_sparse(
-    SparseSkOp<T,RNG,sint_t> & S
-) {
+template <typename SparseSkOp>
+void fill_sparse(SparseSkOp &S) {
+    
     int64_t long_ax_len = MAX(S.dist.n_rows, S.dist.n_cols);
     int64_t short_ax_len = MIN(S.dist.n_rows, S.dist.n_cols);
-
     bool is_wide = S.dist.n_rows == short_ax_len;
+
+    using sint_t = typename SparseSkOp::index_t;
     sint_t *short_ax_idxs = (is_wide) ? S.rows : S.cols;
-    sint_t *long_ax_idxs = (is_wide) ? S.cols : S.rows;
+    sint_t *long_ax_idxs  = (is_wide) ? S.cols : S.rows;
 
     if (S.dist.major_axis == MajorAxis::Short) {
         sparse::repeated_fisher_yates(
@@ -397,7 +397,6 @@ void fill_sparse(
             long_ax_idxs, short_ax_idxs, S.vals
         );
     }
-    // TODO: add check that S.next_state == output from the repeated_fisher_yates function.
     S.known_filled = true;
     return;
 }
@@ -470,16 +469,12 @@ static int64_t nnz(
     }
 }
 
-
-template <typename T, typename RNG, SignedInteger sint_t>
-COOMatrix<T,sint_t> coo_view_of_skop(SparseSkOp<T,RNG,sint_t> &S) {
+template <typename SkOp, typename T = SkOp::scalar_t, typename sint_t = SkOp::index_t>
+COOMatrix<T, sint_t> coo_view_of_skop(SkOp &S) {
     if (!S.known_filled)
         fill_sparse(S);
     int64_t nnz = RandBLAS::sparse::nnz(S);
-    COOMatrix<T,sint_t> A(
-        S.dist.n_rows, S.dist.n_cols, nnz,
-        S.vals, S.rows, S.cols
-    );
+    COOMatrix<T, sint_t> A(S.dist.n_rows, S.dist.n_cols, nnz, S.vals, S.rows, S.cols);
     return A;
 }
 

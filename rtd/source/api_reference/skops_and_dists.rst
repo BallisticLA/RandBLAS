@@ -4,12 +4,36 @@ Distributions and sketching operators
 
 .. _rngstate_api:
 
-The state of a random number generator
-================================================
 
-.. doxygenstruct:: RandBLAS::RNGState
-   :project: RandBLAS
-   :members:
+Sketching distributions
+=======================
+
+.. doxygenconcept:: RandBLAS::SketchingDistribution
+    :project: RandBLAS
+
+.. doxygenfunction:: RandBLAS::isometry_scale_factor(SkDist D)
+    :project: RandBLAS
+
+
+Sketching operators and random states
+=====================================
+
+.. dropdown:: Sketching operators
+    :animate: fade-in-slide-down
+    :color: light
+    
+    .. doxygenconcept:: RandBLAS::SketchingOperator
+        :project: RandBLAS
+
+
+.. dropdown:: The state of a random number generator
+    :animate: fade-in-slide-down
+    :color: light
+
+    .. doxygenstruct:: RandBLAS::RNGState
+      :project: RandBLAS
+      :members:
+
 
 
 .. _densedist_and_denseskop_api:
@@ -28,7 +52,7 @@ DenseDist and DenseSkOp
    :project: RandBLAS
    :members: 
 
-.. doxygenfunction:: RandBLAS::fill_dense(DenseSkOp<T, RNG> &S)
+.. doxygenfunction:: RandBLAS::fill_dense(DenseSkOp &S)
    :project: RandBLAS
 
 
@@ -45,7 +69,7 @@ SparseDist and SparseSkOp
    :project: RandBLAS
    :members: 
 
-.. doxygenfunction:: RandBLAS::fill_sparse(SparseSkOp<T, RNG, sint_t> &S)
+.. doxygenfunction:: RandBLAS::fill_sparse(SparseSkOp &S)
    :project: RandBLAS
 
 

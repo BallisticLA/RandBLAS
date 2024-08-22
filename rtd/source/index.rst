@@ -18,9 +18,10 @@ We built RandBLAS to make it easier to write, debug, and deploy high-performance
 
 RandBLAS is efficient, flexible, and reliable.
 It uses CPU-based OpenMP acceleration to apply its sketching operators to dense or sparse data matrices stored in main memory.
+It includes dense and sparse sketching operators (e.g., Gaussian operators, CountSketch, OSNAPs, etc..), which can 
+be applied to dense or sparse data in any combination that leads to a dense sketch.
 
-All sketches produced by RandBLAS are dense.
-If you have RandBLAS and an LAPACK-like library at your disposal, you can implement
+With RandBLAS and an LAPACK-like library at your disposal, you can implement
 a huge range of shared-memory randomized algorithms for matrix computations.
 RandBLAS can be used in distributed environments through its ability to compute products with *submatrices* of sketching operators, 
 without ever realizing the entire sketching operator in memory.

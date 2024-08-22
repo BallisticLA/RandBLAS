@@ -135,7 +135,7 @@ static RNGState<RNG> fill_dense_submat_impl(int64_t n_cols, T* smat, int64_t n_s
     #pragma omp for schedule(static)
     for (int64_t row = 0; row < n_srows; row++) {
 
-        int64_t incr_from_c = safe_signed_int_product(ctr_inter_row_stride, row);
+        int64_t incr_from_c = safe_int_product(ctr_inter_row_stride, row);
     
         auto c_row = c;
         c_row.incr(incr_from_c);
@@ -185,7 +185,7 @@ RNGState<RNG> compute_next_state(DD dist, RNGState<RNG> state) {
         pad = ctr_size - major_len % ctr_size;
     }
     int64_t ctr_major_axis_stride = (major_len + pad) / ctr_size;
-    int64_t full_incr = safe_signed_int_product(ctr_major_axis_stride, minor_len);
+    int64_t full_incr = safe_int_product(ctr_major_axis_stride, minor_len);
     state.counter.incr(full_incr);
     return state;
 }
@@ -332,9 +332,8 @@ inline T isometry_scale_factor(DenseDist D) {
 template <typename T, typename RNG = r123::Philox4x32>
 struct DenseSkOp {
 
-    using generator = RNG;
-    using state_type = RNGState<RNG>;
-    using buffer_type = T;
+    using state_t  = RNGState<RNG>;
+    using scalar_t = T;
 
     const int64_t n_rows;
     const int64_t n_cols;
@@ -404,9 +403,8 @@ struct DenseSkOp {
         seed_state(state),
         next_state(dense::compute_next_state(dist, state)),
         buff(nullptr),
-        layout(dist_to_layout(dist)
-    ) {
-        // sanity checks
+        layout(dist_to_layout(dist))
+    {   // sanity checks
         randblas_require(this->dist.n_rows > 0);
         randblas_require(this->dist.n_cols > 0);
         if (dist.family == DenseDistName::BlackBox)
@@ -497,11 +495,11 @@ RNGState<RNG> fill_dense(blas::Layout layout, const DenseDist &D, int64_t n_rows
         // operate on the transpose in row-major
         n_rows_ = n_cols;
         n_cols_ = n_rows;
-        ptr = ro_s + safe_signed_int_product(co_s, ma_len);
+        ptr = ro_s + safe_int_product(co_s, ma_len);
     } else {
         n_rows_ = n_rows;
         n_cols_ = n_cols;
-        ptr = safe_signed_int_product(ro_s, ma_len) + co_s;
+        ptr = safe_int_product(ro_s, ma_len) + co_s;
     }
     RNGState<RNG> next_state{};
     switch (D.family) {
@@ -582,8 +580,9 @@ RNGState<RNG> fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed)
 /// @param[in] S
 ///     A DenseSkOp object.
 ///    
-template <typename T, typename RNG>
-void fill_dense(DenseSkOp<T,RNG> &S) {
+template <typename DenseSkOp>
+void fill_dense(DenseSkOp &S) {
+    using T = typename DenseSkOp::scalar_t;
     randblas_require(S.buff == nullptr);
     randblas_require(S.dist.family != DenseDistName::BlackBox);
     S.buff = new T[S.dist.n_rows * S.dist.n_cols];

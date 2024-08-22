@@ -119,7 +119,7 @@ concept SignedInteger = (std::numeric_limits<T>::is_signed && std::numeric_limit
 
 
 template <SignedInteger TI, SignedInteger TO = int64_t>
-inline TO safe_signed_int_product(TI a, TI b) {
+inline TO safe_int_product(TI a, TI b) {
     if (a == 0 || b == 0) {
         return 0;
     }
@@ -155,27 +155,38 @@ enum class MajorAxis : char {
  * the counter and the key. The arrays' types are statically sized, small
  * (typically of length 2 or 4), and can be distinct from one another.
  * 
- * @tparam RNG A CBRNG type in defined in Random123. We've found that Philox-based
- * CBRNGs work best for our purposes, but we also support Threefry-based CBRNGS.
+ * The template parameter RNG is a CBRNG type in defined in Random123. We've found
+ * that Philox-based CBRNGs work best for our purposes, but we also support Threefry-based CBRNGS.
  */
 template <typename RNG = r123::Philox4x32>
 struct RNGState
 {
     using generator = RNG;
-    // The unsigned integer type used in this RNGState's counter array.
-    using ctr_uint_type = typename RNG::ctr_type::value_type;
+    
+    using ctr_type = typename RNG::ctr_type;
+    // ^ An array type defined in Random123.
+    using key_type = typename RNG::key_type;
+    // ^ An array type defined in Random123.
+    using ctr_uint = typename RNG::ctr_type::value_type;
+    // ^ The unsigned integer type used in this RNGState's counter array.
+
+    /// -------------------------------------------------------------------
     /// @brief The unsigned integer type used in this RNGState's key array.
     ///        This is typically std::uint32_t, but it can be std::uint64_t.
-    using key_uint_type = typename RNG::key_type::value_type;
-    // An array type defined in Random123.
-    using ctr_type = typename RNG::ctr_type;
-    // An array type defined in Random123.
-    using key_type = typename RNG::key_type;
+    using key_uint = typename RNG::key_type::value_type;
+
 
     const static int len_c = RNG::ctr_type::static_size;
     const static int len_k = RNG::key_type::static_size;
-    typename RNG::ctr_type counter; ///< This RNGState's counter array.
-    typename RNG::key_type key;     ///< This RNGState's key array.
+    typename RNG::ctr_type counter;
+    // ^ This RNGState's counter array.
+
+    /// ------------------------------------------------------------------
+    /// This RNGState's key array. If you want to manually advance the key
+    /// by an integer increment of size "step," then you do so by calling 
+    /// this->key.incr(step).
+    typename RNG::key_type key;
+
 
     /// Initialize the counter and key arrays to all zeros.
     RNGState() : counter{{0}}, key(key_type{{}}) {}
@@ -191,7 +202,7 @@ struct RNGState
 
     /// Initialize the counter array to all zeros. Initialize the key array to have first
     /// element equal to k and all other elements equal to zero.
-    RNGState(key_uint_type k) : counter{{0}}, key{{k}} {}
+    RNGState(key_uint k) : counter{{0}}, key{{k}} {}
 
     ~RNGState() {};
 
@@ -207,16 +218,16 @@ template <typename RNG>
 RNGState<RNG>::RNGState(
     const RNGState<RNG> &s
 ) {
-    std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint_type));
-    std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint_type));
+    std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
+    std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
 }
 
 template <typename RNG>
 RNGState<RNG> &RNGState<RNG>::operator=(
     const RNGState &s
 ) {
-    std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint_type));
-    std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint_type));
+    std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
+    std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
     return *this;
 }
 
@@ -238,5 +249,46 @@ std::ostream &operator<<(
     out << s.key[i] << "}";
     return out;
 }
+
+// =============================================================================
+/// @verbatim embed:rst:leading-slashes
+///
+/// .. NOTE: \ttt expands to \texttt (its definition is given in an rst file)
+///
+/// Words. Hello!
+///
+/// @endverbatim
+template<typename SkDist>
+concept SketchingDistribution = requires(SkDist D) {
+    { D.n_rows }     -> std::convertible_to<const int64_t>;
+    { D.n_cols }     -> std::convertible_to<const int64_t>;
+    { D.major_axis } -> std::convertible_to<const MajorAxis>;
+};
+
+// =============================================================================
+/// \fn isometry_scale_factor(SkDist D) 
+/// @verbatim embed:rst:leading-slashes
+/// Words here ...
+/// @endverbatim
+template <typename T, SketchingDistribution SkDist>
+inline T isometry_scale_factor(SkDist D);
+
+
+// =============================================================================
+/// @verbatim embed:rst:leading-slashes
+///
+/// .. NOTE: \ttt expands to \texttt (its definition is given in an rst file)
+///
+/// Words. Hello!
+///
+/// @endverbatim
+template<typename SkOp>
+concept SketchingOperator = requires(SkOp S) {
+    { S.n_rows }     -> std::convertible_to<const int64_t>;
+    { S.n_cols }     -> std::convertible_to<const int64_t>;
+    { S.seed_state } -> std::convertible_to<const typename SkOp::state_t>;
+    { S.seed_state } -> std::convertible_to<const typename SkOp::state_t>;
+};
+
 
 } // end namespace RandBLAS::base
