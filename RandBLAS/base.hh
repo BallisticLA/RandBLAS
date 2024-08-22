@@ -159,8 +159,7 @@ enum class MajorAxis : char {
  * that Philox-based CBRNGs work best for our purposes, but we also support Threefry-based CBRNGS.
  */
 template <typename RNG = r123::Philox4x32>
-struct RNGState
-{
+struct RNGState {
     using generator = RNG;
     
     using ctr_type = typename RNG::ctr_type;
@@ -282,12 +281,12 @@ inline T isometry_scale_factor(SkDist D);
 /// Words. Hello!
 ///
 /// @endverbatim
-template<typename SkOp>
-concept SketchingOperator = requires(SkOp S) {
+template<typename SKOP>
+concept SketchingOperator = requires(SKOP S) {
     { S.n_rows }     -> std::convertible_to<const int64_t>;
     { S.n_cols }     -> std::convertible_to<const int64_t>;
-    { S.seed_state } -> std::convertible_to<const typename SkOp::state_t>;
-    { S.seed_state } -> std::convertible_to<const typename SkOp::state_t>;
+    { S.seed_state } -> std::convertible_to<const typename SKOP::state_t>;
+    { S.seed_state } -> std::convertible_to<const typename SKOP::state_t>;
 };
 
 

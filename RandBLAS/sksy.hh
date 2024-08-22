@@ -162,7 +162,7 @@ using namespace RandBLAS::sparse;
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <SketchingOperator SKOP, typename T = SKOP::scalar_t>
 inline void sketch_symmetric(
     // B = alpha*A*S + beta*B, where A is a symmetric matrix stored in the format of a general matrix.
     blas::Layout layout,
@@ -297,7 +297,7 @@ inline void sketch_symmetric(
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <SketchingOperator SKOP, typename T = SKOP::scalar_t>
 inline void sketch_symmetric(
     // B = alpha*S*A + beta*B
     blas::Layout layout,
@@ -410,7 +410,7 @@ inline void sketch_symmetric(
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <SketchingOperator SKOP, typename T = SKOP::scalar_t>
 inline void sketch_symmetric(
     // B = alpha*A*S + beta*B, where A is a symmetric matrix stored in the format of a general matrix.
     blas::Layout layout,
@@ -517,7 +517,7 @@ inline void sketch_symmetric(
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <SketchingOperator SKOP, typename T = SKOP::scalar_t>
 inline void sketch_symmetric(
     // B = alpha*S*A + beta*B
     blas::Layout layout,

@@ -149,7 +149,7 @@ using namespace RandBLAS::sparse;
 ///       * Stride between elements of y.
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <SketchingOperator SKOP, typename T = SKOP::scalar_t>
 inline void sketch_vector(
     blas::Op opS,
     int64_t d, // rows in submat(S)
@@ -241,7 +241,7 @@ inline void sketch_vector(
 ///       * Stride between elements of y.
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <SketchingOperator SKOP, typename T = SKOP::scalar_t>
 inline void sketch_vector(
     blas::Op opS,
     T alpha,

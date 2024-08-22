@@ -482,7 +482,7 @@ namespace RandBLAS::sparse {
 ///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
 ///    - Refer to documentation for \math{\lda} for details. 
 ///
-template <typename T, typename SKOP>
+template <typename T, typename RNG, SignedInteger sint_t>
 inline void lskges(
     blas::Layout layout,
     blas::Op opS,
@@ -491,7 +491,7 @@ inline void lskges(
     int64_t n, // \op(A) is m-by-n
     int64_t m, // \op(S) is d-by-m
     T alpha,
-    SKOP &S,
+    SparseSkOp<T,RNG,sint_t> &S,
     int64_t ro_s,
     int64_t co_s,
     const T *A,
@@ -613,7 +613,7 @@ inline void lskges(
 ///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
 ///    - Refer to documentation for \math{\lda} for details. 
 ///
-template <typename T, typename SKOP>
+template <typename T, typename RNG, SignedInteger sint_t>
 inline void rskges(
     blas::Layout layout,
     blas::Op opA,
@@ -624,7 +624,7 @@ inline void rskges(
     T alpha,
     const T *A,
     int64_t lda,
-    SKOP &S,
+    SparseSkOp<T,RNG,sint_t> &S,
     int64_t ro_s,
     int64_t co_s,
     T beta,
@@ -768,7 +768,7 @@ using namespace RandBLAS::sparse;
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <typename T, SketchingOperator SKOP>
 inline void sketch_general(
     blas::Layout layout,
     blas::Op opS,
@@ -940,7 +940,7 @@ inline void sketch_general(
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <typename T, SketchingOperator SKOP>
 inline void sketch_general(
     blas::Layout layout,
     blas::Op opA,
@@ -1085,7 +1085,7 @@ inline void sketch_general(
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <typename T, SketchingOperator SKOP>
 inline void sketch_general(
     blas::Layout layout,
     blas::Op opS,
@@ -1187,7 +1187,7 @@ inline void sketch_general(
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <typename T, SketchingOperator SKOP>
 inline void sketch_general(
     blas::Layout layout,
     blas::Op opA,

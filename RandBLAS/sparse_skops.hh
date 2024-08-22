@@ -412,8 +412,8 @@ void fill_sparse(SparseSkOp &S) {
     return;
 }
 
-template <typename SKOP>
-void print_sparse(SKOP const &S0) {
+template <typename SparseSkOp>
+void print_sparse(SparseSkOp const &S0) {
     std::cout << "SparseSkOp information" << std::endl;
     int64_t nnz;
     if (S0.dist.major_axis == MajorAxis::Short) {
@@ -451,9 +451,9 @@ using RandBLAS::SparseSkOp;
 using RandBLAS::MajorAxis;
 using RandBLAS::sparse_data::COOMatrix;
 
-template <typename SKOP>
+template <typename SparseSkOp>
 static bool has_fixed_nnz_per_col(
-    SKOP const &S0
+    SparseSkOp const &S0
 ) {
     if (S0.dist.major_axis == MajorAxis::Short) {
         return S0.dist.n_rows < S0.dist.n_cols;
@@ -462,9 +462,9 @@ static bool has_fixed_nnz_per_col(
     }
 }
 
-template <typename SKOP>
+template <typename SparseSkOp>
 static int64_t nnz(
-    SKOP const &S0
+    SparseSkOp const &S0
 ) {
     bool saso = S0.dist.major_axis == MajorAxis::Short;
     bool wide = S0.dist.n_rows < S0.dist.n_cols;
@@ -480,8 +480,8 @@ static int64_t nnz(
     }
 }
 
-template <typename SkOp, typename T = SkOp::scalar_t, typename sint_t = SkOp::index_t>
-COOMatrix<T, sint_t> coo_view_of_skop(SkOp &S) {
+template <typename SparseSkOp, typename T = SparseSkOp::scalar_t, typename sint_t = SparseSkOp::index_t>
+COOMatrix<T, sint_t> coo_view_of_skop(SparseSkOp &S) {
     if (!S.known_filled)
         fill_sparse(S);
     int64_t nnz = RandBLAS::sparse::nnz(S);
@@ -498,8 +498,8 @@ COOMatrix<T, sint_t> coo_view_of_skop(SkOp &S) {
 ///     A new SparseSkOp object that depends on the memory underlying S.
 ///     (In particular, it depends on S.rows, S.cols, and S.vals.)
 ///     
-template <typename SKOP>
-static auto transpose(SKOP const &S) {
+template <typename SparseSkOp>
+static auto transpose(SparseSkOp const &S) {
     randblas_require(S.known_filled);
     SparseDist dist = {
         .n_rows = S.dist.n_cols,
@@ -507,7 +507,7 @@ static auto transpose(SKOP const &S) {
         .vec_nnz = S.dist.vec_nnz,
         .major_axis = S.dist.major_axis
     };
-    SKOP St(dist, S.seed_state, S.cols, S.rows, S.vals);
+    SparseSkOp St(dist, S.seed_state, S.cols, S.rows, S.vals);
     St.next_state = S.next_state;
     return St;
 }
