@@ -31,6 +31,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/random_gen.hh"
+#include "RandBLAS/util.hh"
 
 #include <blas.hh>
 
@@ -46,18 +47,11 @@
 
 namespace RandBLAS::dense {
 
-template<typename RNG>
-bool compare_ctr(typename RNG::ctr_type c1, typename RNG::ctr_type c2) {
-    int len = c1.size();
-    
-    for (int ind = len - 1; ind >= 0; ind--) {
-        if (c1[ind] > c2[ind]) {
-            return true;
-        } else if (c1[ind] < c2[ind]) {
-            return false;
-        }
-    }
-    return false;
+template <typename T_IN, typename T_OUT>
+inline void copy_promote(int n, const T_IN &a, T_OUT* b) {
+    for (int i = 0; i < n; ++i)
+        b[i] = static_cast<T_OUT>(a[i]);
+    return;
 }
 
 /** 
@@ -100,15 +94,7 @@ bool compare_ctr(typename RNG::ctr_type c1, typename RNG::ctr_type c2) {
  * 
  */
 template<typename T, typename RNG, typename OP>
-static RNGState<RNG> fill_dense_submat_impl(
-    int64_t n_cols,
-    T* smat,
-    int64_t n_srows,
-    int64_t n_scols,
-    int64_t ptr,
-    const RNGState<RNG> & seed,
-    int64_t lda = 0
-) {
+static RNGState<RNG> fill_dense_submat_impl(int64_t n_cols, T* smat, int64_t n_srows, int64_t n_scols, int64_t ptr, const RNGState<RNG> &seed, int64_t lda = 0) {
     if (lda <= 0) {
         lda = n_scols;
     } else {
@@ -118,110 +104,90 @@ static RNGState<RNG> fill_dense_submat_impl(
     RNG rng;
     using CTR_t = typename RNG::ctr_type;
     using KEY_t = typename RNG::key_type;
-    CTR_t c = seed.counter;
-    KEY_t k = seed.key;
+    const int64_t ctr_size = CTR_t::static_size;
     
     int64_t pad = 0;
-    // ^ computed such that  n_cols+pad is divisible by RNG::static_size
-    if (n_cols % CTR_t::static_size != 0) {
-        pad = CTR_t::static_size - n_cols % CTR_t::static_size;
-    }
-
-    int64_t n_cols_padded = n_cols + pad;
-    // ^ smallest number of columns, greater than or equal to n_cols, that would be divisible by CTR_t::static_size 
-    int64_t ptr_padded = ptr + ptr / n_cols * pad;
-    // ^ ptr corresponding to the padded matrix
-    int64_t r0_padded = ptr_padded / CTR_t::static_size;
-    // ^ starting counter corresponding to ptr_padded 
-    int64_t r1_padded = (ptr_padded + n_scols - 1) / CTR_t::static_size;
-    // ^ ending counter corresponding to ptr of the last element of the row
-    int64_t ctr_gap = n_cols_padded / CTR_t::static_size; 
-    // ^ number of counters between the first counter of the row to the first counter of the next row;
-    int64_t s0 = ptr_padded % CTR_t::static_size; 
-    int64_t e1 = (ptr_padded + n_scols - 1) % CTR_t::static_size;
-
-    int64_t num_thrds = 1;
-    #if defined(RandBLAS_HAS_OpenMP)
-    #pragma omp parallel 
-    {
-        num_thrds = omp_get_num_threads();
-    }
-    #endif
-
-    //Instead of using thrd_arr just initialize ctr_arr to be zero counters;
-    CTR_t *ctr_arr = new CTR_t[num_thrds];
-    for (int i = 0; i < num_thrds; i++) {
-        ctr_arr[i] = c;
-    }
-
-    #pragma omp parallel firstprivate(c, k)
-    {
-
-    auto cc = c;
-    int64_t prev = 0;
-    int64_t i;
-    int64_t r0, r1;
-    int64_t ind;
-    int64_t thrd = 0;
-
-    #pragma omp for
-    for (int row = 0; row < n_srows; row++) {
-        
-        #if defined(RandBLAS_HAS_OpenMP)
-            thrd = omp_get_thread_num();
-        #endif
-
-        ind = 0;
-        r0 = r0_padded + ctr_gap*row;
-        r1 = r1_padded + ctr_gap*row; 
-
-        cc.incr(r0 - prev);
-        prev = r0;
-        auto rv =  OP::generate(rng, cc, k);
-        int64_t range = (r1 > r0)? CTR_t::static_size - 1 : e1;
-        for (i = s0; i <= range; i++) {
-            smat[ind + row * lda] = rv[i];
-            ind++;
-        }
-        // middle 
-        int64_t tmp = r0;
-        while( tmp < r1 - 1) {
-            cc.incr();
-            prev++;
-            rv = OP::generate(rng, cc, k);
-            for (i = 0; i < CTR_t::static_size; i++) {
-                smat[ind + row * lda] = rv[i];
-                ind++;
-            }
-            tmp++;
-        }
-
-        // end
-        if ( r1 > r0 ) {
-            cc.incr();
-            prev++;
-            rv = OP::generate(rng, cc, k);
-            for (i = 0; i <= e1; i++) {
-                smat[ind + row * lda] = rv[i];
-                ind++;
-            }
-        }
-        ctr_arr[thrd] = cc;
-    }
-
+    // ^ computed such that n_cols+pad is divisible by ctr_size
+    if (n_cols % ctr_size != 0) {
+        pad = ctr_size - n_cols % ctr_size;
     }
     
-    //finds the largest counter in the counter array
-    CTR_t max_c = ctr_arr[0];
-    for (int i = 1; i < num_thrds; i++) {  
-        if (compare_ctr<RNG>(ctr_arr[i], max_c)) {
-            max_c = ctr_arr[i];
-        }
-    }
-    delete [] ctr_arr;
+    const int64_t ptr_padded = ptr + ptr / n_cols * pad;
+    // ^ ptr corresponding to the padded matrix
+    const int64_t ctr_mat_start     = ptr_padded / ctr_size;
+    const int64_t first_block_start = ptr_padded % ctr_size;
+    // ^ counter and [position within the counter's array] for index "ptr_padded".
+    const int64_t ctr_mat_row_end =  (ptr_padded + n_scols - 1) / ctr_size;
+    const int64_t last_block_stop = ((ptr_padded + n_scols - 1) % ctr_size) + 1;
+    // ^ counter and [1 + position within the counter's array] for index "(ptr_padded + n_scols - 1)".
+    const int64_t ctr_inter_row_stride = (n_cols + pad) / ctr_size;
+    // ^ number of counters between the first counter of a given row to the first counter of the next row;
+    const bool  one_block_per_row = ctr_mat_start == ctr_mat_row_end;
+    const int64_t first_block_len = ((one_block_per_row) ? last_block_stop : ctr_size) - first_block_start;
 
-    max_c.incr();
+    CTR_t temp_c = seed.counter;
+    temp_c.incr(ctr_mat_start);
+    const CTR_t c = temp_c;
+    const KEY_t k = seed.key;
+
+    #pragma omp parallel
+    {
+    #pragma omp for schedule(static)
+    for (int64_t row = 0; row < n_srows; row++) {
+
+        int64_t incr_from_c = safe_int_product(ctr_inter_row_stride, row);
+    
+        auto c_row = c;
+        c_row.incr(incr_from_c);
+        auto rv = OP::generate(rng, c_row, k);
+
+        T* smat_row = smat + row*lda;
+        for (int i = 0; i < first_block_len; i++) {
+            smat_row[i] = rv[i+first_block_start];
+        }
+        if ( one_block_per_row ) {
+            continue;
+        }
+        // middle blocks
+        int64_t ind = first_block_len;
+        for (int i = 0; i < (ctr_mat_row_end - ctr_mat_start - 1); ++i) {
+            c_row.incr();
+            rv = OP::generate(rng, c_row, k);
+            copy_promote(ctr_size, rv, smat_row + ind);
+            ind = ind + ctr_size;
+        }
+        // last block
+        c_row.incr();
+        rv = OP::generate(rng, c_row, k);
+        copy_promote(last_block_stop, rv, smat_row + ind);
+    }
+    }
+    
+    // find the largest counter in the counter array
+    CTR_t max_c = c;
+    max_c.incr(n_srows * ctr_inter_row_stride);
     return RNGState<RNG> {max_c, k};
+}
+
+template <typename RNG, typename DD>
+RNGState<RNG> compute_next_state(DD dist, RNGState<RNG> state) {
+    if (dist.major_axis == MajorAxis::Undefined) {
+        // implies dist.family = DenseDistName::BlackBox
+        return state;
+    }
+    // ^ This is the only place where MajorAxis is actually used to some 
+    //   productive end.
+    int64_t major_len = major_axis_length(dist);
+    int64_t minor_len = dist.n_rows + (dist.n_cols - major_len);
+    int64_t ctr_size = RNG::ctr_type::static_size;
+    int64_t pad = 0;
+    if (major_len % ctr_size != 0) {
+        pad = ctr_size - major_len % ctr_size;
+    }
+    int64_t ctr_major_axis_stride = (major_len + pad) / ctr_size;
+    int64_t full_incr = safe_int_product(ctr_major_axis_stride, minor_len);
+    state.counter.incr(full_incr);
+    return state;
 }
 
 } // end namespace RandBLAS::dense
@@ -237,11 +203,12 @@ namespace RandBLAS {
 /// that can be used in GEMM.
 enum class DenseDistName : char {
     // ---------------------------------------------------------------------------
-    ///  Indicates the Gaussian distribution with mean 0 and standard deviation 1.
+    ///  Indicates the Gaussian distribution with mean 0 and variance 1.
     Gaussian = 'G',
 
     // ---------------------------------------------------------------------------
-    ///  Indicates the uniform distribution over [-1, 1].
+    ///  Indicates the uniform distribution over [-r, r] where r := sqrt(3)
+    ///  is the radius that provides for a variance of 1.
     Uniform = 'U',
 
     // ---------------------------------------------------------------------------
@@ -249,7 +216,6 @@ enum class DenseDistName : char {
     /// a user-provided buffer.
     BlackBox = 'B'
 };
-
 
 // =============================================================================
 /// A distribution over dense sketching operators.
@@ -267,14 +233,10 @@ struct DenseDist {
     const DenseDistName family;
 
     // ---------------------------------------------------------------------------
-    ///  This member indirectly sets the storage order of buffers of
-    ///  sketching operators that are sampled from this distribution.
-    ///
-    ///  We note that the storage order of a DenseSkOp's underlying buffer does not
-    ///  affect whether the operator can be applied to row-major or column-major data.
-    ///  Mismatched data layouts are resolved automatically and 
-    ///  with zero copies inside RandBLAS::sketch_general. Therefore most users need
-    ///  not spend any brain power thinking about how this value should be set.
+    ///  This member affects whether samples from this distribution have their
+    ///  entries filled row-wise or column-wise. While there is no statistical 
+    ///  difference between these two filling orders, there are situations
+    ///  where one order or the other might be preferred.
     ///  
     /// @verbatim embed:rst:leading-slashes
     /// .. dropdown:: *Notes for experts*
@@ -285,10 +247,9 @@ struct DenseDist {
     ///     a larger sketching operator and (2) one of larger operator's dimensions
     ///     cannot be known before the  iterative process starts.
     ///
-    ///     Essentially, column-major storage order lets us
-    ///     stack operators horizontally in a consistent way, while row-major storage order
-    ///     lets us stack operators vertically in a consistent way. The mapping from
-    ///     major_axis to storage order is given in the table below.
+    ///     Essentially, a column-wise fill order lets us stack operators horizontally
+    ///     in a consistent way, while row-wise fill order lets us stack vertically
+    ///     in a consistent way. The mapping from major_axis to fill order is given below.
     /// 
     ///        .. list-table::
     ///           :widths: 34 33 33
@@ -298,40 +259,43 @@ struct DenseDist {
     ///             - :math:`\texttt{major_axis} = \texttt{Long}`
     ///             - :math:`\texttt{major_axis} = \texttt{Short}`
     ///           * - :math:`\texttt{n_rows} > \texttt{n_cols}`
-    ///             - column major
-    ///             - row major
+    ///             - column-wise
+    ///             - row-wise
     ///           * - :math:`\texttt{n_rows} \leq \texttt{n_cols}`
-    ///             - row major
-    ///             - column major
+    ///             - row-wise
+    ///             - column-wise
     /// @endverbatim
     const MajorAxis major_axis;
 
     // ---------------------------------------------------------------------------
     ///  A distribution over matrices of shape (n_rows, n_cols) with entries drawn
-    ///  iid from either the standard normal distribution or the uniform distribution
-    ///  over [-1, 1]. 
+    ///  iid from either the default choice of standard normal distribution, or from
+    ///  the uniform distribution over [-r, r], where r := sqrt(3) provides for
+    ///  unit variance.
     DenseDist(
         int64_t n_rows,
         int64_t n_cols,
-        DenseDistName dn = DenseDistName::Uniform
-    ) : n_rows(n_rows), n_cols(n_cols), family(dn), major_axis(MajorAxis::Long) {
-        randblas_require(dn != DenseDistName::BlackBox);
-    };
+        DenseDistName dn = DenseDistName::Gaussian
+    ) : n_rows(n_rows), n_cols(n_cols), family(dn), major_axis( (dn == DenseDistName::BlackBox) ? MajorAxis::Undefined : MajorAxis::Long) { }
 
-    // Only use with struct initializer.
     DenseDist(
         int64_t n_rows,
         int64_t n_cols,
         DenseDistName dn,
         MajorAxis ma
-    ) : n_rows(n_rows), n_cols(n_cols), family(dn), major_axis(ma) { };
+    ) : n_rows(n_rows), n_cols(n_cols), family(dn), major_axis(ma) {
+        if (dn == DenseDistName::BlackBox) {
+            randblas_require(ma == MajorAxis::Undefined);
+        } else {
+            randblas_require(ma != MajorAxis::Undefined);
+        }  
+    }
 
 };
 
 
-inline blas::Layout dist_to_layout(
-    DenseDist D
-) {
+inline blas::Layout dist_to_layout(const DenseDist &D) {
+    randblas_require(D.major_axis != MajorAxis::Undefined);
     bool is_wide = D.n_rows < D.n_cols;
     bool fa_long = D.major_axis == MajorAxis::Long;
     if (is_wide && fa_long) {
@@ -345,12 +309,22 @@ inline blas::Layout dist_to_layout(
     }
 }
 
-inline int64_t major_axis_length(
-    DenseDist D
-) {
+inline int64_t major_axis_length(const DenseDist &D) {
+    randblas_require(D.major_axis != MajorAxis::Undefined);
     return (D.major_axis == MajorAxis::Long) ? 
         std::max(D.n_rows, D.n_cols) : std::min(D.n_rows, D.n_cols);
 }
+
+template <typename T>
+inline T isometry_scale_factor(DenseDist D) {
+    if (D.family == DenseDistName::BlackBox) {
+        throw std::runtime_error("Unrecognized distribution.");
+    }
+    // When we sample from the scalar distributions we always
+    // scale things so they're variance-1. 
+    return std::pow((T) std::min(D.n_rows, D.n_cols), -0.5);
+}
+
 
 // =============================================================================
 /// A sample from a distribution over dense sketching operators.
@@ -358,9 +332,8 @@ inline int64_t major_axis_length(
 template <typename T, typename RNG = r123::Philox4x32>
 struct DenseSkOp {
 
-    using generator = RNG;
-    using state_type = RNGState<RNG>;
-    using buffer_type = T;
+    using state_t  = RNGState<RNG>;
+    using scalar_t = T;
 
     const int64_t n_rows;
     const int64_t n_cols;
@@ -379,11 +352,13 @@ struct DenseSkOp {
     // ---------------------------------------------------------------------------
     ///  The state that should be used by the next call to an RNG *after* the
     ///  full sketching operator has been sampled.
-    RNGState<RNG> next_state;
+    const RNGState<RNG> next_state;
 
-    T *buff = nullptr;                         // memory
-    const blas::Layout layout;                 // matrix storage order
-    bool del_buff_on_destruct = false;         // only applies if fill_dense(S) has been called.
+
+    T *buff = nullptr;                      // memory
+    blas::Layout layout;                    // matrix storage order
+    bool del_buff_on_destruct = false;      // only applies if fill_dense(S) has been called.
+
 
     /////////////////////////////////////////////////////////////////////
     //
@@ -391,79 +366,58 @@ struct DenseSkOp {
     //
     /////////////////////////////////////////////////////////////////////
 
-    //  Elementary constructor: needs an implementation
     DenseSkOp(
+        int64_t n_rows,
+        int64_t n_cols,
         DenseDist dist,
-        RNGState<RNG> const &state,
-        T *buff
-    );
+        RNGState<RNG> const &seed_state,
+        RNGState<RNG> const &next_state,
+        T *buff,
+        blas::Layout layout,
+        bool del_buff_on_destruct
+    ) : 
+        n_rows(n_rows), n_cols(n_cols), dist(dist),
+        seed_state(seed_state), next_state(next_state),
+        buff(buff), layout(layout), del_buff_on_destruct(del_buff_on_destruct) { }
 
     ///---------------------------------------------------------------------------
-    /// The preferred constructor for DenseSkOp objects. There are other 
-    /// constructors, but they don't appear in the web documentation.
+    /// Construct a DenseSkOp object, \math{S}.
     ///
     /// @param[in] dist
-    ///     A DenseDist object.
-    ///     - Defines the number of rows and columns in this sketching operator.
-    ///     - Defines the (scalar-valued) distribution of each entry in this sketching operator.
+    ///     DenseDist.
+    ///     - Specifies the dimensions of \math{S}.
+    ///     - Specifies the (scalar) distribution of \math{S}'s entries.
     ///
     /// @param[in] state
-    ///     An RNGState object.
+    ///     RNGState.
     ///     - The RNG will use this as the starting point to generate all 
-    ///       random numbers needed for this sketching operator.
+    ///       random numbers needed for \math{S}.
     ///
     DenseSkOp(
         DenseDist dist,
         RNGState<RNG> const &state
-    ) : DenseSkOp(dist, state, nullptr) {};
-
-    //  Convenience constructor (a wrapper)
-    DenseSkOp(
-        DenseDist dist,
-        uint32_t key,
-        T *buff = nullptr
-    ) : DenseSkOp(dist, RNGState<RNG>(key), buff) {};
-
-    //  Convenience constructor (a wrapper)
-    DenseSkOp(
-        DenseDistName family,
-        int64_t n_rows,
-        int64_t n_cols,
-        uint32_t key,
-        T *buff = nullptr,
-        MajorAxis ma = MajorAxis::Long
-    ) : DenseSkOp(DenseDist{n_rows, n_cols, family, ma}, RNGState<RNG>(key), buff) {};
+    ) : // variable definitions
+        n_rows(dist.n_rows),
+        n_cols(dist.n_cols),
+        dist(dist),
+        seed_state(state),
+        next_state(dense::compute_next_state(dist, state)),
+        buff(nullptr),
+        layout(dist_to_layout(dist))
+    {   // sanity checks
+        randblas_require(this->dist.n_rows > 0);
+        randblas_require(this->dist.n_cols > 0);
+        if (dist.family == DenseDistName::BlackBox)
+            randblas_require(this->buff != nullptr);
+    };
 
     // Destructor
-    ~DenseSkOp();
+    ~DenseSkOp() {
+        if (this->del_buff_on_destruct)
+            delete [] this->buff;
+    }
 };
 
-template <typename T, typename RNG>
-DenseSkOp<T,RNG>::DenseSkOp(
-    DenseDist dist,
-    RNGState<RNG> const &state,
-    T *buff
-) : // variable definitions
-    n_rows(dist.n_rows),
-    n_cols(dist.n_cols),
-    dist(dist),
-    seed_state(state),
-    next_state{},
-    buff(buff),
-    layout(dist_to_layout(dist))
-{   // sanity checks
-    randblas_require(this->dist.n_rows > 0);
-    randblas_require(this->dist.n_cols > 0);
-    if (dist.family == DenseDistName::BlackBox)
-        randblas_require(this->buff != nullptr);
-}
-
-template <typename T, typename RNG>
-DenseSkOp<T,RNG>::~DenseSkOp() {
-    if (this->del_buff_on_destruct) {
-        delete [] this->buff;
-    }
-}
 
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
@@ -475,10 +429,12 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
 ///   .. |ncols| mathmacro:: \mathtt{n\_cols}
 ///   .. |ioff| mathmacro:: \mathtt{i\_off}
 ///   .. |joff| mathmacro:: \mathtt{j\_off}
+///   .. |layout| mathmacro:: \mathtt{layout}
 ///
 /// @endverbatim
-/// Fill \math{\buff} so that \math{\mat(\buff)} is a submatrix of
-/// an _implicit_ random sample from \math{\D}.
+/// Fill \math{\buff} so that (1) \math{\mat(\buff)} is a submatrix of
+/// an _implicit_ random sample from \math{\D}, and (2) \math{\mat(\buff)}
+/// is determined by reading from \math{\buff} in \math{\layout} order.
 /// 
 /// If we denote the implicit sample from \math{\D} by \math{S}, then we have
 /// @verbatim embed:rst:leading-slashes
@@ -487,6 +443,22 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
 /// @endverbatim
 /// on exit.
 ///
+/// This function is for generating low-level representations of matrices
+/// that are equivalent to a submatrix of a RandBLAS DenseSkOp, but 
+/// without using the DenseSkOp abstraction. This can be useful if you want
+/// to sketch a structured matrix that RandBLAS doesn't support (like a symmetric
+/// matrix whose values are only stored in the upper or lower triangle).
+///
+/// Note that since the entries of \math{\buff} are sampled iid from a common
+/// distribution, the value of \math{\layout} is unlikely to have mathematical significance.
+/// However, the value of \math{\layout} can affect this function's efficiency.
+/// For best efficiency we recommend \math{\layout = \mathtt{dist\_to\_layout}(\D).}
+/// If a different value of \math{\layout} is used, then this function will internally
+/// allocate extra memory for an out-of-place change of storage order.
+///
+/// @param[in] layout
+///     blas::Layout::RowMajor or blas::Layout::ColMajor
+///      - The storage order for \math{\mat(\buff)} on exit.
 /// @param[in] D
 ///      A DenseDist object.
 ///      - A distribution over random matrices of shape (D.n_rows, D.n_cols).
@@ -507,63 +479,56 @@ DenseSkOp<T,RNG>::~DenseSkOp() {
 /// @param[in] buff
 ///     Buffer of type T.
 ///     - Length must be at least \math{\nrows \cdot \ncols}.
-///     - The leading dimension of \math{\mat(\buff)} when reading from \math{\buff}
-///       is either \math{\nrows} or \math{\ncols}, depending on the return value of this function
-///       that indicates row-major or column-major layout.
 /// @param[in] seed
 ///      A CBRNG state
 ///      - Used to define \math{S} as a sample from \math{\D}.
-///
-/// @returns
-///     A std::pair consisting of "layout" and "next_state".
-///     - \math{\buff} must be read in "layout" order 
-///       to recover \math{\mat(\buff)}. This layout is determined
-///       from \math{\D} and cannot be controlled directly.
-///     - If this function returns a layout that is undesirable then it is
-///       the caller's responsibility to perform a transpose as needed.
 /// 
-template<typename T, typename RNG>
-std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
-    const DenseDist &D,
-    int64_t n_rows,
-    int64_t n_cols,
-    int64_t ro_s,
-    int64_t co_s,
-    T* buff,
-    const RNGState<RNG> &seed
-) {
+template<typename T, typename RNG = r123::Philox4x32>
+RNGState<RNG> fill_dense(blas::Layout layout, const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s, T* buff, const RNGState<RNG> &seed) {
     using RandBLAS::dense::fill_dense_submat_impl;
     randblas_require(D.n_rows >= n_rows + ro_s);
     randblas_require(D.n_cols >= n_cols + co_s);
-    blas::Layout layout = dist_to_layout(D);
+    blas::Layout natural_layout = dist_to_layout(D);
     int64_t ma_len = major_axis_length(D);
     int64_t n_rows_, n_cols_, ptr;
-    if (layout == blas::Layout::ColMajor) {
+    if (natural_layout == blas::Layout::ColMajor) {
         // operate on the transpose in row-major
         n_rows_ = n_cols;
         n_cols_ = n_rows;
-        ptr = ro_s + co_s * ma_len;
+        ptr = ro_s + safe_int_product(co_s, ma_len);
     } else {
         n_rows_ = n_rows;
         n_cols_ = n_cols;
-        ptr = ro_s * ma_len + co_s;
+        ptr = safe_int_product(ro_s, ma_len) + co_s;
     }
+    RNGState<RNG> next_state{};
     switch (D.family) {
         case DenseDistName::Gaussian: {
-            auto next_state_g = fill_dense_submat_impl<T,RNG,r123ext::boxmul>(ma_len, buff, n_rows_, n_cols_, ptr, seed);
-            return std::make_pair(layout, next_state_g);
+            next_state = fill_dense_submat_impl<T,RNG,r123ext::boxmul>(ma_len, buff, n_rows_, n_cols_, ptr, seed);
+            break;
         }
         case DenseDistName::Uniform: {
-            auto next_state_u = fill_dense_submat_impl<T,RNG,r123ext::uneg11>(ma_len, buff, n_rows_, n_cols_, ptr, seed);
-            return std::make_pair(layout, next_state_u);
+            next_state = fill_dense_submat_impl<T,RNG,r123ext::uneg11>(ma_len, buff, n_rows_, n_cols_, ptr, seed);
+            blas::scal(n_rows_ * n_cols_, (T)std::sqrt(3), buff, 1);
+            break;
         }
         case DenseDistName::BlackBox: {
-            throw std::invalid_argument(std::string("fill_buff cannot be called with the BlackBox distribution."));
+            throw std::invalid_argument(std::string("fill_dense cannot be called with the BlackBox distribution."));
         }
         default: {
             throw std::runtime_error(std::string("Unrecognized distribution."));
         }
     }
+    int64_t size_mat = n_rows * n_cols;
+    if (layout != natural_layout) {
+        T* flip_work = new T[size_mat];
+        blas::copy(size_mat, buff, 1, flip_work, 1);
+        auto [irs_nat, ics_nat] = layout_to_strides(natural_layout, n_rows, n_cols);
+        auto [irs_req, ics_req] = layout_to_strides(layout, n_rows, n_cols);
+        util::omatcopy(n_rows, n_cols, flip_work, irs_nat, ics_nat, buff, irs_req, ics_req);
+        delete [] flip_work;
+    }
+    return next_state;
 }
  
 // =============================================================================
@@ -597,13 +562,9 @@ std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
 ///     - If this function returns a layout that is undesirable then it is
 ///       the caller's responsibility to perform a transpose as needed.
 /// 
-template <typename T, typename RNG>
-std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
-    const DenseDist &D,
-    T *buff,
-    const RNGState<RNG> &seed
-) {
-    return fill_dense(D, D.n_rows, D.n_cols, 0, 0,  buff, seed);
+template <typename T, typename RNG = r123::Philox4x32>
+RNGState<RNG> fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed) {
+    return fill_dense(dist_to_layout(D), D, D.n_rows, D.n_cols, 0, 0, buff, seed);
 }
 
 // ============================================================================= 
@@ -618,23 +579,26 @@ std::pair<blas::Layout, RandBLAS::RNGState<RNG>> fill_dense(
 ///
 /// @param[in] S
 ///     A DenseSkOp object.
-///
-/// @return
-///     An RNGState object. This is the state that should be used the next 
-///     time the program needs to generate random numbers for use in a randomized
-///     algorithm.
 ///    
-template <typename T, typename RNG>
-RNGState<RNG> fill_dense(
-    DenseSkOp<T,RNG> &S
-) {
-    randblas_require(!S.buff);
+template <typename DenseSkOp>
+void fill_dense(DenseSkOp &S) {
+    using T = typename DenseSkOp::scalar_t;
+    randblas_require(S.buff == nullptr);
     randblas_require(S.dist.family != DenseDistName::BlackBox);
     S.buff = new T[S.dist.n_rows * S.dist.n_cols];
-    auto [layout, next_state] = fill_dense<T, RNG>(S.dist, S.buff, S.seed_state);
-    S.next_state = next_state;
+    fill_dense(S.dist, S.buff, S.seed_state);
     S.del_buff_on_destruct = true;
-    return next_state;
+    return;
+}
+
+template <typename T, typename RNG>
+DenseSkOp<T,RNG> submatrix_as_blackbox(const DenseSkOp<T,RNG> &S, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s) {
+    T *buff = new T[n_rows * n_cols];
+    auto dl = dist_to_layout(S.dist);
+    fill_dense(dl, S.dist, n_rows, n_cols, ro_s, co_s, buff, S.seed_state);
+    DenseDist submatrix_dist{n_rows, n_cols, DenseDistName::BlackBox, MajorAxis::Undefined};
+    DenseSkOp<T,RNG> submatrix{n_rows, n_cols, submatrix_dist, S.seed_state, S.next_state, buff, dl, true};
+    return submatrix;
 }
 
 }  // end namespace RandBLAS

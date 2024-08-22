@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include <RandBLAS/base.hh>
 #include <RandBLAS/exceptions.hh>
 #include <blas.hh>
 #include <cstdio>
@@ -58,8 +59,7 @@ void safe_scal(int64_t n, T a, T* x, int64_t inc_x) {
 }
 
 template <typename T>
-void print_colmaj(int64_t n_rows, int64_t n_cols, T *a, char label[])
-{
+void print_colmaj(int64_t n_rows, int64_t n_cols, T *a, const char label[]) {
 	int64_t i, j;
     T val;
 	std::cout << "\n" << label << std::endl;
@@ -117,8 +117,7 @@ std::string type_name() { // call as type_name<obj>()
 }
 
 template <typename T>
-void symmetrize(blas::Layout layout, blas::Uplo uplo, T* A, int64_t n, int64_t lda) { 
-
+void symmetrize(blas::Layout layout, blas::Uplo uplo, int64_t n, T* A, int64_t lda) { 
     auto [inter_row_stride, inter_col_stride] = layout_to_strides(layout, lda);
     #define matA(_i, _j) A[(_i)*inter_row_stride + (_j)*inter_col_stride]
     if (uplo == blas::Uplo::Upper) {
@@ -141,6 +140,29 @@ void symmetrize(blas::Layout layout, blas::Uplo uplo, T* A, int64_t n, int64_t l
 }
 
 template <typename T>
+void overwrite_triangle(blas::Layout layout, blas::Uplo to_overwrite, int64_t n, int64_t strict_offset, T val,  T* A, int64_t lda) {
+    auto [inter_row_stride, inter_col_stride] = layout_to_strides(layout, lda);
+    #define matA(_i, _j) A[(_i)*inter_row_stride + (_j)*inter_col_stride]
+    if (to_overwrite == blas::Uplo::Upper) {
+        for (int64_t i = 0; i < n; ++i) {
+            for (int64_t j = i + strict_offset; j < n; ++j) {
+                matA(i,j) = val;
+            }
+        }
+    } else if (to_overwrite == blas::Uplo::Lower) {
+        for (int64_t i = 0; i < n; ++i) {
+            for (int64_t j = i + strict_offset; j < n; ++j) {
+                matA(j,i) = val;
+            }
+        }
+    } else {
+        throw std::runtime_error("Invalid argument for UPLO.");
+    }
+    #undef matA
+    return;
+}
+
+template <typename T>
 void require_symmetric(blas::Layout layout, const T* A, int64_t n, int64_t lda, T tol) { 
     if (tol < 0)
         return;
@@ -156,6 +178,8 @@ void require_symmetric(blas::Layout layout, const T* A, int64_t n, int64_t lda, 
                 std::string message = "Symmetry check failed. |A(%i,%i) - A(%i,%i)| was %d, which exceeds tolerance of %d.";
                 auto _message = message.c_str();
                 randblas_error_if_msg(viol > rel_tol, _message, i, j, j, i, viol, rel_tol);
+                // ^ TODO: fix this macro. Apparently it doesn't print out all that I'd like. Example I just got:
+                //  "Symmetry check failed. |A(0,1) - A(1,0)| was 1610612736, which exceeds toleranc, in function require_symmetric" thrown in the test body.
             }
         }
     }
@@ -179,6 +203,22 @@ void transpose_square(T* A, int64_t n, int64_t lda) {
     return;
 }
 
+template <typename T>
+void omatcopy(int64_t m, int64_t n, const T* A, int64_t irs_a, int64_t ics_a, T* B, int64_t irs_b, int64_t ics_b) {
+    // TODO:
+    //     1. Order the loops with consideration to cache efficiency.
+    //     2. Vectorize one of the loops with blas::copy or std::memcpy.
+    #define MAT_A(_i, _j) A[(_i)*irs_a + (_j)*ics_a]
+    #define MAT_B(_i, _j) B[(_i)*irs_b + (_j)*ics_b]
+    for (int64_t i = 0; i < m; ++i) {
+        for (int64_t j = 0; j < n; ++j) {
+            MAT_B(i,j) = MAT_A(i,j);
+        }
+    }
+    #undef MAT_A
+    #undef MAT_B
+    return;
+}
 
 template <typename T>
 void flip_layout(blas::Layout layout_in, int64_t m, int64_t n, std::vector<T> &A, int64_t lda_in, int64_t lda_out) {
@@ -207,18 +247,9 @@ void flip_layout(blas::Layout layout_in, int64_t m, int64_t n, std::vector<T> &A
     std::vector<T> A_in(A);
     T* A_buff_in  = A_in.data();
     T* A_buff_out = A.data();
-
-    #define A_IN(_i, _j) A_buff_in[(_i)*irs_in + (_j)*ics_in]
-    #define A_OUT(_i, _j) A_buff_out[(_i)*irs_out + (_j)*ics_out]
-    for (int64_t i = 0; i < m; ++i) {
-        for (int64_t j = 0; j < n; ++j) {
-            A_OUT(i,j) = A_IN(i,j);
-        }
-    }
+    omatcopy(m, n, A_buff_in, irs_in, ics_in, A_buff_out, irs_out, ics_out);
     A.erase(A.begin() + len_buff_A_out, A.end());
     A.resize(len_buff_A_out);
-    #undef A_IN
-    #undef A_OUT
     return;
 }
 
@@ -253,7 +284,7 @@ static inline TO uneg11_to_uneg01(TI in) {
  */
 template <typename TF, typename int64_t, typename RNG>
 RNGState<RNG> sample_indices_iid(
-    int64_t n, TF* cdf, int64_t k, int64_t* samples, RandBLAS::RNGState<RNG> state
+    int64_t n, TF* cdf, int64_t k, int64_t* samples, RNGState<RNG> state
 ) {
     auto [ctr, key] = state;
     RNG gen;

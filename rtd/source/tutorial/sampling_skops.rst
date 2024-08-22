@@ -50,7 +50,7 @@ However, the *recommended* constructors for these classes just accept two parame
 a representation of a distribution (i.e., a DenseDist or a SparseDist) and an RNGState.
 
 For example, the following code produces a :math:`10000 \times 50` dense sketching operator 
-whose entries are iid samples from the uniform distribution over :math:`[-1, 1]`.
+whose entries are iid samples from the standard normal distribution.
 
    .. code:: c++
 
@@ -71,9 +71,9 @@ Formal API docs for the recommended constructors can be found :ref:`here <densed
 Constructing your :math:`N^{\text{th}}` sketching operator, for :math:`N > 1`
 ==============================================================================
 
-Suppose you have an application that requires two independent dense sketching operators,
-:math:`\texttt{S1}` and :math:`\texttt{S2}`, each of size :math:`10000 \times 50`. 
-How should you get your hands on these objects?
+Suppose you have an application that requires two statistically independent dense
+sketching operators, :math:`\texttt{S1}` and :math:`\texttt{S2}`, each of size
+:math:`10000 \times 50`.  How should you get your hands on these objects?
 
 .. warning::
     If you try to construct those sketching operators as follows ...
@@ -88,33 +88,19 @@ How should you get your hands on these objects?
     *then your results would be invalid! Far from being independent,* :math:`\texttt{S1}`
     *and* :math:`\texttt{S2}` *would be equal from a mathematical perspective.*
 
-One correct approach is to first
-fill the entries of :math:`\texttt{S1}`, and then call 
-the constructor for :math:`\texttt{S2}` using :math:`\texttt{S1.next_state}`
-as its RNGState argument:
+One correct approach is to then call the constructor for :math:`\texttt{S2}`
+using :math:`\texttt{S1.next_state}` as its RNGState argument:
 
   .. code:: c++
 
     RandBLAS::RNGState my_state();
     RandBLAS::DenseDist my_dist(10000, 50);
     RandBLAS::DenseSkOp<double> S1(my_dist, my_state);
-    // ^ Defines S1 from a mathematical perspective, but performs no work.
-    //   RandBLAS hasn't made any calls to a CBRNG.
-    RandBLAS::fill_dense(S1);
-    // ^ RandBLAS uses a CBRNG to sample each entry of S1,
-    //   then sets S1.next_state.
+    // ^ Defines S1 from a mathematical perspective. Computes S1.next_state,
+    //   but otherwise performs no work.
     RandBLAS::DenseSkOp<double> S2(my_dist, S1.next_state);
 
-The shortcoming of this approach is that it requires explicitly filling
-:math:`\texttt{S1}` just to define :math:`\texttt{S2}` in a mathematical sense.
-There are two alternative approaches you can use if this shortcoming is 
-significant in your application.
-
-*Alternative 1*. Define one larger sketching operator
-(here, a :math:`10000\times 100` sketching operator) and operate with
-appropriate submatrices of that larger operator when needed.
-
-*Alternative 2*. Declare two RNGState objects from the beginning using
+Another valid approach is to declare two RNGState objects from the beginning using
 different keys, as in the following code:
 
   .. code:: c++

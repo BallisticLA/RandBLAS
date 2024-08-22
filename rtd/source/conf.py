@@ -21,8 +21,8 @@ sys.path.insert(0, os.path.abspath('../sphinxext'))
 # -- Project information -----------------------------------------------------
 
 project = 'RandBLAS'
-copyright = "2023, Riley J. Murray, Burlen Loring"
-author = "Riley J. Murray, Burlen Loring"
+copyright = "2024, Riley Murray, Burlen Loring"
+author = "Riley Murray, Burlen Loring"
 
 # -- General configuration ---------------------------------------------------
 

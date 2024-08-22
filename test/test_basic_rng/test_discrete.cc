@@ -165,8 +165,7 @@ class TestSampleIndices : public ::testing::Test
     // Mark: Without Replacement Tests
     //
 
-    static std::vector<float> fisher_yates_cdf(const std::vector<int64_t> &idxs_major, int64_t K, int64_t num_samples)
-    {
+    static std::vector<float> fisher_yates_cdf(const std::vector<int64_t> &idxs_major, int64_t K, int64_t num_samples) {
         using RandBLAS::util::weights_to_cdf;
         std::vector<float> empirical_cdf;
 
@@ -212,61 +211,50 @@ class TestSampleIndices : public ::testing::Test
         }
     }
 
-    static void single_test_fisher_yates_kolmogorov_smirnov(int64_t N, int64_t K, double significance, int64_t num_samples, uint32_t seed)
-    {
-        using RandBLAS::repeated_fisher_yates;
+    static void single_test_fisher_yates_kolmogorov_smirnov(int64_t N, int64_t K, double significance, int64_t num_samples, uint32_t seed) {
+        using RandBLAS::sparse::repeated_fisher_yates;
         using RandBLAS_StatTests::hypergeometric_pmf_arr;
         using RandBLAS::util::weights_to_cdf;
         using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
 
+        auto critical_value = critical_value_rep_mutator(num_samples, significance);
+
         // Initialize arguments for repeated_fisher_yates
-        std::vector<int64_t> idxs_major(K * num_samples);
-        std::vector<int64_t> idxs_minor(K * num_samples);
-        std::vector<double> vals(K * num_samples);
+        std::vector<int64_t> indices(K * num_samples);
         RNGState state(seed);
 
         // Generate repeated Fisher-Yates in idxs_major
-        state = repeated_fisher_yates(
-            state, K, N, num_samples, // K=vec_nnz, N=dim_major, num_samples=dim_minor
-            idxs_major.data(), idxs_minor.data(), vals.data());
+        state = repeated_fisher_yates(state, K, N, num_samples, indices.data());
 
-        // Generate the true hypergeometric cdf
-        std::vector<float> true_pmf = hypergeometric_pmf_arr(N, K, K);
-        weights_to_cdf(true_pmf.size(), true_pmf.data());
-        std::vector<float> true_cdf = true_pmf; // Rename for clarity
+        // Generate the true hypergeometric cdf (get the pdf first)
+        std::vector<float> true_cdf = hypergeometric_pmf_arr<float>(N, K, K);
+        weights_to_cdf(true_cdf.size(), true_cdf.data());
 
         // Compute the critval and check against it
-        auto critical_value = critical_value_rep_mutator(num_samples, significance);
-        fisher_yates_kolmogorov_smirnov_tester(idxs_major, true_cdf, critical_value, N, K, num_samples);
+        fisher_yates_kolmogorov_smirnov_tester(indices, true_cdf, critical_value, N, K, num_samples);
 
         return;
     }
 
-    static int64_t special_increment_k(int64_t K, int64_t N, const std::vector<int64_t> &K_bounds = {9, 99})
-    {
-        //
-        // Example evolution of K with N=1000: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14, 23, 39, 64, 100,
-        //
-        double exp_base = std::pow(10.0, 1.0 / 10.0); // Log base to give 10 steps for each order of magnitude
-
-        if (K <= K_bounds[0]) {
-            // Step one-by-one up to K_bounds[0] (e.g., 9)
-            return K + 1;
-        } else if (K <= K_bounds[1]) {
-            // Step in square root scale up to K_bounds[1] (e.g., 99)
-            return static_cast<int64_t>(std::pow(std::sqrt(K) + 1, 2));
+    static void incr_with_phase_transitions(int64_t &K, int64_t unit_bound = 10, int64_t sqrt_bound = 100) {
+        if (K < unit_bound) {
+            K += 1;
+        } else if (K < sqrt_bound) {
+            // Step in square root scale up to sqrt_bound
+            K += (int64_t) std::pow(std::sqrt(K) + 1, 2);
         } else {
-            // Step in log-scale after K_bounds[1]
-            return static_cast<int64_t>(K * exp_base);
+            // Step in log-scale after sqrt_bound
+            // Log base to give 5 steps for each order of magnitude
+            K *= std::pow(10.0, 0.2);
         }
+        return;
     }
 
-    static void test_fisher_yates_kolmogorov_smirnov(int64_t N, double significance, int64_t num_samples, uint32_t seed)
-    {
+    static void test_fisher_yates_kolmogorov_smirnov(int64_t N, double significance, int64_t num_samples, uint32_t seed) {
         int64_t K = 0;
         while (K <= N) {
             single_test_fisher_yates_kolmogorov_smirnov(N, K, significance, num_samples, seed);
-            K = special_increment_k(K, N);
+            incr_with_phase_transitions(K);
         }
     }
 

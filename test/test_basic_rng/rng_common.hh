@@ -1,3 +1,32 @@
+// Copyright, 2024. See LICENSE for copyright holder information.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// (1) Redistributions of source code must retain the above copyright notice,
+// this list of conditions and the following disclaimer.
+//
+// (2) Redistributions in binary form must reproduce the above copyright
+// notice, this list of conditions and the following disclaimer in the
+// documentation and/or other materials provided with the distribution.
+//
+// (3) Neither the name of the copyright holder nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+//
+
 #pragma once
 
 #include "RandBLAS.hh"
@@ -15,24 +44,24 @@ namespace KolmogorovSmirnovConstants {
 
 /*** From scipy.stats:  critical_value = kstwo.ppf(1-significance, sample_size) */
 
-const int SMALLEST_SAMPLE = 8;
-const int LARGEST_SAMPLE = 16777216;
+inline const int SMALLEST_SAMPLE = 8;
+inline const int LARGEST_SAMPLE = 16777216;
 
-const std::vector<int> sample_sizes {
+inline const std::vector<int> sample_sizes {
           8,       16,       32,       64,      128,      256,
         512,     1024,     2048,     4096,     8192,    16384,
       32768,    65536,   131072,   262144,   524288,  1048576,
     2097152,  4194304,  8388608, 16777216
 };
 
-const double WEAKEST_SIGNIFICANCE = 0.05;
-const double STRONGEST_SIGNIFICANCE = 1e-6;
+inline const double WEAKEST_SIGNIFICANCE = 0.05;
+inline const double STRONGEST_SIGNIFICANCE = 1e-6;
 
-const std::vector<double> significance_levels {
+inline const std::vector<double> significance_levels {
     0.05, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6
 };
 
-const std::array<const std::array<double, 22>, 6> critical_values {{{
+inline const std::array<const std::array<double, 22>, 6> critical_values {{{
     // significance of 0.05
     4.54266591e-01, 3.27333470e-01, 2.34240860e-01, 1.66933746e-01,
     1.18658276e-01, 8.42018587e-02, 5.96844982e-02, 4.22742678e-02,
@@ -89,7 +118,7 @@ const std::array<const std::array<double, 22>, 6> critical_values {{{
  * The correctness of this function depends on significance_levels being sorted
  * in decreasing order (which corresponds to weakest to strongest significances).
  */
-int significance_rep(double sig) {
+inline int significance_rep(double sig) {
     randblas_require(STRONGEST_SIGNIFICANCE <= sig && sig <= WEAKEST_SIGNIFICANCE);
     int num_siglevels = (int) significance_levels.size();
     for (int i = 0; i < num_siglevels; ++i) {
@@ -107,11 +136,11 @@ int significance_rep(double sig) {
  * The correctness of this function depends on sample_sizes being sorted in
  * increasing order.
  */
-int sample_size_rep(int n) {
+inline int sample_size_rep(int n) {
     randblas_require(SMALLEST_SAMPLE <= n && n <= LARGEST_SAMPLE);
     int num_sample_sizes = (int) sample_sizes.size();
     for (int i = 0; i < num_sample_sizes; ++i) {
-        if (sample_sizes[i] <= n)
+        if (sample_sizes[i] >= n)
             return i;
     }
     // This code shouldn't be reachable!
@@ -119,7 +148,7 @@ int sample_size_rep(int n) {
     return -1;
 }
 
-std::tuple<double,int,double> critical_value_rep(int n, double sig) {
+inline std::tuple<double,int,double> critical_value_rep(int n, double sig) {
     int i = significance_rep(sig);
     auto override_sig = significance_levels[i];
     int j = sample_size_rep(n);
@@ -140,11 +169,25 @@ double critical_value_rep_mutator(TI &n, double &sig) {
 
 }
 
+// Function to check the KS-Stat against crit values
+template <typename T>
+std::pair<int, double> ks_check_critval(const std::vector<T> &cdf1, const std::vector<T> &cdf2, double critical_value) {
+    assert(cdf1.size() == cdf2.size()); // Vectors must be of same size to perform test
+
+    for (size_t i = 0; i < cdf1.size(); ++i) {
+        double diff = std::abs(cdf1[i] - cdf2[i]);
+        if (diff > critical_value) {
+            return {i, diff}; // the test failed.
+        }
+    }
+    return {-1, 0.0}; // interpret a negative return value as the test passing.
+}
+
 //
 // MARK: combinatorics
 //
 
-double log_binomial_coefficient(int64_t n, int64_t k) {
+inline double log_binomial_coefficient(int64_t n, int64_t k) {
     double result = 0.0;
     for (int64_t i = 1; i <= k; ++i) {
         result += std::log(static_cast<double>(n - i + 1)) - std::log(static_cast<double>(i));
@@ -165,8 +208,7 @@ double log_binomial_coefficient(int64_t n, int64_t k) {
  *      This function returns the probability that the sample of D items will contain observed_k elements
  *      from the distinguished set.
  */
-double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observed_k)
-{
+inline double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observed_k) {
     randblas_require(0 <= K && K <= N);
     randblas_require(0 <= D && D <= N);
     randblas_require(0 <= observed_k && observed_k <= K);
@@ -187,8 +229,8 @@ double hypergeometric_pmf(int64_t N, int64_t K, int64_t D, int64_t observed_k)
     return out;
 }
 
-std::vector<float> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D)
-{
+template <typename T>
+std::vector<T> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D) {
     randblas_require(0 <= K && K <= N);
     randblas_require(0 <= D && D <= N);
 
@@ -199,14 +241,14 @@ std::vector<float> hypergeometric_pmf_arr(int64_t N, int64_t K, int64_t D)
     return pmf;
 }
 
-double hypergeometric_mean(int64_t N, int64_t K, int64_t D) {
+inline double hypergeometric_mean(int64_t N, int64_t K, int64_t D) {
     double dN = (double) N;
     double dK = (double) K;
     double dD = (double) D;
     return dD * dK / dN;
 }
 
-double hypergeometric_variance(int64_t N, int64_t K, int64_t D) {
+inline double hypergeometric_variance(int64_t N, int64_t K, int64_t D) {
     double dN = (double) N;
     double dK = (double) K;
     double dD = (double) D;
@@ -217,22 +259,21 @@ double hypergeometric_variance(int64_t N, int64_t K, int64_t D) {
     return dD * t1 * t2 * t3;
 }
 
-//
-// MARK Kolmogorov-Smirnov Calculations
-//
+// MARK: continuous distributions
 
-// Function to check the KS-Stat against crit values
-std::pair<int, double> ks_check_critval(const std::vector<float> &cdf1, const std::vector<float> &cdf2, double critical_value)
-{
-    assert(cdf1.size() == cdf2.size()); // Vectors must be of same size to perform test
+template <typename T>
+inline T standard_normal_cdf(T x) {
+    double dx = (double) x;
+    return (T) std::erfc(-dx / std::sqrt(2)) / 2;
+}
 
-    for (size_t i = 0; i < cdf1.size(); ++i) {
-        double diff = std::abs(cdf1[i] - cdf2[i]);
-        if (diff > critical_value) {
-            return {i, diff}; // the test failed.
-        }
-    }
-    return {-1, 0.0}; // interpret a negative return value as the test passing.
+template <typename T>
+inline T uniform_syminterval_cdf(T x, T radius) {
+    if (x <= -radius)
+        return 0;
+    if (x >= radius)
+        return 1;
+    return (x + radius) / (2*radius);
 }
 
 } // end namespace RandBLAS_StatTests
