@@ -9,9 +9,9 @@ API Reference
 ..  TODO. Explain that we always say data matrices are :math:`m \times n`. Sketching involves matrices (S, A, B).
 
 .. toctree::
-    :maxdepth: 4
+    :maxdepth: 2
 
-    Distributions, random states, and sketching operators <skops_and_dists>
+    Sketching operators and where to find them <skops_and_dists>
     Computing a sketch: dense data <sketch_dense>
     Representing sparse data <sparse_matrices>
     Computing a sketch: sparse data <sketch_sparse>

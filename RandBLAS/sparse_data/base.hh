@@ -173,16 +173,12 @@ static inline void sorted_nonzero_locations_to_pointer_array(
 /// @endverbatim
 template<typename SpMat>
 concept SparseMatrix = requires(SpMat A) {
-    // TODO: figure out why I need to use convertible_to rather than is_same.
     { A.n_rows } -> std::convertible_to<const int64_t>;
     { A.n_cols } -> std::convertible_to<const int64_t>;
     { A.nnz } -> std::convertible_to<int64_t>;
     { *(A.vals) } -> std::convertible_to<typename SpMat::scalar_t>;
     { SpMat(A.n_rows, A.n_cols) };
-    // ^ Is there better way to require a two-argument constructor?
     { A.own_memory } ->  std::convertible_to<const bool>;
-    // { A.reserve((int64_t) 10) };
-    // ^ Problem: const SpMat objects fail that check.
 };
 
 } // end namespace RandBLAS::sparse_data

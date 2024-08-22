@@ -427,21 +427,23 @@ struct DenseSkOp {
 ///   .. |D|     mathmacro:: \mathcal{D}
 ///   .. |nrows| mathmacro:: \mathtt{n\_rows}
 ///   .. |ncols| mathmacro:: \mathtt{n\_cols}
-///   .. |ioff| mathmacro:: \mathtt{i\_off}
-///   .. |joff| mathmacro:: \mathtt{j\_off}
+///   .. |ioff| mathmacro:: \mathtt{ro\_s}
+///   .. |joff| mathmacro:: \mathtt{co\_s}
 ///   .. |layout| mathmacro:: \mathtt{layout}
+///   .. |matS| mathmacro:: \mathbf{S}
 ///
 /// @endverbatim
 /// Fill \math{\buff} so that (1) \math{\mat(\buff)} is a submatrix of
 /// an _implicit_ random sample from \math{\D}, and (2) \math{\mat(\buff)}
 /// is determined by reading from \math{\buff} in \math{\layout} order.
 /// 
-/// If we denote the implicit sample from \math{\D} by \math{S}, then we have
+/// If we denote the implicit sample from \math{\D} by \math{\matS}, then on exit
+/// we have
 /// @verbatim embed:rst:leading-slashes
 /// .. math::
-///     \mat(\buff) = S[\ioff:(\ioff + \nrows),\, \joff:(\joff + \ncols)]
+///     \mat(\buff)[i,j] = \matS[\ioff + i, \joff + j]
 /// @endverbatim
-/// on exit.
+/// assuming the standard convention of zero-indexing.
 ///
 /// This function is for generating low-level representations of matrices
 /// that are equivalent to a submatrix of a RandBLAS DenseSkOp, but 
@@ -454,7 +456,7 @@ struct DenseSkOp {
 /// However, the value of \math{\layout} can affect this function's efficiency.
 /// For best efficiency we recommend \math{\layout = \mathtt{dist\_to\_layout}(\D).}
 /// If a different value of \math{\layout} is used, then this function will internally
-/// allocate extra memory for an out-of-place change of storage order.
+/// allocate extra memory for an out-of-place layout change.
 ///
 /// @param[in] layout
 ///     blas::Layout::RowMajor or blas::Layout::ColMajor
@@ -470,18 +472,18 @@ struct DenseSkOp {
 ///      - The number of columns in \math{\mat(\buff)}.
 /// @param[in] ro_s
 ///      A nonnegative integer.
-///      - The row offset for \math{\mat(\buff)} as a submatrix of \math{S}. 
+///      - The row offset for \math{\mat(\buff)} as a submatrix of \math{\matS}. 
 ///      - We require that \math{\ioff + \nrows} is at most D.n_rows.
 /// @param[in] co_s
 ///      A nonnegative integer.
-///      - The column offset for \math{\mat(\buff)} as a submatrix of \math{S}. 
+///      - The column offset for \math{\mat(\buff)} as a submatrix of \math{\matS}. 
 ///      - We require that \math{\joff + \ncols} is at most D.n_cols.
 /// @param[in] buff
 ///     Buffer of type T.
 ///     - Length must be at least \math{\nrows \cdot \ncols}.
 /// @param[in] seed
 ///      A CBRNG state
-///      - Used to define \math{S} as a sample from \math{\D}.
+///      - Used to define \math{\matS} as a sample from \math{\D}.
 /// 
 template<typename T, typename RNG = r123::Philox4x32>
 RNGState<RNG> fill_dense(blas::Layout layout, const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s, T* buff, const RNGState<RNG> &seed) {
