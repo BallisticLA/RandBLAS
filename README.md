@@ -4,7 +4,7 @@ RandBLAS facilitates implementation of high-level randomized linear algebra algo
 It does this by providing basic functionality for sketching with a BLAS-like interface.
 
 Our goal is for RandBLAS to become a standard like the BLAS, in that hardware vendors might
-release their own optimized implementations of algorithms which confirm to the RandBLAS API.
+release their own optimized implementations of algorithms which conform to the RandBLAS API.
 
 For those who are new to randomized linear algebra, we recommend you check out [this 35-minute YouTube video](https://www.youtube.com/watch?v=6htbyY3rH1w) on the subject.
 
