@@ -212,7 +212,7 @@ class TestSampleIndices : public ::testing::Test
     }
 
     static void single_test_fisher_yates_kolmogorov_smirnov(int64_t N, int64_t K, double significance, int64_t num_samples, uint32_t seed) {
-        using RandBLAS::repeated_fisher_yates;
+        using RandBLAS::sparse::repeated_fisher_yates;
         using RandBLAS_StatTests::hypergeometric_pmf_arr;
         using RandBLAS::util::weights_to_cdf;
         using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
@@ -220,22 +220,18 @@ class TestSampleIndices : public ::testing::Test
         auto critical_value = critical_value_rep_mutator(num_samples, significance);
 
         // Initialize arguments for repeated_fisher_yates
-        std::vector<int64_t> idxs_major(K * num_samples);
-        std::vector<int64_t> idxs_minor(K * num_samples);
-        std::vector<double> vals(K * num_samples);
+        std::vector<int64_t> indices(K * num_samples);
         RNGState state(seed);
 
         // Generate repeated Fisher-Yates in idxs_major
-        state = repeated_fisher_yates(
-            state, K, N, num_samples, // K=vec_nnz, N=dim_major, num_samples=dim_minor
-            idxs_major.data(), idxs_minor.data(), vals.data());
+        state = repeated_fisher_yates(state, K, N, num_samples, indices.data());
 
         // Generate the true hypergeometric cdf (get the pdf first)
         std::vector<float> true_cdf = hypergeometric_pmf_arr<float>(N, K, K);
         weights_to_cdf(true_cdf.size(), true_cdf.data());
 
         // Compute the critval and check against it
-        fisher_yates_kolmogorov_smirnov_tester(idxs_major, true_cdf, critical_value, N, K, num_samples);
+        fisher_yates_kolmogorov_smirnov_tester(indices, true_cdf, critical_value, N, K, num_samples);
 
         return;
     }

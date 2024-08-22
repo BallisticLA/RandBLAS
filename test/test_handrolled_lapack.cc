@@ -318,7 +318,11 @@ class TestHandrolledEigvals : public ::testing::Test {
         std::vector<T> subwork{};
         T tol = 1e-3;
         RNGState state(key + 1);
-        auto [lambda_max, lambda_min, ignore] = hr_lapack::exeigs_powermethod(n, A.data(), ourwork.data(), tol, (T) 1e-6, state, subwork);
+        T p_fail = (n < 500) ? (T) 1e-6 : (T) 0.5;
+        // ^ This affects the number of iterations that will be used in the power method. That number is
+        //   max{#iterations to succeed in expectation, #iterations to succeed with some probability}.
+        //   Large values of p_fail (like p_fail = 0.5) just say "succeed in expectation."
+        auto [lambda_max, lambda_min, ignore] = hr_lapack::exeigs_powermethod(n, A.data(), ourwork.data(), tol, p_fail, state, subwork);
 
         std::cout << "min_comp / min_actual = " << lambda_min / eigvals_expect[n-1] << std::endl;
         std::cout << "max_comp / max_actual = " << lambda_max / eigvals_expect[0] << std::endl;

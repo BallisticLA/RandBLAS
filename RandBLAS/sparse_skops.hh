@@ -60,6 +60,8 @@ static RNGState<RNG> repeated_fisher_yates(
     sint_t *idxs_minor,
     T *vals
 ) {
+    bool write_vals = vals != nullptr;
+    bool write_idxs_minor = idxs_minor != nullptr;
     randblas_error_if(vec_nnz > dim_major);
     std::vector<sint_t> vec_work(dim_major);
     for (sint_t j = 0; j < dim_major; ++j)
@@ -81,8 +83,10 @@ static RNGState<RNG> repeated_fisher_yates(
             vec_work[j] = swap;
             // update (rows, cols, vals)
             idxs_major[j + offset] = (sint_t) swap;
-            vals[j + offset] = (rv[1] % 2 == 0) ? 1.0 : -1.0;
-            idxs_minor[j + offset] = (sint_t) i;
+            if (write_vals)
+                vals[j + offset] = (rv[1] % 2 == 0) ? 1.0 : -1.0;
+            if (write_idxs_minor)
+                idxs_minor[j + offset] = (sint_t) i;
             // increment counter
             ctr_work.incr();
         }
@@ -99,6 +103,13 @@ static RNGState<RNG> repeated_fisher_yates(
         }
     }
     return RNGState<RNG> {ctr, key};
+}
+
+template <typename RNG, SignedInteger sint_t>
+inline RNGState<RNG> repeated_fisher_yates(
+    const RNGState<RNG> &state, int64_t k, int64_t n, int64_t r, sint_t *indices
+) {
+    return repeated_fisher_yates(state, k, n, r, indices, (sint_t*) nullptr, (double*) nullptr);
 }
 
 template <typename RNG, typename SD>
