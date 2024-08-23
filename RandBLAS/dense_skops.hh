@@ -242,28 +242,28 @@ struct DenseDist {
     /// .. dropdown:: *Notes for experts*
     ///    :animate: fade-in-slide-down
     ///
-    ///     Deciding the value of this member is only needed
-    ///     in algorithms where (1) there's a need to iteratively generate panels of
-    ///     a larger sketching operator and (2) one of larger operator's dimensions
-    ///     cannot be known before the  iterative process starts.
+    ///    Deciding the value of this member is only needed
+    ///    in algorithms where (1) there's a need to iteratively generate panels of
+    ///    a larger sketching operator and (2) one of larger operator's dimensions
+    ///    cannot be known before the  iterative process starts.
     ///
-    ///     Essentially, a column-wise fill order lets us stack operators horizontally
-    ///     in a consistent way, while row-wise fill order lets us stack vertically
-    ///     in a consistent way. The mapping from major_axis to fill order is given below.
-    /// 
-    ///        .. list-table::
-    ///           :widths: 34 33 33
-    ///           :header-rows: 1
+    ///    Essentially, a column-wise fill order lets us stack operators horizontally
+    ///    in a consistent way, while row-wise fill order lets us stack vertically
+    ///    in a consistent way. The mapping from major_axis to fill order is given below.
     ///
-    ///           * -  
-    ///             - :math:`\texttt{major_axis} = \texttt{Long}`
-    ///             - :math:`\texttt{major_axis} = \texttt{Short}`
-    ///           * - :math:`\texttt{n_rows} > \texttt{n_cols}`
-    ///             - column-wise
-    ///             - row-wise
-    ///           * - :math:`\texttt{n_rows} \leq \texttt{n_cols}`
-    ///             - row-wise
-    ///             - column-wise
+    ///    .. list-table::
+    ///       :widths: 34 33 33
+    ///       :header-rows: 1
+    ///
+    ///       * -  
+    ///         - :math:`\texttt{major_axis} = \texttt{Long}`
+    ///         - :math:`\texttt{major_axis} = \texttt{Short}`
+    ///       * - :math:`\texttt{n_rows} > \texttt{n_cols}`
+    ///         - column-wise
+    ///         - row-wise
+    ///       * - :math:`\texttt{n_rows} \leq \texttt{n_cols}`
+    ///         - row-wise
+    ///         - column-wise
     /// @endverbatim
     const MajorAxis major_axis;
 

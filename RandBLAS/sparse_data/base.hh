@@ -103,29 +103,29 @@ static inline void sorted_nonzero_locations_to_pointer_array(
 ///
 /// Any object :math:`\ttt{M}` of type :math:`\ttt{SpMat}` has the following attributes.
 ///
-///     .. list-table::
-///        :widths: 25 30 40
-///        :header-rows: 1
-///        
-///        * - 
-///          - type
-///          - description
-///        * - :math:`\ttt{M.n_rows}`
-///          - :math:`\ttt{const int64_t}`
-///          - number of rows
-///        * - :math:`\ttt{M.n_cols}`
-///          - :math:`\ttt{const int64_t}`
-///          - number of columns
-///        * - :math:`\ttt{M.nnz}`
-///          - :math:`\ttt{int64_t}`
-///          - number of structural nonzeros
-///        * - :math:`\ttt{M.vals}`
-///          - :math:`\ttt{SpMat::scalar_t *}`
-///          - pointer to values of structural nonzeros
-///        * - :math:`\ttt{M.own_memory}`
-///          - :math:`\ttt{const bool}`
-///          - A flag indicating if memory attached to :math:`\ttt{M}` should be deallocated when :math:`\ttt{M}` is deleted.
-///            This flag is set automatically based on the type of constructor used for :math:`\ttt{M}.` 
+/// .. list-table::
+///    :widths: 25 30 40
+///    :header-rows: 1
+///    
+///    * - 
+///      - type
+///      - description
+///    * - :math:`\ttt{M.n_rows}`
+///      - :math:`\ttt{const int64_t}`
+///      - number of rows
+///    * - :math:`\ttt{M.n_cols}`
+///      - :math:`\ttt{const int64_t}`
+///      - number of columns
+///    * - :math:`\ttt{M.nnz}`
+///      - :math:`\ttt{int64_t}`
+///      - number of structural nonzeros
+///    * - :math:`\ttt{M.vals}`
+///      - :math:`\ttt{SpMat::scalar_t *}`
+///      - pointer to values of structural nonzeros
+///    * - :math:`\ttt{M.own_memory}`
+///      - :math:`\ttt{const bool}`
+///      - A flag indicating if memory attached to :math:`\ttt{M}` should be deallocated when :math:`\ttt{M}` is deleted.
+///        This flag is set automatically based on the type of constructor used for :math:`\ttt{M}.` 
 /// 
 ///
 /// **Memory-owning constructors**
