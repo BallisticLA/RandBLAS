@@ -53,102 +53,6 @@
 /// code common across the project
 namespace RandBLAS {
 
-/**
- * Stores stride information for a matrix represented as a buffer.
- * The intended semantics for a buffer "A" and the conceptualized
- * matrix "mat(A)" are 
- * 
- *  mat(A)_{ij} == A[i * inter_row_stride + j * inter_col_stride].
- * 
- * for all (i, j) within the bounds of mat(A).
- */
-struct stride_64t {
-    int64_t inter_row_stride; // step down a column
-    int64_t inter_col_stride; // step along a row
-};
-
-inline stride_64t layout_to_strides(blas::Layout layout, int64_t ldim) {
-    if (layout == blas::Layout::ColMajor) {
-        return stride_64t{(int64_t) 1, ldim};
-    } else {
-        return stride_64t{ldim, (int64_t) 1};
-    }
-}
-
-inline stride_64t layout_to_strides(blas::Layout layout, int64_t n_rows, int64_t n_cols) {
-    if (layout == blas::Layout::ColMajor) {
-        return stride_64t{(int64_t) 1, n_rows};
-    } else {
-        return stride_64t{n_cols, (int64_t) 1};
-    }
-}
-
-struct dims64_t {
-    int64_t n_rows;
-    int64_t n_cols;
-};
-
-inline dims64_t dims_before_op(int64_t m, int64_t n, blas::Op op) {
-    if (op == blas::Op::NoTrans) {
-        return {m, n};
-    } else {
-        return {n, m};
-    }
-}
-
-struct submat_spec_64t {
-    int64_t pointer_offset;
-    int64_t ldim;
-};
-
-inline submat_spec_64t offset_and_ldim(
-    blas::Layout layout, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s
-) {
-    if (layout == blas::Layout::ColMajor) {
-        int64_t offset = ro_s + n_rows * co_s;
-        return submat_spec_64t{offset, n_rows};
-    } else {
-        int64_t offset = ro_s * n_cols + co_s;
-        return submat_spec_64t{offset, n_cols};
-    }
-}
-
-
-template<typename T>
-concept SignedInteger = (std::numeric_limits<T>::is_signed && std::numeric_limits<T>::is_integer);
-
-
-template <SignedInteger TI, SignedInteger TO = int64_t>
-inline TO safe_int_product(TI a, TI b) {
-    if (a == 0 || b == 0) {
-        return 0;
-    }
-    TO c = a * b;
-    TO b_check = c / a;
-    TO a_check = c / b;
-    if ((a_check != a) || (b_check != b)) {
-        std::stringstream s;
-        s << "Overflow when multiplying a (=" << a << ") and b(=" << b << "), which resulted in " << c << ".\n";
-        throw std::overflow_error(s.str());
-    }
-    return c;
-}
-
-
-enum class MajorAxis : char {
-    // ---------------------------------------------------------------------------
-    ///  short-axis vectors (cols of a wide matrix, rows of a tall matrix)
-    Short = 'S',
-
-    // ---------------------------------------------------------------------------
-    ///  long-axis vectors (rows of a wide matrix, cols of a tall matrix)
-    Long = 'L',
-
-    // ---------------------------------------------------------------------------
-    ///  Undefined (used when row-major vs column-major must be explicit)
-    Undefined = 'U'
-};
-
 
 /** A representation of the state of a counter-based random number generator
  * (CBRNG) defined in Random123. The representation consists of two arrays:
@@ -249,12 +153,111 @@ std::ostream &operator<<(
     return out;
 }
 
+/**
+ * Stores stride information for a matrix represented as a buffer.
+ * The intended semantics for a buffer "A" and the conceptualized
+ * matrix "mat(A)" are 
+ * 
+ *  mat(A)_{ij} == A[i * inter_row_stride + j * inter_col_stride].
+ * 
+ * for all (i, j) within the bounds of mat(A).
+ */
+struct stride_64t {
+    int64_t inter_row_stride; // step down a column
+    int64_t inter_col_stride; // step along a row
+};
+
+inline stride_64t layout_to_strides(blas::Layout layout, int64_t ldim) {
+    if (layout == blas::Layout::ColMajor) {
+        return stride_64t{(int64_t) 1, ldim};
+    } else {
+        return stride_64t{ldim, (int64_t) 1};
+    }
+}
+
+inline stride_64t layout_to_strides(blas::Layout layout, int64_t n_rows, int64_t n_cols) {
+    if (layout == blas::Layout::ColMajor) {
+        return stride_64t{(int64_t) 1, n_rows};
+    } else {
+        return stride_64t{n_cols, (int64_t) 1};
+    }
+}
+
+struct dims64_t {
+    int64_t n_rows;
+    int64_t n_cols;
+};
+
+inline dims64_t dims_before_op(int64_t m, int64_t n, blas::Op op) {
+    if (op == blas::Op::NoTrans) {
+        return {m, n};
+    } else {
+        return {n, m};
+    }
+}
+
+struct submat_spec_64t {
+    int64_t pointer_offset;
+    int64_t ldim;
+};
+
+inline submat_spec_64t offset_and_ldim(
+    blas::Layout layout, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s
+) {
+    if (layout == blas::Layout::ColMajor) {
+        int64_t offset = ro_s + n_rows * co_s;
+        return submat_spec_64t{offset, n_rows};
+    } else {
+        int64_t offset = ro_s * n_cols + co_s;
+        return submat_spec_64t{offset, n_cols};
+    }
+}
+
+
+#ifdef __cpp_concepts
+template<typename T>
+concept SignedInteger = (std::numeric_limits<T>::is_signed && std::numeric_limits<T>::is_integer);
+#else
+#define SignedInteger typename
+#endif
+
+
+template <SignedInteger TI, SignedInteger TO = int64_t>
+inline TO safe_int_product(TI a, TI b) {
+    if (a == 0 || b == 0) {
+        return 0;
+    }
+    TO c = a * b;
+    TO b_check = c / a;
+    TO a_check = c / b;
+    if ((a_check != a) || (b_check != b)) {
+        std::stringstream s;
+        s << "Overflow when multiplying a (=" << a << ") and b(=" << b << "), which resulted in " << c << ".\n";
+        throw std::overflow_error(s.str());
+    }
+    return c;
+}
+
+
+enum class MajorAxis : char {
+    // ---------------------------------------------------------------------------
+    ///  short-axis vectors (cols of a wide matrix, rows of a tall matrix)
+    Short = 'S',
+
+    // ---------------------------------------------------------------------------
+    ///  long-axis vectors (rows of a wide matrix, cols of a tall matrix)
+    Long = 'L',
+
+    // ---------------------------------------------------------------------------
+    ///  Undefined (used when row-major vs column-major must be explicit)
+    Undefined = 'U'
+};
+
+#ifdef __cpp_concepts
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
 ///
-/// .. NOTE: \ttt expands to \texttt (its definition is given in an rst file)
-///
-/// Words. Hello!
+/// 
 ///
 /// @endverbatim
 template<typename SkDist>
@@ -267,12 +270,39 @@ concept SketchingDistribution = requires(SkDist D) {
 // =============================================================================
 /// \fn isometry_scale_factor(SkDist D) 
 /// @verbatim embed:rst:leading-slashes
-/// Words here ...
+///
+/// All sketching distributions in RandBLAS satisfy the following properties:
+/// if :math:`\D` is a distribution over :math:`r \times c` matrices and 
+/// :math:`\mtxS` is a sample from :math:`\D`,  then
+/// (1) :math:`\mathbb{E}\mtxS = \mathbf{0}_{r \times c}` and (2)
+///
+/// .. math::
+///    :nowrap:
+///     
+///     \begin{gather*}
+///     \alpha^2 \cdot \mathbb{E}\left[ \mtxS^T\mtxS \right]&=\mathbf{I}_{c \times c} \\
+///     \beta^2 \cdot \mathbb{E}\left[ \mtxS{\mtxS}^T \right]&=\mathbf{I}_{r \times r}.
+///     \end{gather*}
+///
+/// hold for some :math:`\alpha > 0` and :math:`\beta > 0`.
+///
+/// This function returns
+///
+/// .. math::
+///
+///     \gamma = \begin{cases} \alpha &\text{ if } r \leq c \\ \beta &\text{ if } r > c \end{cases}.
+///
+/// If you want to sketch in a way that preserves squared norms in expectation, then you
+/// should sketch with a scaled sample :math:`\gamma \mtxS` rather than the sample itself.
+///
 /// @endverbatim
 template <typename T, SketchingDistribution SkDist>
 inline T isometry_scale_factor(SkDist D);
+#else
+#define SketchingDistribution typename
+#endif
 
-
+#ifdef __cpp_concepts
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
 ///
@@ -288,6 +318,9 @@ concept SketchingOperator = requires(SKOP S) {
     { S.seed_state } -> std::convertible_to<const typename SKOP::state_t>;
     { S.seed_state } -> std::convertible_to<const typename SKOP::state_t>;
 };
+#else
+#define SketchingOperator typename
+#endif
 
 
 } // end namespace RandBLAS::base

@@ -105,26 +105,6 @@ static RNGState<RNG> repeated_fisher_yates(
     return RNGState<RNG> {ctr, key};
 }
 
-template <typename RNG, SignedInteger sint_t>
-inline RNGState<RNG> repeated_fisher_yates(
-    const RNGState<RNG> &state, int64_t k, int64_t n, int64_t r, sint_t *indices
-) {
-    return repeated_fisher_yates(state, k, n, r, indices, (sint_t*) nullptr, (double*) nullptr);
-}
-
-template <typename RNG, typename SD>
-RNGState<RNG> compute_next_state(SD dist, RNGState<RNG> state) {
-    int64_t minor_len;
-    if (dist.major_axis == MajorAxis::Short) {
-        minor_len = std::min(dist.n_rows, dist.n_cols);
-    } else {
-        minor_len = std::max(dist.n_rows, dist.n_cols);
-    }
-    int64_t full_incr = minor_len * dist.vec_nnz;
-    state.counter.incr(full_incr);
-    return state;
-}
-
 }
 
 namespace RandBLAS {
@@ -164,6 +144,13 @@ struct SparseDist {
     const MajorAxis major_axis = MajorAxis::Short;
 };
 
+template <typename RNG, SignedInteger sint_t>
+inline RNGState<RNG> repeated_fisher_yates(
+    const RNGState<RNG> &state, int64_t k, int64_t n, int64_t r, sint_t *indices
+) {
+    return sparse::repeated_fisher_yates(state, k, n, r, indices, (sint_t*) nullptr, (double*) nullptr);
+}
+
 template <typename T>
 inline T isometry_scale_factor(SparseDist D) {
     T vec_nnz = (T) D.vec_nnz;
@@ -174,6 +161,19 @@ inline T isometry_scale_factor(SparseDist D) {
         T major_ax_len = (T) std::max(D.n_rows, D.n_cols);
         return std::sqrt( major_ax_len / (vec_nnz * minor_ax_len) );
     }
+}
+
+template <typename RNG>
+RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
+    int64_t minor_len;
+    if (dist.major_axis == MajorAxis::Short) {
+        minor_len = std::min(dist.n_rows, dist.n_cols);
+    } else {
+        minor_len = std::max(dist.n_rows, dist.n_cols);
+    }
+    int64_t full_incr = minor_len * dist.vec_nnz;
+    state.counter.incr(full_incr);
+    return state;
 }
 
 
@@ -278,7 +278,7 @@ struct SparseSkOp {
         dist(dist),
         seed_state(state),
         own_memory(false),
-        next_state(sparse::compute_next_state(dist, seed_state))
+        next_state(compute_next_state(dist, seed_state))
     {   // sanity checks
         randblas_require(this->dist.n_rows > 0);
         randblas_require(this->dist.n_cols > 0);
@@ -341,7 +341,7 @@ struct SparseSkOp {
         n_cols(dist.n_cols),
         dist(dist),
         seed_state(state),
-        next_state(sparse::compute_next_state(dist, seed_state)),
+        next_state(compute_next_state(dist, seed_state)),
         own_memory(true)
     {   // sanity checks
         randblas_require(this->dist.n_rows > 0);

@@ -350,17 +350,6 @@ namespace RandBLAS::sparse {
 // MARK: LSKGES
 
 // =============================================================================
-/// @verbatim embed:rst:leading-slashes
-///
-///   .. |op| mathmacro:: \operatorname{op}
-///   .. |mat| mathmacro:: \operatorname{mat}
-///   .. |submat| mathmacro:: \operatorname{submat}
-///   .. |lda| mathmacro:: \mathrm{lda}
-///   .. |ldb| mathmacro:: \mathrm{ldb}
-///   .. |opA| mathmacro:: \mathrm{opA}
-///   .. |opS| mathmacro:: \mathrm{opS}
-///
-/// @endverbatim
 /// LSKGES: Perform a GEMM-like operation
 /// @verbatim embed:rst:leading-slashes
 /// .. math::

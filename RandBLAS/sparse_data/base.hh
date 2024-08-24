@@ -65,7 +65,7 @@ int64_t nnz_in_dense(
     return nnz;
 }
 
-template <RandBLAS::SignedInteger sint_t = int64_t>
+template <SignedInteger sint_t = int64_t>
 static inline void sorted_nonzero_locations_to_pointer_array(
     int64_t nnz,
     sint_t *sorted, // length at least max(nnz, last_ptr_index + 1)
@@ -96,6 +96,7 @@ static inline void sorted_nonzero_locations_to_pointer_array(
 // nomincally public members like A._n_rows and A._n_cols, which the user will only change
 // at their own peril.
 
+#ifdef __cpp_concepts
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
 ///
@@ -180,6 +181,9 @@ concept SparseMatrix = requires(SpMat A) {
     { SpMat(A.n_rows, A.n_cols) };
     { A.own_memory } ->  std::convertible_to<const bool>;
 };
+#else
+#define SparseMatrix typename
+#endif
 
 } // end namespace RandBLAS::sparse_data
 
