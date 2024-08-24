@@ -239,23 +239,53 @@ inline TO safe_int_product(TI a, TI b) {
 }
 
 
+// ---------------------------------------------------------------------------
+/// @verbatim embed:rst:leading-slashes
+///
+/// *Note: This concept does not apply to distributions over square matrices.*
+///
+/// We define sketching distributions in a way that is agnostic to sketching from the left or from the right.
+/// This requires thinking less about the properties of a sketching operator's rows and columns
+/// and more about the properties of the vectors along their *longer axis* and *shorter axis*,
+/// in the sense of the table below.
+///
+/// .. list-table::
+///    :widths: 34 33 33
+///    :header-rows: 1
+///
+///    * - When sketching from the ...
+///      - the short-axis vectors are ...
+///      - the long-axis vectors are ...
+///    * - left, with a wide operator
+///      - the operator's columns
+///      - the operator's rows
+///    * - right, with a tall operator
+///      - the operator's rows
+///      - the operator's columns
+///
+/// If a distribution has major axis :math:`M` then its samples will have statistically
+/// independent :math:`M`-axis vectors. A major axis is *undefined* when there are dependencies across both 
+/// rows and columns.
+///
+/// @endverbatim
 enum class MajorAxis : char {
     // ---------------------------------------------------------------------------
-    ///  short-axis vectors (cols of a wide matrix, rows of a tall matrix)
     Short = 'S',
 
     // ---------------------------------------------------------------------------
-    ///  long-axis vectors (rows of a wide matrix, cols of a tall matrix)
     Long = 'L',
 
     // ---------------------------------------------------------------------------
-    ///  Undefined (used when row-major vs column-major must be explicit)
     Undefined = 'U'
 };
 
 #ifdef __cpp_concepts
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
+///
+///  TODO: take the expectation properties in scaled partial isometries docs and move here.
+///  (Or, rather, move above.)
+///
 /// Any object :math:`\ttt{D}` of type :math:`\ttt{SkDist}` has the following attributes.
 ///
 /// .. list-table::
@@ -267,37 +297,17 @@ enum class MajorAxis : char {
 ///      - description
 ///    * - :math:`\ttt{D.n_rows}`
 ///      - :math:`\ttt{const int64_t}`
-///      - number of rows
+///      - samples from :math:`\ttt{D}` have this many rows
 ///    * - :math:`\ttt{D.n_cols}`
 ///      - :math:`\ttt{const int64_t}`
-///      - number of columns
+///      - samples from :math:`\ttt{D}` have this many columns
 ///    * - :math:`\ttt{D.major_axis}`
 ///      - :math:`\ttt{const MajorAxis}`
-///      - words.
-///
-/// **Topic 1**
-/// 
-///     Words ...
-///
-///     .. code:: c++
-///
-///        SkDist(int64_t n_rows, int64_t n_cols) 
-///         : n_rows(n_rows), n_cols(n_cols) {
-///             // class-specific code ...
-///         };
-///
-///     more words ...
-///
-///     .. code:: c++
-///
-///         void function() {
-///             // ... class-specific code ...
-///         }
+///      - Indicate the nature of statistical independence among a sample's entries.
 ///
 ///
-/// **Topic 2**
-///
-///     Words.
+/// Note that we only allow one major axis. Although it's not obvious, enforcing a single major axis
+/// is relevant even for distributions over matrices with i.i.d. entries.
 ///
 /// @endverbatim
 template<typename SkDist>

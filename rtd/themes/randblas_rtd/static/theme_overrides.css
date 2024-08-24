@@ -1,14 +1,18 @@
 @import 'css/theme.css';
 
 /* override table width restrictions */
-.wy-table-responsive table td, .wy-table-responsive table th {
+/* .wy-table-responsive table td, .wy-table-responsive table th {
     white-space: normal;
-}
+} */
+
+.breatheparameterlist li tt + p {
+    display: inline;
+  }
 
 .wy-table-responsive {
     margin-bottom: 24px;
     max-width: 100%;
-    overflow: visible;
+    overflow: scroll;
 }
 
 .wy-nav-side {
@@ -34,6 +38,7 @@
     height: 100%;
     max-width: 1000px;
     margin: auto;
+    /* text-align: justify; */
 }
 
 .wy-nav-content-wrap.collapsed {
@@ -51,7 +56,45 @@
 
 .math {
     text-align: left;
+    overflow: scroll;
 }
 .eqno {
     float: right;
+}
+
+
+
+/* .cpp.class, .cpp.class dl, .cpp.class dd, .cpp.class dt {
+    margin-left: 0.5em;
+    padding-left: 0;
+}
+
+.cpp.enumeration, .cpp.enumeration dl, .cpp.enumeration dd, .cpp.enumeration dt {
+    margin-left: 0.5em;
+    padding-left: 0;
+} */
+
+.cpp.enum-class, .cpp.enum-class dl, .cpp.enum-class dd, .cpp.enum-class dt {
+    margin-left: 0.5em;
+    /* padding-left: 0; */
+}
+
+.cpp.var, .cpp.var dl, .cpp.var dd, .cpp.var dt {
+    margin-left: 0.5em;
+    /* padding-left: 0; */
+}
+
+.cpp.concept, .cpp.concept dl, .cpp.concept dd, .cpp.concept dt {
+    margin-left: 0.5em;
+    /* padding-left: 0; */
+}
+
+.cpp.struct, .cpp.struct dl, .cpp.struct dd, .cpp.struct dt {
+    margin-left: 0.5em;
+    /* padding-left: 0; */
+}
+
+.cpp.function, .cpp.function dl, .cpp.function dd, .cpp.function dt {
+    margin-left: 0.5em;
+    /* padding-left: 0; */
 }

@@ -9,7 +9,7 @@ API Reference
 .. toctree::
     :maxdepth: 2
 
-    Sketching operators <skops_and_dists>
+    Fundamentals <skops_and_dists>
     Working with dense data <sketch_dense>
     Working with sparse data <sketch_sparse>
     Utilities <utilities>
