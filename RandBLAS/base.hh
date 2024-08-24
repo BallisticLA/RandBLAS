@@ -302,9 +302,9 @@ enum class MajorAxis : char {
 /// @endverbatim
 template<typename SkDist>
 concept SketchingDistribution = requires(SkDist D) {
-    { D.n_rows }     -> std::convertible_to<const int64_t>;
-    { D.n_cols }     -> std::convertible_to<const int64_t>;
-    { D.major_axis } -> std::convertible_to<const MajorAxis>;
+    { D.n_rows }     -> std::same_as<const int64_t&>;
+    { D.n_cols }     -> std::same_as<const int64_t&>;
+    { D.major_axis } -> std::same_as<const MajorAxis&>;
 };
 
 // =============================================================================
@@ -353,10 +353,10 @@ inline T isometry_scale_factor(SkDist D);
 /// @endverbatim
 template<typename SKOP>
 concept SketchingOperator = requires(SKOP S) {
-    { S.n_rows }     -> std::convertible_to<const int64_t>;
-    { S.n_cols }     -> std::convertible_to<const int64_t>;
-    { S.seed_state } -> std::convertible_to<const typename SKOP::state_t>;
-    { S.seed_state } -> std::convertible_to<const typename SKOP::state_t>;
+    { S.n_rows }     -> std::same_as<const int64_t&>;
+    { S.n_cols }     -> std::same_as<const int64_t&>;
+    { S.seed_state } -> std::same_as<const typename SKOP::state_t&>;
+    { S.seed_state } -> std::same_as<const typename SKOP::state_t&>;
 };
 #else
 #define SketchingOperator typename

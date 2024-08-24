@@ -174,12 +174,12 @@ static inline void sorted_nonzero_locations_to_pointer_array(
 /// @endverbatim
 template<typename SpMat>
 concept SparseMatrix = requires(SpMat A) {
-    { A.n_rows } -> std::convertible_to<const int64_t>;
-    { A.n_cols } -> std::convertible_to<const int64_t>;
-    { A.nnz } -> std::convertible_to<int64_t>;
-    { *(A.vals) } -> std::convertible_to<typename SpMat::scalar_t>;
+    { A.n_rows }     -> std::same_as<const int64_t&>;
+    { A.n_cols }     -> std::same_as<const int64_t&>;
+    { A.nnz }        -> std::same_as<int64_t&>;
+    { *(A.vals) }    -> std::same_as<typename SpMat::scalar_t&>;
+    { A.own_memory } -> std::same_as<const bool&>;
     { SpMat(A.n_rows, A.n_cols) };
-    { A.own_memory } ->  std::convertible_to<const bool>;
 };
 #else
 #define SparseMatrix typename
