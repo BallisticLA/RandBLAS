@@ -256,8 +256,48 @@ enum class MajorAxis : char {
 #ifdef __cpp_concepts
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
+/// Any object :math:`\ttt{D}` of type :math:`\ttt{SkDist}` has the following attributes.
 ///
+/// .. list-table::
+///    :widths: 25 30 40
+///    :header-rows: 1
+///    
+///    * - 
+///      - type
+///      - description
+///    * - :math:`\ttt{D.n_rows}`
+///      - :math:`\ttt{const int64_t}`
+///      - number of rows
+///    * - :math:`\ttt{D.n_cols}`
+///      - :math:`\ttt{const int64_t}`
+///      - number of columns
+///    * - :math:`\ttt{D.major_axis}`
+///      - :math:`\ttt{const MajorAxis}`
+///      - words.
+///
+/// **Topic 1**
 /// 
+///     Words ...
+///
+///     .. code:: c++
+///
+///        SkDist(int64_t n_rows, int64_t n_cols) 
+///         : n_rows(n_rows), n_cols(n_cols) {
+///             // class-specific code ...
+///         };
+///
+///     more words ...
+///
+///     .. code:: c++
+///
+///         void function() {
+///             // ... class-specific code ...
+///         }
+///
+///
+/// **Topic 2**
+///
+///     Words.
 ///
 /// @endverbatim
 template<typename SkDist>
@@ -280,8 +320,8 @@ concept SketchingDistribution = requires(SkDist D) {
 ///    :nowrap:
 ///     
 ///     \begin{gather*}
-///     \alpha^2 \cdot \mathbb{E}\left[ \mtxS^T\mtxS \right]&=\mathbf{I}_{c \times c} \\
-///     \beta^2 \cdot \mathbb{E}\left[ \mtxS{\mtxS}^T \right]&=\mathbf{I}_{r \times r}.
+///     \alpha^2 \cdot \mathbb{E}\left[ \mtxS^T\mtxS \right]=\mathbf{I}_{c \times c}& \\
+///     \,\beta^2 \cdot \mathbb{E}\left[ \mtxS{\mtxS}^T\, \right]=\mathbf{I}_{r \times r}&
 ///     \end{gather*}
 ///
 /// hold for some :math:`\alpha > 0` and :math:`\beta > 0`.
@@ -290,7 +330,7 @@ concept SketchingDistribution = requires(SkDist D) {
 ///
 /// .. math::
 ///
-///     \gamma = \begin{cases} \alpha &\text{ if } r \leq c \\ \beta &\text{ if } r > c \end{cases}.
+///     \gamma = \begin{cases} \alpha &\text{ if } r \leq c \\ \beta &\text{ if } r > c \end{cases}~.
 ///
 /// If you want to sketch in a way that preserves squared norms in expectation, then you
 /// should sketch with a scaled sample :math:`\gamma \mtxS` rather than the sample itself.

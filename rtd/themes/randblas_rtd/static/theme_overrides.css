@@ -11,6 +11,44 @@
     overflow: visible;
 }
 
+.wy-nav-side {
+    transition: transform 0.3s ease;
+}
+
+.wy-nav-side.collapsed {
+    transform: translateX(-100%);
+}
+
+.wy-nav-side-toggle {
+    display: block;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1000;
+    cursor: pointer;
+}
+
+.wy-nav-content {
+    transition: margin-left 0.3s ease;
+    padding: 1.618em 3.236em;
+    height: 100%;
+    max-width: 1000px;
+    margin: auto;
+}
+
+.wy-nav-content-wrap.collapsed {
+    transition: margin-left 0.3s ease;
+    margin-left: 0;
+    width: 100%;
+}
+
+.wy-nav-content.collapsed {
+    margin-left: 0;
+    max-width: none;
+    margin: 0;
+    width: 100%;
+}
+
 .math {
     text-align: left;
 }

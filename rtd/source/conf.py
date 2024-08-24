@@ -89,6 +89,11 @@ html_theme = 'randblas_rtd'
 #     'theme_overrides.css'  # overrides for wide tables in RTD theme
 # ]
 
+# Add custom JavaScript file
+html_js_files = [
+    'custom.js',
+]
+
 # numfig = True
 math_numfig = True
 math_eqref_format = "Eq. {number}"  # use a non-breaking-space unicode character.
