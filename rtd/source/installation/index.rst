@@ -15,8 +15,6 @@ RandBLAS is most useful when called from programs that can access LAPACK,
 or an equivalent library for dense matrix computations. However, we don't
 require that such a library is available.
 
-RandBLAS uses `C++20 concepts <https://en.cppreference.com/w/cpp/language/constraints>`_.
-Make sure your compiler supports these!
 
 CMake users
 -----------
@@ -34,6 +32,11 @@ for detailed build and installation instructions.
 Check out our `examples <https://github.com/BallisticLA/RandBLAS/tree/main/examples>`_
 for CMake projects that use RandBLAS and `LAPACK++ <https://github.com/icl-utk-edu/lapackpp>`_
 to implement high-level randomized algorithms.
+
+.. warning::
+
+  Make sure to use the flag ``-Dblas_int=int64`` in the CMake configuration line for BLAS++
+  If you don't do that then you might get int32, which can lead to issues for large matrices.
 
 Everyone else
 -------------

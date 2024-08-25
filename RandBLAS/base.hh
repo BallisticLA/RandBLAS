@@ -279,6 +279,7 @@ enum class MajorAxis : char {
     Undefined = 'U'
 };
 
+
 #ifdef __cpp_concepts
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
@@ -295,16 +296,16 @@ enum class MajorAxis : char {
 ///    :nowrap:
 ///     
 ///     \begin{gather}
-///     \alpha^2 \cdot \mathbb{E}\left[ \mtxS^T\mtxS \right]=\mathbf{I}_{c \times c}& \nonumber \\
-///     \,\beta^2 \cdot \mathbb{E}\left[ \mtxS{\mtxS}^T\, \right]=\mathbf{I}_{r \times r}& \nonumber
+///     \theta^2 \cdot \mathbb{E}\left[ \mtxS^T\mtxS \right]=\mathbf{I}_{c \times c}& \nonumber \\
+///     \,\phi^2 \cdot \mathbb{E}\left[ \mtxS{\mtxS}^T\, \right]=\mathbf{I}_{r \times r}& \nonumber
 ///     \end{gather}
 ///
-/// hold for some :math:`\alpha > 0` and :math:`\beta > 0`.
+/// hold for some :math:`\theta > 0` and :math:`\phi > 0`.
 ///
 /// The *isometry scale* of the distribution
-/// is :math:`\gamma := \alpha` if :math:`c \geq r` and :math:`\gamma := \beta` otherwise. If you want to
+/// is :math:`\alpha := \theta` if :math:`c \geq r` and :math:`\alpha := \phi` otherwise. If you want to
 /// sketch in a way that preserves squared norms in expectation, then you should sketch with 
-/// a scaled sample :math:`\gamma \mtxS` rather than the sample itself.
+/// a scaled sample :math:`\alpha \mtxS` rather than the sample itself.
 ///
 /// **Programmatic description**
 ///
@@ -343,43 +344,8 @@ concept SketchingDistribution = requires(SkDist D) {
     { D.isometry_scale } -> std::same_as<const double&>;
 };
 #else
-///   .. math::
-///
-///     {\D}\texttt{.isometry\_scale} = \begin{cases} \alpha &\text{ if } r \leq c \\ \beta &\text{ if } r > c \end{cases}~.
 #define SketchingDistribution typename
 #endif
-
-// =============================================================================
-/// \fn isometry_scale_factor(SkDist D) 
-/// @verbatim embed:rst:leading-slashes
-///
-/// All sketching distributions in RandBLAS satisfy the following properties:
-/// if :math:`\D` is a distribution over :math:`r \times c` matrices and 
-/// :math:`\mtxS` is a sample from :math:`\D`,  then
-/// (1) :math:`\mathbb{E}\mtxS = \mathbf{0}_{r \times c}` and (2)
-///
-/// .. math::
-///    :nowrap:
-///     
-///     \begin{gather*}
-///     \alpha^2 \cdot \mathbb{E}\left[ \mtxS^T\mtxS \right]=\mathbf{I}_{c \times c}& \\
-///     \,\beta^2 \cdot \mathbb{E}\left[ \mtxS{\mtxS}^T\, \right]=\mathbf{I}_{r \times r}&
-///     \end{gather*}
-///
-/// hold for some :math:`\alpha > 0` and :math:`\beta > 0`.
-///
-/// This function returns
-///
-/// .. math::
-///
-///     \gamma = \begin{cases} \alpha &\text{ if } r \leq c \\ \beta &\text{ if } r > c \end{cases}~.
-///
-/// If you want to sketch in a way that preserves squared norms in expectation, then you
-/// should sketch with a scaled sample :math:`\gamma \mtxS` rather than the sample itself.
-///
-/// @endverbatim
-template <typename T, SketchingDistribution SkDist>
-inline T isometry_scale_factor(SkDist D);
 
 
 #ifdef __cpp_concepts

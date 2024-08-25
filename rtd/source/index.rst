@@ -6,6 +6,7 @@
    Tutorial <tutorial/index>
    API Reference <api_reference/index>
    Changelog <updates/index>
+   FAQ and Limitations <FAQ>
 
 .. default-domain:: cpp
 

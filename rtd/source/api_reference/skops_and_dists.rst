@@ -21,7 +21,7 @@
 Fundamentals
 ********************************************************************
 
-  ..  very similar effects can be acheived in C, Fortran, or Julia. While there are 
+  ..  very similar effects can be achieved in C, Fortran, or Julia. While there are 
   ..  certainly some popular programming languages that don't support this kind of API
   ..  (e.g., MATLAB, Python, and R), accessing RandBLAS from these languages should
   ..  be mediated operator-overloaded objects in a way that's analogous to how one 
@@ -29,13 +29,17 @@ Fundamentals
 
 RandBLAS has a polymorphic free-function API. We have spent a significant amount of 
 effort on minimizing the number of RandBLAS-specific datastructures needed in order
-to acheive the polymorphic API.
+to achieve that polymorphism.
 
-RandBLAS is very light on C++ idioms. The main C++ idioms we use are
+RandBLAS is very light on C++ idioms. The main idioms we use are
 templating and function overloading, plus some mild memory management
-with destructor methods for structs. 
+with destructor methods for structs. The only place we even use inheritance is
+in our test code!
 
-:ref:`Test of sketch updates <sketch_updates>`.
+RandBLAS has a bunch of functions that aren't documented on this website.
+If such a function looks useful, you should feel free to use it. If you
+end up doing that and you care about your code's compatibility with future
+versions of RandBLAS, then please let us know by filing a quick GitHub issue.
 
 
 Abstractions
