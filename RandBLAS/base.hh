@@ -64,6 +64,11 @@ namespace RandBLAS {
  */
 template <typename RNG = r123::Philox4x32>
 struct RNGState {
+
+    /// -------------------------------------------------------------------
+    /// Type of the underlying Random123 CBRNG. Must be based on 
+    /// Philox or Threefry. We've found that Philox works best for our 
+    /// purposes, and we default to Philox4x32.
     using generator = RNG;
     
     using ctr_type = typename RNG::ctr_type;
@@ -74,8 +79,8 @@ struct RNGState {
     // ^ The unsigned integer type used in this RNGState's counter array.
 
     /// -------------------------------------------------------------------
-    /// @brief The unsigned integer type used in this RNGState's key array.
-    ///        This is typically std::uint32_t, but it can be std::uint64_t.
+    /// The unsigned integer type used in this RNGState's key array.
+    /// This is typically std::uint32_t, but it can be std::uint64_t.
     using key_uint = typename RNG::key_type::value_type;
 
 

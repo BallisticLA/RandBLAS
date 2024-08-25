@@ -305,16 +305,20 @@ inline int64_t major_axis_length(const DenseDist &D) {
 
 
 // =============================================================================
-/// A sample from a distribution over dense sketching operators.
-///
+/// A sample from a distribution over matrices whose entries are iid
+/// mean-zero variance-one random variables.
+/// 
+/// This type conforms to the SketchingOperator concept.
 template <typename T, typename RNG = r123::Philox4x32>
 struct DenseSkOp {
 
-    using state_t  = RNGState<RNG>;
-    using scalar_t = T;
+    // ---------------------------------------------------------------------------
+    /// Type alias.
+    using state_t = RNGState<RNG>;
 
-    const int64_t n_rows;
-    const int64_t n_cols;
+    // ---------------------------------------------------------------------------
+    /// Real scalar type used in matrix representations of this operator.
+    using scalar_t = T;
 
     // ---------------------------------------------------------------------------
     ///  The distribution from which this sketching operator is sampled.
@@ -325,12 +329,20 @@ struct DenseSkOp {
     // ---------------------------------------------------------------------------
     ///  The state that should be passed to the RNG when the full sketching 
     ///  operator needs to be sampled from scratch. 
-    const RNGState<RNG> seed_state;
+    const state_t seed_state;
 
     // ---------------------------------------------------------------------------
     ///  The state that should be used by the next call to an RNG *after* the
     ///  full sketching operator has been sampled.
-    const RNGState<RNG> next_state;
+    const state_t next_state;
+
+    // ---------------------------------------------------------------------------
+    ///  Alias for dist.n_rows.
+    const int64_t n_rows;
+
+    // ---------------------------------------------------------------------------
+    ///  Alias for dist.n_cols.
+    const int64_t n_cols;
 
 
     T *buff = nullptr;                      // memory
@@ -344,42 +356,44 @@ struct DenseSkOp {
     //
     /////////////////////////////////////////////////////////////////////
 
+    ///---------------------------------------------------------------------------
+    /// Non-memory-owning constructor for a DenseSkOp. 
+    /// 
     DenseSkOp(
-        int64_t n_rows,
-        int64_t n_cols,
         DenseDist dist,
-        RNGState<RNG> const &seed_state,
-        RNGState<RNG> const &next_state,
+        state_t const &seed_state,
+        state_t const &next_state,
         T *buff,
         blas::Layout layout,
         bool del_buff_on_destruct
     ) : 
-        n_rows(n_rows), n_cols(n_cols), dist(dist),
-        seed_state(seed_state), next_state(next_state),
+        dist(dist), seed_state(seed_state), next_state(next_state),
+        n_rows(dist.n_rows), n_cols(dist.n_cols), 
         buff(buff), layout(layout), del_buff_on_destruct(del_buff_on_destruct) { }
 
     ///---------------------------------------------------------------------------
-    /// Construct a DenseSkOp object, \math{S}.
+    /// Memory-owning constructor for a DenseSkOp.
+    /// 
+    /// this->buff initialized to the null pointer and remains there unless
+    /// this operator is passed to one of the fill_dense overloads. If this operator
+    /// is so passed, then this->buff will be reassigned to point to a new array of
+    /// size dist.n_rows * dist.n_cols, that array will be populated, and 
+    /// and a flag will be set so this operator's destructor deallocates this->buff.
     ///
-    /// @param[in] dist
-    ///     DenseDist.
-    ///     - Specifies the dimensions of \math{S}.
-    ///     - Specifies the (scalar) distribution of \math{S}'s entries.
-    ///
-    /// @param[in] state
-    ///     RNGState.
-    ///     - The RNG will use this as the starting point to generate all 
-    ///       random numbers needed for \math{S}.
+    /// In all other scenarios where RandBLAS needs an explicit representation of this
+    /// operator, it performs a shallow copy with the memory-owning constructor, it 
+    /// allocates only the memory that is needed in the given context, and it deallocates
+    /// that memory as soon as it is no longer required. 
     ///
     DenseSkOp(
         DenseDist dist,
-        RNGState<RNG> const &state
+        state_t const &state
     ) : // variable definitions
-        n_rows(dist.n_rows),
-        n_cols(dist.n_cols),
         dist(dist),
         seed_state(state),
         next_state(dense::compute_next_state(dist, state)),
+        n_rows(dist.n_rows),
+        n_cols(dist.n_cols),
         buff(nullptr),
         layout(dist_to_layout(dist))
     {   // sanity checks
@@ -567,8 +581,8 @@ DenseSkOp<T,RNG> submatrix_as_blackbox(const DenseSkOp<T,RNG> &S, int64_t n_rows
     T *buff = new T[n_rows * n_cols];
     auto dl = dist_to_layout(S.dist);
     fill_dense(dl, S.dist, n_rows, n_cols, ro_s, co_s, buff, S.seed_state);
-    DenseDist submatrix_dist{n_rows, n_cols, DenseDistName::BlackBox, MajorAxis::Undefined};
-    DenseSkOp<T,RNG> submatrix{n_rows, n_cols, submatrix_dist, S.seed_state, S.next_state, buff, dl, true};
+    DenseDist submatrix_dist(n_rows, n_cols, DenseDistName::BlackBox, MajorAxis::Undefined);
+    DenseSkOp<T,RNG> submatrix{submatrix_dist, S.seed_state, S.next_state, buff, dl, true};
     return submatrix;
 }
 

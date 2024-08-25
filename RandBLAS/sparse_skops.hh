@@ -117,6 +117,21 @@ inline double isometry_scale(MajorAxis ma, int64_t vec_nnz, int64_t n_rows, int6
     }
 }
 
+static int64_t nnz_requirement(MajorAxis ma, int64_t vec_nnz, int64_t n_rows, int64_t n_cols) {
+    bool saso = ma == MajorAxis::Short;
+    bool wide = n_rows < n_cols;
+    if (saso & wide) {
+        return vec_nnz * n_cols;
+    } else if (saso & (!wide)) {
+        return vec_nnz * n_rows;
+    } else if (wide & (!saso)) {
+        return vec_nnz * n_rows;
+    } else {
+        // tall LASO
+        return vec_nnz * n_cols;
+    }
+}
+
 }
 
 namespace RandBLAS {
@@ -160,6 +175,13 @@ struct SparseDist {
     ///
     const int64_t vec_nnz;
 
+    // ---------------------------------------------------------------------------
+    ///  An upper bound on the number of structural nonzeros that can appear in a
+    ///  sketching operator sampled from this distribution. This is computed
+    ///  automatically as a function of the other members of the SparseDist.
+    const int64_t full_nnz;
+
+
     SparseDist(
         int64_t n_rows,
         int64_t n_cols,
@@ -167,8 +189,8 @@ struct SparseDist {
         int64_t vec_nnz
     ) : n_rows(n_rows), n_cols(n_cols), major_axis(ma),
         isometry_scale(sparse::isometry_scale(ma, vec_nnz, n_rows, n_cols)),
-        vec_nnz(vec_nnz) {}
-
+        vec_nnz(vec_nnz),
+        full_nnz(sparse::nnz_requirement(ma, vec_nnz, n_rows, n_cols)) {}
 };
 
 template <typename RNG, SignedInteger sint_t>
@@ -192,17 +214,24 @@ RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
 }
 
 // =============================================================================
-/// A sample from a prescribed distribution over sparse matrices.
-///
+/// Represents a sample from a distribution over structured sparse matrices.
+/// 
+/// This type conforms to the SketchingOperator concept.
 template <typename T, typename RNG = r123::Philox4x32, SignedInteger sint_t = int64_t>
 struct SparseSkOp {
 
+    // ---------------------------------------------------------------------------
+    /// Signed integer type used in index arrays for sparse matrix representations
+    /// of this operator.
     using index_t = sint_t;
-    using state_t = RNGState<RNG>;
-    using scalar_t = T;
 
-    const int64_t n_rows;
-    const int64_t n_cols;
+    // ---------------------------------------------------------------------------
+    /// Type alias.
+    using state_t = RNGState<RNG>;
+
+    // ---------------------------------------------------------------------------
+    /// Real scalar type used for nonzeros in matrix representations of this operator.
+    using scalar_t = T;
 
     // ---------------------------------------------------------------------------
     ///  The distribution from which this sketching operator is sampled.
@@ -213,12 +242,20 @@ struct SparseSkOp {
     // ---------------------------------------------------------------------------
     ///  The state that should be passed to the RNG when the full sketching 
     ///  operator needs to be sampled from scratch. 
-    const RNGState<RNG> seed_state;
+    const state_t seed_state;
 
     // ---------------------------------------------------------------------------
     ///  The state that should be used by the next call to an RNG *after* the
     ///  full sketching operator has been sampled.
-    const RNGState<RNG> next_state;
+    const state_t next_state;
+
+    // ---------------------------------------------------------------------------
+    ///  Alias for dist.n_rows.
+    const int64_t n_rows;
+
+    // ---------------------------------------------------------------------------
+    ///  Alias for dist.n_cols.
+    const int64_t n_cols;
 
     // ---------------------------------------------------------------------------
     /// We need workspace to store a representation of the sampled sketching
@@ -249,48 +286,85 @@ struct SparseSkOp {
     //
     /////////////////////////////////////////////////////////////////////
 
-    // ---------------------------------------------------------------------------
-    // 
-    //  @param[in] dist
-    //      A SparseDist object.
-    //      - Defines the number of rows and columns in this sketching operator.
-    //      - Indirectly controls sparsity pattern.
-    //      - Directly controls sparsity level.
-    // 
-    //  @param[in] state
-    //      An RNGState object.
-    //      - The RNG will use this as the starting point to generate all 
-    //        random numbers needed for this sketching operator.
-    // 
-    //  @param[in] rows
-    //      Pointer to int64_t array.
-    //      - stores row indices as part of the COO format.
-    // 
-    //  @param[in] cols
-    //      Pointer to int64_t array.
-    //      - stores column indices as part of the COO format.
-    // 
-    //  @param[in] vals
-    //      Pointer to array of real numerical type T.
-    //      - stores nonzeros as part of the COO format.
-    //  
-    //  @param[in] known_filled
-    //      A boolean. If true, then the arrays pointed to by
-    //      (rows, cols, vals) already contain the randomly sampled
-    //      data defining this sketching operator.
-    //      
+    ///---------------------------------------------------------------------------
+    /// Memory-owning constructor for a SparseSkOp. This will internally allocate
+    /// three arrays of length dist.full_nnz. The arrays will be freed when this
+    /// object's destructor is called.
+    ///
     SparseSkOp(
         SparseDist dist,
-        const RNGState<RNG> &state,
+        const state_t &state
+    ) :  // variable definitions
+        dist(dist),
+        seed_state(state),
+        next_state(compute_next_state(dist, seed_state)),
+        n_rows(dist.n_rows),
+        n_cols(dist.n_cols),
+        own_memory(true)
+    {   // sanity checks
+        randblas_require(this->dist.n_rows > 0);
+        randblas_require(this->dist.n_cols > 0);
+        randblas_require(this->dist.vec_nnz > 0);
+        // actual work
+        int64_t nnz = dist.full_nnz;
+        this->rows = new sint_t[nnz];
+        this->cols = new sint_t[nnz];
+        this->vals = new T[nnz];
+    }
+
+    /// ---------------------------------------------------------------------------
+    /// Non-memory-owning constructor for a SparseSkOp. Each of the arrays (rows, cols, vals)
+    /// must have length at least dist.full_nnz. We assume these arrays already contain the
+    /// defining data for a COO-representation of this operator as a sparse matrix. If you 
+    /// want to override this behavior and only want to treat (rows, cols, vals) as workspace,
+    /// set the final argument of this function to known_filled=false.
+    ///
+    /// @verbatim embed:rst:leading-slashes
+    /// .. dropdown:: Full parmaeter descriptions
+    ///   :animate: fade-in-slide-down
+    ///
+    ///     dist
+    ///      - A SparseDist object.
+    ///      - Defines the number of rows and columns in this sketching operator.
+    ///      - Indirectly controls sparsity pattern, and directly controls sparsity level.
+    /// 
+    ///     state
+    ///      - An RNGState object.
+    ///      - The RNG will use this as the starting point to generate all 
+    ///        random numbers needed for this sketching operator. Requred
+    ///        even if known_filled=True.
+    /// 
+    ///     rows
+    ///      - Pointer to array array of of signed integers (type sint_t, defaults to int64_t).
+    ///      - stores row indices as part of the COO format.
+    /// 
+    ///     cols
+    ///      - Pointer to array array of of signed integers (type sint_t, defaults to int64_t).
+    ///      - stores column indices as part of the COO format.
+    /// 
+    ///     vals
+    ///      - Pointer to array of real numerical type T.
+    ///      - stores structural nonzeros as part of the COO format.
+    ///  
+    ///     known_filled
+    ///      - A boolean, which defaults to true.
+    ///      - If true, then the arrays pointed to by
+    ///        (rows, cols, vals) already contain the randomly sampled
+    ///        data defining this sketching operator.
+    ///
+    /// @endverbatim   
+    SparseSkOp(
+        SparseDist dist,
+        const state_t &state,
         sint_t *rows,
         sint_t *cols,
         T *vals,
         bool known_filled = true
     ) : // variable definitions
-        n_rows(dist.n_rows),
-        n_cols(dist.n_cols),
         dist(dist),
         seed_state(state),
+        n_rows(dist.n_rows),
+        n_cols(dist.n_cols),
         own_memory(false),
         next_state(compute_next_state(dist, seed_state))
     {   // sanity checks
@@ -304,25 +378,6 @@ struct SparseSkOp {
         this->known_filled = known_filled;
     };
 
-    // Useful for shallow copies (possibly with transposition)
-    SparseSkOp(
-        SparseDist dist,
-        const RNGState<RNG> &seed_state,
-        sint_t *rows,
-        sint_t *cols,
-        T *vals,
-        const RNGState<RNG> &next_state
-    ) : n_rows(dist.n_rows), n_cols(dist.n_cols), dist(dist), seed_state(seed_state), next_state(next_state), own_memory(false) {
-        randblas_require(this->dist.n_rows > 0);
-        randblas_require(this->dist.n_cols > 0);
-        randblas_require(this->dist.vec_nnz > 0);
-        // actual work
-        this->rows = rows;
-        this->cols = cols;
-        this->vals = vals;
-        this->known_filled = known_filled;
-    }
-
     SparseSkOp(
         SparseDist dist,
         uint32_t key,
@@ -330,49 +385,6 @@ struct SparseSkOp {
         sint_t *cols,
         T *vals 
     ) : SparseSkOp(dist, RNGState<RNG>(key), rows, cols, vals) {};
-
-
-    ///---------------------------------------------------------------------------
-    /// The preferred constructor for SparseSkOp objects. There are other 
-    /// constructors, but they don't appear in the web documentation.
-    ///
-    /// @param[in] dist
-    ///     A SparseDist object.
-    ///     - Defines the number of rows and columns in this sketching operator.
-    ///     - Indirectly controls sparsity pattern.
-    ///     - Directly controls sparsity level.
-    ///
-    /// @param[in] state
-    ///     An RNGState object.
-    ///     - The RNG will use this as the starting point to generate all 
-    ///       random numbers needed for this sketching operator.
-    ///
-    SparseSkOp(
-        SparseDist dist,
-        const RNGState<RNG> &state
-    ) :  // variable definitions
-        n_rows(dist.n_rows),
-        n_cols(dist.n_cols),
-        dist(dist),
-        seed_state(state),
-        next_state(compute_next_state(dist, seed_state)),
-        own_memory(true)
-    {   // sanity checks
-        randblas_require(this->dist.n_rows > 0);
-        randblas_require(this->dist.n_cols > 0);
-        randblas_require(this->dist.vec_nnz > 0);
-        // actual work
-        int64_t minor_ax_len;
-        if (this->dist.major_axis == MajorAxis::Short) {
-            minor_ax_len = MAX(this->dist.n_rows, this->dist.n_cols);
-        } else { 
-            minor_ax_len = MIN(this->dist.n_rows, this->dist.n_cols);
-        }
-        int64_t nnz = this->dist.vec_nnz * minor_ax_len;
-        this->rows = new sint_t[nnz];
-        this->cols = new sint_t[nnz];
-        this->vals = new T[nnz];
-    }
 
     SparseSkOp(
         SparseDist dist,
@@ -478,51 +490,14 @@ static bool has_fixed_nnz_per_col(
     }
 }
 
-template <typename SparseSkOp>
-static int64_t nnz(
-    SparseSkOp const &S0
-) {
-    bool saso = S0.dist.major_axis == MajorAxis::Short;
-    bool wide = S0.dist.n_rows < S0.dist.n_cols;
-    if (saso & wide) {
-        return S0.dist.vec_nnz * S0.dist.n_cols;
-    } else if (saso & (!wide)) {
-        return S0.dist.vec_nnz * S0.dist.n_rows;
-    } else if (wide & (!saso)) {
-        return S0.dist.vec_nnz * S0.dist.n_rows;
-    } else {
-        // tall LASO
-        return S0.dist.vec_nnz * S0.dist.n_cols;
-    }
-}
-
 template <typename SparseSkOp, typename T = SparseSkOp::scalar_t, typename sint_t = SparseSkOp::index_t>
 COOMatrix<T, sint_t> coo_view_of_skop(SparseSkOp &S) {
     if (!S.known_filled)
         fill_sparse(S);
-    int64_t nnz = RandBLAS::sparse::nnz(S);
+    int64_t nnz = S.dist.full_nnz;
     COOMatrix<T, sint_t> A(S.dist.n_rows, S.dist.n_cols, nnz, S.vals, S.rows, S.cols);
     return A;
 }
 
-// =============================================================================
-/// Return a SparseSkOp object representing the transpose of S.
-///
-/// @param[in] S
-///     SparseSkOp object.
-/// @return 
-///     A new SparseSkOp object that depends on the memory underlying S.
-///     (In particular, it depends on S.rows, S.cols, and S.vals.)
-///     
-template <typename SparseSkOp>
-static auto transpose(SparseSkOp const &S) {
-    randblas_require(S.known_filled);
-    SparseDist dist(
-        S.dist.n_cols, S.dist.n_rows, S.dist.major_axis, S.dist.vec_nnz
-    );
-    SparseSkOp St(dist, S.seed_state, S.cols, S.rows, S.vals);
-    St.next_state = S.next_state;
-    return St;
-}
 
 } // end namespace RandBLAS::sparse

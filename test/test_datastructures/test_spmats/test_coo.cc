@@ -52,7 +52,7 @@ void sparseskop_to_dense(
     auto idx = [D, layout](int64_t i, int64_t j) {
         return  (layout == Layout::ColMajor) ? (i + j*D.n_rows) : (j + i*D.n_cols);
     };
-    int64_t nnz = RandBLAS::sparse::nnz(S0);
+    int64_t nnz = S0.dist.full_nnz;
     for (int64_t i = 0; i < nnz; ++i) {
         sint_t row = S0.rows[i];
         sint_t col = S0.cols[i];
@@ -143,9 +143,9 @@ class Test_SkOp_to_COO : public ::testing::Test {
         RandBLAS::SparseSkOp<T> S(D, keys[key_index]);
         auto A = RandBLAS::sparse::coo_view_of_skop(S);
 
-        EXPECT_EQ(S.dist.n_rows, A.n_rows);
-        EXPECT_EQ(S.dist.n_cols, A.n_cols);
-        EXPECT_EQ(RandBLAS::sparse::nnz(S), A.nnz);
+        EXPECT_EQ(S.dist.n_rows,   A.n_rows);
+        EXPECT_EQ(S.dist.n_cols,   A.n_cols);
+        EXPECT_EQ(S.dist.full_nnz, A.nnz);
 
         std::vector<T> S_dense(d * m);
         sparseskop_to_dense(S, S_dense.data(), Layout::ColMajor);
