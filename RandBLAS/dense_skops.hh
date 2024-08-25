@@ -190,6 +190,11 @@ RNGState<RNG> compute_next_state(DD dist, RNGState<RNG> state) {
     return state;
 }
 
+template <typename DDN>
+inline double isometry_scale(DDN dn, int64_t n_rows, int64_t n_cols) {
+    return (dn == DDN::BlackBox) ? 1.0 : std::pow(std::min(n_rows, n_cols), -0.5);
+}
+
 } // end namespace RandBLAS::dense
 
 
@@ -229,43 +234,23 @@ struct DenseDist {
     const int64_t n_cols;
 
     // ---------------------------------------------------------------------------
-    ///  The distribution used for the entries of the sketching operator.
-    const DenseDistName family;
-
-    // ---------------------------------------------------------------------------
     ///  This member affects whether samples from this distribution have their
     ///  entries filled row-wise or column-wise. While there is no statistical 
     ///  difference between these two filling orders, there are situations
     ///  where one order or the other might be preferred.
-    ///  
     /// @verbatim embed:rst:leading-slashes
-    /// .. dropdown:: *Notes for experts*
-    ///    :animate: fade-in-slide-down
-    ///
-    ///    Deciding the value of this member is only needed
-    ///    in algorithms where (1) there's a need to iteratively generate panels of
-    ///    a larger sketching operator and (2) one of larger operator's dimensions
-    ///    cannot be known before the  iterative process starts.
-    ///
-    ///    Essentially, a column-wise fill order lets us stack operators horizontally
-    ///    in a consistent way, while row-wise fill order lets us stack vertically
-    ///    in a consistent way. The mapping from major_axis to fill order is given below.
-    ///
-    ///    .. list-table::
-    ///       :widths: 34 33 33
-    ///       :header-rows: 1
-    ///
-    ///       * -  
-    ///         - :math:`\texttt{major_axis} = \texttt{Long}`
-    ///         - :math:`\texttt{major_axis} = \texttt{Short}`
-    ///       * - :math:`\texttt{n_rows} > \texttt{n_cols}`
-    ///         - column-wise
-    ///         - row-wise
-    ///       * - :math:`\texttt{n_rows} \leq \texttt{n_cols}`
-    ///         - row-wise
-    ///         - column-wise
+    /// See our tutorial section on :ref:`updating sketches <sketch_updates>` for more information.
     /// @endverbatim
     const MajorAxis major_axis;
+
+    // ---------------------------------------------------------------------------
+    ///  A sketching operator sampled from this distribution should be multiplied
+    ///  by this constant in order for sketching to preserve norms in expectation.
+    const double isometry_scale;
+
+    // ---------------------------------------------------------------------------
+    ///  The distribution used for the entries of the sketching operator.
+    const DenseDistName family;
 
     // ---------------------------------------------------------------------------
     ///  A distribution over matrices of shape (n_rows, n_cols) with entries drawn
@@ -276,14 +261,17 @@ struct DenseDist {
         int64_t n_rows,
         int64_t n_cols,
         DenseDistName dn = DenseDistName::Gaussian
-    ) : n_rows(n_rows), n_cols(n_cols), family(dn), major_axis( (dn == DenseDistName::BlackBox) ? MajorAxis::Undefined : MajorAxis::Long) { }
+    ) : n_rows(n_rows), n_cols(n_cols),
+        major_axis( (dn == DenseDistName::BlackBox) ? MajorAxis::Undefined : MajorAxis::Long),
+        isometry_scale(dense::isometry_scale(dn, n_rows, n_cols)), family(dn) { }
 
     DenseDist(
         int64_t n_rows,
         int64_t n_cols,
         DenseDistName dn,
         MajorAxis ma
-    ) : n_rows(n_rows), n_cols(n_cols), family(dn), major_axis(ma) {
+    ) : n_rows(n_rows), n_cols(n_cols), major_axis(ma),
+        isometry_scale(dense::isometry_scale(dn, n_rows, n_cols)), family(dn) {
         if (dn == DenseDistName::BlackBox) {
             randblas_require(ma == MajorAxis::Undefined);
         } else {
@@ -315,16 +303,6 @@ inline int64_t major_axis_length(const DenseDist &D) {
         std::max(D.n_rows, D.n_cols) : std::min(D.n_rows, D.n_cols);
 }
 
-template <typename T>
-inline T isometry_scale_factor(DenseDist D) {
-    if (D.family == DenseDistName::BlackBox) {
-        throw std::runtime_error("Unrecognized distribution.");
-    }
-    // When we sample from the scalar distributions we always
-    // scale things so they're variance-1. 
-    return std::pow((T) std::min(D.n_rows, D.n_cols), -0.5);
-}
-
 
 // =============================================================================
 /// A sample from a distribution over dense sketching operators.
@@ -341,7 +319,7 @@ struct DenseSkOp {
     // ---------------------------------------------------------------------------
     ///  The distribution from which this sketching operator is sampled.
     ///  This member specifies the number of rows and columns of the sketching
-    ///  operator.
+    ///  operator, as well as whether it is generated row-wise or column-wise.
     const DenseDist dist;
 
     // ---------------------------------------------------------------------------
@@ -418,6 +396,7 @@ struct DenseSkOp {
     }
 };
 
+static_assert(SketchingDistribution<DenseDist>);
 
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes

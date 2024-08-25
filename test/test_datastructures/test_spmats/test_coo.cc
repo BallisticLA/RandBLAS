@@ -139,9 +139,8 @@ class Test_SkOp_to_COO : public ::testing::Test {
 
     template <typename T = double>
     void sparse_skop_to_coo(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index, RandBLAS::MajorAxis ma) {
-        RandBLAS::SparseSkOp<T> S(
-            {d, m, vec_nnzs[nnz_index], ma}, keys[key_index]
-        );
+        RandBLAS::SparseDist D(d, m, ma, vec_nnzs[nnz_index]);
+        RandBLAS::SparseSkOp<T> S(D, keys[key_index]);
         auto A = RandBLAS::sparse::coo_view_of_skop(S);
 
         EXPECT_EQ(S.dist.n_rows, A.n_rows);

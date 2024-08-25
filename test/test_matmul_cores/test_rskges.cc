@@ -55,9 +55,7 @@ class TestRSKGES : public ::testing::Test
         int64_t vec_nnz,
         Layout layout
     ) {
-        SparseDist D = {
-            .n_rows = m, .n_cols = d, .vec_nnz = vec_nnz, .major_axis = major_axis
-        };
+        SparseDist D(m, d, major_axis, vec_nnz);
         SparseSkOp<T> S0(D, seed);
         RandBLAS::fill_sparse(S0);
         test_right_apply_submatrix_to_eye<T>(1.0, S0, m, d, 0, 0, layout, 0.0, 0);
@@ -74,14 +72,10 @@ class TestRSKGES : public ::testing::Test
         int64_t nnz_index,
         int threads
     ) {
-        SparseDist D = {
-            .n_rows=n, .n_cols=d, .vec_nnz=vec_nnzs[nnz_index], .major_axis=major_axis
-        };
+        SparseDist D(n, d, major_axis, vec_nnzs[nnz_index]);
         SparseSkOp<T> S0(D, keys[key_index]);
         RandBLAS::fill_sparse(S0);
         test_right_apply_to_random<T>(1.0, S0, m, layout, 0.0, threads);
-        
-
     }
 
     template <typename T>
@@ -98,9 +92,8 @@ class TestRSKGES : public ::testing::Test
         randblas_require(d0 >= d1);
         randblas_require(n0 >= n1);
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
-        SparseSkOp<T> S0(
-            {n0, d0, vec_nnz, RandBLAS::MajorAxis::Short}, seed
-        );
+        SparseDist D0(n0, d0, RandBLAS::MajorAxis::Short, vec_nnz);
+        SparseSkOp<T> S0(D0, seed);
         RandBLAS::fill_sparse(S0);
         test_right_apply_submatrix_to_eye<T>(1.0, S0, n1, d1, S_ro, S_co, layout, 0.0, 0);
     }

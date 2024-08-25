@@ -78,9 +78,8 @@ class TestSparseSkOpConstruction : public ::testing::Test
     template <RandBLAS::SignedInteger sint_t>
     void proper_saso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
         using RNG = RandBLAS::SparseSkOp<float>::state_t::generator;
-        RandBLAS::SparseSkOp<float, RNG, sint_t> S0(
-            {d, m, vec_nnzs[nnz_index], RandBLAS::MajorAxis::Short}, keys[key_index]
-        );
+        RandBLAS::SparseDist D0(d, m, RandBLAS::MajorAxis::Short, vec_nnzs[nnz_index]);
+        RandBLAS::SparseSkOp<float, RNG, sint_t> S0(D0, keys[key_index]);
         RandBLAS::fill_sparse(S0);
         if (d < m) {
                 check_fixed_nnz_per_col(S0);
@@ -92,9 +91,8 @@ class TestSparseSkOpConstruction : public ::testing::Test
     template <RandBLAS::SignedInteger sint_t>
     void proper_laso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
         using RNG = RandBLAS::SparseSkOp<float>::state_t::generator;
-        RandBLAS::SparseSkOp<float, RNG, sint_t> S0(
-            {d, m, vec_nnzs[nnz_index], RandBLAS::MajorAxis::Long}, keys[key_index]
-        );
+        RandBLAS::SparseDist D0(d, m, RandBLAS::MajorAxis::Long, vec_nnzs[nnz_index]);
+        RandBLAS::SparseSkOp<float, RNG, sint_t> S0(D0, keys[key_index]);
         RandBLAS::fill_sparse(S0);
         if (d < m) {
                 check_fixed_nnz_per_row(S0);

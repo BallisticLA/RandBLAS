@@ -51,6 +51,6 @@ It even lets you compute products against *submatrices* of sketching operators w
     Background on GEMM <gemm>
     Defining a sketching distribution <distributions>
     Sampling a sketching operator <sampling_skops>
-    Updating a sketch <updates>
+    Updating a sketch <sketch_updates>
     The meaning of "submat(・)" in RandBLAS documentation <submatrices>
 

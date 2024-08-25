@@ -105,6 +105,18 @@ static RNGState<RNG> repeated_fisher_yates(
     return RNGState<RNG> {ctr, key};
 }
 
+inline double isometry_scale(MajorAxis ma, int64_t vec_nnz, int64_t n_rows, int64_t n_cols) {
+    if (ma == MajorAxis::Short) {
+        return std::pow(vec_nnz, -0.5); 
+    } else if (ma == MajorAxis::Long) {
+        double minor_ax_len = std::min(n_rows, n_cols);
+        double major_ax_len = std::max(n_rows, n_cols);
+        return std::sqrt( major_ax_len / (vec_nnz * minor_ax_len) );
+    } else {
+        throw std::invalid_argument("Cannot compute the isometry scale for a sparse operator with unspecified major axis.");
+    }
+}
+
 }
 
 namespace RandBLAS {
@@ -122,6 +134,20 @@ struct SparseDist {
     const int64_t n_cols;
 
     // ---------------------------------------------------------------------------
+    ///  Constrains the sparsity pattern of matrices drawn from this distribution. 
+    ///
+    ///  Having major_axis==Short results in sketches are more likely to contain
+    ///  useful geometric information, without making assumptions about the data
+    ///  being sketched.
+    ///
+    const MajorAxis major_axis = MajorAxis::Short;
+
+    // ---------------------------------------------------------------------------
+    ///  A sketching operator sampled from this distribution should be multiplied
+    ///  by this constant in order for sketching to preserve norms in expectation.
+    const double isometry_scale;
+
+    // ---------------------------------------------------------------------------
     ///  If this distribution is short-axis major, then matrices sampled from
     ///  it will have exactly \math{\texttt{vec_nnz}} nonzeros per short-axis
     ///  vector (i.e., per column of a wide matrix or row of a tall matrix).
@@ -134,14 +160,15 @@ struct SparseDist {
     ///
     const int64_t vec_nnz;
 
-    // ---------------------------------------------------------------------------
-    ///  Constrains the sparsity pattern of matrices drawn from this distribution. 
-    ///
-    ///  Having major_axis==Short results in sketches are more likely to contain
-    ///  useful geometric information, without making assumptions about the data
-    ///  being sketched.
-    ///
-    const MajorAxis major_axis = MajorAxis::Short;
+    SparseDist(
+        int64_t n_rows,
+        int64_t n_cols,
+        MajorAxis ma,
+        int64_t vec_nnz
+    ) : n_rows(n_rows), n_cols(n_cols), major_axis(ma),
+        isometry_scale(sparse::isometry_scale(ma, vec_nnz, n_rows, n_cols)),
+        vec_nnz(vec_nnz) {}
+
 };
 
 template <typename RNG, SignedInteger sint_t>
@@ -149,18 +176,6 @@ inline RNGState<RNG> repeated_fisher_yates(
     const RNGState<RNG> &state, int64_t k, int64_t n, int64_t r, sint_t *indices
 ) {
     return sparse::repeated_fisher_yates(state, k, n, r, indices, (sint_t*) nullptr, (double*) nullptr);
-}
-
-template <typename T>
-inline T isometry_scale_factor(SparseDist D) {
-    T vec_nnz = (T) D.vec_nnz;
-    if (D.major_axis == MajorAxis::Short) {
-        return std::pow(vec_nnz, -0.5); 
-    } else {
-        T minor_ax_len = (T) std::min(D.n_rows, D.n_cols);
-        T major_ax_len = (T) std::max(D.n_rows, D.n_cols);
-        return std::sqrt( major_ax_len / (vec_nnz * minor_ax_len) );
-    }
 }
 
 template <typename RNG>
@@ -175,7 +190,6 @@ RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
     state.counter.incr(full_incr);
     return state;
 }
-
 
 // =============================================================================
 /// A sample from a prescribed distribution over sparse matrices.
@@ -193,7 +207,7 @@ struct SparseSkOp {
     // ---------------------------------------------------------------------------
     ///  The distribution from which this sketching operator is sampled.
     ///  This member specifies the number of rows and columns of the sketching
-    ///  operator.
+    ///  operator. It also controls the sparsity pattern and the sparsity level.
     const SparseDist dist;
 
     // ---------------------------------------------------------------------------
@@ -376,6 +390,8 @@ struct SparseSkOp {
     }
 };
 
+static_assert(SketchingDistribution<SparseDist>);
+
 // =============================================================================
 /// Performs the work in sampling S from its underlying distribution. This 
 /// entails populating S.rows, S.cols, and S.vals with COO-format sparse matrix
@@ -501,12 +517,9 @@ COOMatrix<T, sint_t> coo_view_of_skop(SparseSkOp &S) {
 template <typename SparseSkOp>
 static auto transpose(SparseSkOp const &S) {
     randblas_require(S.known_filled);
-    SparseDist dist = {
-        .n_rows = S.dist.n_cols,
-        .n_cols = S.dist.n_rows,
-        .vec_nnz = S.dist.vec_nnz,
-        .major_axis = S.dist.major_axis
-    };
+    SparseDist dist(
+        S.dist.n_cols, S.dist.n_rows, S.dist.major_axis, S.dist.vec_nnz
+    );
     SparseSkOp St(dist, S.seed_state, S.cols, S.rows, S.vals);
     St.next_state = S.next_state;
     return St;

@@ -32,7 +32,7 @@ class TestHandrolledCholesky : public ::testing::Test {
         DenseDist D(m, n);
         std::vector<T> A(n*n);
         std::vector<T> B(m*n);
-        T iso_scale = std::pow(RandBLAS::isometry_scale_factor<T>(D), 2);
+        T iso_scale = std::pow(D.isometry_scale, 2);
         RNGState state(key);
         RandBLAS::fill_dense(D, B.data(), state);
         std::vector<T> C(B);
@@ -177,7 +177,7 @@ class TestHandrolledQR : public ::testing::Test {
     void run_cholqr_gaussian(int m, int n, int b, uint32_t key) {
         DenseDist D(m, n, DenseDistName::Gaussian);
         std::vector<T> A(m*n);
-        T iso_scale = RandBLAS::isometry_scale_factor<T>(D);
+        T iso_scale = D.isometry_scale;
         RNGState state(key);
         RandBLAS::fill_dense(D, A.data(), state);
         blas::scal(m*n, iso_scale, A.data(), 1);
@@ -193,7 +193,7 @@ class TestHandrolledQR : public ::testing::Test {
     void run_qr_blocked_cgs(int m, int n, int b, uint32_t key) {
         DenseDist D(m, n, DenseDistName::Gaussian);
         std::vector<T> A(m*n);
-        T iso_scale = RandBLAS::isometry_scale_factor<T>(D);
+        T iso_scale = D.isometry_scale;
         RNGState state(key);
         RandBLAS::fill_dense(D, A.data(), state);
         blas::scal(m*n, iso_scale, A.data(), 1);

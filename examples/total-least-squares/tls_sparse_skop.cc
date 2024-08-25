@@ -139,12 +139,12 @@ int main(int argc, char* argv[]){
 
     // Sample the sketching operator 
     auto time_constructsketch1 = high_resolution_clock::now();
-    RandBLAS::SparseDist Dist = {
-        .n_rows = sk_dim,                            // Number of rows of the sketching operator 
-        .n_cols = m,                                 // Number of columns of the sketching operator
-        .vec_nnz = 8,                                // Number of non-zero entires per major-axis vector
-        .major_axis = RandBLAS::MajorAxis::Short     // A "SASO" (aka SJLT, aka OSNAP, aka generalized CountSketch)
-    };
+    RandBLAS::SparseDist Dist(
+        sk_dim,                     // Number of rows of the sketching operator 
+        m,                          // Number of columns of the sketching operator
+        RandBLAS::MajorAxis::Short, // A "SASO" (aka SJLT, aka OSNAP, aka generalized CountSketch)
+        8                           // Number of non-zero entires per column
+    );
     uint32_t seed = 1997;
     RandBLAS::SparseSkOp<double> S(Dist, seed);  
     RandBLAS::fill_sparse(S);

@@ -283,10 +283,33 @@ enum class MajorAxis : char {
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
 ///
-///  TODO: take the expectation properties in scaled partial isometries docs and move here.
-///  (Or, rather, move above.)
+/// **Mathematical description**
 ///
-/// Any object :math:`\ttt{D}` of type :math:`\ttt{SkDist}` has the following attributes.
+/// Matrices sampled from sketching distributions in RandBLAS are mean-zero
+/// and have covariance matrices that are proportional to the identity. That is, 
+/// if :math:`\D` is a distribution over :math:`r \times c` matrices and 
+/// :math:`\mtxS` is a sample from :math:`\D`,  then
+/// :math:`\mathbb{E}\mtxS = \mathbf{0}_{r \times c}` and
+///
+/// .. math::
+///    :nowrap:
+///     
+///     \begin{gather}
+///     \alpha^2 \cdot \mathbb{E}\left[ \mtxS^T\mtxS \right]=\mathbf{I}_{c \times c}& \nonumber \\
+///     \,\beta^2 \cdot \mathbb{E}\left[ \mtxS{\mtxS}^T\, \right]=\mathbf{I}_{r \times r}& \nonumber
+///     \end{gather}
+///
+/// hold for some :math:`\alpha > 0` and :math:`\beta > 0`.
+///
+/// The *isometry scale* of the distribution
+/// is :math:`\gamma := \alpha` if :math:`c \geq r` and :math:`\gamma := \beta` otherwise. If you want to
+/// sketch in a way that preserves squared norms in expectation, then you should sketch with 
+/// a scaled sample :math:`\gamma \mtxS` rather than the sample itself.
+///
+/// **Programmatic description**
+///
+/// A variable :math:`\ttt{D}` of a type that conforms to the 
+/// :math:`\ttt{SketchingDistribution}` concept has the following attributes.
 ///
 /// .. list-table::
 ///    :widths: 25 30 40
@@ -303,11 +326,13 @@ enum class MajorAxis : char {
 ///      - samples from :math:`\ttt{D}` have this many columns
 ///    * - :math:`\ttt{D.major_axis}`
 ///      - :math:`\ttt{const MajorAxis}`
-///      - Indicate the nature of statistical independence among a sample's entries.
+///      - Implementation-dependent; see MajorAxis documentation.
+///    * - :math:`\ttt{D.isometry_scale}`
+///      - :math:`\ttt{const double}`
+///      - See above.
 ///
-///
-/// Note that we only allow one major axis. Although it's not obvious, enforcing a single major axis
-/// is relevant even for distributions over matrices with i.i.d. entries.
+/// Note that the isometry scale is always stored in double precision; this has no bearing 
+/// on the precision of sketching operators that are sampled from a :math:`\ttt{SketchingDistribution}`.
 ///
 /// @endverbatim
 template<typename SkDist>
@@ -315,7 +340,14 @@ concept SketchingDistribution = requires(SkDist D) {
     { D.n_rows }     -> std::same_as<const int64_t&>;
     { D.n_cols }     -> std::same_as<const int64_t&>;
     { D.major_axis } -> std::same_as<const MajorAxis&>;
+    { D.isometry_scale } -> std::same_as<const double&>;
 };
+#else
+///   .. math::
+///
+///     {\D}\texttt{.isometry\_scale} = \begin{cases} \alpha &\text{ if } r \leq c \\ \beta &\text{ if } r > c \end{cases}~.
+#define SketchingDistribution typename
+#endif
 
 // =============================================================================
 /// \fn isometry_scale_factor(SkDist D) 
@@ -348,9 +380,7 @@ concept SketchingDistribution = requires(SkDist D) {
 /// @endverbatim
 template <typename T, SketchingDistribution SkDist>
 inline T isometry_scale_factor(SkDist D);
-#else
-#define SketchingDistribution typename
-#endif
+
 
 #ifdef __cpp_concepts
 // =============================================================================
@@ -365,8 +395,9 @@ template<typename SKOP>
 concept SketchingOperator = requires(SKOP S) {
     { S.n_rows }     -> std::same_as<const int64_t&>;
     { S.n_cols }     -> std::same_as<const int64_t&>;
+    { S.dist   }     -> SketchingDistribution;
     { S.seed_state } -> std::same_as<const typename SKOP::state_t&>;
-    { S.seed_state } -> std::same_as<const typename SKOP::state_t&>;
+    { S.next_state } -> std::same_as<const typename SKOP::state_t&>;
 };
 #else
 #define SketchingOperator typename

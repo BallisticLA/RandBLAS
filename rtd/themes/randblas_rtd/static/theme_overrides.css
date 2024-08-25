@@ -1,18 +1,14 @@
 @import 'css/theme.css';
 
 /* override table width restrictions */
-/* .wy-table-responsive table td, .wy-table-responsive table th {
+.wy-table-responsive table td, .wy-table-responsive table th {
     white-space: normal;
-} */
-
-.breatheparameterlist li tt + p {
-    display: inline;
-  }
+}
 
 .wy-table-responsive {
     margin-bottom: 24px;
     max-width: 100%;
-    overflow: scroll;
+    overflow: auto;
 }
 
 .wy-nav-side {
@@ -37,8 +33,8 @@
     padding: 1.618em 3.236em;
     height: 100%;
     max-width: 1000px;
-    margin: auto;
-    /* text-align: justify; */
+    margin-left: 0;
+    text-align: justify;
 }
 
 .wy-nav-content-wrap.collapsed {
@@ -49,52 +45,28 @@
 
 .wy-nav-content.collapsed {
     margin-left: 0;
-    max-width: none;
+    max-width: 1000px;
     margin: 0;
     width: 100%;
 }
 
 .math {
     text-align: left;
-    overflow: scroll;
+    overflow: auto;
 }
 .eqno {
     float: right;
 }
 
 
-
-/* .cpp.class, .cpp.class dl, .cpp.class dd, .cpp.class dt {
-    margin-left: 0.5em;
-    padding-left: 0;
-}
-
-.cpp.enumeration, .cpp.enumeration dl, .cpp.enumeration dd, .cpp.enumeration dt {
-    margin-left: 0.5em;
-    padding-left: 0;
-} */
-
+/*
+The standard rendering of c++ doyxgen comments involves large margins for many elements.
+The styles below set override the margin choice for all (?) relevant HTML elements.
+*/
+.cpp.function,   .cpp.function dl,   .cpp.function dd,   .cpp.function dt,
+.cpp.struct,     .cpp.struct dl,     .cpp.struct dd,     .cpp.struct dt,
+.cpp.concept,    .cpp.concept dl,    .cpp.concept dd,    .cpp.concept dt,
+.cpp.var,        .cpp.var dl,        .cpp.var dd,        .cpp.var dt,
 .cpp.enum-class, .cpp.enum-class dl, .cpp.enum-class dd, .cpp.enum-class dt {
     margin-left: 0.5em;
-    /* padding-left: 0; */
-}
-
-.cpp.var, .cpp.var dl, .cpp.var dd, .cpp.var dt {
-    margin-left: 0.5em;
-    /* padding-left: 0; */
-}
-
-.cpp.concept, .cpp.concept dl, .cpp.concept dd, .cpp.concept dt {
-    margin-left: 0.5em;
-    /* padding-left: 0; */
-}
-
-.cpp.struct, .cpp.struct dl, .cpp.struct dd, .cpp.struct dt {
-    margin-left: 0.5em;
-    /* padding-left: 0; */
-}
-
-.cpp.function, .cpp.function dl, .cpp.function dd, .cpp.function dt {
-    margin-left: 0.5em;
-    /* padding-left: 0; */
 }

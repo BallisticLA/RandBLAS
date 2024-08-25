@@ -57,7 +57,8 @@ class TestLSKGES : public ::testing::Test
         int64_t nnz_index,
         int threads
     ) {
-        SparseSkOp<T> S0({d, m, vec_nnzs[nnz_index], major_axis}, keys[key_index]);
+        SparseDist D0(d, m, major_axis, vec_nnzs[nnz_index]);
+        SparseSkOp<T> S0(D0, keys[key_index]);
         test_left_apply_to_random<T>(1.0, S0, n, 0.0, layout, threads);
     }
 
@@ -73,7 +74,8 @@ class TestLSKGES : public ::testing::Test
         blas::Layout layout
     ) {
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
-        SparseSkOp<T> S0({d0, m0, vec_nnz, MajorAxis::Short}, seed);
+        SparseDist D0(d0, m0, MajorAxis::Short, vec_nnz);
+        SparseSkOp<T> S0(D0, seed);
         test_left_apply_submatrix_to_eye<T>(1.0, S0, d1, m1, S_ro, S_co, layout, 0.0);
     }
 
@@ -87,7 +89,7 @@ class TestLSKGES : public ::testing::Test
         blas::Layout layout
     ) {
         int64_t vec_nnz = d / 2;
-        SparseDist DS = {d, m, vec_nnz, MajorAxis::Short};
+        SparseDist DS(d, m, MajorAxis::Short, vec_nnz);
         SparseSkOp<T> S(DS, key);
         test_left_apply_submatrix_to_eye(alpha, S, d, m, 0, 0, layout, beta);
     }
@@ -103,12 +105,7 @@ class TestLSKGES : public ::testing::Test
         randblas_require(m > d);
         bool is_saso = (major_axis == MajorAxis::Short);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
-        SparseDist Dt = {
-            .n_rows = m,
-            .n_cols = d,
-            .vec_nnz = vec_nnz,
-            .major_axis = major_axis
-        };
+        SparseDist Dt(m, d, major_axis, vec_nnz);
         SparseSkOp<T> S0(Dt, key);
         test_left_apply_transpose_to_eye<T>(S0, layout);
     }
@@ -129,12 +126,7 @@ class TestLSKGES : public ::testing::Test
         // Define the distribution for S0.
         bool is_saso = (major_axis == MajorAxis::Short);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
-        SparseDist D = {
-            .n_rows = d,
-            .n_cols = m,
-            .vec_nnz = vec_nnz,
-            .major_axis = major_axis
-        };
+        SparseDist D(d, m, major_axis, vec_nnz);
         SparseSkOp<T> S0(D, seed_S0);
         test_left_apply_to_submatrix<T>(S0, n, m0, n0, A_ro, A_co, layout);
     }
@@ -151,12 +143,7 @@ class TestLSKGES : public ::testing::Test
         // Define the distribution for S0.
         bool is_saso = (major_axis == MajorAxis::Short);
         int64_t vec_nnz = (is_saso) ?  d/2 : m/2;
-        SparseDist D = {
-            .n_rows = d,
-            .n_cols = m,
-            .vec_nnz = vec_nnz,
-            .major_axis = major_axis
-        };
+        SparseDist D(d, m, major_axis, vec_nnz);
         SparseSkOp<T> S0(D, seed_S0);
         test_left_apply_to_transposed<T>(S0, n, layout);
     }
