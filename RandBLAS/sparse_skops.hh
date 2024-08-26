@@ -170,7 +170,7 @@ struct SparseDist {
     ///  sketching *very* high-dimensional data.
     ///
     ///  If this distribution is long-axis major, then matrices sampled from it
-    ///  will have *at most* \math{\texttt{vec_nnz}} nonzeros per long-axis
+    ///  will have \math{\texttt{vec_nnz}} nonzeros per long-axis
     ///  vector (i.e., per row of a wide matrix or per column of a tall matrix).
     ///
     const int64_t vec_nnz;
@@ -182,6 +182,10 @@ struct SparseDist {
     const int64_t full_nnz;
 
 
+    // ---------------------------------------------------------------------------
+    ///  Constructs a distribution over sparse matrices whose major-axis vectors
+    ///  are independent and have exactly vec_nnz nonzeros each. Nonzero entries
+    ///  are +/- 1 with equal probability.
     SparseDist(
         int64_t n_rows,
         int64_t n_cols,
@@ -363,34 +367,17 @@ struct SparseSkOp {
     ) : // variable definitions
         dist(dist),
         seed_state(state),
+        next_state(compute_next_state(dist, seed_state)),
         n_rows(dist.n_rows),
         n_cols(dist.n_cols),
         own_memory(false),
-        next_state(compute_next_state(dist, seed_state))
+        known_filled(known_filled),
+        rows(rows), cols(cols), vals(vals)
     {   // sanity checks
         randblas_require(this->dist.n_rows > 0);
         randblas_require(this->dist.n_cols > 0);
         randblas_require(this->dist.vec_nnz > 0);
-        // actual work
-        this->rows = rows;
-        this->cols = cols;
-        this->vals = vals;
-        this->known_filled = known_filled;
     };
-
-    SparseSkOp(
-        SparseDist dist,
-        uint32_t key,
-        sint_t *rows,
-        sint_t *cols,
-        T *vals 
-    ) : SparseSkOp(dist, RNGState<RNG>(key), rows, cols, vals) {};
-
-    SparseSkOp(
-        SparseDist dist,
-        uint32_t key
-    ) : SparseSkOp(dist, RNGState<RNG>(key)) {};
-
 
     //  Destructor
     ~SparseSkOp() {

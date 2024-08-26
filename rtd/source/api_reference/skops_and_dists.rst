@@ -36,7 +36,7 @@ templating and function overloading, plus some mild memory management
 with destructor methods for structs. The only place we even use inheritance is
 in our test code!
 
-RandBLAS has a bunch of functions that aren't documented on this website.
+We have a bunch of functions that aren't documented on this website.
 If such a function looks useful, you should feel free to use it. If you
 end up doing that and you care about your code's compatibility with future
 versions of RandBLAS, then please let us know by filing a quick GitHub issue.

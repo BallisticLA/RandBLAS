@@ -73,7 +73,7 @@ auto random_matrix(int64_t m, int64_t n, RNGState<RNG> s) {
     std::vector<T> A(m * n);
     DenseDist DA(m, n);
     auto next_state = RandBLAS::fill_dense(DA, A.data(), s);
-    std::tuple<std::vector<T>, Layout, RNGState<RNG>> t{A, RandBLAS::dist_to_layout(DA), next_state};
+    std::tuple<std::vector<T>, Layout, RNGState<RNG>> t{A, DA.natural_layout, next_state};
     return t;
 }
 
