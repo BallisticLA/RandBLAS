@@ -240,7 +240,8 @@ enum class ScalarDist : char {
 };
 
 // =============================================================================
-/// A distribution over dense sketching operators.
+///  A distribution over dense matrices of prescribed dimensions, with entries drawn
+///  iid from a mean-zero variance-one distribution.
 struct DenseDist {
     // ---------------------------------------------------------------------------
     ///  Matrices drawn from this distribution have this many rows.
@@ -255,9 +256,10 @@ struct DenseDist {
     ///  entries filled row-wise or column-wise. While there is no statistical 
     ///  difference between these two filling orders, there are situations
     ///  where one order or the other might be preferred.
-    /// @verbatim embed:rst:leading-slashes
-    /// See our tutorial section on :ref:`updating sketches <sketch_updates>` for more information.
-    /// @endverbatim
+    ///
+    ///  For more information, see the DenseDist::natural_layout and the section of the
+    ///  RandBLAS tutorial on
+    ///  @verbatim embed::rst::inline :ref:`updating sketches <sketch_updates>` @endverbatim.
     const MajorAxis major_axis;
 
     // ---------------------------------------------------------------------------
@@ -270,16 +272,34 @@ struct DenseDist {
     const ScalarDist family;
 
     // ---------------------------------------------------------------------------
-    ///  The natural memory layout implied by major_axis, n_rows, and n_cols.
-    ///  Sampling a sketching operator from this distribution with a layout 
-    ///  *other than* natural_layout would require additional workspace.
+    ///  The fill order (row major or column major) implied by major_axis,
+    ///  n_rows, and n_cols, according to the following table.
+    ///
+    ///        .. list-table::
+    ///           :widths: 34 33 33
+    ///           :header-rows: 1
+    ///
+    ///           * -  
+    ///             - :math:`\texttt{major_axis} = \texttt{Long}`
+    ///             - :math:`\texttt{major_axis} = \texttt{Short}`
+    ///           * - :math:`\texttt{n_rows} > \texttt{n_cols}`
+    ///             - column major
+    ///             - row major
+    ///           * - :math:`\texttt{n_rows} \leq \texttt{n_cols}`
+    ///             - row major
+    ///             - column major
+    ///
+    ///  If you want to sample a dense sketching operator represented as 
+    ///  buffer in a layout different than the one given here, then a 
+    ///  change-of-layout has to be performed explicitly. 
+    ///
     const blas::Layout natural_layout;
 
     // ---------------------------------------------------------------------------
-    ///  A distribution over matrices of shape (n_rows, n_cols) with entries drawn
-    ///  iid from a mean-zero variance-one distribution.
-    ///  The default distribution is standard-normal. One can opt for the uniform
-    ///  distribution over \math{[-\sqrt{3}, \sqrt{3}]} by setting family = ScalarDist::Uniform.
+    ///  This constructor is the preferred way to instantiate DenseDist objects.
+    ///  It correctly sets isometry_scale and natural_layout as a function of the
+    ///  other members. Optional trailing arguments can be used to specify the
+    ///  family or major_axis members.
     DenseDist(
         int64_t n_rows,
         int64_t n_cols,
@@ -445,10 +465,27 @@ struct DenseSkOp {
         n_rows(dist.n_rows), n_cols(dist.n_cols), 
         own_memory(false), buff(buff), layout(layout) { }
 
-    // Destructor
+    //  Move constructor
+    DenseSkOp(
+        DenseSkOp<T,RNG> &&S
+    ) : // Initializations
+        dist(S.dist),
+        seed_state(S.seed_state),
+        next_state(S.next_state),
+        n_rows(dist.n_rows), n_cols(dist.n_cols),
+        own_memory(S.own_memory), buff(S.buff), layout(S.layout)
+    {   // Body
+        S.buff = nullptr;
+        // ^ Since own_memory is const, the only way we can protect
+        //   this the original contents of S.buff from deletion is
+        //   is to reassign S.buff to the null pointer.
+    }
+
+    //  Destructor
     ~DenseSkOp() {
-        if (this->own_memory && this->buff != nullptr)
+        if (this->own_memory && !(this->buff == nullptr)) {
             delete [] this->buff;
+        }
     }
 };
 

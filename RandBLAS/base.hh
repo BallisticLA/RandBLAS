@@ -115,29 +115,34 @@ struct RNGState {
     ~RNGState() {};
 
     /// A copy constructor.
-    RNGState(const RNGState<RNG> &s);
+    RNGState(const RNGState<RNG> &s) : RNGState(s.counter, s.key) {};
 
-    RNGState<RNG> &operator=(const RNGState<RNG> &s);
+    // A copy-assignment operator.
+    RNGState<RNG> &operator=(const RNGState<RNG> &s) {
+        std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
+        std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
+        return *this;
+    };
 
 };
 
 
-template <typename RNG>
-RNGState<RNG>::RNGState(
-    const RNGState<RNG> &s
-) {
-    std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
-    std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
-}
+// template <typename RNG>
+// RNGState<RNG>::RNGState(
+//     const RNGState<RNG> &s
+// ) {
+//     std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
+//     std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
+// }
 
-template <typename RNG>
-RNGState<RNG> &RNGState<RNG>::operator=(
-    const RNGState &s
-) {
-    std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
-    std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
-    return *this;
-}
+// template <typename RNG>
+// RNGState<RNG> &RNGState<RNG>::operator=(
+//     const RNGState &s
+// ) {
+//     std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
+//     std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
+//     return *this;
+// }
 
 template <typename RNG>
 std::ostream &operator<<(

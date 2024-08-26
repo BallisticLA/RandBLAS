@@ -292,8 +292,9 @@ struct SparseSkOp {
 
     ///---------------------------------------------------------------------------
     /// Memory-owning constructor for a SparseSkOp. This will internally allocate
-    /// three arrays of length dist.full_nnz. The arrays will be freed when this
-    /// object's destructor is called.
+    /// three arrays (called rows, cols, and vals) of length dist.full_nnz. Each
+    /// array will be freed in the destructor unless our reference to it is 
+    /// reassigned to nullptr.
     ///
     SparseSkOp(
         SparseDist dist,
@@ -316,12 +317,14 @@ struct SparseSkOp {
         this->vals = new T[nnz];
     }
 
-    /// ---------------------------------------------------------------------------
-    /// Non-memory-owning constructor for a SparseSkOp. Each of the arrays (rows, cols, vals)
-    /// must have length at least dist.full_nnz. We assume these arrays already contain the
-    /// defining data for a COO-representation of this operator as a sparse matrix. If you 
-    /// want to override this behavior and only want to treat (rows, cols, vals) as workspace,
-    /// set the final argument of this function to known_filled=false.
+    /// --------------------------------------------------------------------------------
+    /// Non-memory-owning constructor for a SparseSkOp. This constructor itself
+    /// makes neither reads nor writes to the arrays (rows, cols, vals). However,
+    /// subsequent calls to RandBLAS functions will assume that each of these arrays
+    /// has length at least dist.full_nnz. Additionally, other RandBLAS functions will
+    /// assume these arrays contain the data for this operator's COO sparse matrix
+    /// representation; this assumption can be disabled (likely prompting a call to some
+    /// random sampling function later on) by setting known_filled = false.
     ///
     /// @verbatim embed:rst:leading-slashes
     /// .. dropdown:: Full parmaeter descriptions
@@ -379,12 +382,27 @@ struct SparseSkOp {
         randblas_require(this->dist.vec_nnz > 0);
     };
 
+    //  Move constructor
+    SparseSkOp(SparseSkOp<T,RNG,sint_t> &&S
+    ) : dist(S.dist), seed_state(S.seed_state), next_state(S.next_state),
+        n_rows(dist.n_rows), n_cols(dist.n_cols), own_memory(S.own_memory),
+        known_filled(S.known_filled), rows(S.rows), cols(S.cols), vals(S.vals)
+    {
+        S.rows = nullptr;
+        S.cols = nullptr;
+        S.vals = nullptr;
+        S.known_filled = false;
+    }
+
     //  Destructor
     ~SparseSkOp() {
         if (this->own_memory) {
-            delete [] this->rows;
-            delete [] this->cols;
-            delete [] this->vals;
+            if (this->rows != nullptr)
+                delete [] this->rows;
+            if (this->cols != nullptr)
+                delete [] this->cols;
+            if (this->vals != nullptr)
+                delete [] this->vals;
         }
     }
 };
