@@ -165,9 +165,9 @@ static inline void sorted_nonzero_locations_to_pointer_array(
 ///             }
 ///         }        
 ///
-/// **Non-owning constructors**
+/// **View constructors**
 ///
-///     This concept doesn't place specific requirements constructors for non-owning sparse matrix views of existing data. 
+///     This concept doesn't place specific requirements constructors for view sparse matrix views of existing data. 
 ///     However, all of RandBLAS' sparse matrix classes offer such constructors. See individual classes'
 ///     documentation for details.
 ///

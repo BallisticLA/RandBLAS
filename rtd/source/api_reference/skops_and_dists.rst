@@ -42,63 +42,35 @@ end up doing that and you care about your code's compatibility with future
 versions of RandBLAS, then please let us know by filing a quick GitHub issue.
 
 
-Abstractions
-============
+Preliminaries
+=============
 
-.. dropdown:: Distributions over random matrices
-    :animate: fade-in-slide-down
-    :color: light
-    :open:
-
-    .. doxygenconcept:: RandBLAS::SketchingDistribution
-      :project: RandBLAS
-
-.. dropdown:: Details on MajorAxis
+.. dropdown:: Short-axis vectors, long-axis vectors, and the MajorAxis enum
   :animate: fade-in-slide-down 
   :color: light
     
   .. doxygenenum:: RandBLAS::MajorAxis
       :project: RandBLAS
 
-.. dropdown:: Shared aspects of the sketching operator interface
-    :animate: fade-in-slide-down
-    :color: light
-  
-    .. doxygenconcept:: RandBLAS::SketchingOperator
-      :project: RandBLAS
-
-
-Distributions
-=============
-
-.. dropdown:: DenseDist : a distribution over matrices with i.i.d., mean-zero, variance-one entries
-  :animate: fade-in-slide-down
-  :color: light
-
-  .. doxygenstruct:: RandBLAS::DenseDist
-      :project: RandBLAS
-      :members:
-
-  .. doxygenenum:: RandBLAS::ScalarDist
-      :project: RandBLAS
-
-.. dropdown:: SparseDist : a distribution over structured sparse matrices
-  :animate: fade-in-slide-down
-  :color: light
-
-  .. doxygenstruct:: RandBLAS::SparseDist
-    :project: RandBLAS
-    :members:
-
-
-Random states and sketching operators
-=====================================
-
 .. dropdown:: RNGState 
     :animate: fade-in-slide-down
     :color: light
 
     .. doxygenstruct:: RandBLAS::RNGState
+      :project: RandBLAS
+      :members:
+
+Gaussians et al.
+================
+
+.. dropdown:: DenseDist : a distribution over matrices with i.i.d., mean-zero, variance-one entries
+  :animate: fade-in-slide-down
+  :color: light
+
+  .. doxygenenum:: RandBLAS::ScalarDist
+      :project: RandBLAS
+
+  .. doxygenstruct:: RandBLAS::DenseDist
       :project: RandBLAS
       :members:
 
@@ -116,6 +88,18 @@ Random states and sketching operators
   .. doxygenfunction:: RandBLAS::fill_dense(blas::Layout layout, const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t S_ro, int64_t S_co, T *buff, const RNGState<RNG> &seed)
       :project: RandBLAS
 
+
+CountSketch et al.
+==================
+
+.. dropdown:: SparseDist : a distribution over structured sparse matrices
+  :animate: fade-in-slide-down
+  :color: light
+
+  .. doxygenstruct:: RandBLAS::SparseDist
+    :project: RandBLAS
+    :members:
+
 .. dropdown:: SparseSkOp : a sample from a SparseDist
   :animate: fade-in-slide-down
   :color: light
@@ -126,3 +110,23 @@ Random states and sketching operators
 
   .. doxygenfunction:: RandBLAS::fill_sparse(SparseSkOp &S)
     :project: RandBLAS
+
+
+The unifying (C++20) concepts
+=============================
+
+.. dropdown:: SketchingDistribution
+    :animate: fade-in-slide-down
+    :color: light
+
+    .. doxygenconcept:: RandBLAS::SketchingDistribution
+      :project: RandBLAS
+
+
+.. dropdown:: SketchingOperator
+    :animate: fade-in-slide-down
+    :color: light
+  
+    .. doxygenconcept:: RandBLAS::SketchingOperator
+      :project: RandBLAS
+

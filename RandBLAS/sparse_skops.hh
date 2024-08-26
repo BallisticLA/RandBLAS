@@ -218,16 +218,11 @@ RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
 }
 
 // =============================================================================
-/// Represents a sample from a distribution over structured sparse matrices.
-/// 
-/// This type conforms to the SketchingOperator concept.
+/// A sample from a distribution over structured sparse matrices with either
+/// independent rows or independent columns. This type conforms to the
+/// SketchingOperator concept.
 template <typename T, typename RNG = r123::Philox4x32, SignedInteger sint_t = int64_t>
 struct SparseSkOp {
-
-    // ---------------------------------------------------------------------------
-    /// Signed integer type used in index arrays for sparse matrix representations
-    /// of this operator.
-    using index_t = sint_t;
 
     // ---------------------------------------------------------------------------
     /// Type alias.
@@ -236,6 +231,11 @@ struct SparseSkOp {
     // ---------------------------------------------------------------------------
     /// Real scalar type used for nonzeros in matrix representations of this operator.
     using scalar_t = T;
+
+    // ---------------------------------------------------------------------------
+    /// Signed integer type used in index arrays for sparse matrix representations
+    /// of this operator.
+    using index_t = sint_t;
 
     // ---------------------------------------------------------------------------
     ///  The distribution from which this sketching operator is sampled.
@@ -291,17 +291,19 @@ struct SparseSkOp {
     /////////////////////////////////////////////////////////////////////
 
     ///---------------------------------------------------------------------------
-    /// Memory-owning constructor for a SparseSkOp. This will internally allocate
-    /// three arrays (called rows, cols, and vals) of length dist.full_nnz. Each
-    /// array will be freed in the destructor unless our reference to it is 
+    /// **Memory-owning constructor**. Arguments passed to this function are 
+    /// assigned to members of the same name. This constructor allocates
+    /// arrays for the \math{\ttt{rows}}, \math{\ttt{cols}}, and \math{\ttt{vals}}
+    /// members. Each array has length \math{\ttt{dist.full_nnz}}
+    /// and is freed in the destructor unless our reference to it is 
     /// reassigned to nullptr.
     ///
     SparseSkOp(
         SparseDist dist,
-        const state_t &state
+        const state_t &seed_state
     ) :  // variable definitions
         dist(dist),
-        seed_state(state),
+        seed_state(seed_state),
         next_state(compute_next_state(dist, seed_state)),
         n_rows(dist.n_rows),
         n_cols(dist.n_cols),
@@ -318,13 +320,12 @@ struct SparseSkOp {
     }
 
     /// --------------------------------------------------------------------------------
-    /// Non-memory-owning constructor for a SparseSkOp. This constructor itself
-    /// makes neither reads nor writes to the arrays (rows, cols, vals). However,
-    /// subsequent calls to RandBLAS functions will assume that each of these arrays
-    /// has length at least dist.full_nnz. Additionally, other RandBLAS functions will
+    /// **View constructor**. This function neither reads-from nor writes-to
+    /// the provided \math{(\ttt{rows},\ttt{cols},\ttt{vals})} arrays. However, subsequent calls to RandBLAS functions 
+    /// will assume that each of these arrays has length at least dist.full_nnz. Additionally,
+    /// other RandBLAS functions will
     /// assume these arrays contain the data for this operator's COO sparse matrix
-    /// representation; this assumption can be disabled (likely prompting a call to some
-    /// random sampling function later on) by setting known_filled = false.
+    /// representation; this assumption can be disabled by setting known_filled = false.
     ///
     /// @verbatim embed:rst:leading-slashes
     /// .. dropdown:: Full parmaeter descriptions
@@ -362,14 +363,14 @@ struct SparseSkOp {
     /// @endverbatim   
     SparseSkOp(
         SparseDist dist,
-        const state_t &state,
+        const state_t &seed_state,
         sint_t *rows,
         sint_t *cols,
         T *vals,
         bool known_filled = true
     ) : // variable definitions
         dist(dist),
-        seed_state(state),
+        seed_state(seed_state),
         next_state(compute_next_state(dist, seed_state)),
         n_rows(dist.n_rows),
         n_cols(dist.n_cols),
