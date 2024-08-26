@@ -73,11 +73,11 @@ void iid_sparsify_random_dense(
     int64_t n_rows, int64_t n_cols, int64_t stride_row, int64_t stride_col, T* mat, T prob_of_zero, RandBLAS::RNGState<RNG> state
 ) { 
     auto spar = new T[n_rows * n_cols];
-    auto dist = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::DenseDistName::Uniform);
+    auto dist = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::ScalarDist::Uniform);
     auto next_state = RandBLAS::fill_dense(dist, spar, state);
 
     auto temp = new T[n_rows * n_cols];
-    auto D_mat = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::DenseDistName::Uniform);
+    auto D_mat = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::ScalarDist::Uniform);
     RandBLAS::fill_dense(D_mat, temp, next_state);
 
     #define SPAR(_i, _j) spar[(_i) + (_j) * n_rows]

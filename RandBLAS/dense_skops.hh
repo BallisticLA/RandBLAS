@@ -172,7 +172,7 @@ static RNGState<RNG> fill_dense_submat_impl(int64_t n_cols, T* smat, int64_t n_s
 template <typename RNG, typename DD>
 RNGState<RNG> compute_next_state(DD dist, RNGState<RNG> state) {
     if (dist.major_axis == MajorAxis::Undefined) {
-        // implies dist.family = DenseDistName::BlackBox
+        // implies dist.family = ScalarDist::BlackBox
         return state;
     }
     // ^ This is the only place where MajorAxis is actually used to some 
@@ -190,9 +190,10 @@ RNGState<RNG> compute_next_state(DD dist, RNGState<RNG> state) {
     return state;
 }
 
-template <typename DDN>
-inline double isometry_scale(DDN dn, int64_t n_rows, int64_t n_cols) {
-    return (dn == DDN::BlackBox) ? 1.0 : std::pow(std::min(n_rows, n_cols), -0.5);
+// We only template this function because ScalarDistribution has defined later.
+template <typename ScalarDistribution>
+inline double isometry_scale(ScalarDistribution sd, int64_t n_rows, int64_t n_cols) {
+    return (sd == ScalarDistribution::BlackBox) ? 1.0 : std::pow(std::min(n_rows, n_cols), -0.5);
 }
 
 inline blas::Layout natural_layout(MajorAxis major_axis, int64_t n_rows, int64_t n_cols) {
@@ -222,7 +223,7 @@ namespace RandBLAS {
 /// For implementation reasons, we also expose an option to indicate that an
 /// operator's distribution is unknown but it is still represented by a buffer
 /// that can be used in GEMM.
-enum class DenseDistName : char {
+enum class ScalarDist : char {
     // ---------------------------------------------------------------------------
     ///  Indicates the Gaussian distribution with mean 0 and variance 1.
     Gaussian = 'G',
@@ -266,7 +267,7 @@ struct DenseDist {
 
     // ---------------------------------------------------------------------------
     ///  The distribution used for the entries of the sketching operator.
-    const DenseDistName family;
+    const ScalarDist family;
 
     // ---------------------------------------------------------------------------
     ///  The natural memory layout implied by major_axis, n_rows, and n_cols.
@@ -278,19 +279,19 @@ struct DenseDist {
     ///  A distribution over matrices of shape (n_rows, n_cols) with entries drawn
     ///  iid from a mean-zero variance-one distribution.
     ///  The default distribution is standard-normal. One can opt for the uniform
-    ///  distribution over \math{[-\sqrt{3}, \sqrt{3}]} by setting dn = DenseDistName::Uniform.
+    ///  distribution over \math{[-\sqrt{3}, \sqrt{3}]} by setting family = ScalarDist::Uniform.
     DenseDist(
         int64_t n_rows,
         int64_t n_cols,
-        DenseDistName dn = DenseDistName::Gaussian,
+        ScalarDist family = ScalarDist::Gaussian,
         MajorAxis ma = MajorAxis::Long
     ) :  // variable definitions
         n_rows(n_rows), n_cols(n_cols), major_axis(ma),
-        isometry_scale(dense::isometry_scale(dn, n_rows, n_cols)),
-        family(dn),
+        isometry_scale(dense::isometry_scale(family, n_rows, n_cols)),
+        family(family),
         natural_layout(dense::natural_layout(ma, n_rows, n_cols))
     {   // argument validation
-        if (dn == DenseDistName::BlackBox) {
+        if (family == ScalarDist::BlackBox) {
             randblas_require(ma == MajorAxis::Undefined);
         } else {
             randblas_require(ma != MajorAxis::Undefined);
@@ -417,7 +418,7 @@ struct DenseSkOp {
     {   // sanity checks
         randblas_require(this->dist.n_rows > 0);
         randblas_require(this->dist.n_cols > 0);
-        randblas_require(this->dist.family != DenseDistName::BlackBox);
+        randblas_require(this->dist.family != ScalarDist::BlackBox);
     }
 
     ///---------------------------------------------------------------------------
@@ -536,16 +537,16 @@ RNGState<RNG> fill_dense(blas::Layout layout, const DenseDist &D, int64_t n_rows
     }
     RNGState<RNG> next_state{};
     switch (D.family) {
-        case DenseDistName::Gaussian: {
+        case ScalarDist::Gaussian: {
             next_state = fill_dense_submat_impl<T,RNG,r123ext::boxmul>(ma_len, buff, n_rows_, n_cols_, ptr, seed);
             break;
         }
-        case DenseDistName::Uniform: {
+        case ScalarDist::Uniform: {
             next_state = fill_dense_submat_impl<T,RNG,r123ext::uneg11>(ma_len, buff, n_rows_, n_cols_, ptr, seed);
             blas::scal(n_rows_ * n_cols_, (T)std::sqrt(3), buff, 1);
             break;
         }
-        case DenseDistName::BlackBox: {
+        case ScalarDist::BlackBox: {
             throw std::invalid_argument(std::string("fill_dense cannot be called with the BlackBox distribution."));
         }
         default: {
@@ -603,7 +604,7 @@ void fill_dense(DenseSkOp &S) {
     randblas_require(S.buff == nullptr);
     // TODO: articulate why S.own_memory == true is important. (It's because it safeguards
     // against the chance of introducing a memory leak.)
-    randblas_require(S.dist.family != DenseDistName::BlackBox);
+    randblas_require(S.dist.family != ScalarDist::BlackBox);
     using T = typename DenseSkOp::scalar_t;
     S.buff = new T[S.dist.n_rows * S.dist.n_cols];
     fill_dense(S.dist, S.buff, S.seed_state);
@@ -618,7 +619,7 @@ DenseSkOp submatrix_as_blackbox(const DenseSkOp &S, int64_t n_rows, int64_t n_co
     T *buff = new T[n_rows * n_cols];
     auto layout = S.dist.natural_layout;
     fill_dense(layout, S.dist, n_rows, n_cols, ro_s, co_s, buff, S.seed_state);
-    DenseDist submatrix_dist(n_rows, n_cols, DenseDistName::BlackBox, MajorAxis::Undefined);
+    DenseDist submatrix_dist(n_rows, n_cols, ScalarDist::BlackBox, MajorAxis::Undefined);
     DenseSkOp submatrix(submatrix_dist, S.seed_state, S.next_state, buff, layout);
     return submatrix;
 }

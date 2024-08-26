@@ -79,7 +79,7 @@ Distributions
       :project: RandBLAS
       :members:
 
-  .. doxygenenum:: RandBLAS::DenseDistName
+  .. doxygenenum:: RandBLAS::ScalarDist
       :project: RandBLAS
 
 .. dropdown:: SparseDist : a distribution over structured sparse matrices

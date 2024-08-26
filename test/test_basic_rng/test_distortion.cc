@@ -32,7 +32,7 @@
 #include "RandBLAS/util.hh"
 #include "RandBLAS/dense_skops.hh"
 using RandBLAS::DenseDist;
-using RandBLAS::DenseDistName;
+using RandBLAS::ScalarDist;
 using RandBLAS::RNGState;
 
 #include "rng_common.hh"
@@ -47,14 +47,14 @@ class TestSubspaceDistortion : public ::testing::Test {
     protected:
 
     template <typename T>
-    void run_general(DenseDistName name, T distortion, int64_t d, int64_t N, uint32_t key) {
+    void run_general(ScalarDist name, T distortion, int64_t d, int64_t N, uint32_t key) {
         auto layout = blas::Layout::ColMajor;
         DenseDist D(d, N, name);
         std::vector<T> S(d*N);
         std::cout << "(d, N) = ( " << d << ", " << N << " )\n";
         RandBLAS::RNGState<r123::Philox4x32> state(key);
         auto next_state = RandBLAS::fill_dense(D, S.data(), state);
-        T inv_stddev = (name == DenseDistName::Gaussian) ? (T) 1.0 : (T) 1.0;
+        T inv_stddev = (name == ScalarDist::Gaussian) ? (T) 1.0 : (T) 1.0;
         blas::scal(d*N, inv_stddev / std::sqrt(d), S.data(), 1);
         std::vector<T> G(N*N, 0.0);
         blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, N, d, (T)1.0, S.data(), d, (T)0.0, G.data(), N);
@@ -100,7 +100,7 @@ class TestSubspaceDistortion : public ::testing::Test {
         val *= val;
         int64_t N = (int64_t) std::ceil(val);
         int64_t d = std::ceil( std::pow((1 + tau) / distortion, 2) * N );
-        run_general<T>(DenseDistName::Gaussian, distortion, d, N, key);
+        run_general<T>(ScalarDist::Gaussian, distortion, d, N, key);
         return;
     }
 
@@ -111,7 +111,7 @@ class TestSubspaceDistortion : public ::testing::Test {
         T epsnet_spectralnorm_factor = 1.0; // should be 4.0
         T theta = epsnet_spectralnorm_factor * c6 * (rate + std::log(9));
         int64_t d = std::ceil(N * theta * std::pow(distortion, -2));
-        run_general<T>(DenseDistName::Uniform, distortion, d, N, key);
+        run_general<T>(ScalarDist::Uniform, distortion, d, N, key);
         return;
     }
 };

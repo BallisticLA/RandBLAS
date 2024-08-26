@@ -12,7 +12,7 @@
 #include "RandBLAS/util.hh"
 #include "RandBLAS/dense_skops.hh"
 using RandBLAS::DenseDist;
-using RandBLAS::DenseDistName;
+using RandBLAS::ScalarDist;
 using RandBLAS::RNGState;
 
 #include <iostream>
@@ -175,7 +175,7 @@ class TestHandrolledQR : public ::testing::Test {
 
     template <typename T>
     void run_cholqr_gaussian(int m, int n, int b, uint32_t key) {
-        DenseDist D(m, n, DenseDistName::Gaussian);
+        DenseDist D(m, n, ScalarDist::Gaussian);
         std::vector<T> A(m*n);
         T iso_scale = D.isometry_scale;
         RNGState state(key);
@@ -191,7 +191,7 @@ class TestHandrolledQR : public ::testing::Test {
 
     template <typename T>
     void run_qr_blocked_cgs(int m, int n, int b, uint32_t key) {
-        DenseDist D(m, n, DenseDistName::Gaussian);
+        DenseDist D(m, n, ScalarDist::Gaussian);
         std::vector<T> A(m*n);
         T iso_scale = D.isometry_scale;
         RNGState state(key);
@@ -251,7 +251,7 @@ std::vector<T> posdef_with_random_eigvecs(std::vector<T> &eigvals, uint32_t key)
         randblas_require(ev > 0);
     std::vector<T> work0(n*n, 0.0);
     T* work0_buff = work0.data();
-    DenseDist distn(n, n, DenseDistName::Gaussian);
+    DenseDist distn(n, n, ScalarDist::Gaussian);
     RNGState state(key);
     RandBLAS::fill_dense(distn, work0_buff, state);
     std::vector<T> work1(n*n, 0.0);

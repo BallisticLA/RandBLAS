@@ -80,7 +80,7 @@ int main(int argc, char **argv)
     int64_t m = atoi(argv[1]);
     int64_t n = atoi(argv[2]);
     int64_t d = m*n;
-    RandBLAS::DenseDist dist{m, n, RandBLAS::DenseDistName::Uniform};
+    RandBLAS::DenseDist dist{m, n, RandBLAS::ScalarDist::Uniform};
 
     std::vector<T> mat(d);
 

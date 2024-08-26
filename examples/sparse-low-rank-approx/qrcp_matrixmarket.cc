@@ -261,11 +261,11 @@ void power_iter_col_sketch(SpMat &A, int64_t k, T* Y, int64_t p_data_aware, STAT
 
     int64_t p_done = 0;
     if (p_data_aware % 2 == 0) {
-        RandBLAS::DenseDist D(k, m, RandBLAS::DenseDistName::Gaussian);
+        RandBLAS::DenseDist D(k, m, RandBLAS::ScalarDist::Gaussian);
         TIMED_LINE(
         RandBLAS::fill_dense(D, mat_work2, state), "sampling : ")
     } else {
-        RandBLAS::DenseDist D(k, n, RandBLAS::DenseDistName::Gaussian);
+        RandBLAS::DenseDist D(k, n, RandBLAS::ScalarDist::Gaussian);
         TIMED_LINE(
         RandBLAS::fill_dense(D, mat_work1, state), "sampling : ")
         TIMED_LINE(

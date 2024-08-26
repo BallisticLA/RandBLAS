@@ -36,7 +36,7 @@
 
 using blas::Layout;
 using blas::Uplo;
-using RandBLAS::DenseDistName;
+using RandBLAS::ScalarDist;
 using RandBLAS::DenseDist;
 using RandBLAS::DenseSkOp;
 using RandBLAS::RNGState;
@@ -93,7 +93,7 @@ class TestSketchSymmetric : public ::testing::Test {
         auto [rows_out, cols_out] = dims_of_sketch_symmetric_output(d, n, side_skop);
         std::vector<T> A(lda*lda, 0.0);
         random_symmetric_mat(n, A.data(), lda, RNGState(seed_a));
-        DenseDist D(rows_out, cols_out, DenseDistName::Uniform, ma);
+        DenseDist D(rows_out, cols_out, ScalarDist::Uniform, ma);
         DenseSkOp<T> S(D, seed_skop);
         RandBLAS::fill_dense(S);
         int64_t lds = (S.layout == Layout::RowMajor) ? cols_out : rows_out;
@@ -122,7 +122,7 @@ class TestSketchSymmetric : public ::testing::Test {
         auto [rows_out, cols_out] = dims_of_sketch_symmetric_output(d, n, side_skop);
         std::vector<T> A(lda*lda, 0.0);
         random_symmetric_mat(n, A.data(), lda, RNGState(seed_a));
-        DenseDist D(rows_out, cols_out, DenseDistName::Uniform, ma);
+        DenseDist D(rows_out, cols_out, ScalarDist::Uniform, ma);
         DenseSkOp<T> S(D, seed_skop);
         RandBLAS::fill_dense(S);
         int64_t lds_init, ldb;

@@ -32,7 +32,7 @@
 #include "RandBLAS/util.hh"
 #include "RandBLAS/dense_skops.hh"
 using RandBLAS::RNGState;
-using RandBLAS::DenseDistName;
+using RandBLAS::ScalarDist;
 #include "rng_common.hh"
 
 #include <algorithm>
@@ -54,12 +54,12 @@ class TestScalarDistributions : public ::testing::Test {
  
     template <typename T>
     static void kolmogorov_smirnov_tester(
-        std::vector<T> &samples, double critical_value, DenseDistName dn
+        std::vector<T> &samples, double critical_value, ScalarDist sd
     ) { 
-        auto F_true = [dn](T x) {
-            if (dn == DenseDistName::Gaussian) {
+        auto F_true = [sd](T x) {
+            if (sd == ScalarDist::Gaussian) {
                 return RandBLAS_StatTests::standard_normal_cdf(x);
-            } else if (dn == DenseDistName::Uniform) {
+            } else if (sd == ScalarDist::Uniform) {
                 return RandBLAS_StatTests::uniform_syminterval_cdf(x, (T) std::sqrt(3));
             } else {
                 std::string msg = "Unrecognized distributions name";
@@ -108,13 +108,13 @@ class TestScalarDistributions : public ::testing::Test {
     }
 
     template <typename T>
-    static void run(double significance, int64_t num_samples, DenseDistName dn, uint32_t seed) {
+    static void run(double significance, int64_t num_samples, ScalarDist sd, uint32_t seed) {
         using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
         auto critical_value = critical_value_rep_mutator(num_samples, significance);
         RNGState state(seed);
         std::vector<T> samples(num_samples, -1);
-        RandBLAS::fill_dense({num_samples, 1, dn, RandBLAS::MajorAxis::Long}, samples.data(), state);
-        kolmogorov_smirnov_tester(samples, critical_value, dn);
+        RandBLAS::fill_dense({num_samples, 1, sd, RandBLAS::MajorAxis::Long}, samples.data(), state);
+        kolmogorov_smirnov_tester(samples, critical_value, sd);
         return;
     }
 };
@@ -122,45 +122,45 @@ class TestScalarDistributions : public ::testing::Test {
 TEST_F(TestScalarDistributions, uniform_ks_generous) {
     double s = 1e-6;
     for (uint32_t i = 999; i < 1011; ++i) {
-        run<double>(s, 100000, DenseDistName::Uniform, i);
-        run<double>(s, 10000,  DenseDistName::Uniform, i*i);
-        run<double>(s, 1000,   DenseDistName::Uniform, i*i*i);
+        run<double>(s, 100000, ScalarDist::Uniform, i);
+        run<double>(s, 10000,  ScalarDist::Uniform, i*i);
+        run<double>(s, 1000,   ScalarDist::Uniform, i*i*i);
     }
 }
 
 TEST_F(TestScalarDistributions, uniform_ks_moderate) {
     double s = 1e-4;
-    run<float>(s, 100000, DenseDistName::Uniform, 0);
-    run<float>(s, 10000,  DenseDistName::Uniform, 0);
-    run<float>(s, 1000,   DenseDistName::Uniform, 0);
+    run<float>(s, 100000, ScalarDist::Uniform, 0);
+    run<float>(s, 10000,  ScalarDist::Uniform, 0);
+    run<float>(s, 1000,   ScalarDist::Uniform, 0);
 }
 
 TEST_F(TestScalarDistributions, uniform_ks_skeptical) {
     double s = 1e-2;
-    run<float>(s, 100000, DenseDistName::Uniform, 0);
-    run<float>(s, 10000,  DenseDistName::Uniform, 0);
-    run<float>(s, 1000,   DenseDistName::Uniform, 0);
+    run<float>(s, 100000, ScalarDist::Uniform, 0);
+    run<float>(s, 10000,  ScalarDist::Uniform, 0);
+    run<float>(s, 1000,   ScalarDist::Uniform, 0);
 }
 
 TEST_F(TestScalarDistributions, guassian_ks_generous) {
     double s = 1e-6;
     for (uint32_t i = 99; i < 103; ++i) {
-        run<double>(s, 100000, DenseDistName::Gaussian, i);
-        run<double>(s, 10000,  DenseDistName::Gaussian, i*i);
-        run<double>(s, 1000,   DenseDistName::Gaussian, i*i*i);
+        run<double>(s, 100000, ScalarDist::Gaussian, i);
+        run<double>(s, 10000,  ScalarDist::Gaussian, i*i);
+        run<double>(s, 1000,   ScalarDist::Gaussian, i*i*i);
     }
 }
 
 TEST_F(TestScalarDistributions, guassian_ks_moderate) {
     double s = 1e-4;
-    run<float>(s, 100000, DenseDistName::Gaussian, 0);
-    run<float>(s, 10000,  DenseDistName::Gaussian, 0);
-    run<float>(s, 1000,   DenseDistName::Gaussian, 0);
+    run<float>(s, 100000, ScalarDist::Gaussian, 0);
+    run<float>(s, 10000,  ScalarDist::Gaussian, 0);
+    run<float>(s, 1000,   ScalarDist::Gaussian, 0);
 }
 
 TEST_F(TestScalarDistributions, guassian_ks_skeptical) {
     double s = 1e-2;
-    run<float>(s, 100000, DenseDistName::Gaussian, 0);
-    run<float>(s, 10000,  DenseDistName::Gaussian, 0);
-    run<float>(s, 1000,   DenseDistName::Gaussian, 0);
+    run<float>(s, 100000, ScalarDist::Gaussian, 0);
+    run<float>(s, 10000,  ScalarDist::Gaussian, 0);
+    run<float>(s, 1000,   ScalarDist::Gaussian, 0);
 }
