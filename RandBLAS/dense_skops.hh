@@ -273,7 +273,7 @@ struct DenseDist {
     const ScalarDist family;
 
     // ---------------------------------------------------------------------------
-    /// @verbatim embed:rst:leading-slashes
+    ///  @verbatim embed:rst:leading-slashes
     ///  The fill order (row major or column major) implied by major_axis,
     ///  n_rows, and n_cols, according to the following table.
     ///        .. list-table::
@@ -293,7 +293,7 @@ struct DenseDist {
     ///  If you want to sample a dense sketching operator represented as 
     ///  buffer in a layout different than the one given here, then a 
     ///  change-of-layout has to be performed explicitly. 
-    /// @endverbatim
+    ///  @endverbatim
     const blas::Layout natural_layout;
 
     // ---------------------------------------------------------------------------

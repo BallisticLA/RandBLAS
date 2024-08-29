@@ -34,6 +34,13 @@
 #include <gtest/gtest.h>
 #include <math.h>
 
+using RandBLAS::RNGState;
+using RandBLAS::SignedInteger;
+using RandBLAS::SparseDist;
+using RandBLAS::SparseSkOp;
+using RandBLAS::MajorAxis;
+using RandBLAS::fill_sparse;
+
 
 class TestSparseSkOpConstruction : public ::testing::Test
 {
@@ -75,32 +82,78 @@ class TestSparseSkOpConstruction : public ::testing::Test
         }
     }
 
-    template <RandBLAS::SignedInteger sint_t>
+    template <SignedInteger sint_t>
     void proper_saso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
-        using RNG = RandBLAS::SparseSkOp<float>::state_t::generator;
-        RandBLAS::SparseDist D0(d, m, RandBLAS::MajorAxis::Short, vec_nnzs[nnz_index]);
-        RandBLAS::SparseSkOp<float, RNG, sint_t> S0(D0, keys[key_index]);
-        RandBLAS::fill_sparse(S0);
+        using RNG = SparseSkOp<float>::state_t::generator;
+        SparseDist D0(d, m, MajorAxis::Short, vec_nnzs[nnz_index]);
+        SparseSkOp<float, RNG, sint_t> S0(D0, keys[key_index]);
+        fill_sparse(S0);
         if (d < m) {
-                check_fixed_nnz_per_col(S0);
+            check_fixed_nnz_per_col(S0);
         } else {
-                check_fixed_nnz_per_row(S0);
+            check_fixed_nnz_per_row(S0);
         }
     }
 
-    template <RandBLAS::SignedInteger sint_t>
+    template <SignedInteger sint_t>
     void proper_laso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
-        using RNG = RandBLAS::SparseSkOp<float>::state_t::generator;
-        RandBLAS::SparseDist D0(d, m, RandBLAS::MajorAxis::Long, vec_nnzs[nnz_index]);
-        RandBLAS::SparseSkOp<float, RNG, sint_t> S0(D0, keys[key_index]);
-        RandBLAS::fill_sparse(S0);
+        using RNG = SparseSkOp<float>::state_t::generator;
+        SparseDist D0(d, m, MajorAxis::Long, vec_nnzs[nnz_index]);
+        SparseSkOp<float, RNG, sint_t> S0(D0, keys[key_index]);
+        fill_sparse(S0);
         if (d < m) {
-                check_fixed_nnz_per_row(S0);
+            check_fixed_nnz_per_row(S0);
         } else {
-                check_fixed_nnz_per_col(S0);
+            check_fixed_nnz_per_col(S0);
         } 
     }
+
+    template <SignedInteger sint_t, typename T = float>
+    void respect_ownership(int64_t d, int64_t m) {
+        RNGState state(0);
+        SparseDist sd(d, m, MajorAxis::Short, 2);
+
+        std::vector<sint_t> rows(sd.full_nnz, -1);
+        std::vector<sint_t> cols(sd.full_nnz, -1);
+        std::vector<T> vals(sd.full_nnz, -0.5);
+        auto rows_copy = rows;
+        auto cols_copy = cols;
+        auto vals_copy = vals;
+
+        auto S = new SparseSkOp(sd, state, rows.data(), cols.data(), vals.data());
+        // check that nothing has changed
+        test::comparison::buffs_approx_equal(rows.data(), rows_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
+        test::comparison::buffs_approx_equal(cols.data(), cols_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
+        test::comparison::buffs_approx_equal(vals.data(), vals_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (T) 0, (T) 0);
+        fill_sparse(*S);
+        rows_copy = rows;
+        cols_copy = cols;
+        vals_copy = vals;
+        // check that everything has been overwritten
+        for (int i = 0; i < sd.full_nnz; ++i) {
+            EXPECT_GE(rows[i], 0);
+            EXPECT_GE(cols[i], 0);
+            EXPECT_NE(vals[i], -0.5);
+        }
+        // delete S, and make sure the rows,cols,vals are unchanged from before the deletion.
+        delete S;
+        test::comparison::buffs_approx_equal(rows.data(), rows_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
+        test::comparison::buffs_approx_equal(cols.data(), cols_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
+        test::comparison::buffs_approx_equal(vals.data(), vals_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (T) 0, (T) 0);
+        return;
+    }
+
 };
+
+TEST_F(TestSparseSkOpConstruction, respect_ownership) {
+    respect_ownership<int64_t>(7, 20);
+    respect_ownership<int64_t>(7, 20);
+    respect_ownership<int64_t>(7, 20);
+
+    respect_ownership<int>(7, 20);
+    respect_ownership<int>(7, 20);
+    respect_ownership<int>(7, 20);
+}
 
 
 ////////////////////////////////////////////////////////////////////////
