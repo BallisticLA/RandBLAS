@@ -342,7 +342,7 @@ COOMatrix<T> transpose(COOMatrix<T> &S) {
     } else if (S.sort == NonzeroSort::CSR) {
         St.sort = NonzeroSort::CSC;
     }
-    return std::move(St);
+    return St;
 }
 
 template <typename T>

@@ -667,7 +667,7 @@ DenseSkOp submatrix_as_blackbox(const DenseSkOp &S, int64_t n_rows, int64_t n_co
     fill_dense(layout, S.dist, n_rows, n_cols, ro_s, co_s, buff, S.seed_state);
     DenseDist submatrix_dist(n_rows, n_cols, ScalarDist::BlackBox, MajorAxis::Undefined);
     DenseSkOp submatrix(submatrix_dist, S.seed_state, S.next_state, buff, layout);
-    return std::move(submatrix);
+    return submatrix;
 }
 
 }  // end namespace RandBLAS
