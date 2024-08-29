@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <vector>
 
+using RandBLAS::MajorAxis;
 using namespace RandBLAS::sparse_data;
 using namespace RandBLAS::sparse_data::coo;
 using namespace test::test_datastructures::test_spmats;
@@ -52,7 +53,7 @@ void sparseskop_to_dense(
     auto idx = [D, layout](int64_t i, int64_t j) {
         return  (layout == Layout::ColMajor) ? (i + j*D.n_rows) : (j + i*D.n_cols);
     };
-    int64_t nnz = S0.dist.full_nnz;
+    int64_t nnz = S0.nnz;
     for (int64_t i = 0; i < nnz; ++i) {
         sint_t row = S0.rows[i];
         sint_t col = S0.cols[i];
@@ -138,14 +139,19 @@ class Test_SkOp_to_COO : public ::testing::Test {
     virtual void TearDown(){};
 
     template <typename T = double>
-    void sparse_skop_to_coo(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index, RandBLAS::MajorAxis ma) {
+    void sparse_skop_to_coo(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index, MajorAxis ma) {
         RandBLAS::SparseDist D(d, m, ma, vec_nnzs[nnz_index]);
         RandBLAS::SparseSkOp<T> S(D, keys[key_index]);
         auto A = RandBLAS::sparse::coo_view_of_skop(S);
 
         EXPECT_EQ(S.dist.n_rows,   A.n_rows);
         EXPECT_EQ(S.dist.n_cols,   A.n_cols);
-        EXPECT_EQ(S.dist.full_nnz, A.nnz);
+        if (ma == MajorAxis::Short) {
+            EXPECT_EQ(S.dist.full_nnz, A.nnz);
+        } {
+            EXPECT_GE(S.dist.full_nnz, A.nnz);
+            EXPECT_EQ(S.nnz, A.nnz);
+        }
 
         std::vector<T> S_dense(d * m);
         sparseskop_to_dense(S, S_dense.data(), Layout::ColMajor);

@@ -141,11 +141,13 @@ namespace RandBLAS {
 struct SparseDist {
 
     // ---------------------------------------------------------------------------
-    ///  Matrices drawn from this distribution have this many rows.
+    ///  Matrices drawn from this distribution have this many rows;
+    ///  must be greater than zero.
     const int64_t n_rows;
 
     // ---------------------------------------------------------------------------
-    ///  Matrices drawn from this distribution have this many columns.
+    ///  Matrices drawn from this distribution have this many columns;
+    ///  must be greater than zero.
     const int64_t n_cols;
 
     // ---------------------------------------------------------------------------
@@ -163,15 +165,37 @@ struct SparseDist {
     const double isometry_scale;
 
     // ---------------------------------------------------------------------------
-    ///  If this distribution is short-axis major, then matrices sampled from
-    ///  it will have exactly \math{\texttt{vec_nnz}} nonzeros per short-axis
-    ///  vector (i.e., per column of a wide matrix or row of a tall matrix).
-    //// One would be paranoid to set this higher than, say, eight, even when
-    ///  sketching *very* high-dimensional data.
+    /// This sets the number of structural nonzeros in each major-axis vector.
+    /// It's subject to the bounds
+    /// @verbatim embed:rst:leading-slashes
     ///
-    ///  If this distribution is long-axis major, then matrices sampled from it
-    ///  will have \math{\texttt{vec_nnz}} nonzeros per long-axis
-    ///  vector (i.e., per row of a wide matrix or per column of a tall matrix).
+    /// .. math::
+    ///
+    ///     1 \leq \ttt{vec_nnz} \leq \begin{cases} \min\{ \ttt{n_rows}, \ttt{n_cols} \} &\text{ if } \ttt{major_axis} = \ttt{Short} \\ \max\{ \ttt{n_rows},\ttt{n_cols} \} & \text{ if } \ttt{major_axis} = \ttt{Long} \end{cases} 
+    ///
+    /// @endverbatim
+    /// We'll take a moment to provide guidance on how to set this parameter,
+    /// without dwelling on formalisms.
+    ///
+    /// All else equal, larger values of \math{\ttt{vec_nnz}} result in distributions
+    /// that are "better" at preserving Euclidean geometry when sketching.
+    /// The value of \math{\ttt{vec_nnz}} that suffices for a given context will 
+    /// also depend on the sketch size, \math{d := \min\{\ttt{n_rows},\ttt{n_cols}\}},
+    /// since larger sketch sizes make it possible to "get away with" smaller values of
+    /// \math{\ttt{vec_nnz}}.
+    ///
+    /// In the short-axis-major case it is usually fine to choose very small values for 
+    /// \math{\ttt{vec_nnz}}. For example, suppose we're seeking a constant-distortion embedding
+    /// of an unknown subspace of dimension \math{n} where \math{1{,}000 \leq n \leq 10{,}000}.
+    /// If we use a short-axis-major sparse distribution \math{d = 2n}, then many practitioners
+    /// would feel comfortable taking \math{\ttt{vec_nnz}} as 8 or even 2.
+    /// If \math{d} is *much* larger than \math{n} (but still smaller than 
+    /// \math{\max\{\ttt{n_rows},\ttt{n_cols}\}}}) then it can be possible to obtain rigorous
+    /// gaurantees of sketch quality even when \math{\ttt{vec_nnz}=1};
+    /// those familiar with the sketching literature will notice that a short-axis-major 
+    /// SparseDist with \math{\ttt{vec_nnz}=1} is usually called a *CountSketch*.
+    /// 
+    /// We don't have simple recommendations for the long-axis-major case. 
     ///
     const int64_t vec_nnz;
 
@@ -180,7 +204,6 @@ struct SparseDist {
     ///  sketching operator sampled from this distribution. This is computed
     ///  automatically as a function of the other members of the SparseDist.
     const int64_t full_nnz;
-
 
     // ---------------------------------------------------------------------------
     ///  Constructs a distribution over sparse matrices whose major-axis vectors
@@ -194,7 +217,12 @@ struct SparseDist {
     ) : n_rows(n_rows), n_cols(n_cols), major_axis(ma),
         isometry_scale(sparse::isometry_scale(ma, vec_nnz, n_rows, n_cols)),
         vec_nnz(vec_nnz),
-        full_nnz(sparse::nnz_requirement(ma, vec_nnz, n_rows, n_cols)) {}
+        full_nnz(sparse::nnz_requirement(ma, vec_nnz, n_rows, n_cols)) 
+    {   // argument validation
+        randblas_require(n_rows > 0);
+        randblas_require(n_cols > 0);
+        randblas_require(vec_nnz > 0);
+    }
 };
 
 template <typename RNG, SignedInteger sint_t>
@@ -206,13 +234,19 @@ inline RNGState<RNG> repeated_fisher_yates(
 
 template <typename RNG>
 RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
-    int64_t minor_len;
+    int64_t num_mavec, incrs_per_mavec;
     if (dist.major_axis == MajorAxis::Short) {
-        minor_len = std::min(dist.n_rows, dist.n_cols);
+        num_mavec = std::max(dist.n_rows, dist.n_cols);
+        incrs_per_mavec = dist.vec_nnz;
+        // ^ SASOs don't try to be frugal with CBRNG increments.
+        //   See repeated_fisher_yates.
     } else {
-        minor_len = std::max(dist.n_rows, dist.n_cols);
+        num_mavec = std::min(dist.n_rows, dist.n_cols);
+        incrs_per_mavec = dist.vec_nnz * ((int64_t) state.len_c/2);
+        // ^ LASOs do try to be frugal with CBRNG increments.
+        //   See sample_indices_iid_uniform.
     }
-    int64_t full_incr = minor_len * dist.vec_nnz;
+    int64_t full_incr = num_mavec * incrs_per_mavec;
     state.counter.incr(full_incr);
     return state;
 }
@@ -262,17 +296,11 @@ struct SparseSkOp {
     const int64_t n_cols;
 
     // ---------------------------------------------------------------------------
-    /// We need workspace to store a representation of the sampled sketching
-    /// operator. This member indicates who is responsible for allocating and 
-    /// deallocating this workspace. If own_memory is true, then 
-    /// RandBLAS is responsible.
-    const bool own_memory = true;
-
-    // ---------------------------------------------------------------------------
-    /// A flag (indicating a sufficient condition) that the data underlying the
-    /// sparse matrix has already been sampled.
-    bool known_filled = false;
-    
+    ///  We need workspace to store a representation of the sampled sketching
+    ///  operator. This member indicates who is responsible for allocating and 
+    ///  deallocating this workspace. If own_memory is true, then 
+    ///  RandBLAS is responsible.
+    const bool own_memory = true; 
     
     /////////////////////////////////////////////////////////////////////
     //
@@ -280,9 +308,33 @@ struct SparseSkOp {
     //
     /////////////////////////////////////////////////////////////////////
 
+    // ---------------------------------------------------------------------------
+    ///  Pointer to row indices of structural nonzeros in this operator's
+    ///  COO-format sparse matrix representation.
     sint_t *rows = nullptr;
+
+    // ---------------------------------------------------------------------------
+    ///  Pointer to column indices of structural nonzeros in this operator's
+    ///  COO-format sparse matrix representation.
     sint_t *cols = nullptr;
+
+    // ---------------------------------------------------------------------------
+    ///  Pointer to values of structural nonzeros in this operator's
+    ///  COO-format sparse matrix representation.
     T *vals = nullptr;
+
+    // ---------------------------------------------------------------------------
+    ///  A flag that the data underlying this operator's sparse matrix representation.
+    ///  If this operator is passed to a sketching function and this is false, then ...
+    bool known_filled = false;
+
+    // ---------------------------------------------------------------------------
+    ///  The number of structural nonzeros in this operator is is gauranteed to be
+    ///  positive. If dist.major_axis is Short then we know ahead of time that
+    ///  nnz=dist.full_nnz. Otherwise, the precise value of nnz can't be known
+    ///  until the operator's explicit representation is sampled, and the only
+    ///  thing we do know is that 1 <= nnz <= dist.full_nnz.
+    int64_t nnz = 0;
 
     /////////////////////////////////////////////////////////////////////
     //
@@ -301,28 +353,27 @@ struct SparseSkOp {
     SparseSkOp(
         SparseDist dist,
         const state_t &seed_state
-    ) :  // variable definitions
+    ):  // variable definitions
         dist(dist),
         seed_state(seed_state),
         next_state(compute_next_state(dist, seed_state)),
         n_rows(dist.n_rows),
         n_cols(dist.n_cols),
         own_memory(true)
-    {   // sanity checks
-        randblas_require(this->dist.n_rows > 0);
-        randblas_require(this->dist.n_cols > 0);
-        randblas_require(this->dist.vec_nnz > 0);
-        // actual work
+    {   // actual work
         int64_t nnz = dist.full_nnz;
-        this->rows = new sint_t[nnz];
-        this->cols = new sint_t[nnz];
-        this->vals = new T[nnz];
+        this->rows = new sint_t[nnz]{-1};
+        this->cols = new sint_t[nnz]{-1};
+        this->vals = new T[nnz]{0.0};
     }
 
     /// --------------------------------------------------------------------------------
-    /// **View constructor**. This function neither reads-from nor writes-to
-    /// the provided \math{(\ttt{rows},\ttt{cols},\ttt{vals})} arrays. However, subsequent calls to RandBLAS functions 
-    /// will assume that each of these arrays has length at least dist.full_nnz. Additionally,
+    /// **View constructor**. The arguments provided to this
+    /// function are used to initialize members of the same names, with no error checking.
+    ///
+    /// Subsequent calls to RandBLAS functions will assume that 
+    /// each of the arrays \math{(\ttt{rows},\ttt{cols},\ttt{vals})} has length at least 
+    /// \math{\ttt{dist.full_nnz}}. Additionally,
     /// other RandBLAS functions will
     /// assume these arrays contain the data for this operator's COO sparse matrix
     /// representation; this assumption can be disabled by setting known_filled = false.
@@ -355,7 +406,7 @@ struct SparseSkOp {
     ///      - stores structural nonzeros as part of the COO format.
     ///  
     ///     known_filled
-    ///      - A boolean, which defaults to true.
+    ///      - A boolean, which defaults to false.
     ///      - If true, then the arrays pointed to by
     ///        (rows, cols, vals) already contain the randomly sampled
     ///        data defining this sketching operator.
@@ -367,7 +418,7 @@ struct SparseSkOp {
         sint_t *rows,
         sint_t *cols,
         T *vals,
-        bool known_filled = true
+        bool known_filled = false
     ) : // variable definitions
         dist(dist),
         seed_state(seed_state),
@@ -375,19 +426,13 @@ struct SparseSkOp {
         n_rows(dist.n_rows),
         n_cols(dist.n_cols),
         own_memory(false),
-        known_filled(known_filled),
-        rows(rows), cols(cols), vals(vals)
-    {   // sanity checks
-        randblas_require(this->dist.n_rows > 0);
-        randblas_require(this->dist.n_cols > 0);
-        randblas_require(this->dist.vec_nnz > 0);
-    };
+        rows(rows), cols(cols), vals(vals), known_filled(known_filled) { };
 
     //  Move constructor
     SparseSkOp(SparseSkOp<T,RNG,sint_t> &&S
     ) : dist(S.dist), seed_state(S.seed_state), next_state(S.next_state),
         n_rows(dist.n_rows), n_cols(dist.n_cols), own_memory(S.own_memory),
-        known_filled(S.known_filled), rows(S.rows), cols(S.cols), vals(S.vals)
+        rows(S.rows), cols(S.cols), vals(S.vals), known_filled(S.known_filled)
     {
         S.rows = nullptr;
         S.cols = nullptr;
@@ -410,6 +455,46 @@ struct SparseSkOp {
 
 static_assert(SketchingDistribution<SparseDist>);
 
+template <typename T, SignedInteger sint_t>
+void laso_merge_long_axis_vector_coo_data(
+    int64_t vec_nnz, T* vals, sint_t* idxs_lax, sint_t *idxs_sax, int64_t i,
+    std::unordered_map<sint_t, T> &loc2count,
+    std::unordered_map<sint_t, T> &loc2scale
+) {
+    loc2count.clear();
+    // ^ Used to count the number of times each long-axis index
+    //   appears in a given long-axis vector. Indices that don't
+    //   appear are not stored explicitly.
+    loc2scale.clear();
+    // ^ Stores a mean-zero variance-one subgaussian random variable for
+    //   each index appearing in the long-axis vector. Current
+    //   long-axis-sparse sampling uses Rademachers, but the literature
+    //   technically prefers Gaussians.
+    for (int64_t j = 0; j < vec_nnz; ++j) {
+        idxs_sax[j] = i;
+        sint_t ell = idxs_lax[j];
+        T      val = vals[j];
+        if (loc2scale.count(ell)) {
+            loc2count[ell] = loc2count[ell] + 1;
+        } else {
+            loc2scale[ell] = val;
+            loc2count[ell] = 1.0;
+        }
+    }
+    if ((int64_t) loc2scale.size() < vec_nnz) {
+        // Then we have duplicates. We need to overwrite some of the values
+        // of (idxs_lax, vals, idxs_sax) and implicitly
+        // shift them backward to remove duplicates;
+        int64_t count = 0;
+        for (const auto& [ell,c] : loc2count) {
+            idxs_lax[count] = ell;
+            vals[count] = std::sqrt(c) * loc2scale[ell];
+            count += 1;
+        }
+    }
+    return;
+}
+
 // =============================================================================
 /// Performs the work in sampling S from its underlying distribution. This 
 /// entails populating S.rows, S.cols, and S.vals with COO-format sparse matrix
@@ -422,25 +507,62 @@ static_assert(SketchingDistribution<SparseDist>);
 ///     
 template <typename SparseSkOp>
 void fill_sparse(SparseSkOp &S) {
-    
-    int64_t long_ax_len = MAX(S.dist.n_rows, S.dist.n_cols);
-    int64_t short_ax_len = MIN(S.dist.n_rows, S.dist.n_cols);
-    bool is_wide = S.dist.n_rows == short_ax_len;
+    int64_t lax_len = MAX(S.dist.n_rows, S.dist.n_cols);
+    int64_t sax_len = MIN(S.dist.n_rows, S.dist.n_cols);
+    bool is_wide = S.dist.n_rows == sax_len;
 
     using sint_t = typename SparseSkOp::index_t;
-    sint_t *short_ax_idxs = (is_wide) ? S.rows : S.cols;
-    sint_t *long_ax_idxs  = (is_wide) ? S.cols : S.rows;
+    sint_t *sax_idxs = (is_wide) ? S.rows : S.cols;
+    sint_t *lax_idxs = (is_wide) ? S.cols : S.rows;
+    int64_t vec_nnz  = S.dist.vec_nnz;
 
     if (S.dist.major_axis == MajorAxis::Short) {
         sparse::repeated_fisher_yates(
-            S.seed_state, S.dist.vec_nnz, short_ax_len, long_ax_len,
-            short_ax_idxs, long_ax_idxs, S.vals
+            S.seed_state, vec_nnz, sax_len, lax_len, sax_idxs, lax_idxs, S.vals
         );
+        S.nnz = vec_nnz * lax_len;
     } else {
-        sparse::repeated_fisher_yates(
-            S.seed_state, S.dist.vec_nnz, long_ax_len, short_ax_len,
-            long_ax_idxs, short_ax_idxs, S.vals
-        );
+        using RNG = typename SparseSkOp::state_t::generator;
+        using T = typename SparseSkOp::scalar_t;
+        // We don't sample all at once since we might need to merge duplicate entries
+        // in each long-axis vector. The way we do this is different than the
+        // standard COOMatrix convention of just adding entries together.
+
+        // We begin by defining some datastructures that we repeatedly pass to a helper function.
+        // See the comments in the helper function for info on what these guys mean.
+        std::unordered_map<sint_t, T> loc2count{};
+        std::unordered_map<sint_t, T> loc2scale{}; 
+        // Next, define helper pointers that we'll increment as we iterate over the long-axis vectors.
+        T*      curr_vals = S.vals;
+        sint_t* curr_lind = lax_idxs;
+        sint_t* curr_sind = sax_idxs;
+        int64_t total_nnz = 0;
+        auto state = S.seed_state;
+        for (int64_t i = 0; i < sax_len; ++i) {
+            state = sample_indices_iid_uniform<RNG,T,true>(
+                lax_len, vec_nnz, curr_lind, curr_vals, state
+            );
+            // ^ That writes directly so S.vals and either S.rows or S.cols.
+            //   The new values might need to be changed if there are duplicates in curr_lind.
+            //   We have a helper function for this since it's a tedious process.
+            //   The helper function also sets whichever of S.rows or S.cols wasn't populated.
+            laso_merge_long_axis_vector_coo_data(
+                vec_nnz, curr_vals, curr_lind, curr_sind, i, loc2count, loc2scale
+            );
+            int64_t count = loc2count.size();
+            curr_lind += count;
+            curr_vals += count;
+            curr_sind += count;
+            total_nnz += count;
+        }
+        // We sanitize any space we didn't end up using.
+        int64_t len_slack = S.dist.full_nnz - total_nnz;
+        for (int64_t i = 0; i < len_slack; ++i) {
+            curr_lind[i] = -1;
+            curr_sind[i] = -1;
+            curr_vals[i] = 0;
+        }
+        S.nnz = total_nnz;
     }
     S.known_filled = true;
     return;
@@ -485,23 +607,11 @@ using RandBLAS::SparseSkOp;
 using RandBLAS::MajorAxis;
 using RandBLAS::sparse_data::COOMatrix;
 
-template <typename SparseSkOp>
-static bool has_fixed_nnz_per_col(
-    SparseSkOp const &S0
-) {
-    if (S0.dist.major_axis == MajorAxis::Short) {
-        return S0.dist.n_rows < S0.dist.n_cols;
-    } else {
-        return S0.dist.n_cols < S0.dist.n_rows;
-    }
-}
-
 template <typename SparseSkOp, typename T = SparseSkOp::scalar_t, typename sint_t = SparseSkOp::index_t>
 COOMatrix<T, sint_t> coo_view_of_skop(SparseSkOp &S) {
     if (!S.known_filled)
         fill_sparse(S);
-    int64_t nnz = S.dist.full_nnz;
-    COOMatrix<T, sint_t> A(S.dist.n_rows, S.dist.n_cols, nnz, S.vals, S.rows, S.cols);
+    COOMatrix<T, sint_t> A(S.n_rows, S.n_cols, S.nnz, S.vals, S.rows, S.cols);
     return A;
 }
 
