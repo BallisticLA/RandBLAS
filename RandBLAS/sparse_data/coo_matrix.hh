@@ -109,7 +109,7 @@ struct COOMatrix {
     using index_t = sint_t; 
     const int64_t n_rows;
     const int64_t n_cols;
-    const bool own_memory;
+    bool own_memory;
     int64_t nnz = 0;
     IndexBase index_base;
     T *vals = nullptr;
@@ -262,6 +262,11 @@ struct COOMatrix {
     }    
 
 };
+
+#ifdef __cpp_concepts
+static_assert(SparseMatrix<COOMatrix<float>>);
+static_assert(SparseMatrix<COOMatrix<double>>);
+#endif
 
 template <typename T, SignedInteger sint_t>
 void sort_coo_data(NonzeroSort s, int64_t nnz, T *vals, sint_t *rows, sint_t *cols) {

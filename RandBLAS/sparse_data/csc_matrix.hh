@@ -45,7 +45,7 @@ struct CSCMatrix {
     using index_t = sint_t; 
     const int64_t n_rows;
     const int64_t n_cols;
-    const bool own_memory;
+    bool own_memory;
     int64_t nnz = 0;
     IndexBase index_base;
     T *vals = nullptr;
@@ -172,6 +172,11 @@ struct CSCMatrix {
         other.nnz = 0;
     };
 };
+
+#ifdef __cpp_concepts
+static_assert(SparseMatrix<CSCMatrix<float>>);
+static_assert(SparseMatrix<CSCMatrix<double>>);
+#endif
 
 } // end namespace RandBLAS::sparse_data
 

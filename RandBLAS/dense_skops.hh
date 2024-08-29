@@ -323,6 +323,10 @@ struct DenseDist {
 
 };
 
+#ifdef __cpp_concepts
+static_assert(SketchingDistribution<DenseDist>);
+#endif
+
 inline int64_t major_axis_length(const DenseDist &D) {
     randblas_require(D.major_axis != MajorAxis::Undefined);
     return (D.major_axis == MajorAxis::Long) ? 
@@ -487,17 +491,10 @@ struct DenseSkOp {
     }
 };
 
-static_assert(SketchingDistribution<DenseDist>);
-
-template <typename DenseSkOp>
-bool any_memory_attached(DenseSkOp &S) {
-    return S.buff != nullptr;
-}
-
-template <typename DenseSkOp>
-bool all_memory_attached(DenseSkOp &S) {
-    return S.buff != nullptr;
-}
+#ifdef __cpp_concepts
+static_assert(SketchingOperator<DenseSkOp<float>>);
+static_assert(SketchingOperator<DenseSkOp<double>>);
+#endif
 
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes

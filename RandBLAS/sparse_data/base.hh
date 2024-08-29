@@ -178,7 +178,7 @@ concept SparseMatrix = requires(SpMat A) {
     { A.n_cols }     -> std::same_as<const int64_t&>;
     { A.nnz }        -> std::same_as<int64_t&>;
     { *(A.vals) }    -> std::same_as<typename SpMat::scalar_t&>;
-    { A.own_memory } -> std::same_as<const bool&>;
+    { A.own_memory } -> std::same_as<bool&>;
     { SpMat(A.n_rows, A.n_cols) };
 };
 #else

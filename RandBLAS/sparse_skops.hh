@@ -225,6 +225,10 @@ struct SparseDist {
     }
 };
 
+#ifdef __cpp_concepts
+static_assert(SketchingDistribution<SparseDist>);
+#endif
+
 template <typename RNG, SignedInteger sint_t>
 inline RNGState<RNG> repeated_fisher_yates(
     const RNGState<RNG> &state, int64_t k, int64_t n, int64_t r, sint_t *indices
@@ -415,7 +419,6 @@ struct SparseSkOp {
     }
 };
 
-static_assert(SketchingDistribution<SparseDist>);
 
 template <typename T, SignedInteger sint_t>
 void laso_merge_long_axis_vector_coo_data(
@@ -534,6 +537,11 @@ void fill_sparse(SparseSkOp &S) {
     }
     return;
 }
+
+#ifdef __cpp_concepts
+static_assert(SketchingOperator<SparseSkOp<float>>);
+static_assert(SketchingOperator<SparseSkOp<double>>);
+#endif
 
 template <typename SparseSkOp>
 void print_sparse(SparseSkOp const &S0) {
