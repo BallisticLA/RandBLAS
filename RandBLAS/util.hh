@@ -352,34 +352,47 @@ RNGState<RNG> sample_indices_iid(int64_t n, TF* cdf, int64_t k, int64_t* samples
     }
     return RNGState<RNG>(ctr, key);
 }
-
-
-// =============================================================================
-/// \fn sample_indices_iid_uniform(int64_t n,  int64_t k, int64_t* samples, RNGState<RNG> state)
-/// @verbatim embed:rst:leading-slashes
-/// Overwrite the "samples" buffer with k (independent) samples from the
-/// uniform distribution over {0, ..., n - 1}.
-/// @endverbatim
-template <typename RNG>
-RNGState<RNG> sample_indices_iid_uniform(int64_t n,  int64_t k, int64_t* samples, RNGState<RNG> state) {
+ 
+template <typename RNG, typename T, bool WriteRademachers = true, SignedInteger sint_t = int64_t>
+RNGState<RNG> sample_indices_iid_uniform(int64_t n,  int64_t k, sint_t* samples, T* rademachers, RNGState<RNG> state) {
     auto [ctr, key] = state;
     RNG gen;
     auto rv_array = r123ext::uneg11::generate(gen, ctr, key);
-    int64_t len_c = (int64_t) state.len_c;
+    int64_t len_c = static_cast<int64_t>(state.len_c);
+    if constexpr (WriteRademachers) {
+        len_c = 2*(len_c/2);
+        // ^ round down to the nearest multiple of two.
+    }
     int64_t rv_index = 0;
     double dN = (double) n;
     for (int64_t i = 0; i < k; ++i) {
-        if ((i+1) % len_c == 1) {
+        auto random_unif01 = uneg11_to_uneg01<double>(rv_array[rv_index]);
+        sint_t sample_index = (sint_t) dN * random_unif01;
+        samples[i] = sample_index;
+        rv_index += 1;
+        if constexpr (WriteRademachers) {
+            rademachers[i] = (rv_array[rv_index] >= 0) ? (T) 1 : (T) -1;
+            rv_index += 1;
+        }
+        if (rv_index == len_c) {
             ctr.incr(1);
             rv_array = r123ext::uneg11::generate(gen, ctr, key);
             rv_index = 0;
         }
-        auto random_unif01 = uneg11_to_uneg01<double>(rv_array[rv_index]);
-        int64_t sample_index = (int64_t) dN * random_unif01;
-        samples[i] = sample_index;
-        rv_index += 1;
     }
     return RNGState<RNG>(ctr, key);
+}
+
+
+// =============================================================================
+/// \fn sample_indices_iid_uniform(int64_t n,  int64_t k, sint_t* samples, RNGState<RNG> state)
+/// @verbatim embed:rst:leading-slashes
+/// Overwrite the "samples" buffer with k (independent) samples from the
+/// uniform distribution over {0, ..., n - 1}.
+/// @endverbatim
+template <typename RNG, SignedInteger sint_t = int64_t>
+RNGState<RNG> sample_indices_iid_uniform(int64_t n,  int64_t k, sint_t* samples, RNGState<RNG> state) {
+    return sample_indices_iid_uniform<RNG,float,false,sint_t>(n, k, samples, (float*) nullptr, state);
 }
 
 

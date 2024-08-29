@@ -83,11 +83,13 @@ struct RNGState {
     /// This is typically std::uint32_t, but it can be std::uint64_t.
     using key_uint = typename RNG::key_type::value_type;
 
-
     const static int len_c = RNG::ctr_type::static_size;
+    static_assert(len_c >= 2);
     const static int len_k = RNG::key_type::static_size;
+
     typename RNG::ctr_type counter;
-    // ^ This RNGState's counter array.
+    // ^ This RNGState's counter array.  Exclude from doxygen comments
+    //   since end-users shouldn't touch it.
 
     /// ------------------------------------------------------------------
     /// This RNGState's key array. If you want to manually advance the key
