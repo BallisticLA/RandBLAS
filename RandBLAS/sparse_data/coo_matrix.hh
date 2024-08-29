@@ -223,7 +223,6 @@ struct COOMatrix {
             delete [] this->vals;
             delete [] this->rows;
             delete [] this->cols;
-           
         }
     };
 
@@ -343,7 +342,7 @@ COOMatrix<T> transpose(COOMatrix<T> &S) {
     } else if (S.sort == NonzeroSort::CSR) {
         St.sort = NonzeroSort::CSC;
     }
-    return St;
+    return std::move(St);
 }
 
 template <typename T>

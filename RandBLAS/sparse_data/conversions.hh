@@ -126,7 +126,7 @@ template <typename T, SignedInteger sint_t>
 CSRMatrix<T, sint_t> transpose_as_csr(CSCMatrix<T, sint_t> &A, bool share_memory = true) {
     if (share_memory) {
         CSRMatrix<T, sint_t> At(A.n_cols, A.n_rows, A.nnz, A.vals, A.colptr, A.rowidxs, A.index_base);
-        return At;
+        return std::move(At);
     } else {
         CSRMatrix<T, sint_t> At(A.n_cols, A.n_rows, A.index_base);
         At.reserve(A.nnz);
@@ -136,7 +136,7 @@ CSRMatrix<T, sint_t> transpose_as_csr(CSCMatrix<T, sint_t> &A, bool share_memory
         }
         for (int64_t i = 0; i < A.n_cols + 1; ++i)
             At.rowptr[i] = A.colptr[i];
-        return At;
+        return std::move(At);
     }
 }
 
@@ -144,7 +144,7 @@ template <typename T, SignedInteger sint_t>
 CSCMatrix<T, sint_t> transpose_as_csc(CSRMatrix<T, sint_t> &A, bool share_memory = true) {
     if (share_memory) {
         CSCMatrix<T, sint_t> At(A.n_cols, A.n_rows, A.nnz, A.vals, A.colidxs, A.rowptr, A.index_base);
-        return At;
+        return std::move(At);
     } else {
         CSCMatrix<T, sint_t> At(A.n_cols, A.n_rows, A.index_base);
         At.reserve(A.nnz);
@@ -154,7 +154,7 @@ CSCMatrix<T, sint_t> transpose_as_csc(CSRMatrix<T, sint_t> &A, bool share_memory
         }
         for (int64_t i = 0; i < A.n_rows + 1; ++i)
             At.colptr[i] = A.rowptr[i];
-        return At;
+        return std::move(At);
     }
 }
 
