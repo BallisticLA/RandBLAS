@@ -380,7 +380,7 @@ struct DenseSkOp {
     /// 
     ///  This member is set automatically based on whether the memory-owning
     ///  or view constructor is called.
-    const bool own_memory;
+    bool own_memory;
 
     // ---------------------------------------------------------------------------
     ///  The memory-owning DenseSkOp constructor initializes \math{\ttt{buff}} as the null pointer.
@@ -432,6 +432,11 @@ struct DenseSkOp {
         n_rows(dist.n_rows),
         n_cols(dist.n_cols),
         own_memory(true),
+        // We won't take advantage of own_memory unless this is passed to fill_dense(S).
+        // Still, I think it's reasonable to default to ownership in this case, because if
+        // ther user happened to have memory they wanted us to use then they could have just
+        // called the other constructor. Except -- that isn't true. The user might not
+        // want to deal with next_state.
         buff(nullptr),
         layout(dist.natural_layout) { }
 
@@ -483,6 +488,16 @@ struct DenseSkOp {
 };
 
 static_assert(SketchingDistribution<DenseDist>);
+
+template <typename DenseSkOp>
+bool any_memory_attached(DenseSkOp &S) {
+    return S.buff != nullptr;
+}
+
+template <typename DenseSkOp>
+bool all_memory_attached(DenseSkOp &S) {
+    return S.buff != nullptr;
+}
 
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
@@ -646,13 +661,11 @@ RNGState<RNG> fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed)
 ///    
 template <typename DenseSkOp>
 void fill_dense(DenseSkOp &S) {
-    randblas_require(S.own_memory);
-    randblas_require(S.buff == nullptr);
-    // TODO: articulate why S.own_memory == true is important. (It's because it safeguards
-    // against the chance of introducing a memory leak.)
-    randblas_require(S.dist.family != ScalarDist::BlackBox);
-    using T = typename DenseSkOp::scalar_t;
-    S.buff = new T[S.dist.n_rows * S.dist.n_cols];
+    if (S.own_memory && S.buff == nullptr) {
+        using T = typename DenseSkOp::scalar_t;
+        S.buff = new T[S.n_rows * S.n_cols];
+    }
+    randblas_require(S.buff != nullptr);
     fill_dense(S.dist, S.buff, S.seed_state);
     return;
 }
@@ -667,6 +680,7 @@ DenseSkOp submatrix_as_blackbox(const DenseSkOp &S, int64_t n_rows, int64_t n_co
     fill_dense(layout, S.dist, n_rows, n_cols, ro_s, co_s, buff, S.seed_state);
     DenseDist submatrix_dist(n_rows, n_cols, ScalarDist::BlackBox, MajorAxis::Undefined);
     DenseSkOp submatrix(submatrix_dist, S.seed_state, S.next_state, buff, layout);
+    submatrix.own_memory = true;
     return submatrix;
 }
 

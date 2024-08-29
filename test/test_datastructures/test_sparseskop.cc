@@ -120,7 +120,8 @@ class TestSparseSkOpConstruction : public ::testing::Test
         auto cols_copy = cols;
         auto vals_copy = vals;
 
-        auto S = new SparseSkOp(sd, state, rows.data(), cols.data(), vals.data());
+        auto next_state = state; // it's safe to pass in a nonsense value, since we aren't going reference this again.
+        auto S = new SparseSkOp(sd, state, next_state, -1, vals.data(), rows.data(), cols.data());
         // check that nothing has changed
         test::comparison::buffs_approx_equal(rows.data(), rows_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
         test::comparison::buffs_approx_equal(cols.data(), cols_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
@@ -142,7 +143,6 @@ class TestSparseSkOpConstruction : public ::testing::Test
         test::comparison::buffs_approx_equal(vals.data(), vals_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (T) 0, (T) 0);
         return;
     }
-
 };
 
 TEST_F(TestSparseSkOpConstruction, respect_ownership) {

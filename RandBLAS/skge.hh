@@ -468,7 +468,7 @@ inline void lskges(
     T *B,
     int64_t ldb
 ) {
-    if (!S.known_filled)
+    if (S.nnz <= 0)
         fill_sparse(S);
     auto Scoo = coo_view_of_skop(S);
     left_spmm(
@@ -599,7 +599,7 @@ inline void rskges(
     T *B,
     int64_t ldb
 ) { 
-    if (!S.known_filled)
+    if (S.nnz <= 0)
         fill_sparse(S);
     auto Scoo = coo_view_of_skop(S);
     right_spmm(
