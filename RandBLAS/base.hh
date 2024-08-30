@@ -376,6 +376,7 @@ concept SketchingOperator = requires(SKOP S) {
     { S.dist   }     -> SketchingDistribution;
     { S.seed_state } -> std::same_as<const typename SKOP::state_t&>;
     { S.next_state } -> std::same_as<const typename SKOP::state_t&>;
+    { S.own_memory } -> std::same_as<bool&>;
 };
 #else
 #define SketchingOperator typename

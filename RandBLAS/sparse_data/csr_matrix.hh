@@ -139,10 +139,10 @@ struct CSRMatrix {
     ) : CSRMatrix(n_rows, n_cols, nnz, vals, rowptr, colidxs, IndexBase::Zero) {};
 
     ~CSRMatrix() {
-        if (this->own_memory) {
-            delete [] this->rowptr;
-            delete [] this->colidxs;
-            delete [] this->vals;
+        if (own_memory) {
+            if (rowptr  != nullptr) delete [] rowptr;
+            if (colidxs != nullptr) delete [] colidxs;
+            if (vals    != nullptr) delete [] vals;
         }
     };
 
@@ -154,15 +154,18 @@ struct CSRMatrix {
     //
     // @endverbatim
     void reserve(int64_t nnz) {
-        randblas_require(this->_can_reserve);
-        randblas_require(this->own_memory);
-        this->rowptr = new sint_t[this->n_rows + 1]{0};
+        randblas_require(_can_reserve);
+        randblas_require(own_memory);
+        if (rowptr == nullptr) 
+            rowptr = new sint_t[n_rows + 1]{0};
         this->nnz = nnz;
-        if (this->nnz > 0) {
-            this->colidxs = new sint_t[nnz]{0};
-            this->vals = new T[nnz]{0.0};
+        if (nnz > 0) {
+            randblas_require(colidxs == nullptr);
+            randblas_require(vals    == nullptr);
+            colidxs = new sint_t[nnz]{0};
+            vals    = new T[nnz]{0.0};
         }
-        this->_can_reserve = false;
+        _can_reserve = false;
     };
 
     /////////////////////////////////////////////////////////////////////

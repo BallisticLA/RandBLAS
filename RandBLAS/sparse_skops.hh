@@ -360,13 +360,7 @@ struct SparseSkOp {
         seed_state(seed_state),
         next_state(compute_next_state(dist, seed_state)),
         n_rows(dist.n_rows),
-        n_cols(dist.n_cols)
-    {   // actual work
-        // int64_t nnz = dist.full_nnz;
-        // this->rows = new sint_t[nnz]{-1};
-        // this->cols = new sint_t[nnz]{-1};
-        // this->vals = new T[nnz]{0.0};
-    }
+        n_cols(dist.n_cols) { }
 
     /// --------------------------------------------------------------------------------
     /// **View constructor**. The arguments provided to this
@@ -399,7 +393,7 @@ struct SparseSkOp {
     SparseSkOp(SparseSkOp<T,RNG,sint_t> &&S
     ) : dist(S.dist), seed_state(S.seed_state), next_state(S.next_state),
         n_rows(dist.n_rows), n_cols(dist.n_cols), own_memory(S.own_memory),
-        rows(S.rows), cols(S.cols), vals(S.vals)
+        nnz(S.nnz), rows(S.rows), cols(S.cols), vals(S.vals)
     {
         S.rows = nullptr;
         S.cols = nullptr;
@@ -408,13 +402,10 @@ struct SparseSkOp {
 
     //  Destructor
     ~SparseSkOp() {
-        if (this->own_memory) {
-            if (this->rows != nullptr)
-                delete [] this->rows;
-            if (this->cols != nullptr)
-                delete [] this->cols;
-            if (this->vals != nullptr)
-                delete [] this->vals;
+        if (own_memory) {
+            if (rows != nullptr) delete [] rows;
+            if (cols != nullptr) delete [] cols;
+            if (vals != nullptr) delete [] vals;
         }
     }
 };

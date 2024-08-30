@@ -136,9 +136,9 @@ struct CSCMatrix {
 
     ~CSCMatrix() {
         if (this->own_memory) {
-            delete [] this->rowidxs;
-            delete [] this->colptr;
-            delete [] this->vals;
+            if (rowidxs != nullptr) delete [] rowidxs;
+            if (colptr  != nullptr) delete [] colptr;
+            if (vals    != nullptr) delete [] vals;
         }
     };
 
@@ -151,15 +151,18 @@ struct CSCMatrix {
     //
     // @endverbatim
     void reserve(int64_t nnz) {
-        randblas_require(this->_can_reserve);
-        randblas_require(this->own_memory);
-        this->colptr = new sint_t[this->n_cols + 1]{0};
+        randblas_require(_can_reserve);
+        randblas_require(own_memory);
+        if (colptr == nullptr)
+            colptr = new sint_t[n_cols + 1]{0};
         this->nnz = nnz;
-        if (this->nnz > 0) {
-            this->rowidxs = new sint_t[nnz]{0};
-            this->vals = new T[nnz]{0.0};
+        if (nnz > 0) {
+            randblas_require( rowidxs == nullptr );
+            randblas_require( vals    == nullptr );
+            rowidxs = new sint_t[nnz]{0};
+            vals = new T[nnz]{0.0};
         }
-        this->_can_reserve = false;
+        _can_reserve = false;
     };
 
     CSCMatrix(CSCMatrix<T, sint_t> &&other) 

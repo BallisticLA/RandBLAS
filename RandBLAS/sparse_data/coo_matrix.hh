@@ -220,9 +220,9 @@ struct COOMatrix {
 
     ~COOMatrix() {
         if (this->own_memory) {
-            delete [] this->vals;
-            delete [] this->rows;
-            delete [] this->cols;
+            if (vals != nullptr) delete [] vals;
+            if (rows != nullptr) delete [] rows;
+            if (cols != nullptr) delete [] cols;
         }
     };
 
@@ -235,13 +235,16 @@ struct COOMatrix {
     void reserve(int64_t nnz) {
         randblas_require(this->_can_reserve);
         randblas_require(this->own_memory);
+        randblas_require(vals == nullptr);
+        randblas_require(rows == nullptr);
+        randblas_require(cols == nullptr);
         this->nnz = nnz;
         if (this->nnz > 0) {
-            this->vals = new T[nnz];
-            this->rows = new sint_t[nnz];
-            this->cols = new sint_t[nnz];
+            vals = new T[nnz];
+            rows = new sint_t[nnz];
+            cols = new sint_t[nnz];
         }
-        this->_can_reserve = false;
+        _can_reserve = false;
     }
 
     /////////////////////////////////////////////////////////////////////
