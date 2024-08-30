@@ -45,13 +45,6 @@ Deallocation
 What we do instead of overwriting non-null references 
 -----------------------------------------------------
 
-.. As stated above, there are very few situations where RandBLAS is allowed to overwrite the value
-.. of a non-null reference member.
-.. This raises a question of how RandBLAS behaves when presented with a member that it *would* overwrite
-.. if it were null, but it *can't* overwrite because it's currently non-null.
-
-.. To explain this behavior we'll 
-
 Suppose that ``obj`` is an instance of a RandBLAS-defined type where ``obj.own_memory`` is true,
 that ``obj.member`` is a reference whose value is currently *non-null*, and that we've hit a codepath were RandBLAS
 would write to ``obj.member`` if it had been null.
@@ -79,5 +72,7 @@ Clarifications:
    no such members are declared as const.
 
 We're not totally satisfied with this document writ-large.
+It would probably be better if removed the commentary from the enumerations above and added lots of examples that refer to actual RandBLAS code.
+Alas, this will have to do for now.
 Questions about what specific parts of this policy mean or proposed revisions are welcome!
 Please get in touch with us on GitHub.
