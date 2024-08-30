@@ -529,11 +529,6 @@ static_assert(SketchingOperator<DenseSkOp<double>>);
 /// .. dropdown:: Full parmaeter descriptions
 ///   :animate: fade-in-slide-down
 ///
-///     dist
-///      - A SparseDist object.
-///      - Defines the number of rows and columns in this sketching operator.
-///      - Indirectly controls sparsity pattern, and directly controls sparsity level.
-///
 ///     layout      
 ///      - blas::Layout::RowMajor or blas::Layout::ColMajor
 ///      - The storage order for :math:`\mat(\buff)` on exit. The leading dimension
@@ -543,7 +538,7 @@ static_assert(SketchingOperator<DenseSkOp<double>>);
 ///      - Note that since the entries of :math:`\buff` are sampled iid from a common
 ///        distribution, the value of :math:`\layout` is unlikely to have mathematical significance.
 ///        However, the value of :math:`\layout` can affect this function's efficiency.
-///        For best efficiency we recommend :math:`\ttt{layout=\D{}\ttt{.natural_layout}.`
+///        For best efficiency we recommend :math:`\ttt{layout=}\D{}\ttt{.natural_layout}.`
 ///        If a different value of :math:`\layout` is used, then this function will internally
 ///        allocate extra memory for an out-of-place layout change.
 ///
@@ -570,8 +565,8 @@ static_assert(SketchingOperator<DenseSkOp<double>>);
 ///      - We require that :math:`\joff + \ncols` is at most D.n_cols.
 ///
 ///     buff
-///     - Buffer of type T.
-///     - Length must be at least :math:`\nrows \cdot \ncols.`
+///      - Buffer of type T.
+///      - Length must be at least :math:`\nrows \cdot \ncols.`
 ///
 ///     seed
 ///      - A CBRNG state
