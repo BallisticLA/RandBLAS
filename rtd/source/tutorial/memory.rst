@@ -3,27 +3,81 @@
 Memory management 
 =================
 
-Here are the general rules for how sketching operators and sparse data matrices manange memory.
+Decades ago, the designers of the classic BLAS made the wise decision to not internally allocate dynamically-sized
+arrays.
+Such an approach was (and is) viabale because BLAS only operates on very simple datatypes: scalars and references
+to dense arrays of scalars.
+The only polymorphism that BLAS had to strive for was the handling of different numerical precisions.
 
-Allocation
-  1. Our functions can allocate memory as needed.
-      If memory is allocated, it must either be deallocated before the function returns
-      or attached to an object that persists beyond the function's scope.
-  2. Our functions may attach memory to RandBLAS-defined objects if:
-      * The object has an own_memory member set to true.
-      * The attachment involves redirecting a currently null pointer.
-  3. Our functions must not attach memory to RandBLAS-defined objects if it risks causing a memory leak.
+RandBLAS, by contrast, needs to provide a polymorphic API with far more sophisticated datatypes.
+This has led us to adopt a policy where we can internally allocate and dellocate dynamically-sized arrays 
+with the ``new []`` and ``delete []`` keywords, subject to the restrictions below. 
+Users are not bound to follow these rules, but deviations from them should be made with care.
+
+Allocation and writing to reference members
+-------------------------------------------
+
+1. We allocate memory with ``new []`` only when necessary or explicitly requested.
+    
+    If a region of memory is allocated, it must either be deallocated before the function returns
+    or attached to a RandBLAS-defined object that persists beyond the function's scope.
+
+2. We can only attach memory to objects by overwriting a null-valued reference member,
+   and only when the object has an ``own_memory`` member that evaluates to true.
+
+3. We cannot overwrite an an object's reference member if there is a chance that doing so may cause a memory leak.
+    
+    This restriction is in place regardless of whether ``obj.own_memory`` is true.
+    It makes for very few cases when RandBLAS is allowed to overwrite a non-null reference member.
 
 Deallocation
-  1. We deallocate memory only in destructors. Consequently, we never reallocate memory.
-      If reallocation is needed, the user must manage the deletion of old memory and either
-      allocate new memory or set relevant pointers to null for RandBLAS to handle.
-  2. A destructor attempts deallocation only if own_memory is true.
-  3. If own_memory is true, a buffer is deleted if and only if it's non-null.
+------------
 
-Assumptions and policies around non-null pointers
-  1. RandBLAS trusts users to adhere to *documented* array length requirements when that length is const.
-  2. During RandBLAS-managed allocation operations, we do not trust users to adhere to array length
-      requirements if the length is determined by a non-const variable. As a result, some RandBLAS functions
-      may raise errors when they detect non-null values for pointers that need to be redirected to new memory.
-      This does not remove the user's control over managing pointer members and the own_memory member.
+1. We deallocate memory only in destructors.
+
+    In particular, we never "reallocate" memory. If reallocation is needed, the user must manage the deletion of old memory
+    and then put the object in a state where RandBLAS can write to it.
+
+2. A destructor attempts deallocation only if ``own_memory`` is true.
+
+    The destructor calls ``delete []`` on a specific reference member if and only if that member is non-null.
+
+What we do instead of overwriting non-null references 
+-----------------------------------------------------
+
+.. As stated above, there are very few situations where RandBLAS is allowed to overwrite the value
+.. of a non-null reference member.
+.. This raises a question of how RandBLAS behaves when presented with a member that it *would* overwrite
+.. if it were null, but it *can't* overwrite because it's currently non-null.
+
+.. To explain this behavior we'll 
+
+Suppose that ``obj`` is an instance of a RandBLAS-defined type where ``obj.own_memory`` is true,
+that ``obj.member`` is a reference whose value is currently *non-null*, and that we've hit a codepath were RandBLAS
+would write to ``obj.member`` if it had been null.
+There are two possibilities for what happens next.
+
+1. If the documentation for ``obj.member`` states an array length requirement purely in terms of ``const`` members,
+   then we silently skip memory allocations that would overwrite ``obj.member``. We'll simply
+   assume that ``obj.member`` has the correct size.
+
+2. Under any other circumstances, RandBLAS raises an error. 
+
+In essence, the first situation has enough structure that the user could plausibly understand RandBLAS' behavior,
+while the latter situation is too error prone for RandBLAS to play a role in it.
+
+
+Discussion
+----------
+
+Clarifications:
+ * No RandBLAS datatypes use ``new`` or ``new []`` in their constructors.
+   Reference members of such datatypes are either null-initialized or initialized at user-provided values.
+ * Move-constructors are allowed to overwrite an object's reference members with ``nullptr`` if those references have been copied to
+   a newly-created object.
+ * Users retain the ability to overwrite any RandBLAS object's ``own_member`` member and its reference members at any time;
+   no such members are declared as const.
+
+We're not totally satisfied with this document writ-large.
+Questions about what specific parts of this policy mean or proposed revisions are welcome!
+Please get in touch with us on GitHub.
