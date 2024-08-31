@@ -111,6 +111,10 @@ CountSketch et al.
   .. doxygenfunction:: RandBLAS::fill_sparse(SparseSkOp &S)
     :project: RandBLAS
 
+  .. doxygenfunction:: RandBLAS::fill_sparse(const SparseDist &D, int64_t &nnz, T* vals, sint_t* rows, sint_t* cols, const state_t &seed_state)
+    :project: RandBLAS
+
+
 
 The unifying (C++20) concepts
 =============================
