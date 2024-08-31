@@ -140,10 +140,10 @@ int main(int argc, char* argv[]){
     // Sample the sketching operator 
     auto time_constructsketch1 = high_resolution_clock::now();
     RandBLAS::SparseDist Dist(
-        sk_dim,                     // Number of rows of the sketching operator 
-        m,                          // Number of columns of the sketching operator
-        RandBLAS::Axis::Short, // A "SASO" (aka SJLT, aka OSNAP, aka generalized CountSketch)
-        8                           // Number of non-zero entires per column
+        sk_dim,                  // Number of rows of the sketching operator 
+        m,                       // Number of columns of the sketching operator
+        8,                       // Number of non-zero entires per column,
+        RandBLAS::Axis::Short    // A "SASO" (aka SJLT, aka OSNAP, aka generalized CountSketch)
     );
     uint32_t seed = 1997;
     RandBLAS::SparseSkOp<double> S(Dist, seed);  

@@ -144,7 +144,6 @@ namespace RandBLAS {
 /// SJLTs, OSNAPs, hashing embeddings, CountSketch, row or column sampling, or 
 /// LESS-Uniform distributions.
 /// 
-///
 struct SparseDist {
 
     // ---------------------------------------------------------------------------
@@ -239,8 +238,8 @@ struct SparseDist {
     SparseDist(
         int64_t n_rows,
         int64_t n_cols,
-        Axis major_axis,
-        int64_t vec_nnz
+        int64_t vec_nnz = 4,
+        Axis major_axis = Axis::Short
     ) : n_rows(n_rows), n_cols(n_cols), major_axis(major_axis),
         isometry_scale(sparse::isometry_scale(major_axis, vec_nnz, n_rows, n_cols)),
         vec_nnz(vec_nnz),

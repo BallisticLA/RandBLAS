@@ -85,7 +85,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
     template <SignedInteger sint_t>
     void proper_saso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
         using RNG = SparseSkOp<float>::state_t::generator;
-        SparseDist D0(d, m, Axis::Short, vec_nnzs[nnz_index]);
+        SparseDist D0(d, m, vec_nnzs[nnz_index], Axis::Short);
         SparseSkOp<float, RNG, sint_t> S0(D0, keys[key_index]);
         fill_sparse(S0);
         if (d < m) {
@@ -98,7 +98,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
     template <SignedInteger sint_t>
     void proper_laso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
         using RNG = SparseSkOp<float>::state_t::generator;
-        SparseDist D0(d, m, Axis::Long, vec_nnzs[nnz_index]);
+        SparseDist D0(d, m, vec_nnzs[nnz_index], Axis::Long);
         SparseSkOp<float, RNG, sint_t> S0(D0, keys[key_index]);
         fill_sparse(S0);
         if (d < m) {
@@ -111,7 +111,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
     template <SignedInteger sint_t, typename T = float>
     void respect_ownership(int64_t d, int64_t m) {
         RNGState state(0);
-        SparseDist sd(d, m, Axis::Short, 2);
+        SparseDist sd(d, m, 2, Axis::Short);
 
         std::vector<sint_t> rows(sd.full_nnz, -1);
         std::vector<sint_t> cols(sd.full_nnz, -1);

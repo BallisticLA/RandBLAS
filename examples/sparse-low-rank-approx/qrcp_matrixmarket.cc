@@ -132,7 +132,7 @@ int sketch_orthogonalize_rows(int64_t m, int64_t n, T* A, T* work, int64_t d, in
     randblas_require(d >= m);
     std::vector<T> tau(d, 0.0);
     int64_t vec_nnz = std::min(d/2, (int64_t) 4);
-    RandBLAS::SparseDist D{n, d, vec_nnz};
+    RandBLAS::SparseDist D(n, d, vec_nnz);
     RandBLAS::SparseSkOp<T> S(D, state);
     // Simple option (shown here):
     //      Sketch A in column-major format, then do LQ on the sketch.
