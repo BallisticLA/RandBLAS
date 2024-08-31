@@ -305,19 +305,19 @@ struct DenseDist {
         int64_t n_rows,
         int64_t n_cols,
         ScalarDist family = ScalarDist::Gaussian,
-        Axis ma = Axis::Long
+        Axis major_axis = Axis::Long
     ) :  // variable definitions
-        n_rows(n_rows), n_cols(n_cols), major_axis(ma),
+        n_rows(n_rows), n_cols(n_cols), major_axis(major_axis),
         isometry_scale(dense::isometry_scale(family, n_rows, n_cols)),
         family(family),
-        natural_layout(dense::natural_layout(ma, n_rows, n_cols))
+        natural_layout(dense::natural_layout(major_axis, n_rows, n_cols))
     {   // argument validation
         randblas_require(n_rows > 0);
         randblas_require(n_cols > 0);
         if (family == ScalarDist::BlackBox) {
-            randblas_require(ma == Axis::Undefined);
+            randblas_require(major_axis == Axis::Undefined);
         } else {
-            randblas_require(ma != Axis::Undefined);
+            randblas_require(major_axis != Axis::Undefined);
         }  
     }
 

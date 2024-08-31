@@ -45,7 +45,7 @@ versions of RandBLAS, then please let us know by filing a quick GitHub issue.
 Preliminaries
 =============
 
-.. dropdown:: Short-axis vectors, long-axis vectors, and the Axis enum
+.. dropdown:: The Axis enum
   :animate: fade-in-slide-down 
   :color: light
     

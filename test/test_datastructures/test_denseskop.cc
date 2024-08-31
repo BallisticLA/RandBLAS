@@ -347,16 +347,16 @@ class TestFillAxis : public::testing::Test
         static inline auto distname = RandBLAS::ScalarDist::Uniform;
 
     template <typename T>
-    static void auto_transpose(int64_t short_dim, int64_t long_dim, RandBLAS::Axis ma) {
+    static void auto_transpose(int64_t short_dim, int64_t long_dim, RandBLAS::Axis major_axis) {
         uint32_t seed = 99;
     
         // make the wide sketching operator
-        RandBLAS::DenseDist D_wide(short_dim, long_dim, distname, ma);
+        RandBLAS::DenseDist D_wide(short_dim, long_dim, distname, major_axis);
         RandBLAS::DenseSkOp<T> S_wide(D_wide, seed);
         RandBLAS::fill_dense(S_wide);
 
         // make the tall sketching operator
-        RandBLAS::DenseDist D_tall(long_dim, short_dim, distname, ma);
+        RandBLAS::DenseDist D_tall(long_dim, short_dim, distname, major_axis);
         RandBLAS::DenseSkOp<T> S_tall(D_tall, seed);
         RandBLAS::fill_dense(S_tall);
 

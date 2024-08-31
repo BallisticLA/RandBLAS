@@ -88,12 +88,12 @@ class TestSketchSymmetric : public ::testing::Test {
 
     template <typename T>
     static void test_same_layouts(
-        uint32_t seed_a, uint32_t seed_skop, Axis ma, T alpha, int64_t d, int64_t n, int64_t lda, T beta, blas::Side side_skop
+        uint32_t seed_a, uint32_t seed_skop, Axis major_axis, T alpha, int64_t d, int64_t n, int64_t lda, T beta, blas::Side side_skop
     ) {
         auto [rows_out, cols_out] = dims_of_sketch_symmetric_output(d, n, side_skop);
         std::vector<T> A(lda*lda, 0.0);
         random_symmetric_mat(n, A.data(), lda, RNGState(seed_a));
-        DenseDist D(rows_out, cols_out, ScalarDist::Uniform, ma);
+        DenseDist D(rows_out, cols_out, ScalarDist::Uniform, major_axis);
         DenseSkOp<T> S(D, seed_skop);
         RandBLAS::fill_dense(S);
         int64_t lds = (S.layout == Layout::RowMajor) ? cols_out : rows_out;
@@ -117,12 +117,12 @@ class TestSketchSymmetric : public ::testing::Test {
 
     template <typename T>
     static void test_opposing_layouts(
-        uint32_t seed_a, uint32_t seed_skop, Axis ma, T alpha, int64_t d, int64_t n, int64_t lda, T beta, blas::Side side_skop
+        uint32_t seed_a, uint32_t seed_skop, Axis major_axis, T alpha, int64_t d, int64_t n, int64_t lda, T beta, blas::Side side_skop
     ) {
         auto [rows_out, cols_out] = dims_of_sketch_symmetric_output(d, n, side_skop);
         std::vector<T> A(lda*lda, 0.0);
         random_symmetric_mat(n, A.data(), lda, RNGState(seed_a));
-        DenseDist D(rows_out, cols_out, ScalarDist::Uniform, ma);
+        DenseDist D(rows_out, cols_out, ScalarDist::Uniform, major_axis);
         DenseSkOp<T> S(D, seed_skop);
         RandBLAS::fill_dense(S);
         int64_t lds_init, ldb;

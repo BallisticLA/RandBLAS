@@ -105,10 +105,10 @@ static RNGState<RNG> repeated_fisher_yates(
     return RNGState<RNG> {ctr, key};
 }
 
-inline double isometry_scale(Axis ma, int64_t vec_nnz, int64_t n_rows, int64_t n_cols) {
-    if (ma == Axis::Short) {
+inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t n_rows, int64_t n_cols) {
+    if (major_axis == Axis::Short) {
         return std::pow(vec_nnz, -0.5); 
-    } else if (ma == Axis::Long) {
+    } else if (major_axis == Axis::Long) {
         double minor_ax_len = std::min(n_rows, n_cols);
         double major_ax_len = std::max(n_rows, n_cols);
         return std::sqrt( major_ax_len / (vec_nnz * minor_ax_len) );
@@ -117,8 +117,11 @@ inline double isometry_scale(Axis ma, int64_t vec_nnz, int64_t n_rows, int64_t n
     }
 }
 
-static int64_t nnz_requirement(Axis ma, int64_t vec_nnz, int64_t n_rows, int64_t n_cols) {
-    bool saso = ma == Axis::Short;
+static int64_t nnz_requirement(Axis major_axis, int64_t vec_nnz, int64_t n_rows, int64_t n_cols) {
+    if (major_axis == Axis::Undefined) {
+        throw std::invalid_argument("Cannot compute the nnz requirement for a sparse operator with unspecified major axis.");
+    }
+    bool saso = major_axis == Axis::Short;
     bool wide = n_rows < n_cols;
     if (saso & wide) {
         return vec_nnz * n_cols;
@@ -136,7 +139,11 @@ static int64_t nnz_requirement(Axis ma, int64_t vec_nnz, int64_t n_rows, int64_t
 
 namespace RandBLAS {
 // =============================================================================
-/// A distribution over sparse matrices.
+/// A distribution over matrices with structured sparsity. Depending on parameter
+/// choices, one can obtain distributions described in the literature as 
+/// SJLTs, OSNAPs, hashing embeddings, CountSketch, row or column sampling, or 
+/// LESS-Uniform distributions.
+/// 
 ///
 struct SparseDist {
 
@@ -151,13 +158,32 @@ struct SparseDist {
     const int64_t n_cols;
 
     // ---------------------------------------------------------------------------
+    ///  @verbatim embed:rst:leading-slashes
     ///  Constrains the sparsity pattern of matrices drawn from this distribution. 
     ///
-    ///  Having major_axis==Short results in sketches are more likely to contain
-    ///  useful geometric information, without making assumptions about the data
-    ///  being sketched.
+    ///  Several well-known distributions can be recovered by appropriate choices
+    ///  of major_axis and vec_nnz.
     ///
-    const Axis major_axis = Axis::Short;
+    ///  If major_axis == Short:
+    ///
+    ///     vec_nnz = 1 corresponds to the distribution over CountSketch operators.
+    ///     vec_nnz > 1 corresponds to distributions which have been studied under
+    ///     many different names, including OSNAPs, SJLTs, and Hashing embeddings.
+    ///
+    ///  If major_axis == Long:
+    ///
+    ///     vec_nnz = 1 corresponds to operators for sampling uniformly with replacement
+    ///     from the rows or columns of a data matrix (although the signs on the rows or
+    ///     columns may be flipped). vec_nnz > 1 corresponds to so-called LESS-uniform
+    ///     distributions.
+    ///
+    ///  For the same value of vec_nnz, short-axis-sparse sketching has (far) better
+    ///  statistical properties than long-axis-sparse sketching. However, 
+    ///  an operator that's long-axis-sparse with a given value of vec_nnz is 
+    ///  far sparser than the corresponding short-axis-sparse operator with the 
+    ///  same value for vec_nnz. 
+    ///  @endverbatim
+    const Axis major_axis;
 
     // ---------------------------------------------------------------------------
     ///  A sketching operator sampled from this distribution should be multiplied
@@ -180,22 +206,20 @@ struct SparseDist {
     /// All else equal, larger values of \math{\ttt{vec_nnz}} result in distributions
     /// that are "better" at preserving Euclidean geometry when sketching.
     /// The value of \math{\ttt{vec_nnz}} that suffices for a given context will 
-    /// also depend on the sketch size, \math{d := \min\\{\ttt{n_rows},\ttt{n_cols}\\}},
-    /// since larger sketch sizes make it possible to "get away with" smaller values of
+    /// also depend on the sketch size, \math{d := \min\\{\ttt{n_rows},\ttt{n_cols}\\}.}
+    /// Larger sketch sizes make it possible to "get away with" smaller values of
     /// \math{\ttt{vec_nnz}}.
     ///
-    /// In the short-axis-major case it is usually fine to choose very small values for 
+    /// For short-axis-major sparse sketching fine to choose very small values for 
     /// \math{\ttt{vec_nnz}}. For example, suppose we're seeking a constant-distortion embedding
     /// of an unknown subspace of dimension \math{n} where \math{1{,}000 \leq n \leq 10{,}000}.
     /// If we use a short-axis-major sparse distribution \math{d = 2n}, then many practitioners
     /// would feel comfortable taking \math{\ttt{vec_nnz}} as 8 or even 2.
-    /// If \math{d} is *much* larger than \math{n} (but still smaller than 
-    /// \math{\max\\{\ttt{n_rows},\ttt{n_cols}\\}}) then it can be possible to obtain rigorous
-    /// gaurantees of sketch quality even when \math{\ttt{vec_nnz}=1};
-    /// those familiar with the sketching literature will notice that a short-axis-major 
-    /// SparseDist with \math{\ttt{vec_nnz}=1} is usually called a *CountSketch*.
     /// 
-    /// We don't have simple recommendations for the long-axis-major case. 
+    /// If one seeks similar statistical properties from long-axis-sparse sketching it is
+    /// important to use (much) larger values of \math{\ttt{vec_nnz}}. There is less consensus
+    /// in the community for what constitutes "big enough in practice," therefore we make
+    /// no prescriptions here.
     ///
     const int64_t vec_nnz;
 
@@ -206,22 +230,33 @@ struct SparseDist {
     const int64_t full_nnz;
 
     // ---------------------------------------------------------------------------
-    ///  Constructs a distribution over sparse matrices whose major-axis vectors
-    ///  are independent and have exactly vec_nnz nonzeros each. Nonzero entries
-    ///  are +/- 1 with equal probability.
+    ///  Arguments passed to this function are used to initialize members of the same names.
+    ///  isometry_scale and full_nnz are automatically initialized to values that are
+    ///  consistent with these arguments.
+    ///  
+    ///  This constructor will raise an error if min(n_rows, n_cols) <= 0 or if 
+    ///  vec_nnz does not respect the bounds documented for the vec_nnz member.
     SparseDist(
         int64_t n_rows,
         int64_t n_cols,
-        Axis ma,
+        Axis major_axis,
         int64_t vec_nnz
-    ) : n_rows(n_rows), n_cols(n_cols), major_axis(ma),
-        isometry_scale(sparse::isometry_scale(ma, vec_nnz, n_rows, n_cols)),
+    ) : n_rows(n_rows), n_cols(n_cols), major_axis(major_axis),
+        isometry_scale(sparse::isometry_scale(major_axis, vec_nnz, n_rows, n_cols)),
         vec_nnz(vec_nnz),
-        full_nnz(sparse::nnz_requirement(ma, vec_nnz, n_rows, n_cols)) 
+        full_nnz(sparse::nnz_requirement(major_axis, vec_nnz, n_rows, n_cols)) 
     {   // argument validation
         randblas_require(n_rows > 0);
         randblas_require(n_cols > 0);
         randblas_require(vec_nnz > 0);
+        if (major_axis == Axis::Short) {
+            randblas_require(vec_nnz <= std::min(n_rows, n_cols));
+        } else {
+            // The initializers will have errored if major_axis == Axis::Undefined,
+            // so we can assume that major_axis == Axis::Long.
+            randblas_require(vec_nnz <= std::max(n_rows, n_cols));
+        }
+        
     }
 };
 
@@ -548,6 +583,11 @@ state_t fill_sparse(
 /// If all reference members are are non-null, then we'll assume each of them has length 
 /// at least \math{\ttt{S.dist.full_nnz}}. We'll proceed to populate those members 
 /// (and \math{\ttt{S.nnz}}) with the data for the explicit representation of \math{\ttt{S}}.
+/// On exit, \math{\ttt{S}} can be equivalently represented by
+/// @verbatim embed:rst:leading-slashes
+///  .. code:: c++
+///
+///         RandBLAS::COOMatrix mat(S.n_rows, S.n_cols, S.nnz, S.vals, S.rows, S.cols);
 ///
 /// @endverbatim
 template <typename SparseSkOp>
