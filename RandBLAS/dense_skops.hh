@@ -171,11 +171,11 @@ static RNGState<RNG> fill_dense_submat_impl(int64_t n_cols, T* smat, int64_t n_s
 
 template <typename RNG, typename DD>
 RNGState<RNG> compute_next_state(DD dist, RNGState<RNG> state) {
-    if (dist.major_axis == MajorAxis::Undefined) {
+    if (dist.major_axis == Axis::Undefined) {
         // implies dist.family = ScalarDist::BlackBox
         throw std::invalid_argument("Cannot compute next_state when dist.family is BlackBox");
     }
-    // ^ This is the only place where MajorAxis is actually used to some 
+    // ^ This is the only place where Axis is actually used to some 
     //   productive end.
     int64_t major_len = major_axis_length(dist);
     int64_t minor_len = dist.n_rows + (dist.n_cols - major_len);
@@ -196,11 +196,11 @@ inline double isometry_scale(ScalarDistribution sd, int64_t n_rows, int64_t n_co
     return (sd == ScalarDistribution::BlackBox) ? 1.0 : std::pow(std::min(n_rows, n_cols), -0.5);
 }
 
-inline blas::Layout natural_layout(MajorAxis major_axis, int64_t n_rows, int64_t n_cols) {
-    if (major_axis == MajorAxis::Undefined || n_rows == n_cols)
+inline blas::Layout natural_layout(Axis major_axis, int64_t n_rows, int64_t n_cols) {
+    if (major_axis == Axis::Undefined || n_rows == n_cols)
         return blas::Layout::ColMajor;
     bool is_wide = n_rows < n_cols;
-    bool fa_long = major_axis == MajorAxis::Long;
+    bool fa_long = major_axis == Axis::Long;
     if (is_wide && fa_long) {
         return blas::Layout::RowMajor;
     } else if (is_wide) {
@@ -261,7 +261,7 @@ struct DenseDist {
     ///  For more information, see the DenseDist::natural_layout and the section of the
     ///  RandBLAS tutorial on
     ///  @verbatim embed:rst:inline :ref:`updating sketches <sketch_updates>`. @endverbatim 
-    const MajorAxis major_axis;
+    const Axis major_axis;
 
     // ---------------------------------------------------------------------------
     ///  A sketching operator sampled from this distribution should be multiplied
@@ -305,7 +305,7 @@ struct DenseDist {
         int64_t n_rows,
         int64_t n_cols,
         ScalarDist family = ScalarDist::Gaussian,
-        MajorAxis ma = MajorAxis::Long
+        Axis ma = Axis::Long
     ) :  // variable definitions
         n_rows(n_rows), n_cols(n_cols), major_axis(ma),
         isometry_scale(dense::isometry_scale(family, n_rows, n_cols)),
@@ -315,9 +315,9 @@ struct DenseDist {
         randblas_require(n_rows > 0);
         randblas_require(n_cols > 0);
         if (family == ScalarDist::BlackBox) {
-            randblas_require(ma == MajorAxis::Undefined);
+            randblas_require(ma == Axis::Undefined);
         } else {
-            randblas_require(ma != MajorAxis::Undefined);
+            randblas_require(ma != Axis::Undefined);
         }  
     }
 
@@ -328,8 +328,8 @@ static_assert(SketchingDistribution<DenseDist>);
 #endif
 
 inline int64_t major_axis_length(const DenseDist &D) {
-    randblas_require(D.major_axis != MajorAxis::Undefined);
-    return (D.major_axis == MajorAxis::Long) ? 
+    randblas_require(D.major_axis != Axis::Undefined);
+    return (D.major_axis == Axis::Long) ? 
         std::max(D.n_rows, D.n_cols) : std::min(D.n_rows, D.n_cols);
 }
 
@@ -670,7 +670,7 @@ DenseSkOp submatrix_as_blackbox(const DenseSkOp &S, int64_t n_rows, int64_t n_co
     T *buff = new T[n_rows * n_cols];
     auto layout = S.dist.natural_layout;
     fill_dense(layout, S.dist, n_rows, n_cols, ro_s, co_s, buff, S.seed_state);
-    DenseDist submatrix_dist(n_rows, n_cols, ScalarDist::BlackBox, MajorAxis::Undefined);
+    DenseDist submatrix_dist(n_rows, n_cols, ScalarDist::BlackBox, Axis::Undefined);
     DenseSkOp submatrix(submatrix_dist, S.seed_state, S.next_state, buff, layout);
     submatrix.own_memory = true;
     return submatrix;

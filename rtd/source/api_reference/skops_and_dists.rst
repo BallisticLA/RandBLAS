@@ -45,11 +45,11 @@ versions of RandBLAS, then please let us know by filing a quick GitHub issue.
 Preliminaries
 =============
 
-.. dropdown:: Short-axis vectors, long-axis vectors, and the MajorAxis enum
+.. dropdown:: Short-axis vectors, long-axis vectors, and the Axis enum
   :animate: fade-in-slide-down 
   :color: light
     
-  .. doxygenenum:: RandBLAS::MajorAxis
+  .. doxygenenum:: RandBLAS::Axis
       :project: RandBLAS
 
 .. dropdown:: RNGState 

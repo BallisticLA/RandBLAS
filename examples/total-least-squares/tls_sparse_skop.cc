@@ -142,7 +142,7 @@ int main(int argc, char* argv[]){
     RandBLAS::SparseDist Dist(
         sk_dim,                     // Number of rows of the sketching operator 
         m,                          // Number of columns of the sketching operator
-        RandBLAS::MajorAxis::Short, // A "SASO" (aka SJLT, aka OSNAP, aka generalized CountSketch)
+        RandBLAS::Axis::Short, // A "SASO" (aka SJLT, aka OSNAP, aka generalized CountSketch)
         8                           // Number of non-zero entires per column
     );
     uint32_t seed = 1997;

@@ -77,13 +77,13 @@ This part of the web docs is coming soon!
 
 
 
-The semantics of MajorAxis
+The semantics of Axis
 ==========================
 
-Sketching operators in RandBLAS have a "MajorAxis" member.
+Sketching operators in RandBLAS have a "Axis" member.
 The semantics of this member can be complicated.
 We only expect advanced users to benefit from chosing this member
 differently from the defaults we set.
 
-A proper explanation of MajorAxis' semantics is coming soon!
+A proper explanation of Axis' semantics is coming soon!
 Bear with us until then.

@@ -347,7 +347,7 @@ class TestFillAxis : public::testing::Test
         static inline auto distname = RandBLAS::ScalarDist::Uniform;
 
     template <typename T>
-    static void auto_transpose(int64_t short_dim, int64_t long_dim, RandBLAS::MajorAxis ma) {
+    static void auto_transpose(int64_t short_dim, int64_t long_dim, RandBLAS::Axis ma) {
         uint32_t seed = 99;
     
         // make the wide sketching operator
@@ -379,27 +379,27 @@ class TestFillAxis : public::testing::Test
 };
 
 TEST_F(TestFillAxis, autotranspose_long_axis_3x5) {
-    auto_transpose<float>(3, 5, RandBLAS::MajorAxis::Long);
+    auto_transpose<float>(3, 5, RandBLAS::Axis::Long);
 }
 
 TEST_F(TestFillAxis, autotranspose_short_axis_3x5) {
-    auto_transpose<float>(3, 5, RandBLAS::MajorAxis::Short);
+    auto_transpose<float>(3, 5, RandBLAS::Axis::Short);
 }
 
 TEST_F(TestFillAxis, autotranspose_long_axis_4x8) {
-    auto_transpose<float>(4, 8, RandBLAS::MajorAxis::Long);
+    auto_transpose<float>(4, 8, RandBLAS::Axis::Long);
 }
 
 TEST_F(TestFillAxis, autotranspose_short_axis_4x8) {
-    auto_transpose<float>(4, 8, RandBLAS::MajorAxis::Short);
+    auto_transpose<float>(4, 8, RandBLAS::Axis::Short);
 }
 
 TEST_F(TestFillAxis, autotranspose_long_axis_2x4) {
-    auto_transpose<float>(2, 4, RandBLAS::MajorAxis::Long);
+    auto_transpose<float>(2, 4, RandBLAS::Axis::Long);
 }
 
 TEST_F(TestFillAxis, autotranspose_short_axis_2x4) {
-    auto_transpose<float>(2, 4, RandBLAS::MajorAxis::Short);
+    auto_transpose<float>(2, 4, RandBLAS::Axis::Short);
 }
 
 class TestDenseSkOpStates : public ::testing::Test
@@ -414,9 +414,9 @@ class TestDenseSkOpStates : public ::testing::Test
         RandBLAS::ScalarDist sd
     ) {
         randblas_require(n_rows > n_cols);
-        RandBLAS::DenseDist D1(    n_rows, n_cols/2,          sd, RandBLAS::MajorAxis::Long);
-        RandBLAS::DenseDist D2(    n_rows, n_cols - n_cols/2, sd, RandBLAS::MajorAxis::Long);
-        RandBLAS::DenseDist Dfull( n_rows, n_cols,            sd, RandBLAS::MajorAxis::Long);
+        RandBLAS::DenseDist D1(    n_rows, n_cols/2,          sd, RandBLAS::Axis::Long);
+        RandBLAS::DenseDist D2(    n_rows, n_cols - n_cols/2, sd, RandBLAS::Axis::Long);
+        RandBLAS::DenseDist Dfull( n_rows, n_cols,            sd, RandBLAS::Axis::Long);
         RandBLAS::RNGState state(key);
         int64_t size = n_rows * n_cols;
 

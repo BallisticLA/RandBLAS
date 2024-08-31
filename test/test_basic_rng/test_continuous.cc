@@ -113,7 +113,7 @@ class TestScalarDistributions : public ::testing::Test {
         auto critical_value = critical_value_rep_mutator(num_samples, significance);
         RNGState state(seed);
         std::vector<T> samples(num_samples, -1);
-        RandBLAS::fill_dense({num_samples, 1, sd, RandBLAS::MajorAxis::Long}, samples.data(), state);
+        RandBLAS::fill_dense({num_samples, 1, sd, RandBLAS::Axis::Long}, samples.data(), state);
         kolmogorov_smirnov_tester(samples, critical_value, sd);
         return;
     }

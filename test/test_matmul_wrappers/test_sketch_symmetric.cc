@@ -40,7 +40,7 @@ using RandBLAS::ScalarDist;
 using RandBLAS::DenseDist;
 using RandBLAS::DenseSkOp;
 using RandBLAS::RNGState;
-using RandBLAS::MajorAxis;
+using RandBLAS::Axis;
 
 #include "test/comparison.hh"
 
@@ -88,7 +88,7 @@ class TestSketchSymmetric : public ::testing::Test {
 
     template <typename T>
     static void test_same_layouts(
-        uint32_t seed_a, uint32_t seed_skop, MajorAxis ma, T alpha, int64_t d, int64_t n, int64_t lda, T beta, blas::Side side_skop
+        uint32_t seed_a, uint32_t seed_skop, Axis ma, T alpha, int64_t d, int64_t n, int64_t lda, T beta, blas::Side side_skop
     ) {
         auto [rows_out, cols_out] = dims_of_sketch_symmetric_output(d, n, side_skop);
         std::vector<T> A(lda*lda, 0.0);
@@ -117,7 +117,7 @@ class TestSketchSymmetric : public ::testing::Test {
 
     template <typename T>
     static void test_opposing_layouts(
-        uint32_t seed_a, uint32_t seed_skop, MajorAxis ma, T alpha, int64_t d, int64_t n, int64_t lda, T beta, blas::Side side_skop
+        uint32_t seed_a, uint32_t seed_skop, Axis ma, T alpha, int64_t d, int64_t n, int64_t lda, T beta, blas::Side side_skop
     ) {
         auto [rows_out, cols_out] = dims_of_sketch_symmetric_output(d, n, side_skop);
         std::vector<T> A(lda*lda, 0.0);
@@ -160,94 +160,94 @@ class TestSketchSymmetric : public ::testing::Test {
 
 TEST_F(TestSketchSymmetric, left_sketch_10_to_3_same_layouts) {
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_same_layouts( 0,  1, MajorAxis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Left);
-    test_same_layouts( 0,  1, MajorAxis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Left);
+    test_same_layouts( 0,  1, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Left);
+    test_same_layouts( 0,  1, Axis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Left);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_same_layouts(0, 1,   MajorAxis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Left);
-    test_same_layouts(0, 1,   MajorAxis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Left);
+    test_same_layouts(0, 1,   Axis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Left);
+    test_same_layouts(0, 1,   Axis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Left);
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_same_layouts( 0,  1, MajorAxis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Left);
-    test_same_layouts( 0,  1, MajorAxis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Left);
+    test_same_layouts( 0,  1, Axis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Left);
+    test_same_layouts( 0,  1, Axis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Left);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_same_layouts(0, 1,   MajorAxis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Left);
-    test_same_layouts(0, 1,   MajorAxis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Left);
+    test_same_layouts(0, 1,   Axis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Left);
+    test_same_layouts(0, 1,   Axis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Left);
 }
 
 TEST_F(TestSketchSymmetric, left_lift_same_layouts) {
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_same_layouts( 0,  1, MajorAxis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Left);
-    test_same_layouts( 0,  1, MajorAxis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Left);
+    test_same_layouts( 0,  1, Axis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Left);
+    test_same_layouts( 0,  1, Axis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Left);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_same_layouts(0, 1,   MajorAxis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Left);
-    test_same_layouts(0, 1,   MajorAxis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Left);
+    test_same_layouts(0, 1,   Axis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Left);
+    test_same_layouts(0, 1,   Axis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Left);
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_same_layouts( 0,  1, MajorAxis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Left);
-    test_same_layouts( 0,  1, MajorAxis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Left);
+    test_same_layouts( 0,  1, Axis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Left);
+    test_same_layouts( 0,  1, Axis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Left);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_same_layouts(0, 1,   MajorAxis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Left);
-    test_same_layouts(0, 1,   MajorAxis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Left);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Left);
+    test_same_layouts(0, 1,   Axis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Left);
+    test_same_layouts(0, 1,   Axis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Left);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Left);
 }
 
 TEST_F(TestSketchSymmetric, right_sketch_10_to_3_same_layouts) {
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_same_layouts( 0,  1, MajorAxis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Right);
-    test_same_layouts( 0,  1, MajorAxis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Right);
+    test_same_layouts( 0,  1, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Right);
+    test_same_layouts( 0,  1, Axis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Right);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_same_layouts(0, 1,   MajorAxis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Right);
-    test_same_layouts(0, 1,   MajorAxis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Right);
+    test_same_layouts(0, 1,   Axis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Right);
+    test_same_layouts(0, 1,   Axis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Right);
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_same_layouts( 0,  1, MajorAxis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Right);
-    test_same_layouts( 0,  1, MajorAxis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Right);
+    test_same_layouts( 0,  1, Axis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Right);
+    test_same_layouts( 0,  1, Axis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Right);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_same_layouts(0, 1,   MajorAxis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Right);
-    test_same_layouts(0, 1,   MajorAxis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Right);
+    test_same_layouts(0, 1,   Axis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Right);
+    test_same_layouts(0, 1,   Axis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Right);
 }
 
 TEST_F(TestSketchSymmetric, right_lift_same_layouts) {
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_same_layouts( 0,  1, MajorAxis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Right);
-    test_same_layouts( 0,  1, MajorAxis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Right);
+    test_same_layouts( 0,  1, Axis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Right);
+    test_same_layouts( 0,  1, Axis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Right);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_same_layouts(0, 1,   MajorAxis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Right);
-    test_same_layouts(0, 1,   MajorAxis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Right);
+    test_same_layouts(0, 1,   Axis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Right);
+    test_same_layouts(0, 1,   Axis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Right);
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_same_layouts( 0,  1, MajorAxis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Right);
-    test_same_layouts( 0,  1, MajorAxis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Right);
+    test_same_layouts( 0,  1, Axis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Right);
+    test_same_layouts( 0,  1, Axis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Right);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_same_layouts(0, 1,   MajorAxis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Right);
-    test_same_layouts(0, 1,   MajorAxis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Right);
-    test_same_layouts(31, 33, MajorAxis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Right);
+    test_same_layouts(0, 1,   Axis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Right);
+    test_same_layouts(0, 1,   Axis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Right);
+    test_same_layouts(31, 33, Axis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Right);
 }
 
 
@@ -255,93 +255,93 @@ TEST_F(TestSketchSymmetric, right_lift_same_layouts) {
 
 TEST_F(TestSketchSymmetric, left_sketch_10_to_3_opposing_layouts) {
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_opposing_layouts( 0,  1, MajorAxis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Left);
-    test_opposing_layouts( 0,  1, MajorAxis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Left);
+    test_opposing_layouts( 0,  1, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Left);
+    test_opposing_layouts( 0,  1, Axis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Left);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_opposing_layouts(0, 1,   MajorAxis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Left);
-    test_opposing_layouts(0, 1,   MajorAxis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Left);
+    test_opposing_layouts(0, 1,   Axis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Left);
+    test_opposing_layouts(0, 1,   Axis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Left);
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_opposing_layouts( 0,  1, MajorAxis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Left);
-    test_opposing_layouts( 0,  1, MajorAxis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Left);
+    test_opposing_layouts( 0,  1, Axis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Left);
+    test_opposing_layouts( 0,  1, Axis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Left);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_opposing_layouts(0, 1,   MajorAxis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Left);
-    test_opposing_layouts(0, 1,   MajorAxis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Left);
+    test_opposing_layouts(0, 1,   Axis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Left);
+    test_opposing_layouts(0, 1,   Axis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Left);
 }
 
 TEST_F(TestSketchSymmetric, left_lift_opposing_layouts) {
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_opposing_layouts( 0,  1, MajorAxis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Left);
-    test_opposing_layouts( 0,  1, MajorAxis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Left);
+    test_opposing_layouts( 0,  1, Axis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Left);
+    test_opposing_layouts( 0,  1, Axis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Left);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_opposing_layouts(0, 1,   MajorAxis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Left);
-    test_opposing_layouts(0, 1,   MajorAxis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Left);
+    test_opposing_layouts(0, 1,   Axis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Left);
+    test_opposing_layouts(0, 1,   Axis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Left);
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_opposing_layouts( 0,  1, MajorAxis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Left);
-    test_opposing_layouts( 0,  1, MajorAxis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Left);
+    test_opposing_layouts( 0,  1, Axis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Left);
+    test_opposing_layouts( 0,  1, Axis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Left);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_opposing_layouts(0, 1,   MajorAxis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Left);
-    test_opposing_layouts(0, 1,   MajorAxis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Left);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Left);
+    test_opposing_layouts(0, 1,   Axis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Left);
+    test_opposing_layouts(0, 1,   Axis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Left);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Left);
 }
 
 TEST_F(TestSketchSymmetric, right_sketch_10_to_3_opposing_layouts) {
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_opposing_layouts( 0,  1, MajorAxis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Right);
-    test_opposing_layouts( 0,  1, MajorAxis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Right);
+    test_opposing_layouts( 0,  1, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Right);
+    test_opposing_layouts( 0,  1, Axis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 3, 10, 10, 0.0, blas::Side::Right);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_opposing_layouts(0, 1,   MajorAxis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Right);
-    test_opposing_layouts(0, 1,   MajorAxis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Right);
+    test_opposing_layouts(0, 1,   Axis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Right);
+    test_opposing_layouts(0, 1,   Axis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 3, 10, 19, 0.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 3, 10, 19, 0.0, blas::Side::Right);
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_opposing_layouts( 0,  1, MajorAxis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Right);
-    test_opposing_layouts( 0,  1, MajorAxis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Right);
+    test_opposing_layouts( 0,  1, Axis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Right);
+    test_opposing_layouts( 0,  1, Axis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 3, 10, 10, -1.0, blas::Side::Right);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_opposing_layouts(0, 1,   MajorAxis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Right);
-    test_opposing_layouts(0, 1,   MajorAxis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Right);
+    test_opposing_layouts(0, 1,   Axis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Right);
+    test_opposing_layouts(0, 1,   Axis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Right);
 }
 
 
 TEST_F(TestSketchSymmetric, right_lift_opposing_layouts) {
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_opposing_layouts( 0,  1, MajorAxis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Right);
-    test_opposing_layouts( 0,  1, MajorAxis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Right);
+    test_opposing_layouts( 0,  1, Axis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Right);
+    test_opposing_layouts( 0,  1, Axis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 13, 10, 10, 0.0, blas::Side::Right);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = 0.0
-    test_opposing_layouts(0, 1,   MajorAxis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Right);
-    test_opposing_layouts(0, 1,   MajorAxis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Right);
+    test_opposing_layouts(0, 1,   Axis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Right);
+    test_opposing_layouts(0, 1,   Axis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 50, 10, 19, 0.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 50, 10, 19, 0.0, blas::Side::Right);
     // LDA=10,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_opposing_layouts( 0,  1, MajorAxis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Right);
-    test_opposing_layouts( 0,  1, MajorAxis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Right);
+    test_opposing_layouts( 0,  1, Axis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Right);
+    test_opposing_layouts( 0,  1, Axis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 13, 10, 10, -1.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 13, 10, 10, -1.0, blas::Side::Right);
     // LDA=19,   (seed_a, seed_skop) = (0, 1) then (31, 33),   beta = -1.0
-    test_opposing_layouts(0, 1,   MajorAxis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Right);
-    test_opposing_layouts(0, 1,   MajorAxis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Right);
-    test_opposing_layouts(31, 33, MajorAxis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Right);
+    test_opposing_layouts(0, 1,   Axis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Right);
+    test_opposing_layouts(0, 1,   Axis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Right);
+    test_opposing_layouts(31, 33, Axis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Right);
 }

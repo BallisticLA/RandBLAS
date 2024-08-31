@@ -280,7 +280,7 @@ inline TO safe_int_product(TI a, TI b) {
 /// rows and columns.
 ///
 /// @endverbatim
-enum class MajorAxis : char {
+enum class Axis : char {
     // ---------------------------------------------------------------------------
     Short = 'S',
 
@@ -338,8 +338,8 @@ enum class MajorAxis : char {
 ///      - :math:`\ttt{const int64_t}`
 ///      - samples from :math:`\ttt{D}` have this many columns
 ///    * - :math:`\ttt{D.major_axis}`
-///      - :math:`\ttt{const MajorAxis}`
-///      - Implementation-dependent; see MajorAxis documentation.
+///      - :math:`\ttt{const Axis}`
+///      - Implementation-dependent; see Axis documentation.
 ///    * - :math:`\ttt{D.isometry_scale}`
 ///      - :math:`\ttt{const double}`
 ///      - See above.
@@ -352,7 +352,7 @@ template<typename SkDist>
 concept SketchingDistribution = requires(SkDist D) {
     { D.n_rows }     -> std::same_as<const int64_t&>;
     { D.n_cols }     -> std::same_as<const int64_t&>;
-    { D.major_axis } -> std::same_as<const MajorAxis&>;
+    { D.major_axis } -> std::same_as<const Axis&>;
     { D.isometry_scale } -> std::same_as<const double&>;
 };
 #else

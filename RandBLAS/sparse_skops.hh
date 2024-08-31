@@ -105,10 +105,10 @@ static RNGState<RNG> repeated_fisher_yates(
     return RNGState<RNG> {ctr, key};
 }
 
-inline double isometry_scale(MajorAxis ma, int64_t vec_nnz, int64_t n_rows, int64_t n_cols) {
-    if (ma == MajorAxis::Short) {
+inline double isometry_scale(Axis ma, int64_t vec_nnz, int64_t n_rows, int64_t n_cols) {
+    if (ma == Axis::Short) {
         return std::pow(vec_nnz, -0.5); 
-    } else if (ma == MajorAxis::Long) {
+    } else if (ma == Axis::Long) {
         double minor_ax_len = std::min(n_rows, n_cols);
         double major_ax_len = std::max(n_rows, n_cols);
         return std::sqrt( major_ax_len / (vec_nnz * minor_ax_len) );
@@ -117,8 +117,8 @@ inline double isometry_scale(MajorAxis ma, int64_t vec_nnz, int64_t n_rows, int6
     }
 }
 
-static int64_t nnz_requirement(MajorAxis ma, int64_t vec_nnz, int64_t n_rows, int64_t n_cols) {
-    bool saso = ma == MajorAxis::Short;
+static int64_t nnz_requirement(Axis ma, int64_t vec_nnz, int64_t n_rows, int64_t n_cols) {
+    bool saso = ma == Axis::Short;
     bool wide = n_rows < n_cols;
     if (saso & wide) {
         return vec_nnz * n_cols;
@@ -157,7 +157,7 @@ struct SparseDist {
     ///  useful geometric information, without making assumptions about the data
     ///  being sketched.
     ///
-    const MajorAxis major_axis = MajorAxis::Short;
+    const Axis major_axis = Axis::Short;
 
     // ---------------------------------------------------------------------------
     ///  A sketching operator sampled from this distribution should be multiplied
@@ -212,7 +212,7 @@ struct SparseDist {
     SparseDist(
         int64_t n_rows,
         int64_t n_cols,
-        MajorAxis ma,
+        Axis ma,
         int64_t vec_nnz
     ) : n_rows(n_rows), n_cols(n_cols), major_axis(ma),
         isometry_scale(sparse::isometry_scale(ma, vec_nnz, n_rows, n_cols)),
@@ -239,7 +239,7 @@ inline RNGState<RNG> repeated_fisher_yates(
 template <typename RNG>
 RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
     int64_t num_mavec, incrs_per_mavec;
-    if (dist.major_axis == MajorAxis::Short) {
+    if (dist.major_axis == Axis::Short) {
         num_mavec = std::max(dist.n_rows, dist.n_cols);
         incrs_per_mavec = dist.vec_nnz;
         // ^ SASOs don't try to be frugal with CBRNG increments.
@@ -494,13 +494,13 @@ state_t fill_sparse(
     sint_t *idxs_long  = (D.n_rows == dim_short) ? cols : rows;
     int64_t vec_nnz  = D.vec_nnz;
 
-    if (D.major_axis == MajorAxis::Short) {
+    if (D.major_axis == Axis::Short) {
         auto state = sparse::repeated_fisher_yates(
             seed_state, vec_nnz, dim_short, dim_long, idxs_short, idxs_long, vals
         );
         nnz = vec_nnz * dim_long;
         return state;
-    } else if (D.major_axis == MajorAxis::Long) {
+    } else if (D.major_axis == Axis::Long) {
         // We don't sample all at once since we might need to merge duplicate entries
         // in each long-axis vector. The way we do this is different than the
         // standard COOMatrix convention of just adding entries together.
@@ -530,7 +530,7 @@ state_t fill_sparse(
         nnz = total_nnz;
         return state;
     } else {
-        throw std::invalid_argument("D.major_axis must be MajorAxis::Short or MajorAxis::Long.");
+        throw std::invalid_argument("D.major_axis must be Axis::Short or Axis::Long.");
     }
 }
 
@@ -577,7 +577,7 @@ void print_sparse(SparseSkOp const &S0) {
     // TODO: clean up this function.
     std::cout << "SparseSkOp information" << std::endl;
     int64_t nnz;
-    if (S0.dist.major_axis == MajorAxis::Short) {
+    if (S0.dist.major_axis == Axis::Short) {
         nnz = S0.dist.vec_nnz * MAX(S0.dist.n_rows, S0.dist.n_cols);
         std::cout << "\tSASO: short-axis-sparse operator" << std::endl;
     } else {
@@ -621,7 +621,7 @@ void print_sparse(SparseSkOp const &S0) {
 namespace RandBLAS::sparse {
 
 using RandBLAS::SparseSkOp;
-using RandBLAS::MajorAxis;
+using RandBLAS::Axis;
 using RandBLAS::sparse_data::COOMatrix;
 
 template <typename SparseSkOp, typename T = SparseSkOp::scalar_t, typename sint_t = SparseSkOp::index_t>
