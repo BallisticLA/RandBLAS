@@ -144,7 +144,7 @@ struct SparseDist {
     ///  The structural properties of \math{\mathcal{V}} depend heavily on whether we're
     ///  short-axis major or long-axis major.
     ///
-    ///  To be explicit, let's say that \math{\mtxx} is a sample from \math{\mathcal{V}}.
+    ///  To be explicit, let's say that \math{\mtxx} is a sample from \math{\mathcal{V}.}
     ///  
     ///  If \math{\ttt{major_axis} = \ttt{Short}}, then \math{\mtxx} has exactly \math{\vecnnz} nonzeros,
     ///  and the locations of those nonzeros are chosen uniformly
@@ -531,14 +531,14 @@ state_t fill_sparse(
 /// inspects the reference members of \math{\ttt{S}}, 
 /// and any of them which is equal to \math{\ttt{nullptr}} is redirected to the
 /// start of an array allocated with ``new []``. The length of any allocated
-/// array is \math{\ttt{S.dist.full_nnz}}. 
+/// array is \math{\ttt{S.dist.full_nnz}.} 
 ///
 /// After the allocation stage, we inspect the reference members of \math{\ttt{S}}
 /// and we raise an error if any of them are null.
 ///
 /// If all reference members are are non-null, then we'll assume each of them has length 
-/// at least \math{\ttt{S.dist.full_nnz}}. We'll proceed to populate those members 
-/// (and \math{\ttt{S.nnz}}) with the data for the explicit representation of \math{\ttt{S}}.
+/// at least \math{\ttt{S.dist.full_nnz}.} We'll proceed to populate those members 
+/// (and \math{\ttt{S.nnz}}) with the data for the explicit representation of \math{\ttt{S}.}
 /// On exit, \math{\ttt{S}} can be equivalently represented by
 /// @verbatim embed:rst:leading-slashes
 ///  .. code:: c++

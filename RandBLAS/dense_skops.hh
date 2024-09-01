@@ -382,7 +382,7 @@ struct DenseSkOp {
     const int64_t n_cols;
 
     // ----------------------------------------------------------------------------
-    ///  If true, then RandBLAS has permission to allocate and attach memory to this operator's reference
+    ///  If true, then RandBLAS has permission to allocate and attach memory to this operator's
     ///  \math{\ttt{buff}} member. If true *at destruction time*, then delete []
     ///  will be called on \math{\ttt{buff}} if it is non-null.
     ///
@@ -391,21 +391,19 @@ struct DenseSkOp {
     bool own_memory;
 
     // ---------------------------------------------------------------------------
-    ///  Reference to an array that holds the explicit representation of this DenseSkOp
+    ///  Reference to an array that holds the explicit representation of this operator
     ///  as a dense matrix.
     ///
     ///  If non-null this must point to an array of length at least 
-    ///  \math{\ttt{dist.n_cols * dist.n_rows}}. Furthermore, we will presume that 
+    ///  \math{\ttt{dist.n_cols * dist.n_rows}.} Furthermore, we will presume that 
     ///  this array contains the random samples from \math{\ttt{dist}} implied
     ///  by \math{\ttt{seed_state}.} See DenseSkOp::layout for more information.
     T *buff = nullptr; 
 
     // ---------------------------------------------------------------------------
     ///  The storage order that should be used for any read or write operations
-    ///  with \math{\ttt{buff}.} If ColMajor then we'll read \math{\ttt{buff}} in
-    ///  column-major order using leading dimension \math{\ttt{n_rows}}.
-    ///  If this member is \math{\ttt{layout}} is RowMajor, then we'll 
-    ///  read \math{\ttt{buff}} in row-major order using leading dimension \math{\ttt{n_cols}}.
+    ///  with \math{\ttt{buff}.} The leading dimension when reading from the buffer is
+    ///  \math{\ttt{S.dist.dim_major}.}
     ///
     blas::Layout layout;
 
@@ -420,8 +418,8 @@ struct DenseSkOp {
     ///  **Standard constructor**. Arguments passed to this function are 
     ///  used to initialize members of the same name. \math{\ttt{own_memory}} is initialized to true,
     ///  \math{\ttt{buff}} is initialized to nullptr, and \math{\ttt{layout}} is initialized
-    ///  to \math{\ttt{dist.natural_layout}}. The \math{\ttt{next_state}} member is 
-    ///  computed automatically from \math{\ttt{dist}} and \math{\ttt{next_state}}.
+    ///  to \math{\ttt{dist.natural_layout}.} The \math{\ttt{next_state}} member is 
+    ///  computed automatically from \math{\ttt{dist}} and \math{\ttt{next_state}.}
     ///
     ///  Although \math{\ttt{own_memory}} is initialized to true, RandBLAS will not attach
     ///  memory to \math{\ttt{buff}} unless fill_dense(DenseSkOp &S) is called. 
@@ -504,23 +502,22 @@ static_assert(SketchingOperator<DenseSkOp<double>>);
 ///   .. |layout| mathmacro:: \mathtt{layout}
 ///
 /// @endverbatim
-/// Fill \math{\buff} so that (1) \math{\mat(\buff)} is a submatrix of
-/// an _implicit_ random sample from \math{\D}, and (2) \math{\mat(\buff)}
-/// is determined by reading from \math{\buff} in \math{\layout} order.
-/// 
-/// If we denote the implicit sample from \math{\D} by \math{\mtxS}, then on exit
-/// we have
+/// This function provides the underlying implementation of fill_dense(DenseSkOp &S).
+/// Unlike fill_dense(DenseSkOp &S), this function can be used to generate explicit representations
+/// of *submatrices* of dense sketching operators.
+///
+/// Formally, if \math{\mtxS} were sampled from \math{\D} with \math{\ttt{seed_state=seed}},
+/// then on exit we'd have
+///
 /// @verbatim embed:rst:leading-slashes
 /// .. math::
 ///     \mat(\buff)_{ij} = \mtxS_{(i+\ioff)(\joff + j)}
-/// @endverbatim
-/// assuming the standard convention of zero-indexing.
 ///
-/// This function is for generating low-level representations of matrices
-/// that are equivalent to a submatrix of a RandBLAS DenseSkOp, but 
-/// without using the DenseSkOp abstraction. This can be useful if you want
-/// to sketch a structured matrix that RandBLAS doesn't support (like a symmetric
-/// matrix whose values are only stored in the upper or lower triangle).
+/// where :math:`\mat(\cdot)` reads from :math:`\buff` in :math:`\layout` order.
+/// @endverbatim
+/// If \math{\ttt{layout != dist.natural_layout}}
+/// then this function internally allocates \math{\ttt{n_rows * n_cols}} words of workspace,
+/// and deletes this workspace before returning.
 ///
 /// @verbatim embed:rst:leading-slashes
 /// .. dropdown:: Full parameter descriptions
@@ -638,16 +635,24 @@ RNGState<RNG> fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed)
     return fill_dense(D.natural_layout, D, D.n_rows, D.n_cols, 0, 0, buff, seed);
 }
 
-// ============================================================================= 
-/// Performs the work in sampling S from its underlying distribution. This entails
-/// allocating a buffer of size S.dist.n_rows * S.dist.n_cols, attaching that
-/// buffer to S as S.buff, and finally sampling iid random variables to populate
-/// S.buff. A flag is set on S so its destructor will deallocate S.buff.
-/// 
-/// By default, RandBLAS allocates and populates buffers for dense sketching operators
-/// just before they are needed in some operation, and then it deletes these buffers
-/// once the operation is complete. Calling this function bypasses that policy.
-///    
+// =============================================================================
+/// If \math{\ttt{S.own_memory}} is true then we enter an allocation stage. If
+/// \math{\ttt{S.buff}} is equal to \math{\ttt{nullptr}} then it is redirected to the
+/// start of an array allocated with ``new []``. The length of any allocated
+/// array is \math{\ttt{S.n_rows * S.n_cols}.} 
+///
+/// After the allocation stage, we check \math{\ttt{S.buff}} and we raise
+/// an error if it's null.
+///
+/// If \math{\ttt{S.buff}} is are non-null, then we'll assume it has length at least
+///  \math{\ttt{S.n_rows * S.n_cols}.} We'll proceed to populate \math{\ttt{S.buff}} 
+/// with the data for the explicit representation of \math{\ttt{S}.}
+/// On exit, one can encode a BLAS-style representation of \math{\ttt{S}} with the tuple
+/// @verbatim embed:rst:leading-slashes
+/// .. math::
+///     (\ttt{S.layout},~\ttt{S.n_rows},~\ttt{S.n_cols},~\ttt{S.buff},~\ttt{S.dist.dim_major})
+/// @endverbatim
+///
 template <typename DenseSkOp>
 void fill_dense(DenseSkOp &S) {
     if (S.own_memory && S.buff == nullptr) {
