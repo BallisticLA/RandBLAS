@@ -149,7 +149,7 @@ using RandBLAS::fill_dense;
 ///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
 ///    - Refer to documentation for \math{\lda} for details. 
 ///
-template <typename T, typename RNG>
+template <typename T, typename DenseSkOp>
 void lskge3(
     blas::Layout layout,
     blas::Op opS,
@@ -158,7 +158,7 @@ void lskge3(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(S) is d-by-m
     T alpha,
-    DenseSkOp<T,RNG> &S,
+    DenseSkOp &S,
     int64_t ro_s,
     int64_t co_s,
     const T *A,
@@ -168,13 +168,19 @@ void lskge3(
     int64_t ldb
 ){
     auto [rows_submat_S, cols_submat_S] = dims_before_op(d, m, opS);
-    if (!S.buff) {
-        auto submat_S = submatrix_as_blackbox(S, rows_submat_S, cols_submat_S, ro_s, co_s);
-        lskge3(layout, opS, opA, d, n, m, alpha, submat_S, 0, 0, A, lda, beta, B, ldb);
-        return;
+    constexpr bool maybe_denseskop = !std::is_same_v<std::remove_cv_t<DenseSkOp>, BLASFriendlyOperator<T>>;
+    if constexpr (maybe_denseskop) {
+        if (!S.buff) {
+            // DenseSkOp doesn't permit defining a "black box" distribution, so we have to pack the submatrix
+            // into an equivalent datastructure ourselves.
+            auto submat_S = submatrix_as_blackbox<BLASFriendlyOperator<T>>(S, rows_submat_S, cols_submat_S, ro_s, co_s);
+            lskge3(layout, opS, opA, d, n, m, alpha, submat_S, 0, 0, A, lda, beta, B, ldb);
+            return;
+        } // else, continue with the function as usual.
     }
-    randblas_require( S.dist.n_rows >= rows_submat_S + ro_s );
-    randblas_require( S.dist.n_cols >= cols_submat_S + co_s );
+    randblas_require( S.buff != nullptr );
+    randblas_require( S.n_rows >= rows_submat_S + ro_s );
+    randblas_require( S.n_cols >= cols_submat_S + co_s );
     auto [rows_A, cols_A] = dims_before_op(m, n, opA);
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
@@ -184,7 +190,7 @@ void lskge3(
         randblas_require(ldb >= n);
     }
 
-    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, ro_s, co_s);
+    auto [pos, lds] = offset_and_ldim(S.layout, S.n_rows, S.n_cols, ro_s, co_s);
     T* S_ptr = &S.buff[pos];
     if (S.layout != layout)
         opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
@@ -296,7 +302,7 @@ void lskge3(
 ///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
 ///    - Refer to documentation for \math{\lda} for details. 
 ///
-template <typename T, typename RNG>
+template <typename T, typename DenseSkOp>
 void rskge3(
     blas::Layout layout,
     blas::Op opA,
@@ -307,7 +313,7 @@ void rskge3(
     T alpha,
     const T *A,
     int64_t lda,
-    DenseSkOp<T,RNG> &S,
+    DenseSkOp &S,
     int64_t ro_s,
     int64_t co_s,
     T beta,
@@ -315,15 +321,19 @@ void rskge3(
     int64_t ldb
 ){
     auto [rows_submat_S, cols_submat_S] = dims_before_op(n, d, opS);
-    if (!S.buff) {
-        // We'll make a shallow copy of the sketching operator, take responsibility for filling the memory
-        // of that sketching operator, and then call RSKGE3 with that new object.
-        auto submat_S = submatrix_as_blackbox(S, rows_submat_S, cols_submat_S, ro_s, co_s);
-        rskge3(layout, opA, opS, m, d, n, alpha, A, lda, submat_S, 0, 0, beta, B, ldb);
-        return;
+    constexpr bool maybe_denseskop = !std::is_same_v<std::remove_cv_t<DenseSkOp>, BLASFriendlyOperator<T>>;
+    if constexpr (maybe_denseskop) {
+        if (!S.buff) {
+            // DenseSkOp doesn't permit defining a "black box" distribution, so we have to pack the submatrix
+            // into an equivalent datastructure ourselves.
+            auto submat_S = submatrix_as_blackbox<BLASFriendlyOperator<T>>(S, rows_submat_S, cols_submat_S, ro_s, co_s);
+            rskge3(layout, opA, opS, m, d, n, alpha, A, lda, submat_S, 0, 0, beta, B, ldb);
+            return;
+        }
     }
-    randblas_require( S.dist.n_rows >= rows_submat_S + ro_s );
-    randblas_require( S.dist.n_cols >= cols_submat_S + co_s );
+    randblas_require( S.buff != nullptr );
+    randblas_require( S.n_rows >= rows_submat_S + ro_s );
+    randblas_require( S.n_cols >= cols_submat_S + co_s );
     auto [rows_A, cols_A] = dims_before_op(m, n, opA);
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
@@ -333,7 +343,7 @@ void rskge3(
         randblas_require(ldb >= d);
     }
 
-    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, ro_s, co_s);
+    auto [pos, lds] = offset_and_ldim(S.layout, S.n_rows, S.n_cols, ro_s, co_s);
     T* S_ptr = &S.buff[pos];
     if (S.layout != layout)
         opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
@@ -1070,11 +1080,11 @@ inline void sketch_general(
     int64_t ldb
 ) {
     if (opS == blas::Op::NoTrans) {
-        randblas_require(S.dist.n_rows == d);
-        randblas_require(S.dist.n_cols == m);
+        randblas_require(S.n_rows == d);
+        randblas_require(S.n_cols == m);
     } else {
-        randblas_require(S.dist.n_rows == m);
-        randblas_require(S.dist.n_cols == d);
+        randblas_require(S.n_rows == m);
+        randblas_require(S.n_cols == d);
     }
     return sketch_general(layout, opS, opA, d, n, m, alpha, S, 0, 0, A, lda, beta, B, ldb);
 };
@@ -1172,11 +1182,11 @@ inline void sketch_general(
     int64_t ldb
 ) {
     if (opS == blas::Op::NoTrans) {
-        randblas_require(S.dist.n_rows == n);
-        randblas_require(S.dist.n_cols == d);
+        randblas_require(S.n_rows == n);
+        randblas_require(S.n_cols == d);
     } else {
-        randblas_require(S.dist.n_rows == d);
-        randblas_require(S.dist.n_cols == n);
+        randblas_require(S.n_rows == d);
+        randblas_require(S.n_cols == n);
     }
     return sketch_general(layout, opA, opS, m, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);
 };

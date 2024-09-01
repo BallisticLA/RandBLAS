@@ -129,7 +129,7 @@ namespace RandBLAS::sparse_data {
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B`.
 ///
 /// @endverbatim
-template <typename T, SparseMatrix SpMat, typename RNG>
+template <typename T, SparseMatrix SpMat, typename DenseSkOp>
 void lsksp3(
     blas::Layout layout,
     blas::Op opS,
@@ -138,7 +138,7 @@ void lsksp3(
     int64_t n, // op(submat(\mtxA)) is m-by-n
     int64_t m, // op(submat(\mtxS)) is d-by-m
     T alpha,
-    DenseSkOp<T, RNG> &S,
+    DenseSkOp &S,
     int64_t ro_s,
     int64_t co_s,
     SpMat &A,
@@ -150,24 +150,29 @@ void lsksp3(
 ) {
     // B = op(submat(\mtxS)) @ op(submat(\mtxA))
     auto [rows_submat_S, cols_submat_S] = dims_before_op(d, m, opS);
-    if (!S.buff) {
-        auto submat_S = submatrix_as_blackbox(S, rows_submat_S, cols_submat_S, ro_s, co_s);
-        lsksp3(layout, opS, opA, d, n, m, alpha, submat_S, 0, 0, A, ro_a, co_a, beta, B, ldb);
-        return;
-    }
-
+    constexpr bool maybe_denseskop = !std::is_same_v<std::remove_cv_t<DenseSkOp>, BLASFriendlyOperator<T>>;
+    if constexpr (maybe_denseskop) {
+        if (!S.buff) {
+            // DenseSkOp doesn't permit defining a "black box" distribution, so we have to pack the submatrix
+            // into an equivalent datastructure ourselves.
+            auto submat_S = submatrix_as_blackbox<BLASFriendlyOperator<T>>(S, rows_submat_S, cols_submat_S, ro_s, co_s);
+            lsksp3(layout, opS, opA, d, n, m, alpha, submat_S, 0, 0, A, ro_a, co_a, beta, B, ldb);
+            return;
+        } // else, proceed with the rest of the function call.
+    } 
+    randblas_require( S.buff != nullptr );
     auto [rows_submat_A, cols_submat_A] = dims_before_op(m, n, opA);
-    randblas_require( A.n_rows      >= rows_submat_A + ro_a );
-    randblas_require( A.n_cols      >= cols_submat_A + co_a );
-    randblas_require( S.dist.n_rows >= rows_submat_S + ro_s );
-    randblas_require( S.dist.n_cols >= cols_submat_S + co_s );
+    randblas_require( A.n_rows >= rows_submat_A + ro_a );
+    randblas_require( A.n_cols >= cols_submat_A + co_a );
+    randblas_require( S.n_rows >= rows_submat_S + ro_s );
+    randblas_require( S.n_cols >= cols_submat_S + co_s );
     if (layout == blas::Layout::ColMajor) {
         randblas_require(ldb >= d);
     } else {
         randblas_require(ldb >= n);
     }
 
-    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, ro_s, co_s);
+    auto [pos, lds] = offset_and_ldim(S.layout, S.n_rows, S.n_cols, ro_s, co_s);
     T* S_ptr = &S.buff[pos];
     if (S.layout != layout)
         opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
@@ -269,7 +274,7 @@ void lsksp3(
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B`.
 ///
 /// @endverbatim
-template <typename T, SparseMatrix SpMat, typename RNG>
+template <typename T, SparseMatrix SpMat, typename DenseSkOp>
 void rsksp3(
     blas::Layout layout,
     blas::Op opA,
@@ -281,7 +286,7 @@ void rsksp3(
     SpMat &A,
     int64_t ro_a,
     int64_t co_a,
-    DenseSkOp<T, RNG> &S,
+    DenseSkOp &S,
     int64_t ro_s,
     int64_t co_s,
     T beta,
@@ -289,23 +294,29 @@ void rsksp3(
     int64_t ldb
 ) {
     auto [rows_submat_S, cols_submat_S] = dims_before_op(n, d, opS);
-    if (!S.buff) {
-        auto submat_S = submatrix_as_blackbox(S, rows_submat_S, cols_submat_S, ro_s, co_s);
-        rsksp3(layout, opA, opS, m, d, n, alpha, A, ro_a, co_a, submat_S, 0, 0, beta, B, ldb);
-        return;
+    constexpr bool maybe_denseskop = !std::is_same_v<std::remove_cv_t<DenseSkOp>, BLASFriendlyOperator<T>>;
+    if constexpr (maybe_denseskop) {
+        if (!S.buff) {
+            // DenseSkOp doesn't permit defining a "black box" distribution, so we have to pack the submatrix
+            // into an equivalent datastructure ourselves.
+            auto submat_S = submatrix_as_blackbox<BLASFriendlyOperator<T>>(S, rows_submat_S, cols_submat_S, ro_s, co_s);
+            rsksp3(layout, opA, opS, m, d, n, alpha, A, ro_a, co_a, submat_S, 0, 0, beta, B, ldb);
+            return;
+        }
     }
+    randblas_require( S.buff != nullptr );
     auto [rows_submat_A, cols_submat_A] = dims_before_op(m, n, opA);
-    randblas_require( A.n_rows      >= rows_submat_A + ro_a );
-    randblas_require( A.n_cols      >= cols_submat_A + co_a );
-    randblas_require( S.dist.n_rows >= rows_submat_S + ro_s );
-    randblas_require( S.dist.n_cols >= cols_submat_S + co_s );
+    randblas_require( A.n_rows >= rows_submat_A + ro_a );
+    randblas_require( A.n_cols >= cols_submat_A + co_a );
+    randblas_require( S.n_rows >= rows_submat_S + ro_s );
+    randblas_require( S.n_cols >= cols_submat_S + co_s );
     if (layout == blas::Layout::ColMajor) {
         randblas_require(ldb >= m);
     } else {
         randblas_require(ldb >= d);
     }
 
-    auto [pos, lds] = offset_and_ldim(S.layout, S.dist.n_rows, S.dist.n_cols, ro_s, co_s);
+    auto [pos, lds] = offset_and_ldim(S.layout, S.n_rows, S.n_cols, ro_s, co_s);
     T* S_ptr = &S.buff[pos];
     if (S.layout != layout)
         opS = (opS == blas::Op::NoTrans) ? blas::Op::Trans : blas::Op::NoTrans;
