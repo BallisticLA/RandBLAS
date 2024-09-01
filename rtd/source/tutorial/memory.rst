@@ -7,7 +7,6 @@ Decades ago, the designers of the classic BLAS made the wise decision to not int
 arrays.
 Such an approach was (and is) viabale because BLAS only operates on very simple datatypes: scalars and references
 to dense arrays of scalars.
-The only polymorphism that BLAS had to strive for was the handling of different numerical precisions.
 
 RandBLAS, by contrast, needs to provide a polymorphic API with far more sophisticated datatypes.
 This has led us to adopt a policy where we can internally allocate and dellocate dynamically-sized arrays 
@@ -45,9 +44,9 @@ Deallocation
 What we do instead of overwriting non-null references 
 -----------------------------------------------------
 
-Suppose that ``obj`` is an instance of a RandBLAS-defined type where ``obj.own_memory`` is true,
-that ``obj.member`` is a reference whose value is currently *non-null*, and that we've hit a codepath were RandBLAS
-would write to ``obj.member`` if it had been null.
+Let ``obj`` denote an instance of a RandBLAS-defined type where  ``obj.member`` is a reference.
+Suppose we find ourselves in a situation where ``obj.member`` is *non-null*,
+but we're at a point in RandBLAS' code that would have written to ``obj.member`` if it were null.
 There are two possibilities for what happens next.
 
 1. If the documentation for ``obj.member`` states an array length requirement purely in terms of ``const`` members,

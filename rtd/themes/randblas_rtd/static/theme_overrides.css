@@ -32,7 +32,7 @@
     transition: margin-left 0.3s ease;
     padding: 1.618em 3.236em;
     height: 100%;
-    max-width: 1000px;
+    max-width: 860px;
     margin-left: 0;
     text-align: justify;
 }
@@ -45,7 +45,7 @@
 
 .wy-nav-content.collapsed {
     margin-left: 0;
-    max-width: 1000px;
+    max-width: 860x;
     margin: 0;
     width: 100%;
 }

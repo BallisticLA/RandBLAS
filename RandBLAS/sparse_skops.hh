@@ -105,35 +105,33 @@ static RNGState<RNG> repeated_fisher_yates(
     return RNGState<RNG> {ctr, key};
 }
 
-inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t n_rows, int64_t n_cols) {
+inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t dim_major, int64_t dim_minor) {
     if (major_axis == Axis::Short) {
         return std::pow(vec_nnz, -0.5); 
     } else if (major_axis == Axis::Long) {
-        double minor_ax_len = std::min(n_rows, n_cols);
-        double major_ax_len = std::max(n_rows, n_cols);
-        return std::sqrt( major_ax_len / (vec_nnz * minor_ax_len) );
+        return std::sqrt( ((double) dim_major) / (vec_nnz * ((double) dim_minor)) );
     } else {
         throw std::invalid_argument("Cannot compute the isometry scale for a sparse operator with unspecified major axis.");
     }
 }
 
-static int64_t nnz_requirement(Axis major_axis, int64_t vec_nnz, int64_t n_rows, int64_t n_cols) {
-    if (major_axis == Axis::Undefined) {
-        throw std::invalid_argument("Cannot compute the nnz requirement for a sparse operator with unspecified major axis.");
-    }
-    bool saso = major_axis == Axis::Short;
-    bool wide = n_rows < n_cols;
-    if (saso & wide) {
-        return vec_nnz * n_cols;
-    } else if (saso & (!wide)) {
-        return vec_nnz * n_rows;
-    } else if (wide & (!saso)) {
-        return vec_nnz * n_rows;
-    } else {
-        // tall LASO
-        return vec_nnz * n_cols;
-    }
-}
+// static int64_t nnz_requirement(Axis major_axis, int64_t vec_nnz, int64_t n_rows, int64_t n_cols) {
+//     if (major_axis == Axis::Undefined) {
+//         throw std::invalid_argument("Cannot compute the nnz requirement for a sparse operator with unspecified major axis.");
+//     }
+//     bool saso = major_axis == Axis::Short;
+//     bool wide = n_rows < n_cols;
+//     if (saso & wide) {
+//         return vec_nnz * n_cols;
+//     } else if (saso & (!wide)) {
+//         return vec_nnz * n_rows;
+//     } else if (wide & (!saso)) {
+//         return vec_nnz * n_rows;
+//     } else {
+//         // tall LASO
+//         return vec_nnz * n_cols;
+//     }
+// }
 
 }
 
@@ -142,7 +140,7 @@ namespace RandBLAS {
 /// A distribution over matrices with structured sparsity. Depending on parameter
 /// choices, one can obtain distributions described in the literature as 
 /// SJLTs, OSNAPs, hashing embeddings, CountSketch, row or column sampling, or 
-/// LESS-Uniform distributions.
+/// LESS-Uniform distributions. All members of a SparseDist are const.
 /// 
 struct SparseDist {
 
@@ -157,105 +155,91 @@ struct SparseDist {
     const int64_t n_cols;
 
     // ---------------------------------------------------------------------------
-    ///  @verbatim embed:rst:leading-slashes
-    ///  Constrains the sparsity pattern of matrices drawn from this distribution. 
+    ///  Operators sampled from this distribution are constructed by taking independent
+    ///  samples from a suitable distribution \math{\mathcal{V}} over sparse vectors.
+    ///  This distribution is always over \math{\mathbb{R}^k,}
+    ///  where \math{k = \ttt{dim_major}.}  
+    ///  The structural properties of \math{\mathcal{V}} depend heavily on whether we're
+    ///  short-axis major or long-axis major.
     ///
-    ///  Several well-known distributions can be recovered by appropriate choices
-    ///  of major_axis and vec_nnz.
+    ///  To be explicit, let's say that \math{\mtxx} is a sample from \math{\mathcal{V}}.
+    ///  
+    ///  If \math{\ttt{major_axis} = \ttt{Short}}, then \math{\mtxx} has exactly \math{\vecnnz} nonzeros,
+    ///  and the locations of those nonzeros are chosen uniformly
+    ///  without replacement from \math{\\{0,\ldots,k-1\\}.} The values of the nonzeros are
+    ///  sampled independently and uniformly from +/- 1.
     ///
-    ///  If major_axis == Short:
+    ///  If \math{\ttt{major_axis} = \ttt{Long}}, then \math{\mtxx} has *at most* \math{\vecnnz} nonzero
+    ///  entries. The locations of the nonzeros are determined by sampling uniformly
+    ///  with replacement from \math{\\{0,\ldots,k-1\\}.}
+    ///  If index \math{j} occurs in the sample \math{\ell} times, then 
+    ///  \math{\mtxx_j} will equal \math{\sqrt{\ell}} with probability 1/2 and
+    ///  \math{-\sqrt{\ell}} with probability 1/2.
     ///
-    ///     vec_nnz = 1 corresponds to the distribution over CountSketch operators.
-    ///     vec_nnz > 1 corresponds to distributions which have been studied under
-    ///     many different names, including OSNAPs, SJLTs, and Hashing embeddings.
-    ///
-    ///  If major_axis == Long:
-    ///
-    ///     vec_nnz = 1 corresponds to operators for sampling uniformly with replacement
-    ///     from the rows or columns of a data matrix (although the signs on the rows or
-    ///     columns may be flipped). vec_nnz > 1 corresponds to so-called LESS-uniform
-    ///     distributions.
-    ///
-    ///  For the same value of vec_nnz, short-axis-sparse sketching has (far) better
-    ///  statistical properties than long-axis-sparse sketching. However, 
-    ///  an operator that's long-axis-sparse with a given value of vec_nnz is 
-    ///  far sparser than the corresponding short-axis-sparse operator with the 
-    ///  same value for vec_nnz. 
-    ///  @endverbatim
     const Axis major_axis;
 
     // ---------------------------------------------------------------------------
-    ///  A sketching operator sampled from this distribution should be multiplied
+    ///  Defined as
+    ///  @verbatim embed:rst:leading-slashes
+    ///
+    ///  .. math::
+    ///
+    ///      \ttt{dim_major} = \begin{cases} \,\min\{ \ttt{n_rows},\, \ttt{n_cols} \} &\text{ if }~~ \ttt{major_axis} = \ttt{Short} \\ \max\{ \ttt{n_rows},\,\ttt{n_cols} \} & \text{ if } ~~\ttt{major_axis} = \ttt{Long} \end{cases}.
+    ///
+    ///  @endverbatim
+    const int64_t dim_major;
+
+    // ---------------------------------------------------------------------------
+    ///  Defined as
+    ///  @verbatim embed:rst:leading-slashes
+    ///
+    ///  .. math::
+    ///
+    ///      \ttt{dim_minor} = \begin{cases} \max\{ \ttt{n_rows},\, \ttt{n_cols} \} &\text{ if }~~ \ttt{major_axis} = \ttt{Short} \\ \,\min\{ \ttt{n_rows},\,\ttt{n_cols} \} & \text{ if } ~~\ttt{major_axis} = \ttt{Long} \end{cases}.
+    ///
+    ///  @endverbatim
+    const int64_t dim_minor;
+
+    // ---------------------------------------------------------------------------
+    ///  An operator sampled from this distribution should be multiplied
     ///  by this constant in order for sketching to preserve norms in expectation.
     const double isometry_scale;
 
     // ---------------------------------------------------------------------------
-    /// This sets the number of structural nonzeros in each major-axis vector.
-    /// It's subject to the bounds
-    /// @verbatim embed:rst:leading-slashes
-    ///
-    /// .. math::
-    ///
-    ///     1 \leq \ttt{vec_nnz} \leq \begin{cases} \min\{ \ttt{n_rows},\, \ttt{n_cols} \} &\text{ if }~~ \ttt{major_axis} = \ttt{Short} \\ \max\{ \ttt{n_rows},\,\ttt{n_cols} \} & \text{ if } ~~\ttt{major_axis} = \ttt{Long} \end{cases} 
-    ///
-    /// @endverbatim
-    /// We'll take a moment to provide guidance on how to set this parameter,
-    /// without dwelling on formalisms.
-    ///
-    /// All else equal, larger values of \math{\ttt{vec_nnz}} result in distributions
-    /// that are "better" at preserving Euclidean geometry when sketching.
-    /// The value of \math{\ttt{vec_nnz}} that suffices for a given context will 
-    /// also depend on the sketch size, \math{d := \min\\{\ttt{n_rows},\ttt{n_cols}\\}.}
-    /// Larger sketch sizes make it possible to "get away with" smaller values of
-    /// \math{\ttt{vec_nnz}}.
-    ///
-    /// For short-axis-major sparse sketching fine to choose very small values for 
-    /// \math{\ttt{vec_nnz}}. For example, suppose we're seeking a constant-distortion embedding
-    /// of an unknown subspace of dimension \math{n} where \math{1{,}000 \leq n \leq 10{,}000}.
-    /// If we use a short-axis-major sparse distribution \math{d = 2n}, then many practitioners
-    /// would feel comfortable taking \math{\ttt{vec_nnz}} as 8 or even 2.
-    /// 
-    /// If one seeks similar statistical properties from long-axis-sparse sketching it is
-    /// important to use (much) larger values of \math{\ttt{vec_nnz}}. There is less consensus
-    /// in the community for what constitutes "big enough in practice," therefore we make
-    /// no prescriptions here.
-    ///
+    /// This constrains the number of nonzeros in each major-axis vector.
+    /// It's subject to the bounds \math{1 \leq \vecnnz \leq \ttt{dim_major}.}
+    /// See @verbatim embed:rst:inline :ref:`this tutorial page <sparsedist_params>` for advice on how to set this member. @endverbatim 
     const int64_t vec_nnz;
 
     // ---------------------------------------------------------------------------
-    ///  An upper bound on the number of structural nonzeros that can appear in a
-    ///  sketching operator sampled from this distribution. This is computed
-    ///  automatically as a function of the other members of the SparseDist.
+    ///  An upper bound on the number of structural nonzeros that can appear in an
+    ///  operator sampled from this distribution. Computed automatically as
+    ///  \math{\ttt{full_nnz} = \vecnnz * \ttt{dim_minor}.}
     const int64_t full_nnz;
 
     // ---------------------------------------------------------------------------
     ///  Arguments passed to this function are used to initialize members of the same names.
-    ///  isometry_scale and full_nnz are automatically initialized to values that are
-    ///  consistent with these arguments.
+    ///  The members \math{\ttt{dim_major},} \math{\ttt{dim_minor},} \math{\ttt{isometry_scale},} and \math{\ttt{full_nnz}}
+    ///  are automatically initialized to be consistent with these arguments.
     ///  
-    ///  This constructor will raise an error if min(n_rows, n_cols) <= 0 or if 
-    ///  vec_nnz does not respect the bounds documented for the vec_nnz member.
+    ///  This constructor will raise an error if \math{\min\\{\ttt{n_rows}, \ttt{n_cols}\\} \leq 0} or if 
+    ///  \math{\vecnnz} does not respect the bounds documented for the \math{\vecnnz} member.
     SparseDist(
         int64_t n_rows,
         int64_t n_cols,
         int64_t vec_nnz = 4,
         Axis major_axis = Axis::Short
-    ) : n_rows(n_rows), n_cols(n_cols), major_axis(major_axis),
-        isometry_scale(sparse::isometry_scale(major_axis, vec_nnz, n_rows, n_cols)),
-        vec_nnz(vec_nnz),
-        full_nnz(sparse::nnz_requirement(major_axis, vec_nnz, n_rows, n_cols)) 
+    ) : n_rows(n_rows), n_cols(n_cols),
+        major_axis(major_axis),
+        dim_major((major_axis == Axis::Short) ? std::min(n_rows, n_cols) : std::max(n_rows, n_cols)),
+        dim_minor((major_axis == Axis::Short) ? std::max(n_rows, n_cols) : std::min(n_rows, n_cols)),
+        isometry_scale(sparse::isometry_scale(major_axis, vec_nnz, dim_major, dim_minor)),
+        vec_nnz(vec_nnz), full_nnz(vec_nnz * dim_minor) 
     {   // argument validation
         randblas_require(n_rows > 0);
         randblas_require(n_cols > 0);
         randblas_require(vec_nnz > 0);
-        if (major_axis == Axis::Short) {
-            randblas_require(vec_nnz <= std::min(n_rows, n_cols));
-        } else {
-            // The initializers will have errored if major_axis == Axis::Undefined,
-            // so we can assume that major_axis == Axis::Long.
-            randblas_require(vec_nnz <= std::max(n_rows, n_cols));
-        }
-        
+        randblas_require(vec_nnz <= dim_major);
     }
 };
 
@@ -338,11 +322,7 @@ struct SparseSkOp {
     ///  will be called on each of this operator's non-null reference members.
     ///
     ///  RandBLAS only writes to this member at construction time.
-    ///   
-    ///  \internal
-    ///  See also: fill_sparse(SparseSkOp &S) and the statement of our 
-    ///  @verbatim embed:rst:inline :ref:`memory management policies <memory_tutorial>`. @endverbatim 
-    ///  \internal
+    ///
     bool own_memory;
     
     /////////////////////////////////////////////////////////////////////
@@ -521,18 +501,18 @@ state_t fill_sparse(
     int64_t &nnz, T* vals, sint_t* rows, sint_t *cols,
     const state_t &seed_state
 ) {
-    int64_t dim_long  = MAX(D.n_rows, D.n_cols);
-    int64_t dim_short = MIN(D.n_rows, D.n_cols);
+    int64_t dim_major = D.dim_major;
+    int64_t dim_minor = D.dim_minor;
 
-    sint_t *idxs_short = (D.n_rows == dim_short) ? rows : cols;
-    sint_t *idxs_long  = (D.n_rows == dim_short) ? cols : rows;
+    sint_t *idxs_short = (D.n_rows <= D.n_cols) ? rows : cols;
+    sint_t *idxs_long  = (D.n_rows <= D.n_cols) ? cols : rows;
     int64_t vec_nnz  = D.vec_nnz;
 
     if (D.major_axis == Axis::Short) {
         auto state = sparse::repeated_fisher_yates(
-            seed_state, vec_nnz, dim_short, dim_long, idxs_short, idxs_long, vals
+            seed_state, vec_nnz, dim_major, dim_minor, idxs_short, idxs_long, vals
         );
-        nnz = vec_nnz * dim_long;
+        nnz = vec_nnz * dim_minor;
         return state;
     } else if (D.major_axis == Axis::Long) {
         // We don't sample all at once since we might need to merge duplicate entries
@@ -545,9 +525,9 @@ state_t fill_sparse(
         std::unordered_map<sint_t, T> loc2scale{}; 
         int64_t total_nnz = 0;
         auto state = seed_state;
-        for (int64_t i = 0; i < dim_short; ++i) {
+        for (int64_t i = 0; i < dim_minor; ++i) {
             using RNG = typename state_t::generator;
-            state = sample_indices_iid_uniform<RNG,T,true>(dim_long, vec_nnz, idxs_long, vals, state);
+            state = sample_indices_iid_uniform<RNG,T,true>(dim_major, vec_nnz, idxs_long, vals, state);
             // ^ That writes directly so S.vals and either S.rows or S.cols.
             //   The new values might need to be changed if there are duplicates in lind.
             //   We have a helper function for this since it's a tedious process.

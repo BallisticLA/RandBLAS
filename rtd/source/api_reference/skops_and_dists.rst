@@ -15,6 +15,7 @@
    .. |mtxX| mathmacro:: \mathbf{X}
    .. |mtxx| mathmacro:: \mathbf{x}
    .. |mtxy| mathmacro:: \mathbf{y}
+   .. |vecnnz| mathmacro:: \texttt{vec_nnz}
    .. |ttt| mathmacro:: \texttt
 
 ********************************************************************
