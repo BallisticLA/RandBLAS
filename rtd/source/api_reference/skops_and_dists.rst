@@ -86,7 +86,7 @@ Gaussians et al.
   .. doxygenfunction:: RandBLAS::fill_dense(DenseSkOp &S)
       :project: RandBLAS
 
-  .. doxygenfunction:: RandBLAS::fill_dense(blas::Layout layout, const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t S_ro, int64_t S_co, T *buff, const RNGState<RNG> &seed)
+  .. doxygenfunction:: RandBLAS::fill_dense_unpacked(blas::Layout layout, const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t S_ro, int64_t S_co, T *buff, const RNGState<RNG> &seed)
       :project: RandBLAS
 
 
@@ -112,7 +112,7 @@ CountSketch et al.
   .. doxygenfunction:: RandBLAS::fill_sparse(SparseSkOp &S)
     :project: RandBLAS
 
-  .. doxygenfunction:: RandBLAS::fill_sparse(const SparseDist &D, int64_t &nnz, T* vals, sint_t* rows, sint_t* cols, const state_t &seed_state)
+  .. doxygenfunction:: RandBLAS::fill_sparse_unpacked_nosub(const SparseDist &D, int64_t &nnz, T* vals, sint_t* rows, sint_t* cols, const state_t &seed_state)
     :project: RandBLAS
 
 

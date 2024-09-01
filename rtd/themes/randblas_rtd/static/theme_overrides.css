@@ -52,7 +52,8 @@
 
 .math {
     text-align: left;
-    overflow: auto;
+    overflow-y: hidden;
+    overflow-x: auto;
 }
 .eqno {
     float: right;

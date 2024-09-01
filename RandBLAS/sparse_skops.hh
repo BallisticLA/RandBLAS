@@ -473,7 +473,7 @@ void laso_merge_long_axis_vector_coo_data(
 ///
 /// 
 template <typename T, typename sint_t, typename state_t>
-state_t fill_sparse(
+state_t fill_sparse_unpacked_nosub(
     const SparseDist &D,
     int64_t &nnz, T* vals, sint_t* rows, sint_t *cols,
     const state_t &seed_state
@@ -559,7 +559,7 @@ void fill_sparse(SparseSkOp &S) {
     randblas_require(S.rows != nullptr);
     randblas_require(S.cols != nullptr);
     randblas_require(S.vals != nullptr);
-    fill_sparse(S.dist, S.nnz, S.vals, S.rows, S.cols, S.seed_state);
+    fill_sparse_unpacked_nosub(S.dist, S.nnz, S.vals, S.rows, S.cols, S.seed_state);
     return;
 }
 

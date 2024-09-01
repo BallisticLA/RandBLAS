@@ -2,8 +2,23 @@ FAQ and Limitations
 ==============================
 
 
-(In)frequently asked questions about our design decisions
-------------------------------------------------------------
+
+How do I do this and that?
+--------------------------
+
+How do I sketch a const symmetric matrix that's only stored in an upper or lower triangle?
+  You can only do this with dense sketching operators.
+  You'll have to prepare the plain buffer representation yourself with 
+  :cpp:any:`RandBLAS::fill_dense_unpacked`
+  and then you'll have to use that buffer in your own SYMM function.
+
+How do I sketch a submatrix of a sparse matrix?
+  You can only do this if the sparse matrix in in COO format.
+  Take a look at the ``lsksp3`` and ``rsksp3`` functions in the source code (they aren't documented on this website).
+
+
+Why did you ... ?
+-----------------
 
 Why the name RandBLAS?
   RandBLAS derives its name from BLAS: the basic linear algebra subprograms. Its name evokes the *purpose* of BLAS rather 
@@ -15,21 +30,13 @@ Why the name RandBLAS?
   are made up for by the flexibilty and portability of a BLAS-like API. It is also our hope that popular high-level
   libraries that already wrap BLAS might find it straightforward to define similar wrappers for RandBLAS.
 
-DenseDist and SparseDist are very simple immutable structs. Why bother having constructors for these classes, when you could just use initialization lists?
-  DenseDist and SparseDist have common members and type-specific members.
-  We wanted the common members to appear earlier initialization order, since that makes it easier to
-  preserve RandBLAS' polymorphic API when called from other languages.
-
-  Two important common members are major_axis and isometry_scale. Users rarely need to think about the former (since there are
-  sensible defaults for DenseDist and SparseDist) and they never need to make decisions for the latter
-  What's more, there are type-specific members that the user should be mindful of, and would be ill-suited to the trailing
-  positions in an initialization list.
-  
-  Using constructors therefore has three benefits.
-
-  1. We can put the type-specific mebers earlier in the argument list,
-  2. We can include the default value for major_axis as a trailing constructor argument, and 
-  3. We can ensure that isometry_scale is always set correctly.
+DenseDist and SparseDist are simple structs. Why bother having constructors for these classes, when you could just use initialization lists?
+  Both of these types only have four user-decidable parameters.
+  We tried to implement and document these structs only using four members each.
+  This was doable, but very cumbersome.
+  In order to write clearer documentation we introduced several additional members whose values are semantically meaningful
+  but ultimately dependent on the others.
+  Using constructors makes it possible for us to ensure all members are initialized consistently.
 
 Why don't you automatically scale your sketching operators to give partial isometries in expectation?
   There are a few factors that led us to this decision. None of these factors is a huge deal, alone, but they become significant when considered together.
@@ -48,8 +55,9 @@ Why are all dimensions 64-bit integers?
   We do allow 32-bit indexing for buffers underlying sparse matrix datastructures, but we recommend sticking with 64-bit.
 
 I looked at the source code and found weird function names like "lskge3," "rskges," and "lsksp3." What's that about?
-  Makes it easier to call from languages that don't support overloads.
-  Short and specific names make it possible to communicate efficiently and precisely (useful for test code and developer documentation). 
+  There are two reasons for these kinds of names.
+  First, having these names makes it easier to call RandBLAS from languages that don't support function overloading.
+  Second, these short and specific names make it possible to communicate efficiently and precisely (useful for test code and developer documentation). 
 
 Why does sketch_symmetric not use a "side" argument, like symm in BLAS?
   There are many BLAS functions that include a "side" argument. This argument always refers to the argument with the most notable structure.
@@ -64,29 +72,8 @@ Why does sketch_symmetric not use a "side" argument, like symm in BLAS?
   We chose the third option since that's more in line with modern APIs for BLAS-like functionality (namely, std::linalg).
 
 
-(In)frequently asked questions about RandBLAS' capabilities
------------------------------------------------------------
-
-How do I call RandBLAS from other languages?
-  First, this depends on whether your language supports overloads.
-
-  * To get an important thing out of the way: we use both formal C++ overloads and C++ templates. The latter mechanism might as well constitute an overload from the perspective of other languages.
-  * We do have canonical function names to address overloads in (1) the side of an operand in matrix-matrix products and (2) the family of sketching distribution.
-  * Our templating of numerical precision should be resolved by prepending "s" for single precision or "d" for double precision on any classes and function names.
-
-  This also depends on whether your language supports classes that can manage their own memory.
-
-  * The full API for DenseSkOp and SparseSkOp requires letting them manage their own memory. If you use the appropriate constructors then they'll let you manage all memory.
-
-Can functions of the form ``sketch_[xxx]`` do something other than sketching?
-  Absolutely. It can do lifting, which is needed in some algorithms. It can also apply a square submatrix of a sketching operator (useful for distributed applications), in which case the output matrix isn't any smaller than the input matrix.
-
-Can I sketch a const symmetric matrix that's only stored in an upper or lower triangle?
-  Yes, but there are caveats. First, you can only use dense sketching operators. Second, you'll have to call fill_dense(layout, dist, … buff …, rngstate) and then use buff in your own SYMM function.
-
-
-Unavoidable limitations
-------------------------
+Limitations
+-----------
 
 No complex domain support:
   BLAS' support for this is incomplete. You can't mix real and complex, you can't conjugate without transposing, etc… 
@@ -106,9 +93,21 @@ No support for DenseSkOps with Rademachers:
   *is* the possibility of generating Rademachers far faster than uniform [-1, 1]. The implementation
   of this method might be a little complicated. 
 
+No support for negative values of "incx" or "incy" in sketch_vector.
+  The BLAS function GEMV supports negative strides between input and output vector elements.
+  It would be easy to extend sketch_vector to support this if we had a proper
+  SPMV implementation that supported negative increments. If someone wants to volunteer 
+  to extent our SPMV kernels to support that, then we'd happily accept such a contribution.
+  (It shouldn't be hard! We just haven't gotten around to this.)
 
-Limitations of calling RandBLAS from other languages
-----------------------------------------------------
+Symmetric matrices have to be stored as general matrices.
+  This stems partly from a desire to have sketch_symmetric work equally well with DenseSkOp and SparseSkOp.
+  Another reason is that BLAS' SYMM function doesn't allow transposes, which is a key tool we use
+  in sketch_general to resolve layout discrepencies between the various arguments.
+
+
+Language interoperability
+-------------------------
 
 We routinely use function overloading, and that reduces portability across languages.
 See below for details on where we stand and where we plan to go to resolve this shortcoming.
@@ -141,7 +140,6 @@ Some discussion
 
   All of these overload-free function names have explicit row and column offset parameters to handle submatrices of linear operators.
   However, the overloaded versions of these functions have *additional* overloads based on setting the offset parameters to zero.
-
 
 We have no plans for consistent naming of overload-free sparse BLAS functions. The most we do in this regard is offer functions
 called [left/right]_spmm for SpMM where the sparse matrix operand appears on the left or on the right.

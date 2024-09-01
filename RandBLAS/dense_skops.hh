@@ -296,7 +296,6 @@ struct DenseDist {
     ///
     const blas::Layout natural_layout;
 
-
     // ---------------------------------------------------------------------------
     ///  Arguments passed to this function are used to initialize members of the same names.
     ///  The members \math{\ttt{dim_major},} \math{\ttt{dim_minor},} \math{\ttt{isometry_scale},}
@@ -386,13 +385,12 @@ struct DenseSkOp {
     T *buff = nullptr; 
 
     // ---------------------------------------------------------------------------
-    ///  The storage order that should be used for any read or write operations
-    ///  with \math{\ttt{buff}.} The leading dimension when reading from \math{\ttt{buff}}
-    ///  is assumed to be
+    ///  The storage order for \math{\ttt{buff}.} The leading dimension of
+    ///  \math{\mat(\ttt{buff})} when reading from \math{\ttt{buff}} is
     /// @verbatim embed:rst:leading-slashes
     ///  .. math::
     ///     
-    ///     \ttt{lds} = \begin{cases} \ttt{n_rows} & \text{ if } ~~ \ttt{layout == ColMajor} \\ \ttt{n_cols} & \text{ if } ~~ \ttt{layout == RowMajor}.
+    ///     \ttt{lds} = \begin{cases} \ttt{n_rows} & \text{ if } ~~ \ttt{layout == ColMajor} \\ \ttt{n_cols} & \text{ if } ~~ \ttt{layout == RowMajor} \end{cases}\,.
     ///
     ///  @endverbatim
     ///
@@ -406,8 +404,8 @@ struct DenseSkOp {
     /////////////////////////////////////////////////////////////////////
 
     // ---------------------------------------------------------------------------
-    ///  **Standard constructor**. Arguments passed to this function are 
-    ///  used to initialize members of the same name. \math{\ttt{own_memory}} is initialized to true,
+    ///  Arguments passed to this function are 
+    ///  used to initialize members of the same names. \math{\ttt{own_memory}} is initialized to true,
     ///  \math{\ttt{buff}} is initialized to nullptr, and \math{\ttt{layout}} is initialized
     ///  to \math{\ttt{dist.natural_layout}.} The \math{\ttt{next_state}} member is 
     ///  computed automatically from \math{\ttt{dist}} and \math{\ttt{next_state}.}
@@ -539,7 +537,7 @@ static_assert(SketchingOperator<DenseSkOp<double>>);
 ///
 /// @endverbatim
 template<typename T, typename RNG = r123::Philox4x32>
-RNGState<RNG> fill_dense(blas::Layout layout, const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s, T* buff, const RNGState<RNG> &seed) {
+RNGState<RNG> fill_dense_unpacked(blas::Layout layout, const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s, T* buff, const RNGState<RNG> &seed) {
     using RandBLAS::dense::fill_dense_submat_impl;
     randblas_require(D.n_rows >= n_rows + ro_s);
     randblas_require(D.n_cols >= n_cols + co_s);
@@ -600,7 +598,7 @@ RNGState<RNG> fill_dense(blas::Layout layout, const DenseDist &D, int64_t n_rows
 ///
 template <typename T, typename RNG = r123::Philox4x32>
 RNGState<RNG> fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed) {
-    return fill_dense(D.natural_layout, D, D.n_rows, D.n_cols, 0, 0, buff, seed);
+    return fill_dense_unpacked(D.natural_layout, D, D.n_rows, D.n_cols, 0, 0, buff, seed);
 }
 
 // =============================================================================
@@ -625,7 +623,7 @@ RNGState<RNG> fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed)
 ///
 /// .. math::
 ///     
-///     \ttt{lds} = \begin{cases} \ttt{n_rows} & \text{ if } ~~ \ttt{S.layout == ColMajor} \\ \ttt{n_cols} & \text{ if } ~~ \ttt{S.layout == RowMajor}.
+///     \ttt{lds} = \begin{cases} \ttt{n_rows} & \text{ if } ~~ \ttt{S.layout == ColMajor} \\ \ttt{n_cols} & \text{ if } ~~ \ttt{S.layout == RowMajor} \end{cases}\,.
 ///
 /// @endverbatim
 template <typename DenseSkOp>
@@ -635,7 +633,7 @@ void fill_dense(DenseSkOp &S) {
         S.buff = new T[S.n_rows * S.n_cols];
     }
     randblas_require(S.buff != nullptr);
-    fill_dense(S.layout, S.dist, S.n_rows, S.n_cols, 0, 0, S.buff, S.seed_state);
+    fill_dense_unpacked(S.layout, S.dist, S.n_rows, S.n_cols, 0, 0, S.buff, S.seed_state);
     return;
 }
 
@@ -656,7 +654,6 @@ struct BLASFriendlyOperator {
     }
 };
 
-// NOTE: the returned operator satisfies submatrix.layout == S.dist.natural_layout even if this differs from S.layout.
 template <typename BFO, typename DenseSkOp>
 BFO submatrix_as_blackbox(const DenseSkOp &S, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s) {
     randblas_require(ro_s + n_rows <= S.n_rows);
@@ -664,7 +661,7 @@ BFO submatrix_as_blackbox(const DenseSkOp &S, int64_t n_rows, int64_t n_cols, in
     using T = typename DenseSkOp::scalar_t;
     T *buff = new T[n_rows * n_cols];
     auto layout = S.layout;
-    fill_dense(layout, S.dist, n_rows, n_cols, ro_s, co_s, buff, S.seed_state);
+    fill_dense_unpacked(layout, S.dist, n_rows, n_cols, ro_s, co_s, buff, S.seed_state);
     int64_t dim_major = S.dist.dim_major;
     BFO submatrix{layout, n_rows, n_cols, buff, dim_major, true};
     return submatrix;

@@ -231,7 +231,7 @@ inline int64_t required_powermethod_iters(int64_t n, T p_fail, T tol) {
 
 template <typename T, typename FUNC, typename RNG>
 std::pair<T, RNGState<RNG>> power_method(int64_t n, FUNC &A, T* v, T tol, T failure_prob, const RNGState<RNG> &state) {
-    auto next_state = RandBLAS::fill_dense(blas::Layout::ColMajor, {n, 1}, n, 1, 0, 0, v, state);
+    auto next_state = RandBLAS::fill_dense_unpacked(blas::Layout::ColMajor, {n, 1}, n, 1, 0, 0, v, state);
     std::vector<T> work(n, 0.0);
     T* u = work.data();
     T norm = blas::nrm2(n, v, 1);
