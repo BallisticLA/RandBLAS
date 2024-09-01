@@ -115,24 +115,6 @@ inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t dim_major
     }
 }
 
-// static int64_t nnz_requirement(Axis major_axis, int64_t vec_nnz, int64_t n_rows, int64_t n_cols) {
-//     if (major_axis == Axis::Undefined) {
-//         throw std::invalid_argument("Cannot compute the nnz requirement for a sparse operator with unspecified major axis.");
-//     }
-//     bool saso = major_axis == Axis::Short;
-//     bool wide = n_rows < n_cols;
-//     if (saso & wide) {
-//         return vec_nnz * n_cols;
-//     } else if (saso & (!wide)) {
-//         return vec_nnz * n_rows;
-//     } else if (wide & (!saso)) {
-//         return vec_nnz * n_rows;
-//     } else {
-//         // tall LASO
-//         return vec_nnz * n_cols;
-//     }
-// }
-
 }
 
 namespace RandBLAS {
@@ -190,14 +172,9 @@ struct SparseDist {
     const int64_t dim_major;
 
     // ---------------------------------------------------------------------------
-    ///  Defined as
-    ///  @verbatim embed:rst:leading-slashes
-    ///
-    ///  .. math::
-    ///
-    ///      \ttt{dim_minor} = \begin{cases} \max\{ \ttt{n_rows},\, \ttt{n_cols} \} &\text{ if }~~ \ttt{major_axis} = \ttt{Short} \\ \,\min\{ \ttt{n_rows},\,\ttt{n_cols} \} & \text{ if } ~~\ttt{major_axis} = \ttt{Long} \end{cases}.
-    ///
-    ///  @endverbatim
+    ///  Defined as \math{\ttt{n_rows} + \ttt{n_cols} - \ttt{dim_major}.} This is
+    ///  just whichever of \math{(\ttt{n_rows},\, \ttt{n_cols})} wasn't identified
+    ///  as \math{\ttt{dim_major}.}
     const int64_t dim_minor;
 
     // ---------------------------------------------------------------------------
@@ -232,7 +209,7 @@ struct SparseDist {
     ) : n_rows(n_rows), n_cols(n_cols),
         major_axis(major_axis),
         dim_major((major_axis == Axis::Short) ? std::min(n_rows, n_cols) : std::max(n_rows, n_cols)),
-        dim_minor((major_axis == Axis::Short) ? std::max(n_rows, n_cols) : std::min(n_rows, n_cols)),
+        dim_minor(n_rows + n_cols - dim_major),
         isometry_scale(sparse::isometry_scale(major_axis, vec_nnz, dim_major, dim_minor)),
         vec_nnz(vec_nnz), full_nnz(vec_nnz * dim_minor) 
     {   // argument validation
@@ -374,7 +351,7 @@ struct SparseSkOp {
     //
     /////////////////////////////////////////////////////////////////////
 
-    ///---------------------------------------------------------------------------
+    /// ---------------------------------------------------------------------------
     ///  **Standard constructor**. Arguments passed to this function are 
     ///  used to initialize members of the same name. own_memory is initialized to true,
     ///  nnz is initialized to -1, and (vals, rows, cols) are each initialized
@@ -611,7 +588,7 @@ void print_sparse(SparseSkOp const &S0) {
             std::cout << S0.rows[i] << ", ";
         }
     } else {
-        std::cout << "\tthis->rows is the null pointer.\n\t\t";
+        std::cout << "\trows is the null pointer.\n\t\t";
     }
     std::cout << std::endl;
     if (S0.cols != nullptr) {
@@ -620,7 +597,7 @@ void print_sparse(SparseSkOp const &S0) {
             std::cout << S0.cols[i] << ", ";
         }
     } else {
-        std::cout << "\tthis->cols is the null pointer.\n\t\t";
+        std::cout << "\tcols is the null pointer.\n\t\t";
     }
     std::cout << std::endl;
     if (S0.vals != nullptr) {
@@ -629,7 +606,7 @@ void print_sparse(SparseSkOp const &S0) {
             std::cout << S0.vals[i] << ", ";
         }
     } else {
-        std::cout << "\tthis->vals is the null pointer.\n\t\t";
+        std::cout << "\tvals is the null pointer.\n\t\t";
     }
     std::cout << std::endl;
     return;
