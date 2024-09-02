@@ -224,7 +224,7 @@ class TestSampleIndices : public ::testing::Test
         RNGState state(seed);
 
         // Generate repeated Fisher-Yates in idxs_major
-        state = repeated_fisher_yates(state, K, N, num_samples, indices.data());
+        state = repeated_fisher_yates(K, N, num_samples, indices.data(), state);
 
         // Generate the true hypergeometric cdf (get the pdf first)
         std::vector<float> true_cdf = hypergeometric_pmf_arr<float>(N, K, K);

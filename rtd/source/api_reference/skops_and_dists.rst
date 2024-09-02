@@ -58,8 +58,8 @@ Preliminaries
     :color: light
 
     .. doxygenstruct:: RandBLAS::RNGState
-      :project: RandBLAS
-      :members:
+        :project: RandBLAS
+        :members:
 
 Gaussians et al.
 ================
@@ -80,8 +80,8 @@ Gaussians et al.
   :color: light
 
   .. doxygenstruct:: RandBLAS::DenseSkOp
-    :project: RandBLAS
-    :members: 
+      :project: RandBLAS
+      :members: 
 
   .. doxygenfunction:: RandBLAS::fill_dense(DenseSkOp &S)
       :project: RandBLAS
@@ -98,22 +98,22 @@ CountSketch et al.
   :color: light
 
   .. doxygenstruct:: RandBLAS::SparseDist
-    :project: RandBLAS
-    :members:
+      :project: RandBLAS
+      :members:
 
 .. dropdown:: SparseSkOp : a sample from a SparseDist
   :animate: fade-in-slide-down
   :color: light
 
   .. doxygenstruct:: RandBLAS::SparseSkOp
-    :project: RandBLAS
-    :members: 
+      :project: RandBLAS
+      :members: 
 
   .. doxygenfunction:: RandBLAS::fill_sparse(SparseSkOp &S)
-    :project: RandBLAS
+      :project: RandBLAS
 
   .. doxygenfunction:: RandBLAS::fill_sparse_unpacked_nosub(const SparseDist &D, int64_t &nnz, T* vals, sint_t* rows, sint_t* cols, const state_t &seed_state)
-    :project: RandBLAS
+      :project: RandBLAS
 
 
 
@@ -125,7 +125,7 @@ The unifying (C++20) concepts
     :color: light
 
     .. doxygenconcept:: RandBLAS::SketchingDistribution
-      :project: RandBLAS
+        :project: RandBLAS
 
 
 .. dropdown:: SketchingOperator
@@ -133,5 +133,5 @@ The unifying (C++20) concepts
     :color: light
   
     .. doxygenconcept:: RandBLAS::SketchingOperator
-      :project: RandBLAS
+        :project: RandBLAS
 

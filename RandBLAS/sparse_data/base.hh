@@ -124,7 +124,7 @@ static inline void sorted_nonzero_locations_to_pointer_array(
 ///      - :math:`\ttt{SpMat::scalar_t *}`
 ///      - pointer to values of structural nonzeros
 ///    * - :math:`\ttt{M.own_memory}`
-///      - :math:`\ttt{const bool}`
+///      - :math:`\ttt{bool}`
 ///      - A flag indicating if memory attached to :math:`\ttt{M}` should be deallocated when :math:`\ttt{M}` is deleted.
 ///        This flag is set automatically based on the type of constructor used for :math:`\ttt{M}.` 
 /// 

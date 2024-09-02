@@ -42,7 +42,7 @@ class TestHandrolledCholesky : public ::testing::Test {
         RandBLAS::symmetrize(layout, blas::Uplo::Upper, n, A.data(), n);
         // overwrite A by its upper-triangular cholesky factor
         cholfunc(n, A.data());
-        RandBLAS::overwrite_triangle(layout, blas::Uplo::Lower, n, 1, (T) 0.0, A.data(), n);
+        RandBLAS::overwrite_triangle(layout, blas::Uplo::Lower, n, 1, A.data(), n);
 
         // compute the gram matrix of A's cholesky factor
         blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, n, n, 1.0, A.data(), n, 0.0, B.data(), n);

@@ -109,6 +109,40 @@ Symmetric matrices have to be stored as general matrices.
 Language interoperability
 -------------------------
 
+C++ idioms and features we do use
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Things that affect our API:
+ * Templates. We template for floating point precision just about everywhere.
+   We also template for stateful random number generators (see :cpp:any:`RandBLAS::RNGState`)
+   and arrays of 32-bit versus 64-bit signed integers.
+ * Standard constructors. We use these for any nontrivial struct type in RandBLAS. They're important
+   because many of our datatypes have const members that need to be initialized as functions (albeit
+   simple funcitons) of other members.
+ * Move constructors. We use these to return nontrivial datastructures from a few undocumented functions.
+   We mostly added them because we figured users would really want them.
+ * C++20 Concepts. These make our assumptions around template parameters more explicit.
+   In the cases of :ref:`SketchingDistribution <concept_rand_b_l_a_s_1_1_sketching_distribution>` and
+   :ref:`SketchingOperator <concept_rand_b_l_a_s_1_1_sketching_operator>` this is also a way
+   for us to declare a common interface for future functionality.
+
+Things that are purely internal:
+ * C++17 ``if constexpr`` branching.
+ * Structured bindings. 
+
+
+C++ idioms and features we don't use
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * The span or mdspan datastructures.
+ * Inheritance.
+ * Private or protected members of structs.
+ * Shared pointers.
+ * Instance methods for structs (with the exceptions of constructors and destructors).
+
+Naming conventions to resolve function overloading
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 We routinely use function overloading, and that reduces portability across languages.
 See below for details on where we stand and where we plan to go to resolve this shortcoming.
 

@@ -47,12 +47,9 @@
 namespace RandBLAS::sparse {
 
 
-// =============================================================================
-/// WARNING: this function is not part of the public API.
-///
-template <typename T, typename RNG, SignedInteger sint_t>
-static RNGState<RNG> repeated_fisher_yates(
-    const RNGState<RNG> &state,
+template <typename T, SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
+static state_t repeated_fisher_yates(
+    const state_t &state,
     int64_t vec_nnz,
     int64_t dim_major,
     int64_t dim_minor,
@@ -67,6 +64,7 @@ static RNGState<RNG> repeated_fisher_yates(
     for (sint_t j = 0; j < dim_major; ++j)
         vec_work[j] = j;
     std::vector<sint_t> pivots(vec_nnz);
+    using RNG = typename state_t::generator;
     RNG gen;
     auto [ctr, key] = state;
     for (sint_t i = 0; i < dim_minor; ++i) {
@@ -102,7 +100,7 @@ static RNGState<RNG> repeated_fisher_yates(
             vec_work[ell] = swap;
         }
     }
-    return RNGState<RNG> {ctr, key};
+    return state_t {ctr, key};
 }
 
 inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t dim_major, int64_t dim_minor) {
@@ -224,11 +222,22 @@ struct SparseDist {
 static_assert(SketchingDistribution<SparseDist>);
 #endif
 
-template <typename RNG, SignedInteger sint_t>
-inline RNGState<RNG> repeated_fisher_yates(
-    const RNGState<RNG> &state, int64_t k, int64_t n, int64_t r, sint_t *indices
+
+// =============================================================================
+/// This function is used for sampling a sequence of \math{k} elements uniformly
+/// without replacement from the index set \math{\\{0,\ldots,n-1\\}.} It uses a special 
+/// implementation of Fisher-Yates shuffling to produce \math{r} such samples in \math{O(n + rk)} time.
+/// These samples are stored by  writing to \math{\ttt{samples}} in \math{r} blocks of length \math{k.}
+/// 
+/// The returned RNGState should
+/// be used for the next call to a random sampling function whose output should be statistically
+/// independent from \math{\ttt{samples}.}
+///
+template <SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
+inline state_t repeated_fisher_yates(
+    int64_t k, int64_t n, int64_t r, sint_t *samples, const state_t &state
 ) {
-    return sparse::repeated_fisher_yates(state, k, n, r, indices, (sint_t*) nullptr, (double*) nullptr);
+    return sparse::repeated_fisher_yates(state, k, n, r, samples, (sint_t*) nullptr, (double*) nullptr);
 }
 
 template <typename RNG>
@@ -503,8 +512,7 @@ state_t fill_sparse_unpacked_nosub(
         int64_t total_nnz = 0;
         auto state = seed_state;
         for (int64_t i = 0; i < dim_minor; ++i) {
-            using RNG = typename state_t::generator;
-            state = sample_indices_iid_uniform<RNG,T,true>(dim_major, vec_nnz, idxs_long, vals, state);
+            state = sample_indices_iid_uniform(dim_major, vec_nnz, idxs_long, vals, state);
             // ^ That writes directly so S.vals and either S.rows or S.cols.
             //   The new values might need to be changed if there are duplicates in lind.
             //   We have a helper function for this since it's a tedious process.
