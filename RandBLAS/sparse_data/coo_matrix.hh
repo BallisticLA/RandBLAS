@@ -126,42 +126,6 @@ struct COOMatrix {
     ///  CSC-like order, a CSR-like order, or neither order.
     NonzeroSort sort = NonzeroSort::None;
 
-    COOMatrix(
-        int64_t n_rows,
-        int64_t n_cols,
-        int64_t nnz,
-        T *vals,
-        sint_t *rows,
-        sint_t *cols,
-        bool compute_sort_type,
-        IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), nnz(nnz), index_base(index_base),
-        vals(vals), rows(rows), cols(cols) {
-        if (compute_sort_type) {
-            sort = coo_sort_type(nnz, rows, cols);
-        } else {
-            sort = NonzeroSort::None;
-        }
-    };
-
-    COOMatrix(
-        int64_t n_rows,
-        int64_t n_cols,
-        IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), nnz(0), index_base(index_base),
-        vals(nullptr), rows(nullptr), cols(nullptr) {};
-
-    // Constructs an empty sparse matrix of given dimensions.
-    // Data can't stored in this object until a subsequent call to reserve(int64_t nnz).
-    // This constructor initializes \math{\ttt{own_memory(true)},} and so
-    // all data stored in this object is deleted once its destructor is invoked.
-    //
-    COOMatrix(
-        int64_t n_rows,
-        int64_t n_cols
-    ) : COOMatrix(n_rows, n_cols, IndexBase::Zero) {};
-
-
     // ---------------------------------------------------------------------------
     /// @verbatim embed:rst:leading-slashes
     /// Constructs a sparse matrix based on declared dimensions and the data in three buffers
@@ -203,6 +167,9 @@ struct COOMatrix {
     ///         assign M.sort = ``<the order you already know>`` once you
     ///         have a handle on M.
     ///
+    ///      index_base - [in]
+    ///       * IndexBase::Zero or IndexBase::One
+    ///
     /// @endverbatim
     COOMatrix(
         int64_t n_rows,
@@ -211,8 +178,37 @@ struct COOMatrix {
         T *vals,
         sint_t *rows,
         sint_t *cols,
-        bool compute_sort_type = true
-    ) : COOMatrix(n_rows, n_cols, nnz, vals, rows, cols, compute_sort_type, IndexBase::Zero) {};
+        bool compute_sort_type = true,
+        IndexBase index_base = IndexBase::Zero
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), nnz(nnz), index_base(index_base),
+        vals(vals), rows(rows), cols(cols) {
+        if (compute_sort_type) {
+            sort = coo_sort_type(nnz, rows, cols);
+        } else {
+            sort = NonzeroSort::None;
+        }
+    };
+
+    // Constructs an empty sparse matrix of given dimensions.
+    // Data can't stored in this object until a subsequent call to reserve(int64_t nnz).
+    // This constructor initializes \math{\ttt{own_memory(true)},} and so
+    // all data stored in this object is deleted once its destructor is invoked.
+    //
+    COOMatrix(
+        int64_t n_rows,
+        int64_t n_cols
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), nnz(0), index_base(IndexBase::Zero),
+        vals(nullptr), rows(nullptr), cols(nullptr) {};
+
+    // COOMatrix(
+    //     int64_t n_rows,
+    //     int64_t n_cols,
+    //     int64_t nnz,
+    //     T *vals,
+    //     sint_t *rows,
+    //     sint_t *cols,
+    //     bool compute_sort_type = true
+    // ) : COOMatrix(n_rows, n_cols, nnz, vals, rows, cols, compute_sort_type, IndexBase::Zero) {};
 
     ~COOMatrix() {
         if (own_memory) {
@@ -230,9 +226,8 @@ struct COOMatrix {
 
     // move constructor
     COOMatrix(COOMatrix<T, sint_t> &&other) 
-    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), nnz(0), index_base(other.index_base),
+    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), nnz(other.nnz), index_base(other.index_base),
       vals(nullptr), rows(nullptr), cols(nullptr) {
-        nnz = other.nnz;
         std::swap(rows, other.rows);
         std::swap(cols, other.cols);
         std::swap(vals, other.vals);

@@ -128,7 +128,8 @@ CSRMatrix<T, sint_t> transpose_as_csr(CSCMatrix<T, sint_t> &A, bool share_memory
         CSRMatrix<T, sint_t> At(A.n_cols, A.n_rows, A.nnz, A.vals, A.colptr, A.rowidxs, A.index_base);
         return At;
     } else {
-        CSRMatrix<T, sint_t> At(A.n_cols, A.n_rows, A.index_base);
+        CSRMatrix<T, sint_t> At(A.n_cols, A.n_rows);
+        At.index_base = A.index_base;
         reserve(A.nnz, At);
         for (int64_t i = 0; i < A.nnz; ++i) {
             At.colidxs[i] = A.rowidxs[i];
@@ -146,7 +147,8 @@ CSCMatrix<T, sint_t> transpose_as_csc(CSRMatrix<T, sint_t> &A, bool share_memory
         CSCMatrix<T, sint_t> At(A.n_cols, A.n_rows, A.nnz, A.vals, A.colidxs, A.rowptr, A.index_base);
         return At;
     } else {
-        CSCMatrix<T, sint_t> At(A.n_cols, A.n_rows, A.index_base);
+        CSCMatrix<T, sint_t> At(A.n_cols, A.n_rows);
+        At.index_base = A.index_base;
         reserve(A.nnz, At);
         for (int64_t i = 0; i < A.nnz; ++i) {
             At.rowidxs[i] = A.colidxs[i];

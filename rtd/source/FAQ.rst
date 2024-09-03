@@ -125,6 +125,7 @@ Things that affect our API:
    In the cases of :ref:`SketchingDistribution <concept_rand_b_l_a_s_1_1_sketching_distribution>` and
    :ref:`SketchingOperator <concept_rand_b_l_a_s_1_1_sketching_operator>` this is also a way
    for us to declare a common interface for future functionality.
+ * Default values for trailing function arguments.
 
 Things that are purely internal:
  * C++17 ``if constexpr`` branching.
@@ -139,9 +140,9 @@ C++ idioms and features we don't use
  * Shared pointers.
  * Instance methods for structs (with the exceptions of constructors and destructors).
 
+
 Naming conventions to resolve function overloading
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 
 We routinely use function overloading, and that reduces portability across languages.
 See below for details on where we stand and where we plan to go to resolve this shortcoming.

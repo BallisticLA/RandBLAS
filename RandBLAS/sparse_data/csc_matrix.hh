@@ -64,34 +64,6 @@ struct CSCMatrix {
     ///  
     sint_t *colptr;
 
-    CSCMatrix(
-        int64_t n_rows,
-        int64_t n_cols,
-        IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), nnz(0), index_base(index_base),
-        vals(nullptr), rowidxs(nullptr), colptr(nullptr) { };
-
-    CSCMatrix(
-        int64_t n_rows,
-        int64_t n_cols,
-        int64_t nnz,
-        T *vals,
-        sint_t *rowidxs,
-        sint_t *colptr,
-        IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), nnz(nnz), index_base(index_base),
-        vals(vals), rowidxs(rowidxs), colptr(colptr) { };
-
-    // Constructs an empty sparse matrix of given dimensions.
-    // Data can't stored in this object until a subsequent call to reserve(int64_t nnz).
-    // This constructor initializes \math{\ttt{own_memory(true)},} and so
-    // all data stored in this object is deleted once its destructor is invoked.
-    //
-    CSCMatrix(
-        int64_t n_rows,
-        int64_t n_cols
-    ) : CSCMatrix(n_rows, n_cols, IndexBase::Zero) { };
-
     // ---------------------------------------------------------------------------
     /// @verbatim embed:rst:leading-slashes
     /// Constructs a sparse matrix based on declared dimensions and the data in three buffers
@@ -122,6 +94,9 @@ struct CSCMatrix {
     ///      colptr - [in]
     ///       * Pointer to array of sint_t, of length at least n_cols + 1.
     ///
+    ///      index_base - [in]
+    ///       * IndexBase::Zero or IndexBase::One
+    ///
     /// @endverbatim
     CSCMatrix(
         int64_t n_rows,
@@ -129,8 +104,21 @@ struct CSCMatrix {
         int64_t nnz,
         T *vals,
         sint_t *rowidxs,
-        sint_t *colptr
-    ) : CSCMatrix(n_rows, n_cols, nnz, vals, rowidxs, colptr, IndexBase::Zero) {};
+        sint_t *colptr,
+        IndexBase index_base = IndexBase::Zero
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), nnz(nnz), index_base(index_base),
+        vals(vals), rowidxs(rowidxs), colptr(colptr) { };
+
+    // Constructs an empty sparse matrix of given dimensions.
+    // Data can't stored in this object until a subsequent call to reserve(int64_t nnz).
+    // This constructor initializes \math{\ttt{own_memory(true)},} and so
+    // all data stored in this object is deleted once its destructor is invoked.
+    //
+    CSCMatrix(
+        int64_t n_rows,
+        int64_t n_cols
+        ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), nnz(0), index_base(IndexBase::Zero),
+            vals(nullptr), rowidxs(nullptr), colptr(nullptr) { };
 
     ~CSCMatrix() {
         if (own_memory) {
@@ -141,9 +129,8 @@ struct CSCMatrix {
     };
 
     CSCMatrix(CSCMatrix<T, sint_t> &&other) 
-    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), nnz(0), index_base(other.index_base),
+    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), nnz(other.nnz), index_base(other.index_base),
       vals(nullptr), rowidxs(nullptr), colptr(nullptr) {
-        nnz = other.nnz;
         std::swap(rowidxs, other.rowidxs);
         std::swap(colptr , other.colptr );
         std::swap(vals   , other.vals   );

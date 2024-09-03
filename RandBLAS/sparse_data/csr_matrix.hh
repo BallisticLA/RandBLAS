@@ -66,24 +66,6 @@ struct CSRMatrix {
     ///  
     sint_t *colidxs;
 
-    CSRMatrix(
-        int64_t n_rows,
-        int64_t n_cols,
-        IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), nnz(0), index_base(index_base),
-        vals(nullptr), rowptr(nullptr), colidxs(nullptr) { };
-
-    CSRMatrix(
-        int64_t n_rows,
-        int64_t n_cols,
-        int64_t nnz,
-        T *vals,
-        sint_t *rowptr,
-        sint_t *colidxs,
-        IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), nnz(nnz), index_base(index_base),
-        vals(vals), rowptr(rowptr), colidxs(colidxs) { };
-
     // Constructs an empty sparse matrix of given dimensions.
     // Data can't stored in this object until a subsequent call to reserve(int64_t nnz).
     // This constructor initializes \math{\ttt{own_memory(true)},} and so
@@ -92,7 +74,8 @@ struct CSRMatrix {
     CSRMatrix(
         int64_t n_rows,
         int64_t n_cols
-    ) : CSRMatrix(n_rows, n_cols, IndexBase::Zero) {};
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), nnz(0), index_base(IndexBase::Zero),
+        vals(nullptr), rowptr(nullptr), colidxs(nullptr) { };
 
     // ---------------------------------------------------------------------------
     /// @verbatim embed:rst:leading-slashes
@@ -124,6 +107,9 @@ struct CSRMatrix {
     ///      colidxs - [in]
     ///       * Pointer to array of sint_t, of length at least nnz.
     ///
+    ///      index_base - [in]
+    ///       * IndexBase::Zero or IndexBase::One
+    ///
     /// @endverbatim
     CSRMatrix(
         int64_t n_rows,
@@ -131,8 +117,10 @@ struct CSRMatrix {
         int64_t nnz,
         T *vals,
         sint_t *rowptr,
-        sint_t *colidxs
-    ) : CSRMatrix(n_rows, n_cols, nnz, vals, rowptr, colidxs, IndexBase::Zero) {};
+        sint_t *colidxs,
+        IndexBase index_base = IndexBase::Zero
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), nnz(nnz), index_base(index_base),
+        vals(vals), rowptr(rowptr), colidxs(colidxs) { };
 
     ~CSRMatrix() {
         if (own_memory) {
@@ -144,9 +132,8 @@ struct CSRMatrix {
 
     // move constructor
     CSRMatrix(CSRMatrix<T, sint_t> &&other)
-    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), nnz(0), index_base(other.index_base),
-      vals(nullptr), rowptr(nullptr), colidxs(nullptr)  {
-        nnz = other.nnz;
+    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), nnz(other.nnz), index_base(other.index_base),
+      vals(nullptr), rowptr(nullptr), colidxs(nullptr) {
         std::swap(colidxs, other.colidxs);
         std::swap(rowptr , other.rowptr );
         std::swap(vals   , other.vals   );
