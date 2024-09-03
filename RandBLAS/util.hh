@@ -333,11 +333,12 @@ void transpose_square(T* A, int64_t n, int64_t lda) {
 /// \fn weights_to_cdf(int64_t n, T* w, T error_if_below = -std::numeric_limits<T>::epsilon())
 /// @verbatim embed:rst:leading-slashes
 /// Checks if all elements of length-:math:`n` array ":math:`w`" are at no smaller than 
-/// :math:`\ttt{error_if_below}.` If this check passes, then we overwrite
+/// :math:`\ttt{error_if_below}.` If this check passes, then we (implicitly) initialize :math:`v := w`` 
+/// and overwrite :math:`w` by
 ///
 /// .. math::
 ///
-///     w_i := \max\{0, w_i\} / \textstyle\sum_{j=1}^n \max\{0, w_j\}.
+///     w_i = \frac{\textstyle\sum_{\ell=1}^{i}\max\{0, v_{\ell}\}}{\textstyle\sum_{j=1}^n \max\{0, v_j\}}.
 /// 
 /// @endverbatim
 /// On exit, \math{w} is a CDF suitable for use with sample_indices_iid.
