@@ -36,10 +36,12 @@
 
 namespace RandBLAS::sparse_data {
 
+using RandBLAS::SignedInteger;
+
 // =============================================================================
 /// A CSC-format sparse matrix that complies with the SparseMatrix concept.
 ///
-template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
+template <typename T, SignedInteger sint_t = int64_t>
 struct CSCMatrix {
     using scalar_t = T;
     using index_t = sint_t; 
@@ -48,26 +50,26 @@ struct CSCMatrix {
     bool own_memory;
     int64_t nnz = 0;
     IndexBase index_base;
-    T *vals = nullptr;
+    T *vals;
 
     // ---------------------------------------------------------------------------
     ///  Row index array in the CSC format. 
     ///  
-    sint_t *rowidxs = nullptr;
+    sint_t *rowidxs;
     
     // ---------------------------------------------------------------------------
     ///  Pointer offset array for the CSC format. The number of nonzeros in column j
     ///  is given by colptr[j+1] - colptr[j]. The row index of the k-th nonzero
     ///  in column j is rowidxs[colptr[j] + k].
     ///  
-    sint_t *colptr = nullptr;
-    bool _can_reserve = true;
+    sint_t *colptr;
 
     CSCMatrix(
         int64_t n_rows,
         int64_t n_cols,
         IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), index_base(index_base) { };
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), nnz(0), index_base(index_base),
+        vals(nullptr), rowidxs(nullptr), colptr(nullptr) { };
 
     CSCMatrix(
         int64_t n_rows,
@@ -77,12 +79,8 @@ struct CSCMatrix {
         sint_t *rowidxs,
         sint_t *colptr,
         IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), index_base(index_base) {
-        this->nnz = nnz;
-        this->vals = vals;
-        this->rowidxs = rowidxs;
-        this->colptr = colptr;
-    };
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), nnz(nnz), index_base(index_base),
+        vals(vals), rowidxs(rowidxs), colptr(colptr) { };
 
     // Constructs an empty sparse matrix of given dimensions.
     // Data can't stored in this object until a subsequent call to reserve(int64_t nnz).
@@ -135,43 +133,20 @@ struct CSCMatrix {
     ) : CSCMatrix(n_rows, n_cols, nnz, vals, rowidxs, colptr, IndexBase::Zero) {};
 
     ~CSCMatrix() {
-        if (this->own_memory) {
+        if (own_memory) {
             if (rowidxs != nullptr) delete [] rowidxs;
             if (colptr  != nullptr) delete [] colptr;
             if (vals    != nullptr) delete [] vals;
         }
     };
 
-
-    // @verbatim embed:rst:leading-slashes
-    // Attach three buffers to this CSCMatrix, (vals, rowidxs, colptr), of sufficient
-    // size for this matrix to hold nnz structural nonzeros.
-    // This function can only be called if :math:`\ttt{own_memory == true},`` and
-    // it can only be called once.
-    //
-    // @endverbatim
-    void reserve(int64_t nnz) {
-        randblas_require(_can_reserve);
-        randblas_require(own_memory);
-        if (colptr == nullptr)
-            colptr = new sint_t[n_cols + 1]{0};
-        this->nnz = nnz;
-        if (nnz > 0) {
-            randblas_require( rowidxs == nullptr );
-            randblas_require( vals    == nullptr );
-            rowidxs = new sint_t[nnz]{0};
-            vals = new T[nnz]{0.0};
-        }
-        _can_reserve = false;
-    };
-
     CSCMatrix(CSCMatrix<T, sint_t> &&other) 
-    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), index_base(other.index_base) {
-        this->nnz = other.nnz;
-        std::swap(this->rowidxs, other.rowidxs);
-        std::swap(this->colptr , other.colptr );
-        std::swap(this->vals   , other.vals   );
-        this->_can_reserve = other._can_reserve;
+    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), nnz(0), index_base(other.index_base),
+      vals(nullptr), rowidxs(nullptr), colptr(nullptr) {
+        nnz = other.nnz;
+        std::swap(rowidxs, other.rowidxs);
+        std::swap(colptr , other.colptr );
+        std::swap(vals   , other.vals   );
         other.nnz = 0;
     };
 };
@@ -180,6 +155,22 @@ struct CSCMatrix {
 static_assert(SparseMatrix<CSCMatrix<float>>);
 static_assert(SparseMatrix<CSCMatrix<double>>);
 #endif
+
+
+template <typename T, SignedInteger sint_t>
+void reserve(int64_t nnz, CSCMatrix<T,sint_t> &M) {
+    randblas_require(M.own_memory);
+    if (M.colptr == nullptr)
+        M.colptr = new sint_t[M.n_cols + 1]{0};
+    M.nnz = nnz;
+    if (nnz > 0) {
+        randblas_require( M.rowidxs == nullptr );
+        randblas_require( M.vals    == nullptr );
+        M.rowidxs = new sint_t[nnz]{0};
+        M.vals    = new T[nnz]{0.0};
+    }
+    return;
+}
 
 } // end namespace RandBLAS::sparse_data
 
@@ -226,7 +217,7 @@ void dense_to_csc(int64_t stride_row, int64_t stride_col, T *mat, T abs_tol, CSC
     // Step 1: count the number of entries with absolute value at least abstol
     int64_t nnz = nnz_in_dense(n_rows, n_cols, stride_row, stride_col, mat, abs_tol);
     // Step 2: allocate memory needed by the sparse matrix
-    spmat.reserve(nnz);
+    reserve(nnz, spmat);
     // Step 3: traverse the dense matrix again, populating the sparse matrix as we go
     nnz = 0;
     spmat.colptr[0] = 0;

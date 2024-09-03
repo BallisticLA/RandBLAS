@@ -52,26 +52,26 @@ struct CSRMatrix {
     bool own_memory;
     int64_t nnz = 0;
     IndexBase index_base;
-    T *vals = nullptr;
+    T *vals;
     
     // ---------------------------------------------------------------------------
     ///  Pointer offset array for the CSR format. The number of nonzeros in row i
     ///  is given by rowptr[i+1] - rowptr[i]. The column index of the k-th nonzero
     ///  in row i is colidxs[rowptr[i] + k].
     ///  
-    sint_t *rowptr = nullptr;
+    sint_t *rowptr;
     
     // ---------------------------------------------------------------------------
     ///  Column index array in the CSR format. 
     ///  
-    sint_t *colidxs = nullptr;
-    bool _can_reserve = true;
+    sint_t *colidxs;
 
     CSRMatrix(
         int64_t n_rows,
         int64_t n_cols,
         IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), index_base(index_base) { };
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), nnz(0), index_base(index_base),
+        vals(nullptr), rowptr(nullptr), colidxs(nullptr) { };
 
     CSRMatrix(
         int64_t n_rows,
@@ -81,12 +81,8 @@ struct CSRMatrix {
         sint_t *rowptr,
         sint_t *colidxs,
         IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), index_base(index_base) {
-        this->nnz = nnz;
-        this->vals = vals;
-        this->rowptr = rowptr;
-        this->colidxs = colidxs;
-    };
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), nnz(nnz), index_base(index_base),
+        vals(vals), rowptr(rowptr), colidxs(colidxs) { };
 
     // Constructs an empty sparse matrix of given dimensions.
     // Data can't stored in this object until a subsequent call to reserve(int64_t nnz).
@@ -146,42 +142,14 @@ struct CSRMatrix {
         }
     };
 
-    // @verbatim embed:rst:leading-slashes
-    // Attach three buffers to this CSRMatrix, (vals, rowptr, colidxs), of sufficient
-    // size for this matrix to hold nnz structural nonzeros.
-    // This function can only be called if :math:`\ttt{own_memory == true},`` and
-    // it can only be called once.
-    //
-    // @endverbatim
-    void reserve(int64_t nnz) {
-        randblas_require(_can_reserve);
-        randblas_require(own_memory);
-        if (rowptr == nullptr) 
-            rowptr = new sint_t[n_rows + 1]{0};
-        this->nnz = nnz;
-        if (nnz > 0) {
-            randblas_require(colidxs == nullptr);
-            randblas_require(vals    == nullptr);
-            colidxs = new sint_t[nnz]{0};
-            vals    = new T[nnz]{0.0};
-        }
-        _can_reserve = false;
-    };
-
-    /////////////////////////////////////////////////////////////////////
-    //
-    //     Functions that we don't want to appear in doxygen.
-    //
-    /////////////////////////////////////////////////////////////////////
-
     // move constructor
     CSRMatrix(CSRMatrix<T, sint_t> &&other)
-    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), index_base(other.index_base)  {
-        this->nnz = other.nnz;
-        std::swap(this->colidxs, other.colidxs);
-        std::swap(this->rowptr , other.rowptr );
-        std::swap(this->vals   , other.vals   );
-        this->_can_reserve = other._can_reserve;
+    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), nnz(0), index_base(other.index_base),
+      vals(nullptr), rowptr(nullptr), colidxs(nullptr)  {
+        nnz = other.nnz;
+        std::swap(colidxs, other.colidxs);
+        std::swap(rowptr , other.rowptr );
+        std::swap(vals   , other.vals   );
         other.nnz = 0;
     };
 
@@ -191,6 +159,22 @@ struct CSRMatrix {
 static_assert(SparseMatrix<CSRMatrix<float>>);
 static_assert(SparseMatrix<CSRMatrix<double>>);
 #endif
+
+
+template <typename T, SignedInteger sint_t>
+void reserve(int64_t nnz, CSRMatrix<T,sint_t> &M) {
+    randblas_require(M.own_memory);
+    if (M.rowptr == nullptr) 
+        M.rowptr = new sint_t[M.n_rows + 1]{0};
+    M.nnz = nnz;
+    if (nnz > 0) {
+        randblas_require(M.colidxs == nullptr);
+        randblas_require(M.vals    == nullptr);
+        M.colidxs = new sint_t[nnz]{0};
+        M.vals    = new T[nnz]{0.0};
+    }
+   return;
+}
 
 } // end namespace RandBLAS::sparse_data
 
@@ -202,7 +186,7 @@ using blas::Layout;
 template <typename T>
 void csr_to_dense(const CSRMatrix<T> &spmat, int64_t stride_row, int64_t stride_col, T *mat) {
     randblas_require(spmat.index_base == IndexBase::Zero);
-    auto rowptr = spmat.rowptr;
+    auto rowptr  = spmat.rowptr;
     auto colidxs = spmat.colidxs;
     auto vals = spmat.vals;
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
@@ -240,7 +224,7 @@ void dense_to_csr(int64_t stride_row, int64_t stride_col, T *mat, T abs_tol, CSR
     // Step 1: count the number of entries with absolute value at least abstol
     int64_t nnz = nnz_in_dense(n_rows, n_cols, stride_row, stride_col, mat, abs_tol);
     // Step 2: allocate memory needed by the sparse matrix
-    spmat.reserve(nnz);
+    reserve(nnz, spmat);
     // Step 3: traverse the dense matrix again, populating the sparse matrix as we go
     nnz = 0;
     spmat.rowptr[0] = 0;

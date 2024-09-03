@@ -36,13 +36,13 @@
 
 namespace RandBLAS::sparse_data {
 
-enum class IndexBase : char {
+enum class IndexBase : int {
     // ---------------------------------------------------------------
     // zero-based indexing
-    Zero = 'Z',
+    Zero = 0,
     // ---------------------------------------------------------------
     // one-based indexing
-    One = 'O'
+    One = 1
 };
 
 template <typename T>

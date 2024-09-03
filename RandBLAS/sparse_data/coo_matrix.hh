@@ -112,21 +112,19 @@ struct COOMatrix {
     bool own_memory;
     int64_t nnz = 0;
     IndexBase index_base;
-    T *vals = nullptr;
+    T *vals;
     // ---------------------------------------------------------------------------
-    ///  Row indicies for nonzeros.
-    sint_t *rows = nullptr;
+    ///  Row indicies for nonzeros. If non-null, this is presumed to have length
+    ///  at least \math{\ttt{nnz}.}
+    sint_t *rows;
     // ---------------------------------------------------------------------------
-    ///  Column indicies for nonzeros
-    sint_t *cols = nullptr;
+    ///  Column indicies for nonzeros. If non-null, this is presumed to have length
+    ///  at least \math{\ttt{nnz}.}
+    sint_t *cols;
     // ---------------------------------------------------------------------------
-    ///  A flag to indicate if the data in (rows, cols, vals) is sorted in a 
+    ///  A flag to indicate if the data in (vals, rows, cols) is sorted in a 
     ///  CSC-like order, a CSR-like order, or neither order.
     NonzeroSort sort = NonzeroSort::None;
-
-    bool _can_reserve = true;
-    // ^ A flag to indicate if we're allowed to allocate new memory for 
-    //   (rows, cols, vals). Set to false after COOMatrix.reserve(...) is called.
 
     COOMatrix(
         int64_t n_rows,
@@ -137,15 +135,12 @@ struct COOMatrix {
         sint_t *cols,
         bool compute_sort_type,
         IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), index_base(index_base) {
-        this->nnz = nnz;
-        this->vals = vals;
-        this->rows = rows;
-        this->cols = cols;
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), nnz(nnz), index_base(index_base),
+        vals(vals), rows(rows), cols(cols) {
         if (compute_sort_type) {
-            this->sort = coo_sort_type(nnz, rows, cols);
+            sort = coo_sort_type(nnz, rows, cols);
         } else {
-            this->sort = NonzeroSort::None;
+            sort = NonzeroSort::None;
         }
     };
 
@@ -153,7 +148,8 @@ struct COOMatrix {
         int64_t n_rows,
         int64_t n_cols,
         IndexBase index_base
-    ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), index_base(index_base) {};
+    ) : n_rows(n_rows), n_cols(n_cols), own_memory(true), nnz(0), index_base(index_base),
+        vals(nullptr), rows(nullptr), cols(nullptr) {};
 
     // Constructs an empty sparse matrix of given dimensions.
     // Data can't stored in this object until a subsequent call to reserve(int64_t nnz).
@@ -219,33 +215,12 @@ struct COOMatrix {
     ) : COOMatrix(n_rows, n_cols, nnz, vals, rows, cols, compute_sort_type, IndexBase::Zero) {};
 
     ~COOMatrix() {
-        if (this->own_memory) {
+        if (own_memory) {
             if (vals != nullptr) delete [] vals;
             if (rows != nullptr) delete [] rows;
             if (cols != nullptr) delete [] cols;
         }
     };
-
-    // @verbatim embed:rst:leading-slashes
-    // Attach three buffers of length nnz for (vals, rows, cols).
-    // This function can only be called if :math:`\ttt{own_memory == true},`` and
-    // it can only be called once.
-    //
-    // @endverbatim
-    void reserve(int64_t nnz) {
-        randblas_require(this->_can_reserve);
-        randblas_require(this->own_memory);
-        randblas_require(vals == nullptr);
-        randblas_require(rows == nullptr);
-        randblas_require(cols == nullptr);
-        this->nnz = nnz;
-        if (this->nnz > 0) {
-            vals = new T[nnz];
-            rows = new sint_t[nnz];
-            cols = new sint_t[nnz];
-        }
-        _can_reserve = false;
-    }
 
     /////////////////////////////////////////////////////////////////////
     //
@@ -255,12 +230,12 @@ struct COOMatrix {
 
     // move constructor
     COOMatrix(COOMatrix<T, sint_t> &&other) 
-    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), index_base(other.index_base) {
-        this->nnz = other.nnz;
-        std::swap(this->rows, other.rows);
-        std::swap(this->cols, other.cols);
-        std::swap(this->vals, other.vals);
-        this->_can_reserve = other._can_reserve;
+    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), nnz(0), index_base(other.index_base),
+      vals(nullptr), rows(nullptr), cols(nullptr) {
+        nnz = other.nnz;
+        std::swap(rows, other.rows);
+        std::swap(cols, other.cols);
+        std::swap(vals, other.vals);
         other.nnz = 0;
     }    
 
@@ -270,6 +245,22 @@ struct COOMatrix {
 static_assert(SparseMatrix<COOMatrix<float>>);
 static_assert(SparseMatrix<COOMatrix<double>>);
 #endif
+
+
+template <typename T, SignedInteger sint_t>
+void reserve(int64_t nnz, COOMatrix<T,sint_t> &M) {
+    randblas_require(M.own_memory);
+    randblas_require(M.vals == nullptr);
+    randblas_require(M.rows == nullptr);
+    randblas_require(M.cols == nullptr);
+    M.nnz = nnz;
+    if (M.nnz > 0) {
+        M.vals = new T[nnz];
+        M.rows = new sint_t[nnz];
+        M.cols = new sint_t[nnz];
+    }
+    return;
+}
 
 template <typename T, SignedInteger sint_t>
 void sort_coo_data(NonzeroSort s, int64_t nnz, T *vals, sint_t *rows, sint_t *cols) {
@@ -358,7 +349,7 @@ void dense_to_coo(int64_t stride_row, int64_t stride_col, T *mat, T abs_tol, COO
     int64_t n_rows = spmat.n_rows;
     int64_t n_cols = spmat.n_cols;
     int64_t nnz = nnz_in_dense(n_rows, n_cols, stride_row, stride_col, mat, abs_tol);
-    spmat.reserve(nnz);
+    reserve(nnz, spmat);
     nnz = 0;
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
     for (int64_t i = 0; i < n_rows; ++i) {
@@ -386,7 +377,6 @@ void dense_to_coo(Layout layout, T* mat, T abs_tol, COOMatrix<T> &spmat) {
 
 template <typename T>
 void coo_to_dense(const COOMatrix<T> &spmat, int64_t stride_row, int64_t stride_col, T *mat) {
-    randblas_require(spmat.index_base == IndexBase::Zero);
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
     for (int64_t i = 0; i < spmat.n_rows; ++i) {
         for (int64_t j = 0; j < spmat.n_cols; ++j) {

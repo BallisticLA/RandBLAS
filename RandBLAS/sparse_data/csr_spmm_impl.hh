@@ -42,7 +42,9 @@
 
 namespace RandBLAS::sparse_data::csr {
 
-template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
+using RandBLAS::SignedInteger;
+
+template <typename T, SignedInteger sint_t = int64_t>
 static void apply_csr_to_vector_from_left_ik(
     // CSR-format data
     const T *vals,
@@ -66,7 +68,7 @@ static void apply_csr_to_vector_from_left_ik(
     }
 }
 
-template <typename T, RandBLAS::SignedInteger sint_t>
+template <typename T, SignedInteger sint_t>
 static void apply_csr_left_jik_p11(
     T alpha,
     blas::Layout layout_B,
@@ -119,7 +121,7 @@ static void apply_csr_left_jik_p11(
     return;
 }
 
-template <typename T, RandBLAS::SignedInteger sint_t>
+template <typename T, SignedInteger sint_t>
 static void apply_csr_left_ikb_rowmajor(
     T alpha,
     int64_t d,

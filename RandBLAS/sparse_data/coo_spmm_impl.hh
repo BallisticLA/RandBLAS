@@ -42,7 +42,9 @@
 
 namespace RandBLAS::sparse_data::coo {
 
-template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
+using RandBLAS::SignedInteger;
+
+template <typename T, SignedInteger sint_t = int64_t>
 static int64_t set_filtered_coo(
     // COO-format matrix data
     const T       *vals,
@@ -75,8 +77,7 @@ static int64_t set_filtered_coo(
 }
 
 
-
-template <typename T, RandBLAS::SignedInteger sint_t>
+template <typename T, SignedInteger sint_t>
 static void apply_coo_left_jki_p11(
     T alpha,
     blas::Layout layout_B,

@@ -131,7 +131,7 @@ SpMat sum_of_coo_matrices(SpMat &A, SpMat &B) {
     }
 
     SpMat C(A.n_rows, A.n_cols);
-    C.reserve(c_dict.size());
+    reserve(c_dict.size(),C);
     int64_t ell = 0;
     for (auto iter : c_dict) {
         Tuple t = iter.first;
@@ -151,7 +151,7 @@ void make_signal_matrix(double signal_scale, double* u, int64_t m, double* v, in
     using sint_t = typename SpMat::index_t;
     constexpr bool valid_type = std::is_same_v<SpMat, COOMatrix<T, sint_t>>;
     randblas_require(valid_type);
-    signal_sparse.reserve(vec_nnz * vec_nnz);
+    reserve(vec_nnz * vec_nnz, signal_sparse);
 
     // populate signal_dense and signal_sparse.
     RandBLAS::RNGState u_state(0);
@@ -162,8 +162,8 @@ void make_signal_matrix(double signal_scale, double* u, int64_t m, double* v, in
     double uv_scale = 1.0 / std::sqrt((double) vec_nnz);
 
 
-    auto v_state    = RandBLAS::repeated_fisher_yates(u_state, vec_nnz, m, 1, work_idxs, trash, work_vals);
-    auto next_state = RandBLAS::repeated_fisher_yates(v_state, vec_nnz, n, 1, work_idxs+vec_nnz, trash, work_vals+vec_nnz);
+    auto v_state    = RandBLAS::sparse::repeated_fisher_yates(u_state, vec_nnz, m, 1, work_idxs, trash, work_vals);
+    auto next_state = RandBLAS::sparse::repeated_fisher_yates(v_state, vec_nnz, n, 1, work_idxs+vec_nnz, trash, work_vals+vec_nnz);
     for (int j = 0; j < vec_nnz; ++j) {
         for (int i = 0; i < vec_nnz; ++i) {
             int temp = i + j*vec_nnz;

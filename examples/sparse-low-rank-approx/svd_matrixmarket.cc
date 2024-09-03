@@ -77,7 +77,7 @@ COOMatrix<T> from_matrix_market(std::string fn) {
     );
 
     COOMatrix<T> out(n_rows, n_cols);
-    out.reserve(vals.size());
+    reserve(vals.size(), out);
     for (int i = 0; i < out.nnz; ++i) {
         out.rows[i] = rows[i];
         out.cols[i] = cols[i];
