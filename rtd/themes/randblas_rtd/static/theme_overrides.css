@@ -1,5 +1,9 @@
 @import 'css/theme.css';
 
+.MathJax {
+font-size: 11pt;
+}
+
 /* override table width restrictions */
 .wy-table-responsive table td, .wy-table-responsive table th {
     white-space: normal;

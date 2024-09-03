@@ -44,6 +44,7 @@
 #include <numbers>
 #include <chrono>
 
+using RandBLAS::sparse_data::reserve_coo;
 using RandBLAS::sparse_data::COOMatrix;
 
 #define DOUT(_d) std::setprecision(std::numeric_limits<double>::max_digits10) << _d
@@ -131,7 +132,7 @@ SpMat sum_of_coo_matrices(SpMat &A, SpMat &B) {
     }
 
     SpMat C(A.n_rows, A.n_cols);
-    reserve(c_dict.size(),C);
+    reserve_coo(c_dict.size(), C);
     int64_t ell = 0;
     for (auto iter : c_dict) {
         Tuple t = iter.first;
@@ -145,13 +146,9 @@ SpMat sum_of_coo_matrices(SpMat &A, SpMat &B) {
 }
 
 
-template <typename SpMat>
-void make_signal_matrix(double signal_scale, double* u, int64_t m, double* v, int64_t n, int64_t vec_nnz, double* signal_dense, SpMat &signal_sparse) {
-    using T = typename SpMat::scalar_t;
-    using sint_t = typename SpMat::index_t;
-    constexpr bool valid_type = std::is_same_v<SpMat, COOMatrix<T, sint_t>>;
-    randblas_require(valid_type);
-    reserve(vec_nnz * vec_nnz, signal_sparse);
+template <typename COOMatrix>
+void make_signal_matrix(double signal_scale, double* u, int64_t m, double* v, int64_t n, int64_t vec_nnz, double* signal_dense, COOMatrix &signal_sparse) {
+    reserve_coo(vec_nnz * vec_nnz, signal_sparse);
 
     // populate signal_dense and signal_sparse.
     RandBLAS::RNGState u_state(0);

@@ -98,4 +98,5 @@ html_js_files = [
 math_numfig = True
 math_eqref_format = "Eq. {number}"  # use a non-breaking-space unicode character.
 numfig_secnum_depth = 1
-# cpp_maximum_signature_line_length = 80
+imgmath_font_size = 11  # defaults to 12
+# cpp_maximum_signature_line_length = 120

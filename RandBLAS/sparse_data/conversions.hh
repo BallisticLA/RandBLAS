@@ -47,7 +47,7 @@ void coo_to_csc(COOMatrix<T, sint_t1> &coo, CSCMatrix<T, sint_t2> &csc) {
     randblas_require(csc.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
     sort_coo_data(NonzeroSort::CSC, coo);
-    reserve(coo.nnz, csc);
+    reserve_csc(coo.nnz, csc);
     csc.colptr[0] = 0;
     int64_t ell = 0;
     for (int64_t j = 0; j < coo.n_cols; ++j) {
@@ -67,7 +67,7 @@ void csc_to_coo(CSCMatrix<T, sint_t1> &csc, COOMatrix<T, sint_t2> &coo) {
     randblas_require(csc.n_cols == coo.n_cols);
     randblas_require(csc.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
-    reserve(csc.nnz, coo);
+    reserve_coo(csc.nnz, coo);
     int64_t ell = 0;
     for (int64_t j = 0; j < csc.n_cols; ++j) {
         for (int64_t i = csc.colptr[j]; i < csc.colptr[j+1]; ++i) {
@@ -88,7 +88,7 @@ void coo_to_csr(COOMatrix<T, sint_t1> &coo, CSRMatrix<T, sint_t2> &csr) {
     randblas_require(csr.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
     sort_coo_data(NonzeroSort::CSR, coo);
-    reserve(coo.nnz, csr);
+    reserve_csr(coo.nnz, csr);
     csr.rowptr[0] = (sint_t2) 0;
     int64_t ell = 0;
     for (int64_t i = 0; i < coo.n_rows; ++i) {
@@ -108,7 +108,7 @@ void csr_to_coo(CSRMatrix<T, sint_t1> &csr, COOMatrix<T, sint_t2> &coo) {
     randblas_require(csr.n_cols == coo.n_cols);
     randblas_require(csr.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
-    reserve(csr.nnz, coo);
+    reserve_coo(csr.nnz, coo);
     int64_t ell = 0;
     for (int64_t i = 0; i < csr.n_rows; ++i) {
         for (int64_t j = csr.rowptr[i]; j < csr.rowptr[i+1]; ++j) {
@@ -130,7 +130,7 @@ CSRMatrix<T, sint_t> transpose_as_csr(CSCMatrix<T, sint_t> &A, bool share_memory
     } else {
         CSRMatrix<T, sint_t> At(A.n_cols, A.n_rows);
         At.index_base = A.index_base;
-        reserve(A.nnz, At);
+        reserve_csr(A.nnz, At);
         for (int64_t i = 0; i < A.nnz; ++i) {
             At.colidxs[i] = A.rowidxs[i];
             At.vals[i] = A.vals[i];
@@ -149,7 +149,7 @@ CSCMatrix<T, sint_t> transpose_as_csc(CSRMatrix<T, sint_t> &A, bool share_memory
     } else {
         CSCMatrix<T, sint_t> At(A.n_cols, A.n_rows);
         At.index_base = A.index_base;
-        reserve(A.nnz, At);
+        reserve_csc(A.nnz, At);
         for (int64_t i = 0; i < A.nnz; ++i) {
             At.rowidxs[i] = A.colidxs[i];
             At.vals[i] = A.vals[i];
