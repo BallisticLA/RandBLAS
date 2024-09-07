@@ -176,20 +176,36 @@ static_assert(SparseMatrix<CSRMatrix<float>>);
 static_assert(SparseMatrix<CSRMatrix<double>>);
 #endif
 
-
 // -----------------------------------------------------
 ///
-/// Words.
+/// This function requires that M.own_memory is true, that
+/// M.colidxs is null, and that M.vals is null. If any of
+/// these conditions are not met then this function will
+/// raise an error.
+/// 
+/// Special logic applies to M.rowptr because its documented length
+/// requirement is determined by the const variable M.n_rows.
+///
+/// - If M.rowptr is non-null then it is left unchanged,
+///   and it is presumed to point to an array of length
+///   at least M.n_rows + 1.
+///
+/// - If M.rowptr is null, then it will be redirected to
+///   a new array of type sint_t and length (M.n_rows + 1).
+///
+/// From there, M.nnz is overwritten by nnz, and the reference
+/// members M.colidxs and M.vals are redirected to new
+/// arrays of length nnz (of types sint_t and T, respectively).
 ///
 template <typename T, SignedInteger sint_t>
 void reserve_csr(int64_t nnz, CSRMatrix<T, sint_t> &M) {
     randblas_require(M.own_memory);
+    randblas_require(M.colidxs == nullptr);
+    randblas_require(M.vals    == nullptr);
     if (M.rowptr == nullptr) 
         M.rowptr = new sint_t[M.n_rows + 1]{0};
     M.nnz = nnz;
     if (nnz > 0) {
-        randblas_require(M.colidxs == nullptr);
-        randblas_require(M.vals    == nullptr);
         M.colidxs = new sint_t[nnz]{0};
         M.vals    = new T[nnz]{0.0};
     }

@@ -266,7 +266,13 @@ static_assert(SparseMatrix<COOMatrix<double>>);
 
 // -----------------------------------------------------
 ///
-/// Words.
+/// This function requires that M.own_memory is true and that
+/// M.vals, M.rows, and M.cols are all null. If any of these
+/// conditions aren't satisfied then RandBLAS will raise an error.
+///
+/// If no error is raised, then M.nnz is overwritten by nnz,
+/// M.vals is redirected to a new length-nnz array of type T,
+/// and (M.rows, M.cols) are redirected to new length-nnz arrays of type sint_t.
 ///
 template <typename T, SignedInteger sint_t>
 void reserve_coo(int64_t nnz, COOMatrix<T,sint_t> &M) {
