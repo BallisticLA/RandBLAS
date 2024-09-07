@@ -268,7 +268,9 @@ struct DenseDist {
     const double isometry_scale;
 
     // ---------------------------------------------------------------------------
-    ///  The distribution on \math{\mathbb{R}} for entries of operators sampled from this distribution.
+    ///  @verbatim embed:rst:leading-slashes
+    ///  The distribution on :math:`\mathbb{R}` for entries of operators sampled from this distribution.
+    ///  @endverbatim
     const ScalarDist family;
 
     // ---------------------------------------------------------------------------

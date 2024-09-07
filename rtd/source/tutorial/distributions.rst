@@ -5,6 +5,7 @@
    .. |mtxA| mathmacro:: \mathbf{A}
    .. |mtxB| mathmacro:: \mathbf{B}
    .. |mtxS| mathmacro:: \mathbf{S}
+   .. |mtxx| mathmacro:: \mathbf{x}
    .. |ttt| mathmacro:: \texttt
    .. |vecnnz| mathmacro:: \texttt{vec_nnz}
    .. |majoraxis| mathmacro:: \texttt{major_axis}
@@ -68,9 +69,9 @@ Discussion of Q2.
   Consider, for example ...
 
     *Subspace iteration methods for low-rank approximation.* These methods have complexity :math:`\Omega(dmn)`
-    regardless of whether the complexity of computing the initial sketch is :math:`o(dmn)`.
+    regardless of whether the complexity of computing the initial sketch is :math:`o(dmn).`
 
-    *Sketch-and-precondition methods for least squares.* These methods need to set :math:`d \geq \min\{m,n\}`.
+    *Sketch-and-precondition methods for least squares.* These methods need to set :math:`d \geq \min\{m,n\}.`
     As a result, they can't tolerate :math:`O(dmn)` operations for sketching while still providing
     asymptotically faster runtime than a direct least squares solver.
 
@@ -111,7 +112,7 @@ DenseDist: family and major_axis
 --------------------------------
 A DenseDist represents a distribution over matrices with fixed dimensions, where 
 the entries are i.i.d. mean-zero variance-one random variables. 
-Its trailing constructor arguments are called  :math:`\ttt{family}` and :math:`\majoraxis`.
+Its trailing constructor arguments are called  :math:`\ttt{family}` and :math:`\majoraxis.`
 
 The family argument indicates whether the entries follow the standard normal distribution
 (:math:`\ttt{ScalarDist::Gaussian}`) or the uniform distribution over :math:`[-\sqrt{3},\sqrt{3}]`
@@ -153,49 +154,60 @@ SparseDist: vec_nnz and major_axis
 A SparseDist represents a distribution over sparse matrices with fixed dimensions, where 
 either the rows or the columns are sampled independently from certains distribution over
 sparse vectors.
-A SparseDist's trailing constructor arguments are called  :math:`\vecnnz` and :math:`\majoraxis`.
-Of these two parameters, the latter has a far more dramatic affects statistical properties and algorithmic use-cases.
+The distribution is determined by the trailing constructor arguments:  :math:`\vecnnz` and :math:`\majoraxis.`
 
-If major_axis == Short:
-
-  TODO: actually explain the distribution.
-
-  vec_nnz = 1 corresponds to the distribution over CountSketch operators.
-  vec_nnz > 1 corresponds to distributions which have been studied under
-  many different names, including OSNAPs, SJLTs, and Hashing embeddings.
-
-If major_axis == Long:
-
-  TODO: actually explain the distribution.
-
-  vec_nnz = 1 corresponds to operators for sampling uniformly with replacement
-  from the rows or columns of a data matrix (although the signs on the rows or
-  columns may be flipped). vec_nnz > 1 corresponds to so-called LESS-uniform
-  distributions.
-
-
-Now we'll discuss :math:`\vecnnz` in detail. First, we'll note that it's subject
-to the bounds 
-
-.. math::
-
-    1 \leq \vecnnz \leq \begin{cases} \min\{ \nrows,\, \ncols \} &\text{ if }~~ \majoraxis = \ttt{Short} \\ \max\{ \nrows,\,\ncols \} & \text{ if } ~~\majoraxis = \ttt{Long} \end{cases} 
+Let :math:`k = \ttt{dim_major}.`
+If :math:`\majoraxis = \ttt{Short},` this is :math:`\min\{\nrows,\ncols\}.`
+If :math:`\majoraxis = \ttt{Long},` this is :math:`\max\{\nrows,\ncols\}.`
+The major-axis vectors of a SparseSkOp follow a distribution :math:`\mathcal{V}` over :math:`\mathbb{R}^k.`
+The number of nonzeros in each major-axis vector is bounded by  :math:`1 \leq \vecnnz \leq k.`
 
 All else equal, larger values of :math:`\vecnnz` result in distributions
 that are "better" at preserving Euclidean geometry when sketching.
 The value of :math:`\vecnnz` that suffices for a given context will 
-also depend on the sketch size, :math:`d := \min\\{\nrows,\ncols\\}.`
+also depend on the sketch size, :math:`d := \min\{\nrows,\ncols\}.`
 Larger sketch sizes make it possible to "get away with" smaller values of
-:math:`\vecnnz`.
+:math:`\vecnnz.`
 
-For short-axis-major sparse sketching fine to choose very small values for 
-:math:`\vecnnz`. For example, suppose we're seeking a constant-distortion embedding
-of an unknown subspace of dimension :math:`n` where :math:`1{,}000 \leq n \leq 10{,}000`.
-If we use a short-axis-major sparse distribution :math:`d = 2n`, then many practitioners
-would feel comfortable taking :math:`\vecnnz` as 8 or even 2.
+When :math:`\majoraxis = \ttt{Short}.`
 
-If one seeks similar statistical properties from long-axis-sparse sketching it is
-important to use (much) larger values of :math:`\vecnnz.` There is less consensus
-in the community for what constitutes "big enough in practice," therefore we make
-no prescriptions here.
-    
+  A sample from :math:`\mathcal{V}` has exactly :math:`\vecnnz` nonzeros.
+  The locations of those nonzeros are chosen uniformly
+  without replacement from :math:`\{0,\ldots,k-1\}.` The values of the nonzeros are
+  sampled independently and uniformly from :math:`\pm 1.`
+
+  Many sketching distributions from the literature fall into this category.
+  :math:`\vecnnz = 1` corresponds to the distribution over CountSketch operators.
+  :math:`\vecnnz > 1` corresponds to distributions which have been studied under
+  many different names, including OSNAPs, SJLTs, and hashing embeddings.
+
+  The community has come to a consensus that very small values of :math:`\vecnnz` can suffice for good performance.
+  For example, suppose we seek a constant-distortion embedding
+  of an unknown subspace of dimension :math:`n,` where :math:`1{,}000 \leq n \leq 10{,}000.`
+  If :math:`d = 2n`, then many practitioners
+  would would restrict their attention to :math:`\vecnnz \leq 8.`
+  There are no special performance benefits in RandBLAS to setting :math:`\vecnnz = 1.`
+  Additionally, using :math:`\vecnnz > 1` makes it far more likely for a sketch to retain
+  useful geometric information from the data matrix.
+  Therefore we recommend one use :math:`\vecnnz \geq 2` in practice.
+
+When :math:`\majoraxis = \ttt{Long}.` 
+
+  A sample :math:`\mtxx` from :math:`\mathcal{V}` has *at most* :math:`\vecnnz` nonzero
+  entries. The locations of the nonzeros are determined by sampling uniformly
+  with replacement from :math:`\{0,\ldots,k-1\}.`
+  If index :math:`j` occurs in the sample :math:`\ell` times, then 
+  :math:`\mtxx_j` will equal :math:`\sqrt{\ell}` with probability 1/2 and
+  :math:`-\sqrt{\ell}` with probability 1/2.
+
+  In the literature,
+  :math:`\vecnnz = 1` corresponds to operators for sampling uniformly with replacement
+  from the rows or columns of a data matrix (although the signs on the rows or
+  columns may be flipped). :math:`\vecnnz > 1` is a special case of LESS-uniform
+  distributions, where the underlying scalar subgaussian distribution is the uniform
+  distribution over :math:`\pm 1.`
+
+  It is important to use (much) larger values of :math:`\vecnnz` here compared to the 
+  short-axis-major case.
+  There is less consensus in the community for what constitutes "big enough in practice," 
+  therefore we make no prescriptions on this front.
