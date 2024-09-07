@@ -253,34 +253,20 @@ inline TO safe_int_product(TI a, TI b) {
 
 
 // ---------------------------------------------------------------------------
-/// @verbatim embed:rst:leading-slashes
+/// Sketching operators are only "useful" for dimension reduction if they're
+/// non-square.
 ///
-/// *Note: This concept does not apply to distributions over square matrices.*
+/// The larger dimension of a sketching operator has a different
+/// semantic role than the small dimension. This enum provides a way for us
+/// to refer to the larger or smaller dimension in a way that's agnostic to 
+/// whether the sketching operator is wide or tall.
+///  
+/// For a wide matrix, its *short-axis vectors* are its columns, and its
+/// *long-axis vectors* are its rows.
 ///
-/// We define sketching distributions in a way that is agnostic to sketching from the left or from the right.
-/// This requires thinking less about the properties of a sketching operator's rows and columns
-/// and more about the properties of the vectors along their *longer axis* and *shorter axis*,
-/// in the sense of the table below.
+/// For a tall matrix, its short-axis vectors are its rows, and its
+/// long-axis vectors are its columns.
 ///
-/// .. list-table::
-///    :widths: 34 33 33
-///    :header-rows: 1
-///
-///    * - When sketching from the ...
-///      - the short-axis vectors are ...
-///      - the long-axis vectors are ...
-///    * - left, with a wide operator
-///      - the operator's columns
-///      - the operator's rows
-///    * - right, with a tall operator
-///      - the operator's rows
-///      - the operator's columns
-///
-/// If a distribution has major axis :math:`M` then its samples will have statistically
-/// independent :math:`M`-axis vectors. A major axis is *undefined* when there are dependencies across both 
-/// rows and columns.
-///
-/// @endverbatim
 enum class Axis : char {
     // ---------------------------------------------------------------------------
     Short = 'S',
@@ -289,6 +275,10 @@ enum class Axis : char {
     Long = 'L'
 };
 
+// ---------------------------------------------------------------------------
+/// Returns max(n_rows, n_cols) if major_axis == Axis::Long, and returns 
+/// min(n_rows, n_cols) otherwise.
+///
 inline int64_t get_dim_major(Axis major_axis, int64_t n_rows, int64_t n_cols) {
     if (major_axis == Axis::Long) {
         return std::max(n_rows, n_cols);
@@ -305,7 +295,9 @@ inline int64_t get_dim_major(Axis major_axis, int64_t n_rows, int64_t n_cols) {
 /// **Mathematical description**
 ///
 /// Matrices sampled from sketching distributions in RandBLAS are mean-zero
-/// and have covariance matrices that are proportional to the identity. That is, 
+/// and have covariance matrices that are proportional to the identity.
+///
+/// Formally, 
 /// if :math:`\D` is a distribution over :math:`r \times c` matrices and 
 /// :math:`\mtxS` is a sample from :math:`\D`,  then
 /// :math:`\mathbb{E}\mtxS = \mathbf{0}_{r \times c}` and
@@ -350,6 +342,12 @@ inline int64_t get_dim_major(Axis major_axis, int64_t n_rows, int64_t n_cols) {
 /// Note that the isometry scale is always stored in double precision; this has no bearing 
 /// on the precision of sketching operators that are sampled from a :math:`\ttt{SketchingDistribution}`.
 ///
+/// **Notes**
+///
+/// RandBLAS has two SketchingDistribution types: DenseDist and SparseDist.
+/// These types have members called called "major_axis,"
+/// "dim_major," and "dim_minor." These members have similar semantic roles across
+/// the two classes, but their precise meanings differ significantly.
 /// @endverbatim
 template<typename SkDist>
 concept SketchingDistribution = requires(SkDist D) {
@@ -364,18 +362,82 @@ concept SketchingDistribution = requires(SkDist D) {
 
 #ifdef __cpp_concepts
 // =============================================================================
+/// A type \math{\ttt{SKOP}} that conforms to the SketchingOperator concept
+/// has three member types.
 /// @verbatim embed:rst:leading-slashes
 ///
-/// .. NOTE: \ttt expands to \texttt (its definition is given in an rst file)
+/// .. list-table::
+///    :widths: 25 65
+///    :header-rows: 0
 ///
-/// Words. Hello!
+///    * - :math:`\ttt{SKOP::distribution_t}`
+///      - A type conforming to the SketchingDistribution concept.
+///    * - :math:`\ttt{SKOP::state_t}`
+///      - A template instantiation of RNGState.
+///    * - :math:`\ttt{SKOP::scalar_t}`
+///      - Real scalar type used in matrix representations of :math:`\ttt{SKOP}\text{s}.`
+///
+/// And an object :math:`\ttt{S}` of type :math:`\ttt{SKOP}` has the following 
+/// instance members.
+///
+/// .. list-table::
+///    :widths: 20 25 45
+///    :header-rows: 0
+///    
+///    * - :math:`\ttt{S.dist}`
+///      - :math:`\ttt{const distribution_t}`
+///      - Distribution from which this operator is sampled.
+///    * - :math:`\ttt{S.n_rows}`
+///      - :math:`\ttt{const int64_t}`
+///      - An alias for :math:`\ttt{S.dist.n_rows}.`
+///    * - :math:`\ttt{S.n_cols}`
+///      - :math:`\ttt{const int64_t}`
+///      - An alias for :math:`\ttt{S.dist.n_cols}.`
+///    * - :math:`\ttt{S.seed_state}`
+///      - :math:`\ttt{const state_t}`
+///      - RNGState used to construct
+///        an explicit representation of :math:`\ttt{S}`.
+///    * - :math:`\ttt{S.next_state}`
+///      - :math:`\ttt{const state_t}`
+///      - An RNGState that can be used in a call to a random sampling routine
+///        whose output should be statistically independent from :math:`\ttt{S}.`   
+///    * - :math:`\ttt{S.own_memory}`
+///      - :math:`\ttt{bool}`
+///      - A flag used to indicate whether internal functions
+///        have permission to attach memory to :math:`\ttt{S},`
+///        *and* whether the destructor of :math:`\ttt{S}` has the
+///        responsibility to delete any memory that's attached to
+///        :math:`\ttt{S}.`
+///
+/// 
+/// RandBLAS only has two SketchingOperator types: DenseSkOp and SparseSkOp. These types
+/// have several things in common
+/// that aren't enforced by the SketchingOperator concept. Most notably, they have 
+/// constructors of the following form.
+///
+/// .. code:: c++
+///
+///    SKOP(distribution_t dist, state_t seed_state) 
+///     : dist(dist), 
+///       seed_state(seed_state), 
+///       next_state(/* type-specific function of state and dist */), 
+///       n_rows(dist.n_rows), 
+///       n_cols(dist.n_cols), 
+///       own_memory(true)
+///       /* type-specific initializers */ { };
 ///
 /// @endverbatim
 template<typename SKOP>
-concept SketchingOperator = requires(SKOP S) {
+concept SketchingOperator = requires {
+    typename SKOP::distribution_t;
+    typename SKOP::state_t;
+    typename SKOP::scalar_t;
+} && SketchingDistribution<typename SKOP::distribution_t> && requires(
+    SKOP S,typename SKOP::distribution_t dist, typename SKOP::state_t state
+) {
+    { S.dist }       -> std::same_as<const typename SKOP::distribution_t&>;
     { S.n_rows }     -> std::same_as<const int64_t&>;
     { S.n_cols }     -> std::same_as<const int64_t&>;
-    { S.dist   }     -> SketchingDistribution;
     { S.seed_state } -> std::same_as<const typename SKOP::state_t&>;
     { S.next_state } -> std::same_as<const typename SKOP::state_t&>;
     { S.own_memory } -> std::same_as<bool&>;
@@ -383,6 +445,15 @@ concept SketchingOperator = requires(SKOP S) {
 #else
 #define SketchingOperator typename
 #endif
+
+// I want to add a constraint to SketchingOperator so that conformant types SKOP have two-argument constructors of the form SKOP(typename SKOP::
+
+///    * - :math:`\ttt{S.own_memory}`
+///      - :math:`\ttt{bool}`
+///      - RandBLAS has permission to attach memory to :math:`\ttt{S}`
+///        if and only if this is true. If true at destruction time, RandBLAS
+///        must delete any memory attached to :math:`\ttt{S}.` RandBLAS is 
+///        forbidden from deleting attached memory under any other circumstances.
 
 
 } // end namespace RandBLAS::base

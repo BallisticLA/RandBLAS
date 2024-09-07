@@ -336,6 +336,10 @@ struct DenseSkOp {
 
     // ---------------------------------------------------------------------------
     /// Type alias.
+    using distribution_t = DenseDist;
+
+    // ---------------------------------------------------------------------------
+    /// Type alias.
     using state_t = RNGState<RNG>;
 
     // ---------------------------------------------------------------------------
@@ -387,13 +391,7 @@ struct DenseSkOp {
     // ---------------------------------------------------------------------------
     ///  The storage order for \math{\ttt{buff}.} The leading dimension of
     ///  \math{\mat(\ttt{buff})} when reading from \math{\ttt{buff}} is
-    /// @verbatim embed:rst:leading-slashes
-    ///  .. math::
-    ///     
-    ///     \ttt{lds} = \begin{cases} \ttt{n_rows} & \text{ if } ~~ \ttt{layout == ColMajor} \\ \ttt{n_cols} & \text{ if } ~~ \ttt{layout == RowMajor} \end{cases}\,.
-    ///
-    ///  @endverbatim
-    ///
+    ///  \math{\ttt{dist.dim_major}.}
     const blas::Layout layout;
 
 
@@ -412,8 +410,9 @@ struct DenseSkOp {
     ///
     ///  Although \math{\ttt{own_memory}} is initialized to true, RandBLAS will not attach
     ///  memory to \math{\ttt{buff}} unless fill_dense(DenseSkOp &S) is called. 
-    ///  If a RandBLAS function needs an explicit representation of this operator and
-    ///  yet \math{\ttt{buff}} is null, then that function will construct a temporary
+    ///
+    ///  If RandBLAS function needs an explicit representation of this operator and
+    ///  yet \math{\ttt{buff}} is null, then RandBLAS will construct a temporary
     ///  explicit representation of this operator and delete that representation before returning.
     ///  
     DenseSkOp(
@@ -617,14 +616,10 @@ RNGState<RNG> fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed)
 /// @verbatim embed:rst:leading-slashes
 /// .. math::
 ///     
-///     (\ttt{S.layout},~\ttt{S.n_rows},~\ttt{S.n_cols},~\ttt{S.buff},~\ttt{lds})
+///     (\ttt{S.layout},~\ttt{S.n_rows},~\ttt{S.n_cols},~\ttt{S.buff},~\ttt{S.dist.dim_major})
 ///
-/// where
-///
-/// .. math::
-///     
-///     \ttt{lds} = \begin{cases} \ttt{n_rows} & \text{ if } ~~ \ttt{S.layout == ColMajor} \\ \ttt{n_cols} & \text{ if } ~~ \ttt{S.layout == RowMajor} \end{cases}\,.
-///
+/// In BLAS parlance, the last element of this tuple would be called the "leading dimension"
+/// of :math:`\ttt{S}.`
 /// @endverbatim
 template <typename DenseSkOp>
 void fill_dense(DenseSkOp &S) {
