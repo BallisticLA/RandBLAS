@@ -461,7 +461,7 @@ namespace RandBLAS::sparse {
 ///    - Refer to documentation for \math{\lda} for details. 
 ///
 template <typename T, typename RNG, SignedInteger sint_t>
-inline void lskges(
+void lskges(
     blas::Layout layout,
     blas::Op opS,
     blas::Op opA,
@@ -478,12 +478,14 @@ inline void lskges(
     T *B,
     int64_t ldb
 ) {
-    if (S.nnz <= 0)
-        fill_sparse(S);
+    if (S.nnz < 0) {
+        SparseSkOp<T,RNG,sint_t> shallowcopy(S.dist, S.seed_state); // shallowcopy.own_memory = true.
+        fill_sparse(shallowcopy);
+        lskges(layout, opS, opA, d, n, m, alpha, shallowcopy, ro_s, co_s, A, lda, beta, B, ldb);
+        return;
+    }
     auto Scoo = coo_view_of_skop(S);
-    left_spmm(
-        layout, opS, opA, d, n, m, alpha, Scoo, ro_s, co_s, A, lda, beta, B, ldb
-    );
+    left_spmm(layout, opS, opA, d, n, m, alpha, Scoo, ro_s, co_s, A, lda, beta, B, ldb);
     return;
 }
 
@@ -609,8 +611,11 @@ inline void rskges(
     T *B,
     int64_t ldb
 ) { 
-    if (S.nnz <= 0)
-        fill_sparse(S);
+    if (S.nnz < 0) {
+        SparseSkOp<T,RNG,sint_t> shallowcopy(S.dist, S.seed_state); // shallowcopy.own_memory = true.
+        fill_sparse(shallowcopy);
+        rskges(layout, opA, opS, m, d, n, alpha, A, lda, shallowcopy, ro_s, co_s, beta, B, ldb);
+    }
     auto Scoo = coo_view_of_skop(S);
     right_spmm(
         layout, opA, opS, m, d, n, alpha, A, lda, Scoo, ro_s, co_s, beta, B, ldb
