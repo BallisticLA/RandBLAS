@@ -1,7 +1,7 @@
 @import 'css/theme.css';
 
 .MathJax {
-font-size: 11pt;
+scale: 1.0; /* This definely has an effect on display environments. No effect on in-line text.*/
 }
 
 /* override table width restrictions */
