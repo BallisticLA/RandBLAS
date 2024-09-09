@@ -95,8 +95,48 @@ html_js_files = [
 ]
 
 # numfig = True
+# cpp_maximum_signature_line_length = 120
 math_numfig = True
 math_eqref_format = "Eq. {number}"  # use a non-breaking-space unicode character.
 numfig_secnum_depth = 1
-imgmath_font_size = 11  # defaults to 12
-# cpp_maximum_signature_line_length = 120
+
+"""
+I'm struggling with MathJax styling.
+
+I'd like to change the default global scaling of all math expressions to 0.9.
+
+Here's what I'ev got at time of giving up:
+
+    I'm able to get the scaling of all display environments by setting custom CSS,
+    but it isn't working for in-line text.
+    
+    I wasn't able to get consistent behavior by setting options like in the
+    dictionaries below, but that might have been because of changes not propogating
+    to the same browser session even if CTRL+Shift+R has been invoked.
+    
+    I think the CSS files only get updated when we build from scratch.
+
+Things I could try in the future:
+
+    Use custom Javascript to select the 0.9x scaling as though I were doing that
+    via the GUI.
+
+"""
+
+# mathjax_options = {'scale': '0.5'}
+# mathjax3_config = {
+#   'chtml': {
+#     'scale': '0.5',                      #// global scaling factor for all expressions
+#     'minScale': '.5',                  #// smallest scaling factor to use
+# #    ' mtextInheritFont': 'false',       #// true to make mtext elements use surrounding font
+# #     'merrorInheritFont': 'true',       #// true to make merror text use surrounding font
+# #     'mathmlSpacing': 'false',          #// true for MathML spacing rules, false for TeX rules
+# #     'skipAttributes': r'{}',           # // RFDa and other attributes NOT to copy to the output
+# #     'exFactor': '.5',                  #// default size of ex in em units
+#      'displayAlign': 'center',          #// default for indentalign when set to 'auto'
+# #     'displayIndent': '0',            #  // default for indentshift when set to 'auto'
+# #     'matchFontHeight': 'false',         #// true to match ex-height of surrounding font
+# #     'fontURL': '[mathjax]/components/output/chtml/fonts/woff-v2',   #// The URL where the fonts are found
+# #     'adaptiveCSS': 'true'              #// true means only produce CSS that is used in the processed equations
+#   }
+# };
