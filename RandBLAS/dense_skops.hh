@@ -413,7 +413,7 @@ struct DenseSkOp {
     ///  Although \math{\ttt{own_memory}} is initialized to true, RandBLAS will not attach
     ///  memory to \math{\ttt{buff}} unless fill_dense(DenseSkOp &S) is called. 
     ///
-    ///  If RandBLAS function needs an explicit representation of this operator and
+    ///  If a RandBLAS function needs an explicit representation of this operator and
     ///  yet \math{\ttt{buff}} is null, then RandBLAS will construct a temporary
     ///  explicit representation of this operator and delete that representation before returning.
     ///  
@@ -605,8 +605,8 @@ RNGState<RNG> fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed)
 // =============================================================================
 /// If \math{\ttt{S.own_memory}} is true then we enter an allocation stage. If
 /// \math{\ttt{S.buff}} is equal to \math{\ttt{nullptr}} then it is redirected to the
-/// start of an array allocated with ``new []``. The length of any allocated
-/// array is \math{\ttt{S.n_rows * S.n_cols}.} 
+/// start of an new array (allocated with ``new []``)
+/// of length \math{\ttt{S.n_rows * S.n_cols}.} 
 ///
 /// After the allocation stage, we check \math{\ttt{S.buff}} and we raise
 /// an error if it's null.

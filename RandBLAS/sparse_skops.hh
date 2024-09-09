@@ -326,10 +326,6 @@ struct SparseSkOp {
     ///  Negative values are a flag that the operator's explicit representation
     ///  hasn't been sampled yet.
     ///
-    ///  If this value is negative when this operator is
-    ///  passed to sketching function, then that function will
-    ///  call fill_sparse(SparseSkOp &S).
-    ///
     ///  \internal
     ///  If dist.major_axis
     ///  is Short then we know ahead of time that nnz=dist.full_nnz.
@@ -366,12 +362,16 @@ struct SparseSkOp {
 
     /// ---------------------------------------------------------------------------
     ///  **Standard constructor**. Arguments passed to this function are 
-    ///  used to initialize members of the same name. own_memory is initialized to true,
+    ///  used to initialize members of the same names. own_memory is initialized to true,
     ///  nnz is initialized to -1, and (vals, rows, cols) are each initialized
     ///  to nullptr. next_state is computed automatically from dist and seed_state.
     ///  
-    ///  This constructor is intended for use with fill_sparse(SparseSkOp &S),
-    ///  which RandBLAS will call if and when needed.
+    ///  Although own_memory is initialized to true, RandBLAS will not attach
+    ///  memory to (vals, rows, cols) unless fill_sparse(SparseSkOp &S) is called. 
+    ///
+    ///  If a RandBLAS function needs an explicit representation of this operator and
+    ///  yet nnz < 0, then RandBLAS will construct a temporary
+    ///  explicit representation of this operator and delete that representation before returning.
     ///  
     SparseSkOp(
         SparseDist dist,
@@ -385,7 +385,7 @@ struct SparseSkOp {
 
     /// --------------------------------------------------------------------------------
     ///  **Expert constructor**. Arguments passed to this function are 
-    ///  used to initialize members of the same name. own_memory is initialized to false.
+    ///  used to initialize members of the same names. own_memory is initialized to false.
     /// 
     SparseSkOp(
         SparseDist dist,
@@ -540,10 +540,9 @@ state_t fill_sparse_unpacked_nosub(
 
 // =============================================================================
 /// If \math{\ttt{S.own_memory}} is true then we enter an allocation stage. This stage
-/// inspects the reference members of \math{\ttt{S}}, 
-/// and any of them which is equal to \math{\ttt{nullptr}} is redirected to the
-/// start of an array allocated with ``new []``. The length of any allocated
-/// array is \math{\ttt{S.dist.full_nnz}.} 
+/// inspects the reference members of \math{\ttt{S}}.
+/// Any reference member that's equal to \math{\ttt{nullptr}} is redirected to 
+/// the start of a new array (allocated with ``new []``) of length \math{\ttt{S.dist.full_nnz}.} 
 ///
 /// After the allocation stage, we inspect the reference members of \math{\ttt{S}}
 /// and we raise an error if any of them are null.
