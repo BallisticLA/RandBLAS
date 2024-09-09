@@ -5,11 +5,11 @@ Memory management
 
 Decades ago, the designers of the classic BLAS made the wise decision to not internally allocate dynamically-sized
 arrays.
-Such an approach was (and is) viabale because BLAS only operates on very simple datatypes: scalars and references
+Such an approach was (and is) viable because BLAS only operates on very simple datatypes: scalars and references
 to dense arrays of scalars.
 
 RandBLAS, by contrast, needs to provide a polymorphic API with far more sophisticated datatypes.
-This has led us to adopt a policy where we can internally allocate and dellocate dynamically-sized arrays 
+This has led us to adopt a policy where we can internally allocate and deallocate dynamically-sized arrays 
 with the ``new []`` and ``delete []`` keywords, subject to the restrictions below. 
 Users are not bound to follow these rules, but deviations from them should be made with care.
 
@@ -24,7 +24,7 @@ Allocation and writing to reference members
 2. We can only attach memory to objects by overwriting a null-valued reference member,
    and only when the object has an ``own_memory`` member that evaluates to true.
 
-3. We cannot overwrite an an object's reference member if there is a chance that doing so may cause a memory leak.
+3. We cannot overwrite an object's reference member if there is a chance that doing so may cause a memory leak.
     
     This restriction is in place regardless of whether ``obj.own_memory`` is true.
     It makes for very few cases when RandBLAS is allowed to overwrite a non-null reference member.
@@ -56,7 +56,7 @@ There are two possibilities for what happens next.
 2. Under any other circumstances, RandBLAS raises an error. 
 
 In essence, the first situation has enough structure that the user could plausibly understand RandBLAS' behavior,
-while the latter situation is too error prone for RandBLAS to play a role in it.
+while the latter situation is too error-prone for RandBLAS to play a role in it.
 
 
 Discussion
