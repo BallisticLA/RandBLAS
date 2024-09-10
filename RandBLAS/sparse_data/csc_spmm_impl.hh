@@ -40,7 +40,9 @@
 
 namespace RandBLAS::sparse_data::csc {
 
-template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
+using RandBLAS::SignedInteger;
+
+template <typename T, SignedInteger sint_t = int64_t>
 static void apply_csc_to_vector_from_left_ki(
     // CSC-format data
     const T *vals,
@@ -64,7 +66,7 @@ static void apply_csc_to_vector_from_left_ki(
     }
 }
 
-template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
+template <typename T, SignedInteger sint_t = int64_t>
 static void apply_regular_csc_to_vector_from_left_ki(
     // data for "regular CSC": CSC with fixed nnz per col,
     // which obviates the requirement for colptr.
@@ -87,7 +89,7 @@ static void apply_regular_csc_to_vector_from_left_ki(
     }
 }
 
-template <typename T, RandBLAS::SignedInteger sint_t>
+template <typename T, SignedInteger sint_t>
 static void apply_csc_left_jki_p11(
     T alpha,
     blas::Layout layout_B,
@@ -152,7 +154,7 @@ static void apply_csc_left_jki_p11(
     return;
 }
 
-template <typename T, RandBLAS::SignedInteger sint_t>
+template <typename T, SignedInteger sint_t>
 static void apply_csc_left_kib_rowmajor_1p1(
     T alpha,
     int64_t d,

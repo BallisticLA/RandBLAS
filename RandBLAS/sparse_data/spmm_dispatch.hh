@@ -45,7 +45,7 @@
 
 namespace RandBLAS::sparse_data {
 
-template <typename T, SparseMatrix SpMat>
+template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
 void left_spmm(
     blas::Layout layout,
     blas::Op opA,
@@ -159,7 +159,7 @@ void left_spmm(
     return;
 }
 
-template <typename T, SparseMatrix SpMat>
+template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
 inline void right_spmm(
     blas::Layout layout,
     blas::Op opA,
@@ -178,13 +178,13 @@ inline void right_spmm(
     int64_t ldc
 ) { 
     //
-    // Compute C = op(mat(A)) @ op(submat(B)) by reduction to left_spmm. We start with
+    // Compute C = op(mat(A)) @ op(submat(\mtxB)) by reduction to left_spmm. We start with
     //
-    //      C^T = op(submat(B))^T @ op(mat(A))^T.
+    //      C^T = op(submat(\mtxB))^T @ op(mat(A))^T.
     //
-    // Then we interchange the operator "op(*)" in op(submat(A)) and (*)^T:
+    // Then we interchange the operator "op(*)" in op(submat(\mtxA)) and (*)^T:
     //
-    //      C^T = op(submat(B))^T @ op(mat(A)^T).
+    //      C^T = op(submat(\mtxB))^T @ op(mat(A)^T).
     //
     // We tell left_spmm to process (C^T) and (B^T) in the opposite memory layout
     // compared to the layout for (B, C).
@@ -205,17 +205,16 @@ namespace RandBLAS {
 
 // =============================================================================
 /// \fn spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m,
-///     int64_t n, int64_t k, T alpha, SpMat &A, int64_t ro_a, int64_t co_a,
-///     const T *B, int64_t ldb, T beta, T *C, int64_t ldc
+///     int64_t n, int64_t k, T alpha, SpMat &A, const T *B, int64_t ldb, T beta, T *C, int64_t ldc
 /// ) 
 /// @verbatim embed:rst:leading-slashes
-/// Perform an SPMM-like operation, multiplying a dense matrix on the left with a (submatrix of a) sparse matrix:
+/// Perform an SPMM-like operation, multiplying a dense matrix on the left with a sparse matrix:
 ///
 /// .. math::
-///     \mat(C) = \alpha \cdot \underbrace{\op(\submat(A))}_{m \times k} \cdot \underbrace{\op(\mat(B))}_{k \times n} + \beta \cdot \underbrace{\mat(C)}_{m \times n},    \tag{$\star$}
+///     \mat(C) = \alpha \cdot \underbrace{\op(\mtxA)}_{m \times k} \cdot \underbrace{\op(\mat(B))}_{k \times n} + \beta \cdot \underbrace{\mat(C)}_{m \times n},    \tag{$\star$}
 ///
-/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(X)` either returns a matrix :math:`X`
-/// or its transpose, and :math:`A` is a sparse matrix.
+/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(\mtxX)` either returns a matrix :math:`\mtxX`
+/// or its transpose, and :math:`\mtxA` is a sparse matrix.
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
@@ -225,8 +224,8 @@ namespace RandBLAS {
 ///       * Matrix storage for :math:`\mat(B)` and :math:`\mat(C)`.
 ///
 ///      opA - [in]
-///       * If :math:`\opA` == NoTrans, then :math:`\op(\submat(A)) = \submat(A)`.
-///       * If :math:`\opA` == Trans, then :math:`\op(\submat(A)) = \submat(A)^T`.
+///       * If :math:`\opA` == NoTrans, then :math:`\op(\mtxA) = \mtxA`.
+///       * If :math:`\opA` == Trans, then :math:`\op(\mtxA) = \mtxA^T`.
 ///
 ///      opB - [in]
 ///       * If :math:`\opB` = NoTrans, then :math:`\op(\mat(B)) = \mat(B)`.
@@ -235,7 +234,7 @@ namespace RandBLAS {
 ///      m - [in]
 ///       * A nonnegative integer.
 ///       * The number of rows in :math:`\mat(C)`.
-///       * The number of rows in :math:`\op(\submat(A))`.
+///       * The number of rows in :math:`\op(\mtxA)`.
 ///
 ///      n - [in]
 ///       * A nonnegative integer.
@@ -244,7 +243,7 @@ namespace RandBLAS {
 ///
 ///      k - [in]
 ///       * A nonnegative integer.
-///       * The number of columns in :math:`\op(\submat(A))`
+///       * The number of columns in :math:`\op(\mtxA)`
 ///       * The number of rows in :math:`\op(\mat(B))`.
 ///
 ///      alpha - [in]
@@ -252,17 +251,7 @@ namespace RandBLAS {
 ///
 ///      A - [in]
 ///       * A RandBLAS sparse matrix object.
-///       * Defines :math:`\submat(A)`.
-///
-///      ro_a - [in]
-///       * A nonnegative integer.
-///       * The rows of :math:`\submat(A)` are a contiguous subset of rows of :math:`A.`
-///       * The rows of :math:`\submat(A)` start at :math:`A[\texttt{ro_a}, :].`
-///
-///      co_a - [in]
-///       * A nonnegative integer.
-///       * The columns of :math:`\submat(A)` are a contiguous subset of columns of :math:`A`.
-///       * The columns :math:`\submat(A)` start at :math:`A[:,\texttt{co_a}]`. 
+///       * Defines :math:`\mtxA`.
 ///
 ///      B - [in]
 ///       * Pointer to 1D array of real scalars that define :math:`\mat(B)`.
@@ -287,25 +276,24 @@ namespace RandBLAS {
 ///       * Leading dimension of :math:`\mat(C)` when reading from :math:`C`.
 ///
 /// @endverbatim
-template < typename T, SparseMatrix SpMat>
-inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, SpMat &A, int64_t ro_a, int64_t co_a, const T *B, int64_t ldb, T beta, T *C, int64_t ldc) {
-    RandBLAS::sparse_data::left_spmm(layout, opA, opB, m, n, k, alpha, A, ro_a, co_a, B, ldb, beta, C, ldc);
+template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
+inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, SpMat &A, const T *B, int64_t ldb, T beta, T *C, int64_t ldc) {
+    RandBLAS::sparse_data::left_spmm(layout, opA, opB, m, n, k, alpha, A, 0, 0, B, ldb, beta, C, ldc);
     return;
 };
 
 // =============================================================================
 /// \fn spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m,
-///     int64_t n, int64_t k, T alpha, const T* A, int64_t lda,
-///     SpMat &B, int64_t ro_b, int64_t co_b, T beta, T *C, int64_t ldc
+///     int64_t n, int64_t k, T alpha, const T* A, int64_t lda, SpMat &B, T beta, T *C, int64_t ldc
 /// ) 
 /// @verbatim embed:rst:leading-slashes
 /// Perform an SPMM-like operation, multiplying a dense matrix on the right with a (submatrix of a) sparse matrix:
 ///
 /// .. math::
-///     \mat(C) = \alpha \cdot \underbrace{\op(\mat(A))}_{m \times k} \cdot \underbrace{\op(\submat(B))}_{k \times n} + \beta \cdot \underbrace{\mat(C)}_{m \times n},    \tag{$\star$}
+///     \mat(C) = \alpha \cdot \underbrace{\op(\mat(A))}_{m \times k} \cdot \underbrace{\op(\mtxB)}_{k \times n} + \beta \cdot \underbrace{\mat(C)}_{m \times n},    \tag{$\star$}
 ///
-/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(X)` either returns a matrix :math:`X`
-/// or its transpose, and :math:`B` is a sparse matrix.
+/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(\mtxX)` either returns a matrix :math:`\mtxX`
+/// or its transpose, and :math:`\mtxB` is a sparse matrix.
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
@@ -319,8 +307,8 @@ inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int
 ///       * If :math:`\opA` = Trans, then :math:`\op(\mat(A)) = \mat(A)^T`.
 ///
 ///      opB - [in]
-///       * If :math:`\opB` = NoTrans, then :math:`\op(\submat(B)) = \submat(B)`.
-///       * If :math:`\opB` = Trans, then :math:`\op(\submat(B)) = \submat(B)^T`.
+///       * If :math:`\opB` = NoTrans, then :math:`\op(\mtxB) = \mtxB`.
+///       * If :math:`\opB` = Trans, then :math:`\op(\mtxB) = \mtxB^T`.
 ///
 ///      m - [in]
 ///       * A nonnegative integer.
@@ -330,12 +318,12 @@ inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int
 ///      n - [in]
 ///       * A nonnegative integer.
 ///       * The number of columns in :math:`\mat(C)`.
-///       * The number of columns in :math:`\op(\submat(B))`.
+///       * The number of columns in :math:`\op(\mtxB)`.
 ///
 ///      k - [in]
 ///       * A nonnegative integer.
 ///       * The number of columns in :math:`\op(\mat(A))`
-///       * The number of rows in :math:`\op(\submat(B))`.
+///       * The number of rows in :math:`\op(\mtxB)`.
 ///
 ///      alpha - [in]
 ///       * A real scalar.
@@ -349,17 +337,6 @@ inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int
 ///
 ///      B - [in]
 ///       * A RandBLAS sparse matrix object.
-///       * Defines :math:`\submat(B)`.
-///
-///      ro_b - [in]
-///       * A nonnegative integer.
-///       * The rows of :math:`\submat(B)` are a contiguous subset of rows of :math:`B`.
-///       * The rows of :math:`\submat(B)` start at :math:`B[\texttt{ro_b}, :]`.
-///
-///      co_b - [in]
-///       * A nonnegative integer.
-///       * The columns of :math:`\submat(B)` are a contiguous subset of columns of :math:`B`.
-///       * The columns :math:`\submat(B)` start at :math:`B[:,\texttt{co_a}]`.
 ///
 ///      beta - [in]
 ///       * A real scalar.
@@ -377,9 +354,9 @@ inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int
 ///       * Leading dimension of :math:`\mat(C)` when reading from :math:`C`.
 ///
 /// @endverbatim
-template <typename T, SparseMatrix SpMat>
-inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T *A, int64_t lda, SpMat &B, int64_t ro_b, int64_t co_b, T beta, T *C, int64_t ldc) {
-    RandBLAS::sparse_data::right_spmm(layout, opA, opB, m, n, k, alpha, A, lda, B, ro_b, co_b, B, beta, C, ldc);
+template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
+inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T *A, int64_t lda, SpMat &B, T beta, T *C, int64_t ldc) {
+    RandBLAS::sparse_data::right_spmm(layout, opA, opB, m, n, k, alpha, A, lda, B, 0, 0, B, beta, C, ldc);
     return;
 }
 

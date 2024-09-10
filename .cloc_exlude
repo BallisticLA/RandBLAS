@@ -1,0 +1,11 @@
+bin/
+CMake/
+RandBLAS/CMakeFiles/
+examples/build/
+examples/sparse-data-matrices/
+rtd/build/
+rtd/sphinxext/
+test/lib/googletest/
+.github
+.gitignore
+.gitmodules

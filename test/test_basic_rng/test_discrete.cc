@@ -65,7 +65,7 @@ class TestSampleIndices : public ::testing::Test
     static void test_iid_uniform_smoke(int64_t N, int64_t k, uint32_t seed) { 
         RNGState state(seed);
         std::vector<int64_t> samples(k, -1);
-        RandBLAS::util::sample_indices_iid_uniform(N, k, samples.data(), state);
+        RandBLAS::sample_indices_iid_uniform(N, k, samples.data(), state);
         int64_t* data = samples.data();
         for (int64_t i = 0; i < k; ++i) {
             ASSERT_LT(data[i], N);
@@ -81,7 +81,7 @@ class TestSampleIndices : public ::testing::Test
         std::vector<float> sample_cdf(N, 0.0);
         for (int64_t s : samples)
             sample_cdf[s] += 1;
-        RandBLAS::util::weights_to_cdf(N, sample_cdf.data());
+        RandBLAS::weights_to_cdf(N, sample_cdf.data());
 
         for (int i = 0; i < N; ++i) {
             float F_empirical = sample_cdf[i];
@@ -97,11 +97,11 @@ class TestSampleIndices : public ::testing::Test
         auto critical_value = critical_value_rep_mutator(num_samples, significance);
 
         std::vector<float> true_cdf(N, 1.0);
-        RandBLAS::util::weights_to_cdf(N, true_cdf.data());
+        RandBLAS::weights_to_cdf(N, true_cdf.data());
 
         RNGState state(seed);
         std::vector<int64_t> samples(num_samples, -1);
-        RandBLAS::util::sample_indices_iid_uniform(N, num_samples, samples.data(), state);
+        RandBLAS::sample_indices_iid_uniform(N, num_samples, samples.data(), state);
 
         index_set_kolmogorov_smirnov_tester(samples, true_cdf, critical_value);
         return;
@@ -115,11 +115,11 @@ class TestSampleIndices : public ::testing::Test
         std::vector<float> true_cdf{};
         for (int i = 0; i < N; ++i)
             true_cdf.push_back(std::pow(1.0/((float)i + 1.0), exponent));
-        RandBLAS::util::weights_to_cdf(N, true_cdf.data());
+        RandBLAS::weights_to_cdf(N, true_cdf.data());
 
         RNGState state(seed);
         std::vector<int64_t> samples(num_samples, -1);
-        RandBLAS::util::sample_indices_iid(N, true_cdf.data(), num_samples, samples.data(), state);
+        RandBLAS::sample_indices_iid(N, true_cdf.data(), num_samples, samples.data(), state);
 
         index_set_kolmogorov_smirnov_tester(samples, true_cdf, critical_value);
         return;
@@ -131,8 +131,8 @@ class TestSampleIndices : public ::testing::Test
         std::vector<int64_t> samples(num_samples, -1);
         RNGState state(seed);
 
-        using RandBLAS::util::weights_to_cdf;
-        using RandBLAS::util::sample_indices_iid;
+        using RandBLAS::weights_to_cdf;
+        using RandBLAS::sample_indices_iid;
 
         // Test case 1: distribution is nonuniform, with mass only on even elements != 10.
         std::vector<float> true_cdf(N, 0.0);
@@ -166,7 +166,7 @@ class TestSampleIndices : public ::testing::Test
     //
 
     static std::vector<float> fisher_yates_cdf(const std::vector<int64_t> &idxs_major, int64_t K, int64_t num_samples) {
-        using RandBLAS::util::weights_to_cdf;
+        using RandBLAS::weights_to_cdf;
         std::vector<float> empirical_cdf;
 
         // If K is 0, then there's nothing to count over and we should just return 1
@@ -214,7 +214,7 @@ class TestSampleIndices : public ::testing::Test
     static void single_test_fisher_yates_kolmogorov_smirnov(int64_t N, int64_t K, double significance, int64_t num_samples, uint32_t seed) {
         using RandBLAS::sparse::repeated_fisher_yates;
         using RandBLAS_StatTests::hypergeometric_pmf_arr;
-        using RandBLAS::util::weights_to_cdf;
+        using RandBLAS::weights_to_cdf;
         using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
 
         auto critical_value = critical_value_rep_mutator(num_samples, significance);
@@ -224,7 +224,7 @@ class TestSampleIndices : public ::testing::Test
         RNGState state(seed);
 
         // Generate repeated Fisher-Yates in idxs_major
-        state = repeated_fisher_yates(state, K, N, num_samples, indices.data());
+        state = repeated_fisher_yates(K, N, num_samples, indices.data(), state);
 
         // Generate the true hypergeometric cdf (get the pdf first)
         std::vector<float> true_cdf = hypergeometric_pmf_arr<float>(N, K, K);

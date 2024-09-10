@@ -38,13 +38,6 @@ namespace RandBLAS {
 using namespace RandBLAS::dense;
 using namespace RandBLAS::sparse;
 
-/* Intended macro definitions.
-
-   .. |mat| mathmacro:: \operatorname{mat}
-   .. |submat| mathmacro:: \operatorname{submat}
-   .. |lda| mathmacro:: \texttt{lda}
-   .. |ldb| mathmacro:: \texttt{ldb}
-*/
 
 // MARK: SUBMAT(S)
 
@@ -58,9 +51,9 @@ using namespace RandBLAS::sparse;
 /// Check that :math:`\mat(A)` is symmetric up to tolerance :math:`\texttt{sym_check_tol}`, then sketch from the right in a SYMM-like operation
 /// 
 /// .. math::
-///     \mat(B) = \alpha \cdot \underbrace{\mat(A)}_{n \times n} \cdot \underbrace{\submat(S)}_{n \times d}  + \beta \cdot \underbrace{\mat(B)}_{n \times d},    \tag{$\star$}
+///     \mat(B) = \alpha \cdot \underbrace{\mat(A)}_{n \times n} \cdot \underbrace{\submat(\mtxS)}_{n \times d}  + \beta \cdot \underbrace{\mat(B)}_{n \times d},    \tag{$\star$}
 /// 
-/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`S` is a sketching operator.
+/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`\mtxS` is a sketching operator.
 ///
 /// .. dropdown:: FAQ
 ///   :animate: fade-in-slide-down
@@ -71,7 +64,7 @@ using namespace RandBLAS::sparse;
 ///       according to 
 ///
 ///             .. math::
-///                 \mat(A)[i, j] = A[i + j \cdot \lda] = A[i \cdot \lda + j].
+///                 \mat(A)_{ij} = A[i + j \cdot \lda] = A[i \cdot \lda + j].
 ///
 ///       Note that the the "layout" parameter passed to this function is not used here.
 ///       That's because this function requires :math:`\mat(A)` to be stored in the format
@@ -88,21 +81,21 @@ using namespace RandBLAS::sparse;
 ///       If layout == ColMajor, then
 ///
 ///             .. math::
-///                 \mat(B)[i, j] = B[i + j \cdot \ldb].
+///                 \mat(B)_{ij} = B[i + j \cdot \ldb].
 ///
 ///       In this case, :math:`\ldb` must be :math:`\geq n.`
 ///
 ///       If layout == RowMajor, then
 ///
 ///             .. math::
-///                 \mat(B)[i, j] = B[i \cdot \ldb + j].
+///                 \mat(B)_{ij} = B[i \cdot \ldb + j].
 ///
 ///       In this case, :math:`\ldb` must be :math:`\geq d.`
 ///
-///     **What is** :math:`\submat(S)` **?**
+///     **What is** :math:`\submat(\mtxS)` **?**
 ///
-///       It's the :math:`n \times d` submatrix of :math:`{S}` whose upper-left corner appears
-///       at index :math:`(\texttt{ro_s}, \texttt{co_s})` of :math:`{S}.`
+///       It's the :math:`n \times d` submatrix of :math:`{\mtxS}` whose upper-left corner appears
+///       at index :math:`(\texttt{ro_s}, \texttt{co_s})` of :math:`{\mtxS}.`
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
@@ -118,7 +111,7 @@ using namespace RandBLAS::sparse;
 ///
 ///      d - [in]
 ///       * A nonnegative integer.
-///       * The number of columns in :math:`\mat(B)` and :math:`\submat(S).`
+///       * The number of columns in :math:`\mat(B)` and :math:`\submat(\mtxS).`
 ///
 ///      alpha - [in]
 ///       * A real scalar.
@@ -134,17 +127,17 @@ using namespace RandBLAS::sparse;
 ///
 ///      S - [in]  
 ///       * A DenseSkOp or SparseSkOp object.
-///       * Defines :math:`\submat(S).`
+///       * Defines :math:`\submat(\mtxS).`
 ///
 ///      ro_s - [in]
 ///       * A nonnegative integer.
-///       * The rows of :math:`\submat(S)` are a contiguous subset of rows of :math:`S.`
-///       * The rows of :math:`\submat(S)` start at :math:`S[\texttt{ro_s}, :].`
+///       * The rows of :math:`\submat(\mtxS)` are a contiguous subset of rows of :math:`S.`
+///       * The rows of :math:`\submat(\mtxS)` start at :math:`S[\texttt{ro_s}, :].`
 ///
 ///      co_s - [in]
 ///       * A nonnnegative integer.
-///       * The columns of :math:`\submat(S)` are a contiguous subset of columns of :math:`S.`
-///       * The columns of :math:`\submat(S)` start at :math:`S[:,\texttt{co_s}].` 
+///       * The columns of :math:`\submat(\mtxS)` are a contiguous subset of columns of :math:`S.`
+///       * The columns of :math:`\submat(\mtxS)` start at :math:`S[:,\texttt{co_s}].` 
 ///
 ///      beta - [in]
 ///       * A real scalar.
@@ -162,7 +155,7 @@ using namespace RandBLAS::sparse;
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <SketchingOperator SKOP, typename T = SKOP::scalar_t>
 inline void sketch_symmetric(
     // B = alpha*A*S + beta*B, where A is a symmetric matrix stored in the format of a general matrix.
     blas::Layout layout,
@@ -193,9 +186,9 @@ inline void sketch_symmetric(
 /// Check that :math:`\mat(A)` is symmetric up to tolerance :math:`\texttt{sym_check_tol}`, then sketch from the left in a SYMM-like operation
 /// 
 /// .. math::
-///     \mat(B) = \alpha \cdot \underbrace{\submat(S)}_{d \times n} \cdot \underbrace{\mat(A)}_{n \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
+///     \mat(B) = \alpha \cdot \underbrace{\submat(\mtxS)}_{d \times n} \cdot \underbrace{\mat(A)}_{n \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
 /// 
-/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`S` is a sketching operator.
+/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`\mtxS` is a sketching operator.
 ///
 /// .. dropdown:: FAQ
 ///   :animate: fade-in-slide-down
@@ -206,7 +199,7 @@ inline void sketch_symmetric(
 ///       according to 
 ///
 ///             .. math::
-///                 \mat(A)[i, j] = A[i + j \cdot \lda] = A[i \cdot \lda + j].
+///                 \mat(A)_{ij} = A[i + j \cdot \lda] = A[i \cdot \lda + j].
 ///
 ///       Note that the the "layout" parameter passed to this function is not used here.
 ///       That's because this function requires :math:`\mat(A)` to be stored in the format
@@ -223,21 +216,21 @@ inline void sketch_symmetric(
 ///       If layout == ColMajor, then
 ///
 ///             .. math::
-///                 \mat(B)[i, j] = B[i + j \cdot \ldb].
+///                 \mat(B)_{ij} = B[i + j \cdot \ldb].
 ///
 ///       In this case, :math:`\ldb` must be :math:`\geq d.`
 ///
 ///       If layout == RowMajor, then
 ///
 ///             .. math::
-///                 \mat(B)[i, j] = B[i \cdot \ldb + j].
+///                 \mat(B)_{ij} = B[i \cdot \ldb + j].
 ///
 ///       In this case, :math:`\ldb` must be :math:`\geq n.`
 ///
-///     **What is** :math:`\submat(S)` **?**
+///     **What is** :math:`\submat(\mtxS)` **?**
 ///
-///       It's the :math:`d \times n` submatrix of :math:`{S}` whose upper-left corner appears
-///       at index :math:`(\texttt{ro_s}, \texttt{co_s})` of :math:`{S}.`
+///       It's the :math:`d \times n` submatrix of :math:`{\mtxS}` whose upper-left corner appears
+///       at index :math:`(\texttt{ro_s}, \texttt{co_s})` of :math:`{\mtxS}.`
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
@@ -248,7 +241,7 @@ inline void sketch_symmetric(
 ///
 ///      d - [in]
 ///       * A nonnegative integer.
-///       * The number of rows in :math:`\mat(B)` and :math:`\submat(S).`
+///       * The number of rows in :math:`\mat(B)` and :math:`\submat(\mtxS).`
 ///
 ///      n - [in]
 ///       * A nonnegative integer.
@@ -261,17 +254,17 @@ inline void sketch_symmetric(
 ///
 ///      S - [in]  
 ///       * A DenseSkOp or SparseSkOp object.
-///       * Defines :math:`\submat(S).`
+///       * Defines :math:`\submat(\mtxS).`
 ///
 ///      ro_s - [in]
 ///       * A nonnegative integer.
-///       * The rows of :math:`\submat(S)` are a contiguous subset of rows of :math:`S.`
-///       * The rows of :math:`\submat(S)` start at :math:`S[\texttt{ro_s}, :].`
+///       * The rows of :math:`\submat(\mtxS)` are a contiguous subset of rows of :math:`S.`
+///       * The rows of :math:`\submat(\mtxS)` start at :math:`S[\texttt{ro_s}, :].`
 ///
 ///      co_s - [in]
 ///       * A nonnnegative integer.
-///       * The columns of :math:`\submat(S)` are a contiguous subset of columns of :math:`S.`
-///       * The columns of :math:`\submat(S)` start at :math:`S[:,\texttt{co_s}].` 
+///       * The columns of :math:`\submat(\mtxS)` are a contiguous subset of columns of :math:`S.`
+///       * The columns of :math:`\submat(\mtxS)` start at :math:`S[:,\texttt{co_s}].` 
 ///
 ///      A - [in]
 ///       * Pointer to a 1D array of real scalars.
@@ -297,7 +290,7 @@ inline void sketch_symmetric(
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <SketchingOperator SKOP, typename T = SKOP::scalar_t>
 inline void sketch_symmetric(
     // B = alpha*S*A + beta*B
     blas::Layout layout,
@@ -329,9 +322,9 @@ inline void sketch_symmetric(
 /// Check that :math:`\mat(A)` is symmetric up to tolerance :math:`\texttt{sym_check_tol}`, then sketch from the right in a SYMM-like operation
 /// 
 /// .. math::
-///     \mat(B) = \alpha \cdot \underbrace{\mat(A)}_{n \times n} \cdot S  + \beta \cdot \underbrace{\mat(B)}_{n \times d},    \tag{$\star$}
+///     \mat(B) = \alpha \cdot \underbrace{\mat(A)}_{n \times n} \cdot \mtxS  + \beta \cdot \underbrace{\mat(B)}_{n \times d},    \tag{$\star$}
 /// 
-/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`S` is an :math:`n \times d` sketching operator.
+/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`\mtxS` is an :math:`n \times d` sketching operator.
 ///
 /// .. dropdown:: FAQ
 ///   :animate: fade-in-slide-down
@@ -342,7 +335,7 @@ inline void sketch_symmetric(
 ///       Its precise contents depend on :math:`(A, \lda)`, according to 
 ///
 ///             .. math::
-///                 \mat(A)[i, j] = A[i + j \cdot \lda] = A[i \cdot \lda + j].
+///                 \mat(A)_{ij} = A[i + j \cdot \lda] = A[i \cdot \lda + j].
 ///
 ///       Note that the the "layout" parameter passed to this function is not used here.
 ///       That's because this function requires :math:`\mat(A)` to be stored in the format
@@ -361,14 +354,14 @@ inline void sketch_symmetric(
 ///       If layout == ColMajor, then
 ///
 ///             .. math::
-///                 \mat(B)[i, j] = B[i + j \cdot \ldb].
+///                 \mat(B)_{ij} = B[i + j \cdot \ldb].
 ///
 ///       In this case, :math:`\ldb` must be :math:`\geq n.`
 ///
 ///       If layout == RowMajor, then
 ///
 ///             .. math::
-///                 \mat(B)[i, j] = B[i \cdot \ldb + j].
+///                 \mat(B)_{ij} = B[i \cdot \ldb + j].
 ///
 ///       In this case, :math:`\ldb` must be :math:`\geq d.`
 ///
@@ -410,7 +403,7 @@ inline void sketch_symmetric(
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <SketchingOperator SKOP, typename T = SKOP::scalar_t>
 inline void sketch_symmetric(
     // B = alpha*A*S + beta*B, where A is a symmetric matrix stored in the format of a general matrix.
     blas::Layout layout,
@@ -438,9 +431,9 @@ inline void sketch_symmetric(
 /// Check that :math:`\mat(A)` is symmetric up to tolerance :math:`\texttt{sym_check_tol}`, then sketch from the left in a SYMM-like operation
 /// 
 /// .. math::
-///     \mat(B) = \alpha \cdot S \cdot \underbrace{\mat(A)}_{n \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
+///     \mat(B) = \alpha \cdot \mtxS \cdot \underbrace{\mat(A)}_{n \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
 /// 
-/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`S` is a :math:`d \times n` sketching operator.
+/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`\mtxS` is a :math:`d \times n` sketching operator.
 ///
 /// .. dropdown:: FAQ
 ///   :animate: fade-in-slide-down
@@ -451,7 +444,7 @@ inline void sketch_symmetric(
 ///       according to 
 ///
 ///             .. math::
-///                 \mat(A)[i, j] = A[i + j \cdot \lda] = A[i \cdot \lda + j].
+///                 \mat(A)_{ij} = A[i + j \cdot \lda] = A[i \cdot \lda + j].
 ///
 ///       Note that the the "layout" parameter passed to this function is not used here.
 ///       That's because this function requires :math:`\mat(A)` to be stored in the format
@@ -468,14 +461,14 @@ inline void sketch_symmetric(
 ///       If layout == ColMajor, then
 ///
 ///             .. math::
-///                 \mat(B)[i, j] = B[i + j \cdot \ldb].
+///                 \mat(B)_{ij} = B[i + j \cdot \ldb].
 ///
 ///       In this case, :math:`\ldb` must be :math:`\geq d.`
 ///
 ///       If layout == RowMajor, then
 ///
 ///             .. math::
-///                 \mat(B)[i, j] = B[i \cdot \ldb + j].
+///                 \mat(B)_{ij} = B[i \cdot \ldb + j].
 ///
 ///       In this case, :math:`\ldb` must be :math:`\geq n.`
 ///
@@ -517,7 +510,7 @@ inline void sketch_symmetric(
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <SketchingOperator SKOP, typename T = SKOP::scalar_t>
 inline void sketch_symmetric(
     // B = alpha*S*A + beta*B
     blas::Layout layout,

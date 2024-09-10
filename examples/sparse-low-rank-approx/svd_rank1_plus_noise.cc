@@ -44,6 +44,7 @@
 #include <numbers>
 #include <chrono>
 
+using RandBLAS::sparse_data::reserve_coo;
 using RandBLAS::sparse_data::COOMatrix;
 
 #define DOUT(_d) std::setprecision(std::numeric_limits<double>::max_digits10) << _d
@@ -73,11 +74,11 @@ void iid_sparsify_random_dense(
     int64_t n_rows, int64_t n_cols, int64_t stride_row, int64_t stride_col, T* mat, T prob_of_zero, RandBLAS::RNGState<RNG> state
 ) { 
     auto spar = new T[n_rows * n_cols];
-    auto dist = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::DenseDistName::Uniform);
+    auto dist = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::ScalarDist::Uniform);
     auto next_state = RandBLAS::fill_dense(dist, spar, state);
 
     auto temp = new T[n_rows * n_cols];
-    auto D_mat = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::DenseDistName::Uniform);
+    auto D_mat = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::ScalarDist::Uniform);
     RandBLAS::fill_dense(D_mat, temp, next_state);
 
     #define SPAR(_i, _j) spar[(_i) + (_j) * n_rows]
@@ -131,7 +132,7 @@ SpMat sum_of_coo_matrices(SpMat &A, SpMat &B) {
     }
 
     SpMat C(A.n_rows, A.n_cols);
-    C.reserve(c_dict.size());
+    reserve_coo(c_dict.size(), C);
     int64_t ell = 0;
     for (auto iter : c_dict) {
         Tuple t = iter.first;
@@ -145,13 +146,9 @@ SpMat sum_of_coo_matrices(SpMat &A, SpMat &B) {
 }
 
 
-template <typename SpMat>
-void make_signal_matrix(double signal_scale, double* u, int64_t m, double* v, int64_t n, int64_t vec_nnz, double* signal_dense, SpMat &signal_sparse) {
-    using T = typename SpMat::scalar_t;
-    using sint_t = typename SpMat::index_t;
-    constexpr bool valid_type = std::is_same_v<SpMat, COOMatrix<T, sint_t>>;
-    randblas_require(valid_type);
-    signal_sparse.reserve(vec_nnz * vec_nnz);
+template <typename COOMatrix>
+void make_signal_matrix(double signal_scale, double* u, int64_t m, double* v, int64_t n, int64_t vec_nnz, double* signal_dense, COOMatrix &signal_sparse) {
+    reserve_coo(vec_nnz * vec_nnz, signal_sparse);
 
     // populate signal_dense and signal_sparse.
     RandBLAS::RNGState u_state(0);
@@ -162,8 +159,8 @@ void make_signal_matrix(double signal_scale, double* u, int64_t m, double* v, in
     double uv_scale = 1.0 / std::sqrt((double) vec_nnz);
 
 
-    auto v_state    = RandBLAS::repeated_fisher_yates(u_state, vec_nnz, m, 1, work_idxs, trash, work_vals);
-    auto next_state = RandBLAS::repeated_fisher_yates(v_state, vec_nnz, n, 1, work_idxs+vec_nnz, trash, work_vals+vec_nnz);
+    auto v_state    = RandBLAS::sparse::repeated_fisher_yates(u_state, vec_nnz, m, 1, work_idxs, trash, work_vals);
+    auto next_state = RandBLAS::sparse::repeated_fisher_yates(v_state, vec_nnz, n, 1, work_idxs+vec_nnz, trash, work_vals+vec_nnz);
     for (int j = 0; j < vec_nnz; ++j) {
         for (int i = 0; i < vec_nnz; ++i) {
             int temp = i + j*vec_nnz;

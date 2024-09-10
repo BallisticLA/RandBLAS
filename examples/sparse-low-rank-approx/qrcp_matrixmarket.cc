@@ -47,6 +47,7 @@
 #include <stdexcept>
 
 
+using RandBLAS::sparse_data::reserve_coo;
 using RandBLAS::sparse_data::COOMatrix;
 using RandBLAS::sparse_data::CSCMatrix;
 using std_clock = std::chrono::high_resolution_clock;
@@ -80,7 +81,7 @@ COOMatrix<T> from_matrix_market(std::string fn) {
     );
 
     COOMatrix<T> out(n_rows, n_cols);
-    out.reserve(vals.size());
+    reserve_coo(vals.size(),out);
     for (int i = 0; i < out.nnz; ++i) {
         out.rows[i] = rows[i];
         out.cols[i] = cols[i];
@@ -132,7 +133,7 @@ int sketch_orthogonalize_rows(int64_t m, int64_t n, T* A, T* work, int64_t d, in
     randblas_require(d >= m);
     std::vector<T> tau(d, 0.0);
     int64_t vec_nnz = std::min(d/2, (int64_t) 4);
-    RandBLAS::SparseDist D{n, d, vec_nnz};
+    RandBLAS::SparseDist D(n, d, vec_nnz);
     RandBLAS::SparseSkOp<T> S(D, state);
     // Simple option (shown here):
     //      Sketch A in column-major format, then do LQ on the sketch.
@@ -261,11 +262,11 @@ void power_iter_col_sketch(SpMat &A, int64_t k, T* Y, int64_t p_data_aware, STAT
 
     int64_t p_done = 0;
     if (p_data_aware % 2 == 0) {
-        RandBLAS::DenseDist D(k, m, RandBLAS::DenseDistName::Gaussian);
+        RandBLAS::DenseDist D(k, m, RandBLAS::ScalarDist::Gaussian);
         TIMED_LINE(
         RandBLAS::fill_dense(D, mat_work2, state), "sampling : ")
     } else {
-        RandBLAS::DenseDist D(k, n, RandBLAS::DenseDistName::Gaussian);
+        RandBLAS::DenseDist D(k, n, RandBLAS::ScalarDist::Gaussian);
         TIMED_LINE(
         RandBLAS::fill_dense(D, mat_work1, state), "sampling : ")
         TIMED_LINE(

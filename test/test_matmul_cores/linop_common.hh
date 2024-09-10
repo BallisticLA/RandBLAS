@@ -73,19 +73,12 @@ auto random_matrix(int64_t m, int64_t n, RNGState<RNG> s) {
     std::vector<T> A(m * n);
     DenseDist DA(m, n);
     auto next_state = RandBLAS::fill_dense(DA, A.data(), s);
-    std::tuple<std::vector<T>, Layout, RNGState<RNG>> t{A, RandBLAS::dist_to_layout(DA), next_state};
+    std::tuple<std::vector<T>, Layout, RNGState<RNG>> t{A, DA.natural_layout, next_state};
     return t;
 }
 
-template <typename T>
-dims64_t dimensions(SparseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols}; }
-
-template <typename T>
-dims64_t dimensions(DenseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols};}
-
-template <SparseMatrix SpMat>
-dims64_t dimensions(SpMat &S) {return {S.n_rows, S.n_cols};}
-
+template <typename LINOP>
+dims64_t dimensions(LINOP &S) {return {S.n_rows, S.n_cols};}
 
 template <typename T, SparseMatrix SpMat>
 void to_explicit_buffer(SpMat &a, T *mat_a, Layout layout) {
@@ -134,12 +127,8 @@ void to_explicit_buffer(DenseSkOp<T> &s, T *mat_s, Layout layout) {
 }
 
 
+// MARK:      Multiply from the LEFT
 ////////////////////////////////////////////////////////////////////////
-//
-//
-//      Multiply from the LEFT
-//
-//
 ////////////////////////////////////////////////////////////////////////
 
 
@@ -465,12 +454,8 @@ void test_left_apply_to_transposed(
 }
 
 
+// MARK:      Multiply from the RIGHT
 ////////////////////////////////////////////////////////////////////////
-//
-//
-//      Multiply from the RIGHT
-//
-//
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T>
@@ -627,7 +612,7 @@ void test_right_apply_submatrix_to_eye(
 }
 
 template <typename T, typename LinOp>
-void test_right_apply_tranpose_to_eye(
+void test_right_apply_transpose_to_eye(
     // B = eye * S^T, where S is d-by-n, so eye is order n and B is n-by-d
     LinOp &S, Layout layout, int threads = 0
 ) {

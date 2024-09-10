@@ -1,5 +1,3 @@
-.. :sd_hide_title:
-.. ^ uncomment that if you want to prevent the header from rendering.
 
 #############
 API Reference
@@ -9,12 +7,9 @@ API Reference
 ..  TODO. Explain that we always say data matrices are :math:`m \times n`. Sketching involves matrices (S, A, B).
 
 .. toctree::
-    :maxdepth: 4
+    :maxdepth: 2
 
-    Distributions, random states, and sketching operators <skops_and_dists>
-    Computing a sketch: dense data <sketch_dense>
-    Representing sparse data <sparse_matrices>
-    Computing a sketch: sparse data <sketch_sparse>
-    Sparse BLAS operations <other_sparse>
-    Utilities for index sampling <index_sampling_utils>
-
+    Fundamentals <skops_and_dists>
+    Working with dense data <sketch_dense>
+    Working with sparse data <sketch_sparse>
+    Utilities <utilities>

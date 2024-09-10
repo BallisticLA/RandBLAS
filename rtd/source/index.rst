@@ -6,6 +6,7 @@
    Tutorial <tutorial/index>
    API Reference <api_reference/index>
    Changelog <updates/index>
+   FAQ and Limitations <FAQ>
 
 .. default-domain:: cpp
 
@@ -17,7 +18,7 @@ RandBLAS is a C++ library for randomized linear dimension reduction -- an operat
 We built RandBLAS to make it easier to write, debug, and deploy high-performance implementations of sketching-based algorithms.
 
 RandBLAS is efficient, flexible, and reliable.
-It uses CPU-based OpenMP acceleration to apply its sketching operators to dense or sparse data matrices stored in main memory.
+It uses CPU-based OpenMP acceleration to apply its sketching operators to matrices stored in main memory.
 It includes dense and sparse sketching operators (e.g., Gaussian operators, CountSketch, OSNAPs, etc..), which can 
 be applied to dense or sparse data in any combination that leads to a dense sketch.
 

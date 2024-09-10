@@ -41,6 +41,8 @@ if (GTest_FOUND)
         test_matmul_cores/test_spmm/test_spmm_csc.cc
         test_matmul_cores/test_spmm/test_spmm_csr.cc
         test_matmul_cores/test_spmm/test_spmm_coo.cc
+
+        test_matmul_wrappers/test_sketch_sparse.cc
     )
     target_link_libraries(SparseRandBLAS_tests RandBLAS GTest::GTest GTest::Main)
     gtest_discover_tests(SparseRandBLAS_tests)

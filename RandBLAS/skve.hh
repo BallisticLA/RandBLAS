@@ -48,18 +48,6 @@ using namespace RandBLAS::dense;
 using namespace RandBLAS::sparse;
 
 
-/* Intended macro definitions.
-
-   .. |op| mathmacro:: \operatorname{op}
-   .. |mat| mathmacro:: \operatorname{mat}
-   .. |submat| mathmacro:: \operatorname{submat}
-   .. |lda| mathmacro:: \texttt{lda}
-   .. |ldb| mathmacro:: \texttt{ldb}
-   .. |opA| mathmacro:: \texttt{opA}
-   .. |opS| mathmacro:: \texttt{opS}
-*/
-
-
 // MARK: SUBMAT(S)
 
 // =============================================================================
@@ -70,14 +58,14 @@ using namespace RandBLAS::sparse;
 /// Perform a GEMV-like operation. If :math:`{\opS} = \texttt{NoTrans},` then we perform
 ///
 /// .. math::
-///     \mat(y) = \alpha \cdot \underbrace{\submat(S)}_{d \times m} \cdot \underbrace{\mat(x)}_{m \times 1} + \beta \cdot \underbrace{\mat(y)}_{d \times 1},    \tag{$\star$}
+///     \mat(y) = \alpha \cdot \underbrace{\submat(\mtxS)}_{d \times m} \cdot \underbrace{\mat(x)}_{m \times 1} + \beta \cdot \underbrace{\mat(y)}_{d \times 1},    \tag{$\star$}
 ///
 /// otherwise, we perform
 ///
 /// .. math::
-///     \mat(y) = \alpha \cdot \underbrace{\submat(S)^T}_{m \times d} \cdot \underbrace{\mat(x)}_{d \times 1} + \beta \cdot \underbrace{\mat(y)}_{m \times 1},    \tag{$\diamond$}
+///     \mat(y) = \alpha \cdot \underbrace{\submat(\mtxS)^T}_{m \times d} \cdot \underbrace{\mat(x)}_{d \times 1} + \beta \cdot \underbrace{\mat(y)}_{m \times 1},    \tag{$\diamond$}
 ///
-/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`S` is a sketching operator.
+/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`\mtxS` is a sketching operator.
 /// 
 /// .. dropdown:: FAQ
 ///   :animate: fade-in-slide-down
@@ -85,7 +73,7 @@ using namespace RandBLAS::sparse;
 ///     **What are** :math:`\mat(x)` **and** :math:`\mat(y)` **?**
 ///     
 ///       They are vectors of shapes :math:`(\mat(x), L_x \times 1)` and :math:`(\mat(y), L_y \times 1),`
-///       where :math:`(L_x, L_y)` are lengths so that :math:`\opS(\submat(S)) \mat(x)` is well-defined and the same shape as :math:`\mat(y).` 
+///       where :math:`(L_x, L_y)` are lengths so that :math:`opS(\submat(\mtxS)) \mat(x)` is well-defined and the same shape as :math:`\mat(y).` 
 ///       Their precise contents are determined in a way that is identical to GEMV from BLAS.
 ///
 ///     **Why no "layout" argument?**
@@ -98,16 +86,16 @@ using namespace RandBLAS::sparse;
 ///
 ///      opS - [in]
 ///       * Either Op::Trans or Op::NoTrans.
-///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(S)) = \submat(S).`
-///       * If :math:`\opS` = Trans, then :math:`\op(\submat(S)) = \submat(S)^T.`
+///       * If :math:`\opS` = NoTrans, then :math:`\op(\submat(\mtxS)) = \submat(\mtxS).`
+///       * If :math:`\opS` = Trans, then :math:`\op(\submat(\mtxS)) = \submat(\mtxS)^T.`
 ///
 ///      d - [in]
 ///       * A nonnegative integer.
-///       * The number of rows in :math:`\submat(S).`
+///       * The number of rows in :math:`\submat(\mtxS).`
 ///
 ///      m - [in]
 ///       * A nonnegative integer.
-///       * The number of columns in :math:`\submat(S).`
+///       * The number of columns in :math:`\submat(\mtxS).`
 ///
 ///      alpha - [in]
 ///       * A real scalar.
@@ -115,15 +103,15 @@ using namespace RandBLAS::sparse;
 ///     
 ///      S - [in]  
 ///       * A DenseSkOp or SparseSkOp object.
-///       * Defines :math:`\submat(S).`
+///       * Defines :math:`\submat(\mtxS).`
 ///
 ///      ro_s - [in]
 ///       * A nonnegative integer.
-///       * :math:`\submat(S)` is a contiguous submatrix of :math:`S[\texttt{ro_s}:(\texttt{ro_s} + d), :].`
+///       * :math:`\submat(\mtxS)` is a contiguous submatrix of :math:`S[\texttt{ro_s}:(\texttt{ro_s} + d), :].`
 ///
 ///      co_s - [in]
 ///       * A nonnegative integer.
-///       * :math:`\submat(S)` is a contiguous submatrix of :math:`S[:,\texttt{co_s}:(\texttt{co_s} + m)].`
+///       * :math:`\submat(\mtxS)` is a contiguous submatrix of :math:`S[:,\texttt{co_s}:(\texttt{co_s} + m)].`
 ///
 ///      x - [in]
 ///       * Pointer to a 1D array of real scalars.
@@ -149,11 +137,11 @@ using namespace RandBLAS::sparse;
 ///       * Stride between elements of y.
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <SketchingOperator SKOP, typename T = SKOP::scalar_t>
 inline void sketch_vector(
     blas::Op opS,
-    int64_t d, // rows in submat(S)
-    int64_t m, // cols in submat(S)
+    int64_t d, // rows in submat(\mtxS)
+    int64_t m, // cols in submat(\mtxS)
     T alpha,
     SKOP &S,
     int64_t ro_s,
@@ -185,9 +173,9 @@ inline void sketch_vector(
 /// Perform a GEMV-like operation:
 ///
 /// .. math::
-///     \mat(y) = \alpha \cdot \op(S) \cdot \mat(x) + \beta \cdot \mat(y),    \tag{$\star$}
+///     \mat(y) = \alpha \cdot \op(\mtxS) \cdot \mat(x) + \beta \cdot \mat(y),    \tag{$\star$}
 ///
-/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`S` is a sketching operator.
+/// where :math:`\alpha` and :math:`\beta` are real scalars and :math:`\mtxS` is a sketching operator.
 /// 
 /// .. dropdown:: FAQ
 ///   :animate: fade-in-slide-down
@@ -195,7 +183,7 @@ inline void sketch_vector(
 ///     **What are** :math:`\mat(x)` **and** :math:`\mat(y)` **?**
 ///
 ///       They are vectors of shapes :math:`(\mat(x), L_x \times 1)` and :math:`(\mat(y), L_y \times 1),`
-///       where :math:`(L_x, L_y)` are lengths so that :math:`\opS(S) \mat(x)` is well-defined and the same shape as :math:`\mat(y).` 
+///       where :math:`(L_x, L_y)` are lengths so that :math:`\opS(\mtxS) \mat(x)` is well-defined and the same shape as :math:`\mat(y).` 
 ///       Their precise contents are determined in a way that is identical to GEMV from BLAS.
 ///
 ///     **Why no "layout" argument?**
@@ -208,8 +196,8 @@ inline void sketch_vector(
 ///
 ///      opS - [in]
 ///       * Either Op::Trans or Op::NoTrans.
-///       * If :math:`\opS` = NoTrans, then :math:`\op(S) = S.`
-///       * If :math:`\opS` = Trans, then :math:`\op(S) = S^T.`
+///       * If :math:`\opS` = NoTrans, then :math:`\op(\mtxS) = \mtxS.`
+///       * If :math:`\opS` = Trans, then :math:`\op(\mtxS) = \mtxS^T.`
 ///
 ///      alpha - [in]
 ///       * A real scalar.
@@ -241,7 +229,7 @@ inline void sketch_vector(
 ///       * Stride between elements of y.
 ///
 /// @endverbatim
-template <typename T, typename SKOP>
+template <SketchingOperator SKOP, typename T = SKOP::scalar_t>
 inline void sketch_vector(
     blas::Op opS,
     T alpha,

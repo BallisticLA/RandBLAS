@@ -79,7 +79,7 @@ void chol_qr(int64_t m, int64_t n, T* A, T* R, int64_t chol_block_size = 32, boo
     if (twice) {
         T* R2 = R + n*n;
         chol_qr(m, n, A, R2, chol_block_size, false);
-        RandBLAS::util::overwrite_triangle(layout, blas::Uplo::Lower, n, 1, (T) 0.0, R,  n);
+        RandBLAS::overwrite_triangle(layout, blas::Uplo::Lower, n, 1, R,  n);
         // now overwrite R = R2 R with TRMM (saying R2 is the triangular matrix)
         blas::trmm(layout, blas::Side::Left, uplo, blas::Op::NoTrans, blas::Diag::NonUnit, n, n, (T) 1.0, R2, n, R, n);
     }
@@ -134,7 +134,7 @@ void qr_block_cgs2(int64_t m, int64_t n, T* A, T* R, std::vector<T> &bigwork, in
     T* littlework = R2 + n*n;
     std::fill(R, R + n * n, (T) 0.0);
     qr_block_cgs(m, n, A, R, n, littlework, b);
-    RandBLAS::util::overwrite_triangle(blas::Layout::ColMajor, blas::Uplo::Lower, n, 1, (T) 0.0, R, n);
+    RandBLAS::overwrite_triangle(blas::Layout::ColMajor, blas::Uplo::Lower, n, 1, R, n);
     qr_block_cgs(m, n, A, R2, n, littlework, b);
     blas::trmm(
         blas::Layout::ColMajor, blas::Side::Left, blas::Uplo::Upper, blas::Op::NoTrans, blas::Diag::NonUnit,
@@ -197,9 +197,9 @@ int64_t posdef_eig_chol_iteration(int64_t n, T* A, T* eigvals, T reltol, int64_t
     std::vector<int64_t> pivots(n, 0);
     for (; iter < max_iters; ++iter) {
         potrf_upper(n, A, n, b);
-        RandBLAS::util::overwrite_triangle(Layout::ColMajor, Uplo::Lower, n, 1, (T) 0.0, A, n);
+        RandBLAS::overwrite_triangle(Layout::ColMajor, Uplo::Lower, n, 1, A, n);
         blas::syrk(Layout::ColMajor, Uplo::Upper, Op::NoTrans, n, n, (T) 1.0, A, n, (T) 0.0, G, n);
-        RandBLAS::util::symmetrize(Layout::ColMajor, Uplo::Upper, n, G, n);
+        RandBLAS::symmetrize(Layout::ColMajor, Uplo::Upper, n, G, n);
         for (int64_t i = 0; i < n; ++i)
             eigvals[i] = G[i * n + i];
         converged = extremal_eigvals_converged_gershgorin(n, G, reltol);
@@ -231,7 +231,7 @@ inline int64_t required_powermethod_iters(int64_t n, T p_fail, T tol) {
 
 template <typename T, typename FUNC, typename RNG>
 std::pair<T, RNGState<RNG>> power_method(int64_t n, FUNC &A, T* v, T tol, T failure_prob, const RNGState<RNG> &state) {
-    auto next_state = RandBLAS::fill_dense(blas::Layout::ColMajor, {n, 1}, n, 1, 0, 0, v, state);
+    auto next_state = RandBLAS::fill_dense_unpacked(blas::Layout::ColMajor, {n, 1}, n, 1, 0, 0, v, state);
     std::vector<T> work(n, 0.0);
     T* u = work.data();
     T norm = blas::nrm2(n, v, 1);

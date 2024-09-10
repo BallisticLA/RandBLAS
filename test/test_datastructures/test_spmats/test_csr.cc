@@ -50,8 +50,8 @@ class TestCSR_Conversions : public ::testing::Test
 
     template <typename T = double>
     static void test_csr_to_dense_diagonal(int64_t n) {
-        CSRMatrix<T> A(n, n, IndexBase::Zero);
-        A.reserve(n);
+        CSRMatrix<T> A(n, n);
+        reserve_csr(n, A);
         for (int i = 0; i < n; ++i) {
             A.vals[i] = 1.0 + (T) i;
             A.rowptr[i] = i;
@@ -80,7 +80,7 @@ class TestCSR_Conversions : public ::testing::Test
         iid_sparsify_random_dense(m, n, layout, dn_mat, p, s);
 
         // Step 2. convert the dense representation into a CSR matrix
-        CSRMatrix<T> spmat(m, n, IndexBase::Zero);
+        CSRMatrix<T> spmat(m, n);
         dense_to_csr(layout, dn_mat, 0.0, spmat);
 
         // Step 3. reconstruct the dense representation of dn_mat from the CSR matrix.

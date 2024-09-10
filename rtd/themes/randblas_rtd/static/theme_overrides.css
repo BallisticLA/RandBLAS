@@ -1,5 +1,9 @@
 @import 'css/theme.css';
 
+.MathJax {
+scale: 1.0; /* This definely has an effect on display environments. No effect on in-line text.*/
+}
+
 /* override table width restrictions */
 .wy-table-responsive table td, .wy-table-responsive table th {
     white-space: normal;
@@ -8,12 +12,66 @@
 .wy-table-responsive {
     margin-bottom: 24px;
     max-width: 100%;
-    overflow: visible;
+    overflow: auto;
+}
+
+.wy-nav-side {
+    transition: transform 0.3s ease;
+}
+
+.wy-nav-side.collapsed {
+    transform: translateX(-100%);
+}
+
+.wy-nav-side-toggle {
+    display: block;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1000;
+    cursor: pointer;
+}
+
+.wy-nav-content {
+    transition: margin-left 0.3s ease;
+    padding: 1.618em 3.236em;
+    height: 100%;
+    max-width: 860px;
+    margin-left: 0;
+    text-align: justify;
+}
+
+.wy-nav-content-wrap.collapsed {
+    transition: margin-left 0.3s ease;
+    margin-left: 0;
+    width: 100%;
+}
+
+.wy-nav-content.collapsed {
+    margin-left: 0;
+    max-width: 860x;
+    margin: 0;
+    width: 100%;
 }
 
 .math {
     text-align: left;
+    overflow-y: hidden;
+    overflow-x: auto;
 }
 .eqno {
     float: right;
+}
+
+
+/*
+The standard rendering of c++ doyxgen comments involves large margins for many elements.
+The styles below set override the margin choice for all (?) relevant HTML elements.
+*/
+.cpp.function,   .cpp.function dl,   .cpp.function dd,   .cpp.function dt,
+.cpp.struct,     .cpp.struct dl,     .cpp.struct dd,     .cpp.struct dt,
+.cpp.concept,    .cpp.concept dl,    .cpp.concept dd,    .cpp.concept dt,
+.cpp.var,        .cpp.var dl,        .cpp.var dd,        .cpp.var dt,
+.cpp.enum-class, .cpp.enum-class dl, .cpp.enum-class dd, .cpp.enum-class dt {
+    margin-left: 0.5em;
 }

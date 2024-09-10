@@ -36,13 +36,13 @@
 
 namespace RandBLAS::sparse_data {
 
-enum class IndexBase : char {
+enum class IndexBase : int {
     // ---------------------------------------------------------------
     // zero-based indexing
-    Zero = 'Z',
+    Zero = 0,
     // ---------------------------------------------------------------
     // one-based indexing
-    One = 'O'
+    One = 1
 };
 
 template <typename T>
@@ -65,7 +65,7 @@ int64_t nnz_in_dense(
     return nnz;
 }
 
-template <RandBLAS::SignedInteger sint_t = int64_t>
+template <SignedInteger sint_t = int64_t>
 static inline void sorted_nonzero_locations_to_pointer_array(
     int64_t nnz,
     sint_t *sorted, // length at least max(nnz, last_ptr_index + 1)
@@ -96,36 +96,35 @@ static inline void sorted_nonzero_locations_to_pointer_array(
 // nomincally public members like A._n_rows and A._n_cols, which the user will only change
 // at their own peril.
 
+#ifdef __cpp_concepts
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
 ///
-/// .. NOTE: \ttt expands to \texttt (its definition is given in an rst file)
+/// An object :math:`\ttt{M}` of type :math:`\ttt{SpMat}` has the following attributes.
 ///
-/// Any object :math:`\ttt{M}` of type :math:`\ttt{SpMat}` has the following attributes.
-///
-///     .. list-table::
-///        :widths: 25 30 40
-///        :header-rows: 1
-///        
-///        * - 
-///          - type
-///          - description
-///        * - :math:`\ttt{M.n_rows}`
-///          - :math:`\ttt{const int64_t}`
-///          - number of rows
-///        * - :math:`\ttt{M.n_cols}`
-///          - :math:`\ttt{const int64_t}`
-///          - number of columns
-///        * - :math:`\ttt{M.nnz}`
-///          - :math:`\ttt{int64_t}`
-///          - number of structural nonzeros
-///        * - :math:`\ttt{M.vals}`
-///          - :math:`\ttt{SpMat::scalar_t *}`
-///          - pointer to values of structural nonzeros
-///        * - :math:`\ttt{M.own_memory}`
-///          - :math:`\ttt{const bool}`
-///          - A flag indicating if memory attached to :math:`\ttt{M}` should be deallocated when :math:`\ttt{M}` is deleted.
-///            This flag is set automatically based on the type of constructor used for :math:`\ttt{M}.` 
+/// .. list-table::
+///    :widths: 25 30 40
+///    :header-rows: 1
+///    
+///    * - 
+///      - type
+///      - description
+///    * - :math:`\ttt{M.n_rows}`
+///      - :math:`\ttt{const int64_t}`
+///      - number of rows
+///    * - :math:`\ttt{M.n_cols}`
+///      - :math:`\ttt{const int64_t}`
+///      - number of columns
+///    * - :math:`\ttt{M.nnz}`
+///      - :math:`\ttt{int64_t}`
+///      - number of structural nonzeros
+///    * - :math:`\ttt{M.vals}`
+///      - :math:`\ttt{SpMat::scalar_t *}`
+///      - pointer to values of structural nonzeros
+///    * - :math:`\ttt{M.own_memory}`
+///      - :math:`\ttt{bool}`
+///      - A flag indicating if memory attached to :math:`\ttt{M}` should be deallocated when :math:`\ttt{M}` is deleted.
+///        This flag is set automatically based on the type of constructor used for :math:`\ttt{M}.` 
 /// 
 ///
 /// **Memory-owning constructors**
@@ -164,26 +163,25 @@ static inline void sorted_nonzero_locations_to_pointer_array(
 ///             }
 ///         }        
 ///
-/// **Non-owning constructors**
+/// **View constructors**
 ///
-///     This concept doesn't place specific requirements constructors for non-owning sparse matrix views of existing data. 
+///     This concept doesn't place specific requirements constructors for view sparse matrix views of existing data. 
 ///     However, all of RandBLAS' sparse matrix classes offer such constructors. See individual classes'
 ///     documentation for details.
 ///
 /// @endverbatim
 template<typename SpMat>
 concept SparseMatrix = requires(SpMat A) {
-    // TODO: figure out why I need to use convertible_to rather than is_same.
-    { A.n_rows } -> std::convertible_to<const int64_t>;
-    { A.n_cols } -> std::convertible_to<const int64_t>;
-    { A.nnz } -> std::convertible_to<int64_t>;
-    { *(A.vals) } -> std::convertible_to<typename SpMat::scalar_t>;
+    { A.n_rows }     -> std::same_as<const int64_t&>;
+    { A.n_cols }     -> std::same_as<const int64_t&>;
+    { A.nnz }        -> std::same_as<int64_t&>;
+    { *(A.vals) }    -> std::same_as<typename SpMat::scalar_t&>;
+    { A.own_memory } -> std::same_as<bool&>;
     { SpMat(A.n_rows, A.n_cols) };
-    // ^ Is there better way to require a two-argument constructor?
-    { A.own_memory } ->  std::convertible_to<const bool>;
-    // { A.reserve((int64_t) 10) };
-    // ^ Problem: const SpMat objects fail that check.
 };
+#else
+#define SparseMatrix typename
+#endif
 
 } // end namespace RandBLAS::sparse_data
 

@@ -53,12 +53,125 @@
 /// code common across the project
 namespace RandBLAS {
 
+typedef r123::Philox4x32 DefaultRNG;
+
+/** A representation of the state of a counter-based random number generator
+ * (CBRNG) defined in Random123. The representation consists of two arrays:
+ * the counter and the key. The arrays' types are statically sized, small
+ * (typically of length 2 or 4), and can be distinct from one another.
+ * 
+ * The template parameter RNG is a CBRNG type in defined in Random123. We've found
+ * that Philox-based CBRNGs work best for our purposes, but we also support Threefry-based CBRNGS.
+ */
+template <typename RNG = DefaultRNG>
+struct RNGState {
+
+    /// -------------------------------------------------------------------
+    /// Type of the underlying Random123 CBRNG. Must be based on 
+    /// Philox or Threefry. We've found that Philox works best for our 
+    /// purposes, and we default to Philox4x32.
+    using generator = RNG;
+    
+    using ctr_type = typename RNG::ctr_type;
+    // ^ An array type defined in Random123.
+    using key_type = typename RNG::key_type;
+    // ^ An array type defined in Random123.
+    using ctr_uint = typename RNG::ctr_type::value_type;
+    // ^ The unsigned integer type used in this RNGState's counter array.
+
+    /// -------------------------------------------------------------------
+    /// The unsigned integer type used in this RNGState's key array.
+    /// This is typically std::uint32_t, but it can be std::uint64_t.
+    using key_uint = typename RNG::key_type::value_type;
+
+    const static int len_c = RNG::ctr_type::static_size;
+    static_assert(len_c >= 2);
+    const static int len_k = RNG::key_type::static_size;
+
+    typename RNG::ctr_type counter;
+    // ^ This RNGState's counter array.  Exclude from doxygen comments
+    //   since end-users shouldn't touch it.
+
+    /// ------------------------------------------------------------------
+    /// This RNGState's key array. If you want to manually advance the key
+    /// by an integer increment of size "step," then you do so by calling 
+    /// this->key.incr(step).
+    typename RNG::key_type key;
+
+
+    /// Initialize the counter and key arrays to all zeros.
+    RNGState() : counter{{0}}, key(key_type{{}}) {}
+
+    // construct from a key
+    RNGState(key_type const &k) : counter{{0}}, key(k) {}
+
+    // Initialize counter and key arrays at the given values.
+    RNGState(ctr_type const &c, key_type const &k) : counter(c), key(k) {}
+
+    // move construct from an initial counter and key
+    RNGState(ctr_type &&c, key_type &&k) : counter(std::move(c)), key(std::move(k)) {}
+
+    /// Initialize the counter array to all zeros. Initialize the key array to have first
+    /// element equal to k and all other elements equal to zero.
+    RNGState(key_uint k) : counter{{0}}, key{{k}} {}
+
+    ~RNGState() {};
+
+    /// A copy constructor.
+    RNGState(const RNGState<RNG> &s) : RNGState(s.counter, s.key) {};
+
+    // A copy-assignment operator.
+    RNGState<RNG> &operator=(const RNGState<RNG> &s) {
+        std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
+        std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
+        return *this;
+    };
+
+};
+
+
+// template <typename RNG>
+// RNGState<RNG>::RNGState(
+//     const RNGState<RNG> &s
+// ) {
+//     std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
+//     std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
+// }
+
+// template <typename RNG>
+// RNGState<RNG> &RNGState<RNG>::operator=(
+//     const RNGState &s
+// ) {
+//     std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
+//     std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
+//     return *this;
+// }
+
+template <typename RNG>
+std::ostream &operator<<(
+    std::ostream &out,
+    const RNGState<RNG> &s
+) {
+    int i;
+    out << "counter : {";
+    for (i = 0; i < s.len_c - 1; ++i) {
+        out << s.counter[i] << ", ";
+    }
+    out << s.counter[i] << "}\n";
+    out << "key     : {";
+    for (i = 0; i < s.len_k - 1; ++i) {
+        out << s.key[i] << ", ";
+    }
+    out << s.key[i] << "}";
+    return out;
+}
+
 /**
  * Stores stride information for a matrix represented as a buffer.
  * The intended semantics for a buffer "A" and the conceptualized
  * matrix "mat(A)" are 
  * 
- *  mat(A)[i, j] == A[i * inter_row_stride + j * inter_col_stride].
+ *  mat(A)_{ij} == A[i * inter_row_stride + j * inter_col_stride].
  * 
  * for all (i, j) within the bounds of mat(A).
  */
@@ -114,8 +227,12 @@ inline submat_spec_64t offset_and_ldim(
 }
 
 
+#ifdef __cpp_concepts
 template<typename T>
 concept SignedInteger = (std::numeric_limits<T>::is_signed && std::numeric_limits<T>::is_integer);
+#else
+#define SignedInteger typename
+#endif
 
 
 template <SignedInteger TI, SignedInteger TO = int64_t>
@@ -135,160 +252,208 @@ inline TO safe_int_product(TI a, TI b) {
 }
 
 
-enum class MajorAxis : char {
+// ---------------------------------------------------------------------------
+/// Sketching operators are only "useful" for dimension reduction if they're
+/// non-square.
+///
+/// The larger dimension of a sketching operator has a different
+/// semantic role than the small dimension. This enum provides a way for us
+/// to refer to the larger or smaller dimension in a way that's agnostic to 
+/// whether the sketching operator is wide or tall.
+///  
+/// For a wide matrix, its *short-axis vectors* are its columns, and its
+/// *long-axis vectors* are its rows.
+///
+/// For a tall matrix, its short-axis vectors are its rows, and its
+/// long-axis vectors are its columns.
+///
+enum class Axis : char {
     // ---------------------------------------------------------------------------
-    ///  short-axis vectors (cols of a wide matrix, rows of a tall matrix)
     Short = 'S',
 
     // ---------------------------------------------------------------------------
-    ///  long-axis vectors (rows of a wide matrix, cols of a tall matrix)
-    Long = 'L',
-
-    // ---------------------------------------------------------------------------
-    ///  Undefined (used when row-major vs column-major must be explicit)
-    Undefined = 'U'
+    Long = 'L'
 };
 
-
-/** A representation of the state of a counter-based random number generator
- * (CBRNG) defined in Random123. The representation consists of two arrays:
- * the counter and the key. The arrays' types are statically sized, small
- * (typically of length 2 or 4), and can be distinct from one another.
- * 
- * The template parameter RNG is a CBRNG type in defined in Random123. We've found
- * that Philox-based CBRNGs work best for our purposes, but we also support Threefry-based CBRNGS.
- */
-template <typename RNG = r123::Philox4x32>
-struct RNGState
-{
-    using generator = RNG;
-    
-    using ctr_type = typename RNG::ctr_type;
-    // ^ An array type defined in Random123.
-    using key_type = typename RNG::key_type;
-    // ^ An array type defined in Random123.
-    using ctr_uint = typename RNG::ctr_type::value_type;
-    // ^ The unsigned integer type used in this RNGState's counter array.
-
-    /// -------------------------------------------------------------------
-    /// @brief The unsigned integer type used in this RNGState's key array.
-    ///        This is typically std::uint32_t, but it can be std::uint64_t.
-    using key_uint = typename RNG::key_type::value_type;
-
-
-    const static int len_c = RNG::ctr_type::static_size;
-    const static int len_k = RNG::key_type::static_size;
-    typename RNG::ctr_type counter;
-    // ^ This RNGState's counter array.
-
-    /// ------------------------------------------------------------------
-    /// This RNGState's key array. If you want to manually advance the key
-    /// by an integer increment of size "step," then you do so by calling 
-    /// this->key.incr(step).
-    typename RNG::key_type key;
-
-
-    /// Initialize the counter and key arrays to all zeros.
-    RNGState() : counter{{0}}, key(key_type{{}}) {}
-
-    // construct from a key
-    RNGState(key_type const &k) : counter{{0}}, key(k) {}
-
-    // Initialize counter and key arrays at the given values.
-    RNGState(ctr_type const &c, key_type const &k) : counter(c), key(k) {}
-
-    // move construct from an initial counter and key
-    RNGState(ctr_type &&c, key_type &&k) : counter(std::move(c)), key(std::move(k)) {}
-
-    /// Initialize the counter array to all zeros. Initialize the key array to have first
-    /// element equal to k and all other elements equal to zero.
-    RNGState(key_uint k) : counter{{0}}, key{{k}} {}
-
-    ~RNGState() {};
-
-    /// A copy constructor.
-    RNGState(const RNGState<RNG> &s);
-
-    RNGState<RNG> &operator=(const RNGState<RNG> &s);
-
-};
-
-
-template <typename RNG>
-RNGState<RNG>::RNGState(
-    const RNGState<RNG> &s
-) {
-    std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
-    std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
-}
-
-template <typename RNG>
-RNGState<RNG> &RNGState<RNG>::operator=(
-    const RNGState &s
-) {
-    std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
-    std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
-    return *this;
-}
-
-template <typename RNG>
-std::ostream &operator<<(
-    std::ostream &out,
-    const RNGState<RNG> &s
-) {
-    int i;
-    out << "counter : {";
-    for (i = 0; i < s.len_c - 1; ++i) {
-        out << s.counter[i] << ", ";
+// ---------------------------------------------------------------------------
+/// Returns max(n_rows, n_cols) if major_axis == Axis::Long, and returns 
+/// min(n_rows, n_cols) otherwise.
+///
+inline int64_t get_dim_major(Axis major_axis, int64_t n_rows, int64_t n_cols) {
+    if (major_axis == Axis::Long) {
+        return std::max(n_rows, n_cols);
+    } else {
+        return std::min(n_rows, n_cols);
     }
-    out << s.counter[i] << "}\n";
-    out << "key     : {";
-    for (i = 0; i < s.len_k - 1; ++i) {
-        out << s.key[i] << ", ";
-    }
-    out << s.key[i] << "}";
-    return out;
 }
 
+
+#ifdef __cpp_concepts
 // =============================================================================
 /// @verbatim embed:rst:leading-slashes
 ///
-/// .. NOTE: \ttt expands to \texttt (its definition is given in an rst file)
+/// **Mathematical description**
 ///
-/// Words. Hello!
+/// Matrices sampled from sketching distributions in RandBLAS are mean-zero
+/// and have covariance matrices that are proportional to the identity.
 ///
+/// Formally, 
+/// if :math:`\D` is a distribution over :math:`r \times c` matrices and 
+/// :math:`\mtxS` is a sample from :math:`\D`,  then
+/// :math:`\mathbb{E}\mtxS = \mathbf{0}_{r \times c}` and
+///
+/// .. math::
+///    :nowrap:
+///     
+///     \begin{gather}
+///     \theta^2 \cdot \mathbb{E}\left[ \mtxS^T\mtxS \right]=\mathbf{I}_{c \times c}& \nonumber \\
+///     \,\phi^2 \cdot \mathbb{E}\left[ \mtxS{\mtxS}^T\, \right]=\mathbf{I}_{r \times r}& \nonumber
+///     \end{gather}
+///
+/// hold for some :math:`\theta > 0` and :math:`\phi > 0`.
+///
+/// The *isometry scale* of the distribution
+/// is :math:`\alpha := \theta` if :math:`c \geq r` and :math:`\alpha := \phi` otherwise. If you want to
+/// sketch in a way that preserves squared norms in expectation, then you should sketch with 
+/// a scaled sample :math:`\alpha \mtxS` rather than the sample itself.
+///
+/// **Programmatic description**
+///
+/// A variable :math:`\ttt{D}` of a type that conforms to the 
+/// :math:`\ttt{SketchingDistribution}` concept has the following attributes.
+///
+/// .. list-table::
+///    :widths: 25 30 40
+///    :header-rows: 1
+///    
+///    * - 
+///      - type
+///      - description
+///    * - :math:`\ttt{D.n_rows}`
+///      - :math:`\ttt{const int64_t}`
+///      - samples from :math:`\ttt{D}` have this many rows
+///    * - :math:`\ttt{D.n_cols}`
+///      - :math:`\ttt{const int64_t}`
+///      - samples from :math:`\ttt{D}` have this many columns
+///    * - :math:`\ttt{D.isometry_scale}`
+///      - :math:`\ttt{const double}`
+///      - See above.
+///
+/// Note that the isometry scale is always stored in double precision; this has no bearing 
+/// on the precision of sketching operators that are sampled from a :math:`\ttt{SketchingDistribution}`.
+///
+/// **Notes**
+///
+/// RandBLAS has two SketchingDistribution types: DenseDist and SparseDist.
+/// These types have members called called "major_axis,"
+/// "dim_major," and "dim_minor." These members have similar semantic roles across
+/// the two classes, but their precise meanings differ significantly.
 /// @endverbatim
 template<typename SkDist>
 concept SketchingDistribution = requires(SkDist D) {
-    { D.n_rows }     -> std::convertible_to<const int64_t>;
-    { D.n_cols }     -> std::convertible_to<const int64_t>;
-    { D.major_axis } -> std::convertible_to<const MajorAxis>;
+    { D.n_rows }     -> std::same_as<const int64_t&>;
+    { D.n_cols }     -> std::same_as<const int64_t&>;
+    { D.isometry_scale } -> std::same_as<const double&>;
 };
+#else
+#define SketchingDistribution typename
+#endif
 
+
+#ifdef __cpp_concepts
 // =============================================================================
-/// \fn isometry_scale_factor(SkDist D) 
-/// @verbatim embed:rst:leading-slashes
-/// Words here ...
-/// @endverbatim
-template <typename T, SketchingDistribution SkDist>
-inline T isometry_scale_factor(SkDist D);
-
-
-// =============================================================================
+/// A type \math{\ttt{SKOP}} that conforms to the SketchingOperator concept
+/// has three member types.
 /// @verbatim embed:rst:leading-slashes
 ///
-/// .. NOTE: \ttt expands to \texttt (its definition is given in an rst file)
+/// .. list-table::
+///    :widths: 25 65
+///    :header-rows: 0
 ///
-/// Words. Hello!
+///    * - :math:`\ttt{SKOP::distribution_t}`
+///      - A type conforming to the SketchingDistribution concept.
+///    * - :math:`\ttt{SKOP::state_t}`
+///      - A template instantiation of RNGState.
+///    * - :math:`\ttt{SKOP::scalar_t}`
+///      - Real scalar type used in matrix representations of :math:`\ttt{SKOP}\text{s}.`
+///
+/// And an object :math:`\ttt{S}` of type :math:`\ttt{SKOP}` has the following 
+/// instance members.
+///
+/// .. list-table::
+///    :widths: 20 25 45
+///    :header-rows: 0
+///    
+///    * - :math:`\ttt{S.dist}`
+///      - :math:`\ttt{const distribution_t}`
+///      - Distribution from which this operator is sampled.
+///    * - :math:`\ttt{S.n_rows}`
+///      - :math:`\ttt{const int64_t}`
+///      - An alias for :math:`\ttt{S.dist.n_rows}.`
+///    * - :math:`\ttt{S.n_cols}`
+///      - :math:`\ttt{const int64_t}`
+///      - An alias for :math:`\ttt{S.dist.n_cols}.`
+///    * - :math:`\ttt{S.seed_state}`
+///      - :math:`\ttt{const state_t}`
+///      - RNGState used to construct
+///        an explicit representation of :math:`\ttt{S}`.
+///    * - :math:`\ttt{S.next_state}`
+///      - :math:`\ttt{const state_t}`
+///      - An RNGState that can be used in a call to a random sampling routine
+///        whose output should be statistically independent from :math:`\ttt{S}.`   
+///    * - :math:`\ttt{S.own_memory}`
+///      - :math:`\ttt{bool}`
+///      - A flag used to indicate whether internal functions
+///        have permission to attach memory to :math:`\ttt{S},`
+///        *and* whether the destructor of :math:`\ttt{S}` has the
+///        responsibility to delete any memory that's attached to
+///        :math:`\ttt{S}.`
+///
+/// 
+/// RandBLAS only has two SketchingOperator types: DenseSkOp and SparseSkOp. These types
+/// have several things in common
+/// that aren't enforced by the SketchingOperator concept. Most notably, they have 
+/// constructors of the following form.
+///
+/// .. code:: c++
+///
+///    SKOP(distribution_t dist, state_t seed_state) 
+///     : dist(dist), 
+///       seed_state(seed_state), 
+///       next_state(/* type-specific function of state and dist */), 
+///       n_rows(dist.n_rows), 
+///       n_cols(dist.n_cols), 
+///       own_memory(true)
+///       /* type-specific initializers */ { };
 ///
 /// @endverbatim
-template<typename SkOp>
-concept SketchingOperator = requires(SkOp S) {
-    { S.n_rows }     -> std::convertible_to<const int64_t>;
-    { S.n_cols }     -> std::convertible_to<const int64_t>;
-    { S.seed_state } -> std::convertible_to<const typename SkOp::state_t>;
-    { S.seed_state } -> std::convertible_to<const typename SkOp::state_t>;
+template<typename SKOP>
+concept SketchingOperator = requires {
+    typename SKOP::distribution_t;
+    typename SKOP::state_t;
+    typename SKOP::scalar_t;
+} && SketchingDistribution<typename SKOP::distribution_t> && requires(
+    SKOP S,typename SKOP::distribution_t dist, typename SKOP::state_t state
+) {
+    { S.dist }       -> std::same_as<const typename SKOP::distribution_t&>;
+    { S.n_rows }     -> std::same_as<const int64_t&>;
+    { S.n_cols }     -> std::same_as<const int64_t&>;
+    { S.seed_state } -> std::same_as<const typename SKOP::state_t&>;
+    { S.next_state } -> std::same_as<const typename SKOP::state_t&>;
+    { S.own_memory } -> std::same_as<bool&>;
 };
+#else
+#define SketchingOperator typename
+#endif
+
+// I want to add a constraint to SketchingOperator so that conformant types SKOP have two-argument constructors of the form SKOP(typename SKOP::
+
+///    * - :math:`\ttt{S.own_memory}`
+///      - :math:`\ttt{bool}`
+///      - RandBLAS has permission to attach memory to :math:`\ttt{S}`
+///        if and only if this is true. If true at destruction time, RandBLAS
+///        must delete any memory attached to :math:`\ttt{S}.` RandBLAS is 
+///        forbidden from deleting attached memory under any other circumstances.
 
 
 } // end namespace RandBLAS::base

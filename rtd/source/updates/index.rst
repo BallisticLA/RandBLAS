@@ -8,7 +8,7 @@ RandBLAS upon request, no matter how old. With any luck, RandBLAS will grow enou
 in the future that we will change this policy to support a handful of versions
 at a time.
 
-RandBLAS follows `Semantic Versioning <semver.org>`_.
+RandBLAS follows `Semantic Versioning <https://semver.org>`_.
 
 
 RandBLAS 0.2

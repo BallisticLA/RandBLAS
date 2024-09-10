@@ -1,7 +1,6 @@
 .. toctree::
   :maxdepth: 3
 
-.. Note to self: I can first describe CBRNGs mathematically. Then I get to implementation details.
 
 ******************************************************************************
 Sampling a sketching operator
@@ -16,7 +15,7 @@ Sequential calls to the CBRNG with a fixed key should use different values for t
 
 
 RandBLAS doesn't expose CBRNGs directly. Instead, it exposes an abstraction of
-a CBRNG's state as defined in the :ref:`RNGState <rngstate_api>` class.
+a CBRNG's state as defined in the :cpp:struct:`RandBLAS::RNGState` type.
 RNGState objects are needed to construct sketching operators.
 
 .. _constructing_rng_states_tut:

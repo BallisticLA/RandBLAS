@@ -47,7 +47,7 @@ void coo_to_csc(COOMatrix<T, sint_t1> &coo, CSCMatrix<T, sint_t2> &csc) {
     randblas_require(csc.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
     sort_coo_data(NonzeroSort::CSC, coo);
-    csc.reserve(coo.nnz);
+    reserve_csc(coo.nnz, csc);
     csc.colptr[0] = 0;
     int64_t ell = 0;
     for (int64_t j = 0; j < coo.n_cols; ++j) {
@@ -67,7 +67,7 @@ void csc_to_coo(CSCMatrix<T, sint_t1> &csc, COOMatrix<T, sint_t2> &coo) {
     randblas_require(csc.n_cols == coo.n_cols);
     randblas_require(csc.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
-    coo.reserve(csc.nnz);
+    reserve_coo(csc.nnz, coo);
     int64_t ell = 0;
     for (int64_t j = 0; j < csc.n_cols; ++j) {
         for (int64_t i = csc.colptr[j]; i < csc.colptr[j+1]; ++i) {
@@ -88,7 +88,7 @@ void coo_to_csr(COOMatrix<T, sint_t1> &coo, CSRMatrix<T, sint_t2> &csr) {
     randblas_require(csr.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
     sort_coo_data(NonzeroSort::CSR, coo);
-    csr.reserve(coo.nnz);
+    reserve_csr(coo.nnz, csr);
     csr.rowptr[0] = (sint_t2) 0;
     int64_t ell = 0;
     for (int64_t i = 0; i < coo.n_rows; ++i) {
@@ -108,7 +108,7 @@ void csr_to_coo(CSRMatrix<T, sint_t1> &csr, COOMatrix<T, sint_t2> &coo) {
     randblas_require(csr.n_cols == coo.n_cols);
     randblas_require(csr.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
-    coo.reserve(csr.nnz);
+    reserve_coo(csr.nnz, coo);
     int64_t ell = 0;
     for (int64_t i = 0; i < csr.n_rows; ++i) {
         for (int64_t j = csr.rowptr[i]; j < csr.rowptr[i+1]; ++j) {
@@ -122,14 +122,15 @@ void csr_to_coo(CSRMatrix<T, sint_t1> &csr, COOMatrix<T, sint_t2> &coo) {
     return;
 }
 
-template <typename T>
-CSRMatrix<T> transpose_as_csr(CSCMatrix<T> &A, bool share_memory = true) {
+template <typename T, SignedInteger sint_t>
+CSRMatrix<T, sint_t> transpose_as_csr(CSCMatrix<T, sint_t> &A, bool share_memory = true) {
     if (share_memory) {
-        CSRMatrix<T> At(A.n_cols, A.n_rows, A.nnz, A.vals, A.colptr, A.rowidxs, A.index_base);
+        CSRMatrix<T, sint_t> At(A.n_cols, A.n_rows, A.nnz, A.vals, A.colptr, A.rowidxs, A.index_base);
         return At;
     } else {
-        CSRMatrix<T> At(A.n_cols, A.n_rows, A.index_base);
-        At.reserve(A.nnz);
+        CSRMatrix<T, sint_t> At(A.n_cols, A.n_rows);
+        At.index_base = A.index_base;
+        reserve_csr(A.nnz, At);
         for (int64_t i = 0; i < A.nnz; ++i) {
             At.colidxs[i] = A.rowidxs[i];
             At.vals[i] = A.vals[i];
@@ -140,14 +141,15 @@ CSRMatrix<T> transpose_as_csr(CSCMatrix<T> &A, bool share_memory = true) {
     }
 }
 
-template <typename T>
-CSCMatrix<T> transpose_as_csc(CSRMatrix<T> &A, bool share_memory = true) {
+template <typename T, SignedInteger sint_t>
+CSCMatrix<T, sint_t> transpose_as_csc(CSRMatrix<T, sint_t> &A, bool share_memory = true) {
     if (share_memory) {
-        CSCMatrix<T> At(A.n_cols, A.n_rows, A.nnz, A.vals, A.colidxs, A.rowptr, A.index_base);
+        CSCMatrix<T, sint_t> At(A.n_cols, A.n_rows, A.nnz, A.vals, A.colidxs, A.rowptr, A.index_base);
         return At;
     } else {
-        CSCMatrix<T> At(A.n_cols, A.n_rows, A.index_base);
-        At.reserve(A.nnz);
+        CSCMatrix<T, sint_t> At(A.n_cols, A.n_rows);
+        At.index_base = A.index_base;
+        reserve_csc(A.nnz, At);
         for (int64_t i = 0; i < A.nnz; ++i) {
             At.rowidxs[i] = A.colidxs[i];
             At.vals[i] = A.vals[i];
@@ -158,8 +160,18 @@ CSCMatrix<T> transpose_as_csc(CSRMatrix<T> &A, bool share_memory = true) {
     }
 }
 
-template <typename T>
-void reindex_inplace(CSCMatrix<T> &A, IndexBase desired) {
+/// -----------------------------------------------------------------------
+/// Given a RandBLAS SparseMatrix "A" (CSCMatrix, CSRMatrix, or COOMatrix),
+/// modify its underlying datastructures as necessary so that it labels 
+/// matrix elements in "desired" IndexBase.
+/// 
+/// Use this to convert between one-based indexing and zero-based indexing.
+/// This function returns immediately if desired == A.index_base.
+template <SparseMatrix SpMat>
+void reindex_inplace(SpMat &A, IndexBase desired);
+
+template <typename T, SignedInteger sint_t>
+void reindex_inplace(CSCMatrix<T, sint_t> &A, IndexBase desired) {
     if (A.index_base == desired)
         return;
     if (A.index_base == IndexBase::One) {
@@ -173,8 +185,8 @@ void reindex_inplace(CSCMatrix<T> &A, IndexBase desired) {
     return;
 }
 
-template <typename T>
-void reindex_inplace(CSRMatrix<T> &A, IndexBase desired) {
+template <typename T, SignedInteger sint_t>
+void reindex_inplace(CSRMatrix<T, sint_t> &A, IndexBase desired) {
     if (A.index_base == desired)
         return;
     if (A.index_base == IndexBase::One) {
@@ -188,8 +200,8 @@ void reindex_inplace(CSRMatrix<T> &A, IndexBase desired) {
     return;
 }
 
-template <typename T>
-void reindex_inplace(COOMatrix<T> &A, IndexBase desired) {
+template <typename T, SignedInteger sint_t>
+void reindex_inplace(COOMatrix<T,sint_t> &A, IndexBase desired) {
     if (A.index_base == desired)
         return;
     if (A.index_base == IndexBase::One) {

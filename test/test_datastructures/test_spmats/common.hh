@@ -56,11 +56,11 @@ void iid_sparsify_random_dense(
     RandBLAS::RNGState<RNG> state
 ) { 
     auto spar = new T[n_rows * n_cols];
-    auto dist = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::DenseDistName::Uniform);
+    auto dist = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::ScalarDist::Uniform);
     auto next_state = RandBLAS::fill_dense(dist, spar, state);
 
     auto temp = new T[n_rows * n_cols];
-    auto D_mat = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::DenseDistName::Uniform);
+    auto D_mat = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::ScalarDist::Uniform);
     RandBLAS::fill_dense(D_mat, temp, next_state);
 
     // We'll pretend both of those matrices are column-major, regardless of the layout
@@ -108,7 +108,7 @@ void coo_from_diag(
     int64_t offset,
     RandBLAS::sparse_data::COOMatrix<T> &spmat
 ) {
-    spmat.reserve(nnz);
+    reserve_coo(nnz, spmat);
     int64_t ell = 0;
     if (offset >= 0) {
         randblas_require(nnz <= spmat.n_rows);

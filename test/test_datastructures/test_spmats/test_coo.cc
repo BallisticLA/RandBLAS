@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <vector>
 
+using RandBLAS::Axis;
 using namespace RandBLAS::sparse_data;
 using namespace RandBLAS::sparse_data::coo;
 using namespace test::test_datastructures::test_spmats;
@@ -52,7 +53,7 @@ void sparseskop_to_dense(
     auto idx = [D, layout](int64_t i, int64_t j) {
         return  (layout == Layout::ColMajor) ? (i + j*D.n_rows) : (j + i*D.n_cols);
     };
-    int64_t nnz = RandBLAS::sparse::nnz(S0);
+    int64_t nnz = S0.nnz;
     for (int64_t i = 0; i < nnz; ++i) {
         sint_t row = S0.rows[i];
         sint_t col = S0.cols[i];
@@ -138,15 +139,19 @@ class Test_SkOp_to_COO : public ::testing::Test {
     virtual void TearDown(){};
 
     template <typename T = double>
-    void sparse_skop_to_coo(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index, RandBLAS::MajorAxis ma) {
-        RandBLAS::SparseSkOp<T> S(
-            {d, m, vec_nnzs[nnz_index], ma}, keys[key_index]
-        );
+    void sparse_skop_to_coo(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index, Axis major_axis) {
+        RandBLAS::SparseDist D(d, m, vec_nnzs[nnz_index], major_axis);
+        RandBLAS::SparseSkOp<T> S(D, keys[key_index]);
         auto A = RandBLAS::sparse::coo_view_of_skop(S);
 
-        EXPECT_EQ(S.dist.n_rows, A.n_rows);
-        EXPECT_EQ(S.dist.n_cols, A.n_cols);
-        EXPECT_EQ(RandBLAS::sparse::nnz(S), A.nnz);
+        EXPECT_EQ(S.dist.n_rows,   A.n_rows);
+        EXPECT_EQ(S.dist.n_cols,   A.n_cols);
+        if (major_axis == Axis::Short) {
+            EXPECT_EQ(S.dist.full_nnz, A.nnz);
+        } {
+            EXPECT_GE(S.dist.full_nnz, A.nnz);
+            EXPECT_EQ(S.nnz, A.nnz);
+        }
 
         std::vector<T> S_dense(d * m);
         sparseskop_to_dense(S, S_dense.data(), Layout::ColMajor);
@@ -161,77 +166,77 @@ class Test_SkOp_to_COO : public ::testing::Test {
 };
 
 TEST_F(Test_SkOp_to_COO, SASO_Dim_7by20_nnz_1) {
-    sparse_skop_to_coo(7, 20, 0, 0, RandBLAS::MajorAxis::Short);
-    sparse_skop_to_coo(7, 20, 1, 0, RandBLAS::MajorAxis::Short);
-    sparse_skop_to_coo(7, 20, 2, 0, RandBLAS::MajorAxis::Short);
+    sparse_skop_to_coo(7, 20, 0, 0, RandBLAS::Axis::Short);
+    sparse_skop_to_coo(7, 20, 1, 0, RandBLAS::Axis::Short);
+    sparse_skop_to_coo(7, 20, 2, 0, RandBLAS::Axis::Short);
 }
 
 TEST_F(Test_SkOp_to_COO, SASO_Dim_7by20_nnz_2) {
-    sparse_skop_to_coo(7, 20, 0, 1, RandBLAS::MajorAxis::Short);
-    sparse_skop_to_coo(7, 20, 1, 1, RandBLAS::MajorAxis::Short);
-    sparse_skop_to_coo(7, 20, 2, 1, RandBLAS::MajorAxis::Short);
+    sparse_skop_to_coo(7, 20, 0, 1, RandBLAS::Axis::Short);
+    sparse_skop_to_coo(7, 20, 1, 1, RandBLAS::Axis::Short);
+    sparse_skop_to_coo(7, 20, 2, 1, RandBLAS::Axis::Short);
 }
 
 TEST_F(Test_SkOp_to_COO, SASO_Dim_7by20_nnz_3) {
-    sparse_skop_to_coo(7, 20, 0, 2, RandBLAS::MajorAxis::Short);
-    sparse_skop_to_coo(7, 20, 1, 2, RandBLAS::MajorAxis::Short);
-    sparse_skop_to_coo(7, 20, 2, 2, RandBLAS::MajorAxis::Short);
+    sparse_skop_to_coo(7, 20, 0, 2, RandBLAS::Axis::Short);
+    sparse_skop_to_coo(7, 20, 1, 2, RandBLAS::Axis::Short);
+    sparse_skop_to_coo(7, 20, 2, 2, RandBLAS::Axis::Short);
 }
 
 TEST_F(Test_SkOp_to_COO, SASO_Dim_7by20_nnz_7) {
-    sparse_skop_to_coo(7, 20, 0, 3, RandBLAS::MajorAxis::Short);
-    sparse_skop_to_coo(7, 20, 1, 3, RandBLAS::MajorAxis::Short);
-    sparse_skop_to_coo(7, 20, 2, 3, RandBLAS::MajorAxis::Short);
+    sparse_skop_to_coo(7, 20, 0, 3, RandBLAS::Axis::Short);
+    sparse_skop_to_coo(7, 20, 1, 3, RandBLAS::Axis::Short);
+    sparse_skop_to_coo(7, 20, 2, 3, RandBLAS::Axis::Short);
 }
 
 TEST_F(Test_SkOp_to_COO, SASO_Dim_15by7) {
-    sparse_skop_to_coo(15, 7, 0, 0, RandBLAS::MajorAxis::Short);
-    sparse_skop_to_coo(15, 7, 1, 0, RandBLAS::MajorAxis::Short);
+    sparse_skop_to_coo(15, 7, 0, 0, RandBLAS::Axis::Short);
+    sparse_skop_to_coo(15, 7, 1, 0, RandBLAS::Axis::Short);
 
-    sparse_skop_to_coo(15, 7, 0, 1, RandBLAS::MajorAxis::Short);
-    sparse_skop_to_coo(15, 7, 1, 1, RandBLAS::MajorAxis::Short);
+    sparse_skop_to_coo(15, 7, 0, 1, RandBLAS::Axis::Short);
+    sparse_skop_to_coo(15, 7, 1, 1, RandBLAS::Axis::Short);
 
-    sparse_skop_to_coo(15, 7, 0, 2, RandBLAS::MajorAxis::Short);
-    sparse_skop_to_coo(15, 7, 1, 2, RandBLAS::MajorAxis::Short);
+    sparse_skop_to_coo(15, 7, 0, 2, RandBLAS::Axis::Short);
+    sparse_skop_to_coo(15, 7, 1, 2, RandBLAS::Axis::Short);
 
-    sparse_skop_to_coo(15, 7, 0, 3, RandBLAS::MajorAxis::Short);
-    sparse_skop_to_coo(15, 7, 1, 3, RandBLAS::MajorAxis::Short);
+    sparse_skop_to_coo(15, 7, 0, 3, RandBLAS::Axis::Short);
+    sparse_skop_to_coo(15, 7, 1, 3, RandBLAS::Axis::Short);
 }
 
 TEST_F(Test_SkOp_to_COO, LASO_Dim_7by20_nnz_1) {
-    sparse_skop_to_coo(7, 20, 0, 0, RandBLAS::MajorAxis::Long);
-    sparse_skop_to_coo(7, 20, 1, 0, RandBLAS::MajorAxis::Long);
-    sparse_skop_to_coo(7, 20, 2, 0, RandBLAS::MajorAxis::Long);
+    sparse_skop_to_coo(7, 20, 0, 0, RandBLAS::Axis::Long);
+    sparse_skop_to_coo(7, 20, 1, 0, RandBLAS::Axis::Long);
+    sparse_skop_to_coo(7, 20, 2, 0, RandBLAS::Axis::Long);
 }
 
 TEST_F(Test_SkOp_to_COO, LASO_Dim_7by20_nnz_2) {
-    sparse_skop_to_coo(7, 20, 0, 1, RandBLAS::MajorAxis::Long);
-    sparse_skop_to_coo(7, 20, 1, 1, RandBLAS::MajorAxis::Long);
-    sparse_skop_to_coo(7, 20, 2, 1, RandBLAS::MajorAxis::Long);
+    sparse_skop_to_coo(7, 20, 0, 1, RandBLAS::Axis::Long);
+    sparse_skop_to_coo(7, 20, 1, 1, RandBLAS::Axis::Long);
+    sparse_skop_to_coo(7, 20, 2, 1, RandBLAS::Axis::Long);
 }
 
 TEST_F(Test_SkOp_to_COO, LASO_Dim_7by20_nnz_3) {
-    sparse_skop_to_coo(7, 20, 0, 2, RandBLAS::MajorAxis::Long);
-    sparse_skop_to_coo(7, 20, 1, 2, RandBLAS::MajorAxis::Long);
-    sparse_skop_to_coo(7, 20, 2, 2, RandBLAS::MajorAxis::Long);
+    sparse_skop_to_coo(7, 20, 0, 2, RandBLAS::Axis::Long);
+    sparse_skop_to_coo(7, 20, 1, 2, RandBLAS::Axis::Long);
+    sparse_skop_to_coo(7, 20, 2, 2, RandBLAS::Axis::Long);
 }
 
 TEST_F(Test_SkOp_to_COO, LASO_Dim_7by20_nnz_7) {
-    sparse_skop_to_coo(7, 20, 0, 3, RandBLAS::MajorAxis::Long);
-    sparse_skop_to_coo(7, 20, 1, 3, RandBLAS::MajorAxis::Long);
-    sparse_skop_to_coo(7, 20, 2, 3, RandBLAS::MajorAxis::Long);
+    sparse_skop_to_coo(7, 20, 0, 3, RandBLAS::Axis::Long);
+    sparse_skop_to_coo(7, 20, 1, 3, RandBLAS::Axis::Long);
+    sparse_skop_to_coo(7, 20, 2, 3, RandBLAS::Axis::Long);
 }
 
 TEST_F(Test_SkOp_to_COO, LASO_Dim_15by7) {
-    sparse_skop_to_coo(15, 7, 0, 0, RandBLAS::MajorAxis::Long);
-    sparse_skop_to_coo(15, 7, 1, 0, RandBLAS::MajorAxis::Long);
+    sparse_skop_to_coo(15, 7, 0, 0, RandBLAS::Axis::Long);
+    sparse_skop_to_coo(15, 7, 1, 0, RandBLAS::Axis::Long);
 
-    sparse_skop_to_coo(15, 7, 0, 1, RandBLAS::MajorAxis::Long);
-    sparse_skop_to_coo(15, 7, 1, 1, RandBLAS::MajorAxis::Long);
+    sparse_skop_to_coo(15, 7, 0, 1, RandBLAS::Axis::Long);
+    sparse_skop_to_coo(15, 7, 1, 1, RandBLAS::Axis::Long);
 
-    sparse_skop_to_coo(15, 7, 0, 2, RandBLAS::MajorAxis::Long);
-    sparse_skop_to_coo(15, 7, 1, 2, RandBLAS::MajorAxis::Long);
+    sparse_skop_to_coo(15, 7, 0, 2, RandBLAS::Axis::Long);
+    sparse_skop_to_coo(15, 7, 1, 2, RandBLAS::Axis::Long);
 
-    sparse_skop_to_coo(15, 7, 0, 3, RandBLAS::MajorAxis::Long);
-    sparse_skop_to_coo(15, 7, 1, 3, RandBLAS::MajorAxis::Long);
+    sparse_skop_to_coo(15, 7, 0, 3, RandBLAS::Axis::Long);
+    sparse_skop_to_coo(15, 7, 1, 3, RandBLAS::Axis::Long);
 }

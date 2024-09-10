@@ -12,7 +12,7 @@
 #include "RandBLAS/util.hh"
 #include "RandBLAS/dense_skops.hh"
 using RandBLAS::DenseDist;
-using RandBLAS::DenseDistName;
+using RandBLAS::ScalarDist;
 using RandBLAS::RNGState;
 
 #include <iostream>
@@ -32,24 +32,24 @@ class TestHandrolledCholesky : public ::testing::Test {
         DenseDist D(m, n);
         std::vector<T> A(n*n);
         std::vector<T> B(m*n);
-        T iso_scale = std::pow(RandBLAS::isometry_scale_factor<T>(D), 2);
+        T iso_scale = std::pow(D.isometry_scale, 2);
         RNGState state(key);
         RandBLAS::fill_dense(D, B.data(), state);
         std::vector<T> C(B);
 
         // define positive definite A
         blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, n, m, iso_scale, B.data(), m, 0.0, A.data(), n);
-        RandBLAS::util::symmetrize(layout, blas::Uplo::Upper, n, A.data(), n);
+        RandBLAS::symmetrize(layout, blas::Uplo::Upper, n, A.data(), n);
         // overwrite A by its upper-triangular cholesky factor
         cholfunc(n, A.data());
-        RandBLAS::util::overwrite_triangle(layout, blas::Uplo::Lower, n, 1, (T) 0.0, A.data(), n);
+        RandBLAS::overwrite_triangle(layout, blas::Uplo::Lower, n, 1, A.data(), n);
 
         // compute the gram matrix of A's cholesky factor
         blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, n, n, 1.0, A.data(), n, 0.0, B.data(), n);
-        RandBLAS::util::symmetrize(layout, blas::Uplo::Upper, n, B.data(), n);
+        RandBLAS::symmetrize(layout, blas::Uplo::Upper, n, B.data(), n);
         // recompute A
         blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, n, m, iso_scale, C.data(), m, 0.0, A.data(), n);
-        RandBLAS::util::symmetrize(layout, blas::Uplo::Upper, n, A.data(), n);
+        RandBLAS::symmetrize(layout, blas::Uplo::Upper, n, A.data(), n);
 
         test::comparison::matrices_approx_equal(layout, blas::Op::NoTrans, n, n, B.data(), n, A.data(), n, 
             __PRETTY_FUNCTION__, __FILE__, __LINE__
@@ -175,9 +175,9 @@ class TestHandrolledQR : public ::testing::Test {
 
     template <typename T>
     void run_cholqr_gaussian(int m, int n, int b, uint32_t key) {
-        DenseDist D(m, n, DenseDistName::Gaussian);
+        DenseDist D(m, n, ScalarDist::Gaussian);
         std::vector<T> A(m*n);
-        T iso_scale = RandBLAS::isometry_scale_factor<T>(D);
+        T iso_scale = D.isometry_scale;
         RNGState state(key);
         RandBLAS::fill_dense(D, A.data(), state);
         blas::scal(m*n, iso_scale, A.data(), 1);
@@ -191,9 +191,9 @@ class TestHandrolledQR : public ::testing::Test {
 
     template <typename T>
     void run_qr_blocked_cgs(int m, int n, int b, uint32_t key) {
-        DenseDist D(m, n, DenseDistName::Gaussian);
+        DenseDist D(m, n, ScalarDist::Gaussian);
         std::vector<T> A(m*n);
-        T iso_scale = RandBLAS::isometry_scale_factor<T>(D);
+        T iso_scale = D.isometry_scale;
         RNGState state(key);
         RandBLAS::fill_dense(D, A.data(), state);
         blas::scal(m*n, iso_scale, A.data(), 1);
@@ -251,7 +251,7 @@ std::vector<T> posdef_with_random_eigvecs(std::vector<T> &eigvals, uint32_t key)
         randblas_require(ev > 0);
     std::vector<T> work0(n*n, 0.0);
     T* work0_buff = work0.data();
-    DenseDist distn(n, n, DenseDistName::Gaussian);
+    DenseDist distn(n, n, ScalarDist::Gaussian);
     RNGState state(key);
     RandBLAS::fill_dense(distn, work0_buff, state);
     std::vector<T> work1(n*n, 0.0);
@@ -261,7 +261,7 @@ std::vector<T> posdef_with_random_eigvecs(std::vector<T> &eigvals, uint32_t key)
         blas::scal(n, std::sqrt(eigvals[i]), work0_buff + i*n, 1);
     std::vector<T> out(n*n, 0.0);
     blas::syrk(blas::Layout::ColMajor, blas::Uplo::Upper, blas::Op::NoTrans, n, n, (T)1.0, work0_buff, n, (T)0.0, out.data(), n);
-    RandBLAS::util::symmetrize(blas::Layout::ColMajor, blas::Uplo::Upper, n, out.data(), n);
+    RandBLAS::symmetrize(blas::Layout::ColMajor, blas::Uplo::Upper, n, out.data(), n);
     return out;
 }
 

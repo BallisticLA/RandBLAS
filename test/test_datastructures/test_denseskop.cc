@@ -106,7 +106,7 @@ class TestDenseMoments : public ::testing::Test {
         uint32_t key,
         int64_t n_rows,
         int64_t n_cols,
-        RandBLAS::DenseDistName dn,
+        RandBLAS::ScalarDist sd,
         T expect_stddev
     ) {
         // Allocate workspace
@@ -114,7 +114,7 @@ class TestDenseMoments : public ::testing::Test {
         std::vector<T> A(size, 0.0);
 
         // Construct the sketching operator
-        RandBLAS::DenseDist D(n_rows, n_cols, dn);
+        RandBLAS::DenseDist D(n_rows, n_cols, sd);
         auto state = RandBLAS::RNGState(key);
         auto next_state = RandBLAS::fill_dense(D, A.data(), state);
 
@@ -136,25 +136,25 @@ class TestDenseMoments : public ::testing::Test {
 // For small matrix sizes, mean and stddev are not very close to desired vals.
 TEST_F(TestDenseMoments, Gaussian)
 {
-    auto dn = RandBLAS::DenseDistName::Gaussian;
+    auto sd = RandBLAS::ScalarDist::Gaussian;
     for (uint32_t key : {0, 1, 2})
     {
-        test_mean_stddev<float>(key, 500, 500, dn, 1.0);
-        test_mean_stddev<double>(key, 203, 203, dn, 1.0);
-        test_mean_stddev<double>(key, 203, 503, dn, 1.0);
+        test_mean_stddev<float>(key, 500, 500, sd, 1.0);
+        test_mean_stddev<double>(key, 203, 203, sd, 1.0);
+        test_mean_stddev<double>(key, 203, 503, sd, 1.0);
     }
 }
 
 // For small matrix sizes, mean and stddev are not very close to desired vals.
 TEST_F(TestDenseMoments, Uniform)
 {
-    auto dn = RandBLAS::DenseDistName::Uniform;
+    auto sd = RandBLAS::ScalarDist::Uniform;
     double expect_stddev = 1.0;
     for (uint32_t key : {0, 1, 2})
     {
-        test_mean_stddev<float>(key, 500, 500, dn, (float) expect_stddev);
-        test_mean_stddev<double>(key, 203, 203, dn, expect_stddev);
-        test_mean_stddev<double>(key, 203, 503, dn, expect_stddev);
+        test_mean_stddev<float>(key, 500, 500, sd, (float) expect_stddev);
+        test_mean_stddev<double>(key, 203, 203, sd, expect_stddev);
+        test_mean_stddev<double>(key, 203, 503, sd, expect_stddev);
     }
 }
 
@@ -344,19 +344,19 @@ TEST(TestDenseThreading, GaussianPhilox) {
 class TestFillAxis : public::testing::Test
 {
     protected:
-        static inline auto distname = RandBLAS::DenseDistName::Uniform;
+        static inline auto distname = RandBLAS::ScalarDist::Uniform;
 
     template <typename T>
-    static void auto_transpose(int64_t short_dim, int64_t long_dim, RandBLAS::MajorAxis ma) {
+    static void auto_transpose(int64_t short_dim, int64_t long_dim, RandBLAS::Axis major_axis) {
         uint32_t seed = 99;
     
         // make the wide sketching operator
-        RandBLAS::DenseDist D_wide {short_dim, long_dim, distname, ma};
+        RandBLAS::DenseDist D_wide(short_dim, long_dim, distname, major_axis);
         RandBLAS::DenseSkOp<T> S_wide(D_wide, seed);
         RandBLAS::fill_dense(S_wide);
 
         // make the tall sketching operator
-        RandBLAS::DenseDist D_tall {long_dim, short_dim, distname, ma};
+        RandBLAS::DenseDist D_tall(long_dim, short_dim, distname, major_axis);
         RandBLAS::DenseSkOp<T> S_tall(D_tall, seed);
         RandBLAS::fill_dense(S_tall);
 
@@ -379,27 +379,27 @@ class TestFillAxis : public::testing::Test
 };
 
 TEST_F(TestFillAxis, autotranspose_long_axis_3x5) {
-    auto_transpose<float>(3, 5, RandBLAS::MajorAxis::Long);
+    auto_transpose<float>(3, 5, RandBLAS::Axis::Long);
 }
 
 TEST_F(TestFillAxis, autotranspose_short_axis_3x5) {
-    auto_transpose<float>(3, 5, RandBLAS::MajorAxis::Short);
+    auto_transpose<float>(3, 5, RandBLAS::Axis::Short);
 }
 
 TEST_F(TestFillAxis, autotranspose_long_axis_4x8) {
-    auto_transpose<float>(4, 8, RandBLAS::MajorAxis::Long);
+    auto_transpose<float>(4, 8, RandBLAS::Axis::Long);
 }
 
 TEST_F(TestFillAxis, autotranspose_short_axis_4x8) {
-    auto_transpose<float>(4, 8, RandBLAS::MajorAxis::Short);
+    auto_transpose<float>(4, 8, RandBLAS::Axis::Short);
 }
 
 TEST_F(TestFillAxis, autotranspose_long_axis_2x4) {
-    auto_transpose<float>(2, 4, RandBLAS::MajorAxis::Long);
+    auto_transpose<float>(2, 4, RandBLAS::Axis::Long);
 }
 
 TEST_F(TestFillAxis, autotranspose_short_axis_2x4) {
-    auto_transpose<float>(2, 4, RandBLAS::MajorAxis::Short);
+    auto_transpose<float>(2, 4, RandBLAS::Axis::Short);
 }
 
 class TestDenseSkOpStates : public ::testing::Test
@@ -411,12 +411,12 @@ class TestDenseSkOpStates : public ::testing::Test
         uint32_t key,
         int64_t n_rows,
         int64_t n_cols,
-        RandBLAS::DenseDistName dn
+        RandBLAS::ScalarDist sd
     ) {
         randblas_require(n_rows > n_cols);
-        RandBLAS::DenseDist D1(    n_rows, n_cols/2,          dn, RandBLAS::MajorAxis::Long);
-        RandBLAS::DenseDist D2(    n_rows, n_cols - n_cols/2, dn, RandBLAS::MajorAxis::Long);
-        RandBLAS::DenseDist Dfull( n_rows, n_cols,            dn, RandBLAS::MajorAxis::Long);
+        RandBLAS::DenseDist D1(    n_rows, n_cols/2,          sd, RandBLAS::Axis::Long);
+        RandBLAS::DenseDist D2(    n_rows, n_cols - n_cols/2, sd, RandBLAS::Axis::Long);
+        RandBLAS::DenseDist Dfull( n_rows, n_cols,            sd, RandBLAS::Axis::Long);
         RandBLAS::RNGState state(key);
         int64_t size = n_rows * n_cols;
 
@@ -444,12 +444,12 @@ class TestDenseSkOpStates : public ::testing::Test
         uint32_t key,
         int64_t n_rows,
         int64_t n_cols,
-        RandBLAS::DenseDistName dn
+        RandBLAS::ScalarDist sd
     ) {
         float *buff = new float[n_rows*n_cols];
         RandBLAS::RNGState state(key);
 
-        RandBLAS::DenseDist D(n_rows, n_cols, dn);
+        RandBLAS::DenseDist D(n_rows, n_cols, sd);
 
         auto actual_final_state = RandBLAS::fill_dense(D, buff, state);
         auto actual_c = actual_final_state.counter;
@@ -468,22 +468,22 @@ class TestDenseSkOpStates : public ::testing::Test
 
 TEST_F(TestDenseSkOpStates, concat_tall_with_long_major_axis) {
     for (uint32_t key : {0, 1, 2}) {
-        auto dn = RandBLAS::DenseDistName::Gaussian;
-        test_concatenate_along_columns<double>(key, 13, 7, dn);
-        test_concatenate_along_columns<double>(key, 80, 40, dn);
-        test_concatenate_along_columns<double>(key, 83, 41, dn);
-        test_concatenate_along_columns<double>(key, 91, 43, dn);
-        test_concatenate_along_columns<double>(key, 97, 47, dn);
+        auto sd = RandBLAS::ScalarDist::Gaussian;
+        test_concatenate_along_columns<double>(key, 13, 7, sd);
+        test_concatenate_along_columns<double>(key, 80, 40, sd);
+        test_concatenate_along_columns<double>(key, 83, 41, sd);
+        test_concatenate_along_columns<double>(key, 91, 43, sd);
+        test_concatenate_along_columns<double>(key, 97, 47, sd);
     }
 }
 
 TEST_F(TestDenseSkOpStates, compare_skopless_fill_dense_to_compute_next_state) {
     for (uint32_t key : {0, 1, 2}) {
-        auto dn = RandBLAS::DenseDistName::Gaussian;
-        test_compute_next_state<r123::Philox4x32>(key, 13, 7, dn);
-        test_compute_next_state<r123::Philox4x32>(key, 11, 5, dn);
-        test_compute_next_state<r123::Philox4x32>(key, 131, 71, dn);
-        test_compute_next_state<r123::Philox4x32>(key, 80, 40, dn);
-        test_compute_next_state<r123::Philox4x32>(key, 91, 43, dn);
+        auto sd = RandBLAS::ScalarDist::Gaussian;
+        test_compute_next_state<r123::Philox4x32>(key, 13, 7, sd);
+        test_compute_next_state<r123::Philox4x32>(key, 11, 5, sd);
+        test_compute_next_state<r123::Philox4x32>(key, 131, 71, sd);
+        test_compute_next_state<r123::Philox4x32>(key, 80, 40, sd);
+        test_compute_next_state<r123::Philox4x32>(key, 91, 43, sd);
     }
 }

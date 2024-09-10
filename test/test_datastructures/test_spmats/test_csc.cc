@@ -55,7 +55,7 @@ class TestCSC_Conversions : public ::testing::Test {
         iid_sparsify_random_dense(m, n, layout, dn_mat, p, s);
 
         // Step 2. convert the dense representation into a CSC matrix
-        CSCMatrix<T> spmat(m, n, IndexBase::Zero);
+        CSCMatrix<T> spmat(m, n);
         dense_to_csc(layout, dn_mat, 0.0, spmat);
 
         // Step 3. reconstruct the dense representation of dn_mat from the CSC matrix.

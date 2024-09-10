@@ -47,12 +47,9 @@
 namespace RandBLAS::sparse {
 
 
-// =============================================================================
-/// WARNING: this function is not part of the public API.
-///
-template <typename T, typename RNG, SignedInteger sint_t>
-static RNGState<RNG> repeated_fisher_yates(
-    const RNGState<RNG> &state,
+template <typename T, SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
+static state_t repeated_fisher_yates(
+    const state_t &state,
     int64_t vec_nnz,
     int64_t dim_major,
     int64_t dim_minor,
@@ -67,6 +64,7 @@ static RNGState<RNG> repeated_fisher_yates(
     for (sint_t j = 0; j < dim_major; ++j)
         vec_work[j] = j;
     std::vector<sint_t> pivots(vec_nnz);
+    using RNG = typename state_t::generator;
     RNG gen;
     auto [ctr, key] = state;
     for (sint_t i = 0; i < dim_minor; ++i) {
@@ -102,122 +100,220 @@ static RNGState<RNG> repeated_fisher_yates(
             vec_work[ell] = swap;
         }
     }
-    return RNGState<RNG> {ctr, key};
+    return state_t {ctr, key};
 }
 
-template <typename RNG, SignedInteger sint_t>
-inline RNGState<RNG> repeated_fisher_yates(
-    const RNGState<RNG> &state, int64_t k, int64_t n, int64_t r, sint_t *indices
-) {
-    return repeated_fisher_yates(state, k, n, r, indices, (sint_t*) nullptr, (double*) nullptr);
-}
-
-template <typename RNG, typename SD>
-RNGState<RNG> compute_next_state(SD dist, RNGState<RNG> state) {
-    int64_t minor_len;
-    if (dist.major_axis == MajorAxis::Short) {
-        minor_len = std::min(dist.n_rows, dist.n_cols);
+inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t dim_major, int64_t dim_minor) {
+    if (major_axis == Axis::Short) {
+        return std::pow(vec_nnz, -0.5); 
+    } else if (major_axis == Axis::Long) {
+        return std::sqrt( ((double) dim_major) / (vec_nnz * ((double) dim_minor)) );
     } else {
-        minor_len = std::max(dist.n_rows, dist.n_cols);
+        throw std::invalid_argument("Cannot compute the isometry scale for a sparse operator with unspecified major axis.");
     }
-    int64_t full_incr = minor_len * dist.vec_nnz;
-    state.counter.incr(full_incr);
-    return state;
 }
 
 }
 
 namespace RandBLAS {
 // =============================================================================
-/// A distribution over sparse matrices.
-///
+/// A distribution over matrices with structured sparsity. Depending on parameter
+/// choices, one can obtain distributions described in the literature as 
+/// SJLTs, OSNAPs, hashing embeddings, CountSketch, row or column sampling, or 
+/// LESS-Uniform distributions. All members of a SparseDist are const.
+/// 
 struct SparseDist {
 
     // ---------------------------------------------------------------------------
-    ///  Matrices drawn from this distribution have this many rows.
+    ///  Matrices drawn from this distribution have this many rows;
+    ///  must be greater than zero.
     const int64_t n_rows;
 
     // ---------------------------------------------------------------------------
-    ///  Matrices drawn from this distribution have this many columns.
+    ///  Matrices drawn from this distribution have this many columns;
+    ///  must be greater than zero.
     const int64_t n_cols;
 
     // ---------------------------------------------------------------------------
-    ///  If this distribution is short-axis major, then matrices sampled from
-    ///  it will have exactly \math{\texttt{vec_nnz}} nonzeros per short-axis
-    ///  vector (i.e., per column of a wide matrix or row of a tall matrix).
-    //// One would be paranoid to set this higher than, say, eight, even when
-    ///  sketching *very* high-dimensional data.
+    ///  Operators sampled from this distribution are constructed by taking independent
+    ///  samples from a suitable distribution \math{\mathcal{V}} over sparse vectors.
+    ///  This distribution is always over \math{\mathbb{R}^k,}
+    ///  where \math{k = \ttt{dim_major}.}  
+    ///  The structural properties of \math{\mathcal{V}} depend heavily on whether we're
+    ///  short-axis major or long-axis major.
     ///
-    ///  If this distribution is long-axis major, then matrices sampled from it
-    ///  will have *at most* \math{\texttt{vec_nnz}} nonzeros per long-axis
-    ///  vector (i.e., per row of a wide matrix or per column of a tall matrix).
+    ///  To be explicit, let's say that \math{\mtxx} is a sample from \math{\mathcal{V}.}
+    ///  
+    ///  If \math{\ttt{major_axis} = \ttt{Short}}, then \math{\mtxx} has exactly \math{\vecnnz} nonzeros,
+    ///  and the locations of those nonzeros are chosen uniformly
+    ///  without replacement from \math{\\{0,\ldots,k-1\\}.} The values of the nonzeros are
+    ///  sampled independently and uniformly from +/- 1.
     ///
+    ///  If \math{\ttt{major_axis} = \ttt{Long}}, then \math{\mtxx} has *at most* \math{\vecnnz} nonzero
+    ///  entries. The locations of the nonzeros are determined by sampling uniformly
+    ///  with replacement from \math{\\{0,\ldots,k-1\\}.}
+    ///  If index \math{j} occurs in the sample \math{\ell} times, then 
+    ///  \math{\mtxx_j} will equal \math{\sqrt{\ell}} with probability 1/2 and
+    ///  \math{-\sqrt{\ell}} with probability 1/2.
+    ///
+    const Axis major_axis;
+
+    // ---------------------------------------------------------------------------
+    ///  Defined as
+    ///  @verbatim embed:rst:leading-slashes
+    ///
+    ///  .. math::
+    ///
+    ///      \ttt{dim_major} = \begin{cases} \,\min\{ \ttt{n_rows},\, \ttt{n_cols} \} &\text{ if }~~ \ttt{major_axis} = \ttt{Short} \\ \max\{ \ttt{n_rows},\,\ttt{n_cols} \} & \text{ if } ~~\ttt{major_axis} = \ttt{Long} \end{cases}.
+    ///
+    ///  @endverbatim
+    const int64_t dim_major;
+
+    // ---------------------------------------------------------------------------
+    ///  Defined as \math{\ttt{n_rows} + \ttt{n_cols} - \ttt{dim_major}.} This is
+    ///  just whichever of \math{(\ttt{n_rows},\, \ttt{n_cols})} wasn't identified
+    ///  as \math{\ttt{dim_major}.}
+    const int64_t dim_minor;
+
+    // ---------------------------------------------------------------------------
+    ///  An operator sampled from this distribution should be multiplied
+    ///  by this constant in order for sketching to preserve norms in expectation.
+    const double isometry_scale;
+
+    // ---------------------------------------------------------------------------
+    /// This constrains the number of nonzeros in each major-axis vector.
+    /// It's subject to the bounds \math{1 \leq \vecnnz \leq \ttt{dim_major}.}
+    /// See @verbatim embed:rst:inline :ref:`this tutorial page <sparsedist_params>` for advice on how to set this member. @endverbatim 
     const int64_t vec_nnz;
 
     // ---------------------------------------------------------------------------
-    ///  Constrains the sparsity pattern of matrices drawn from this distribution. 
-    ///
-    ///  Having major_axis==Short results in sketches are more likely to contain
-    ///  useful geometric information, without making assumptions about the data
-    ///  being sketched.
-    ///
-    const MajorAxis major_axis = MajorAxis::Short;
+    ///  An upper bound on the number of structural nonzeros that can appear in an
+    ///  operator sampled from this distribution. Computed automatically as
+    ///  \math{\ttt{full_nnz} = \vecnnz * \ttt{dim_minor}.}
+    const int64_t full_nnz;
+
+    // ---------------------------------------------------------------------------
+    ///  Arguments passed to this function are used to initialize members of the same names.
+    ///  The members \math{\ttt{dim_major},} \math{\ttt{dim_minor},} \math{\ttt{isometry_scale},} and \math{\ttt{full_nnz}}
+    ///  are automatically initialized to be consistent with these arguments.
+    ///  
+    ///  This constructor will raise an error if \math{\min\\{\ttt{n_rows}, \ttt{n_cols}\\} \leq 0} or if 
+    ///  \math{\vecnnz} does not respect the bounds documented for the \math{\vecnnz} member.
+    SparseDist(
+        int64_t n_rows,
+        int64_t n_cols,
+        int64_t vec_nnz = 4,
+        Axis major_axis = Axis::Short
+    ) : n_rows(n_rows), n_cols(n_cols),
+        major_axis(major_axis),
+        dim_major((major_axis == Axis::Short) ? std::min(n_rows, n_cols) : std::max(n_rows, n_cols)),
+        dim_minor(n_rows + n_cols - dim_major),
+        isometry_scale(sparse::isometry_scale(major_axis, vec_nnz, dim_major, dim_minor)),
+        vec_nnz(vec_nnz), full_nnz(vec_nnz * dim_minor) 
+    {   // argument validation
+        randblas_require(n_rows > 0);
+        randblas_require(n_cols > 0);
+        randblas_require(vec_nnz > 0);
+        randblas_require(vec_nnz <= dim_major);
+    }
 };
 
-template <typename T>
-inline T isometry_scale_factor(SparseDist D) {
-    T vec_nnz = (T) D.vec_nnz;
-    if (D.major_axis == MajorAxis::Short) {
-        return std::pow(vec_nnz, -0.5); 
-    } else {
-        T minor_ax_len = (T) std::min(D.n_rows, D.n_cols);
-        T major_ax_len = (T) std::max(D.n_rows, D.n_cols);
-        return std::sqrt( major_ax_len / (vec_nnz * minor_ax_len) );
-    }
-}
+#ifdef __cpp_concepts
+static_assert(SketchingDistribution<SparseDist>);
+#endif
 
 
 // =============================================================================
-/// A sample from a prescribed distribution over sparse matrices.
+/// This function is used for sampling a sequence of \math{k} elements uniformly
+/// without replacement from the index set \math{\\{0,\ldots,n-1\\}.} It uses a special 
+/// implementation of Fisher-Yates shuffling to produce \math{r} such samples in \math{O(n + rk)} time.
+/// These samples are stored by  writing to \math{\ttt{samples}} in \math{r} blocks of length \math{k.}
+/// 
+/// The returned RNGState should
+/// be used for the next call to a random sampling function whose output should be statistically
+/// independent from \math{\ttt{samples}.}
 ///
+template <SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
+inline state_t repeated_fisher_yates(
+    int64_t k, int64_t n, int64_t r, sint_t *samples, const state_t &state
+) {
+    return sparse::repeated_fisher_yates(state, k, n, r, samples, (sint_t*) nullptr, (double*) nullptr);
+}
+
+template <typename RNG>
+RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
+    int64_t num_mavec, incrs_per_mavec;
+    if (dist.major_axis == Axis::Short) {
+        num_mavec = std::max(dist.n_rows, dist.n_cols);
+        incrs_per_mavec = dist.vec_nnz;
+        // ^ SASOs don't try to be frugal with CBRNG increments.
+        //   See repeated_fisher_yates.
+    } else {
+        num_mavec = std::min(dist.n_rows, dist.n_cols);
+        incrs_per_mavec = dist.vec_nnz * ((int64_t) state.len_c/2);
+        // ^ LASOs do try to be frugal with CBRNG increments.
+        //   See sample_indices_iid_uniform.
+    }
+    int64_t full_incr = num_mavec * incrs_per_mavec;
+    state.counter.incr(full_incr);
+    return state;
+}
+
+// =============================================================================
+/// A sample from a distribution over structured sparse matrices with either
+/// independent rows or independent columns. This type conforms to the
+/// SketchingOperator concept.
 template <typename T, typename RNG = r123::Philox4x32, SignedInteger sint_t = int64_t>
 struct SparseSkOp {
 
-    using index_t = sint_t;
-    using state_t = RNGState<RNG>;
-    using scalar_t = T;
-
-    const int64_t n_rows;
-    const int64_t n_cols;
+    // ---------------------------------------------------------------------------
+    /// Type alias.
+    using distribution_t = SparseDist;
 
     // ---------------------------------------------------------------------------
-    ///  The distribution from which this sketching operator is sampled.
-    ///  This member specifies the number of rows and columns of the sketching
-    ///  operator.
+    /// Type alias.
+    using state_t = RNGState<RNG>;
+
+    // ---------------------------------------------------------------------------
+    /// Real scalar type used for nonzeros in matrix representations of this operator.
+    using scalar_t = T;
+
+    // ---------------------------------------------------------------------------
+    /// Signed integer type used in index arrays for sparse matrix representations
+    /// of this operator.
+    using index_t = sint_t;
+
+    // ---------------------------------------------------------------------------
+    ///  The distribution from which this operator is sampled.
     const SparseDist dist;
 
     // ---------------------------------------------------------------------------
-    ///  The state that should be passed to the RNG when the full sketching 
+    ///  The state passed to random sampling functions when the full
     ///  operator needs to be sampled from scratch. 
-    const RNGState<RNG> seed_state;
+    const state_t seed_state;
 
     // ---------------------------------------------------------------------------
-    ///  The state that should be used by the next call to an RNG *after* the
-    ///  full sketching operator has been sampled.
-    const RNGState<RNG> next_state;
+    ///  The state that should be used in the next call to a random sampling function
+    ///  whose output should be statistically independent from properties of this
+    ///  operator.
+    const state_t next_state;
 
     // ---------------------------------------------------------------------------
-    /// We need workspace to store a representation of the sampled sketching
-    /// operator. This member indicates who is responsible for allocating and 
-    /// deallocating this workspace. If own_memory is true, then 
-    /// RandBLAS is responsible.
-    const bool own_memory = true;
+    ///  Alias for dist.n_rows. Automatically initialized in all constructors.
+    const int64_t n_rows;
 
     // ---------------------------------------------------------------------------
-    /// A flag (indicating a sufficient condition) that the data underlying the
-    /// sparse matrix has already been sampled.
-    bool known_filled = false;
-    
+    ///  Alias for dist.n_cols. Automatically initialized in all constructors.
+    const int64_t n_cols;
+
+    // ----------------------------------------------------------------------------
+    ///  If true, then RandBLAS has permission to allocate and attach memory to this operator's reference
+    ///  members (S.rows, S.cols, and S.vals). If true *at destruction time*, then delete []
+    ///  will be called on each of this operator's non-null reference members.
+    ///
+    ///  RandBLAS only writes to this member at construction time.
+    ///
+    bool own_memory;
     
     /////////////////////////////////////////////////////////////////////
     //
@@ -225,9 +321,38 @@ struct SparseSkOp {
     //
     /////////////////////////////////////////////////////////////////////
 
-    sint_t *rows = nullptr;
-    sint_t *cols = nullptr;
-    T *vals = nullptr;
+    // ---------------------------------------------------------------------------
+    ///  The number of structural nonzeros in this operator.
+    ///  Negative values are a flag that the operator's explicit representation
+    ///  hasn't been sampled yet.
+    ///
+    ///  \internal
+    ///  If dist.major_axis
+    ///  is Short then we know ahead of time that nnz=dist.full_nnz.
+    ///  Otherwise, the precise value of nnz can't be known until the operator's
+    ///  explicit representation is sampled (although it's always subject to the
+    ///  bounds 1 <= nnz <= dist.full_nnz.
+    ///  \endinternal
+    ///  
+    int64_t nnz;
+
+    // ---------------------------------------------------------------------------
+    ///  Reference to an array that holds the values of this operator's structural nonzeros.
+    ///
+    ///  If non-null, this must point to an array of length at least dist.full_nnz.
+    T *vals;
+
+    // ---------------------------------------------------------------------------
+    ///  Reference to an array that holds the row indices for this operator's structural nonzeros.
+    ///
+    ///  If non-null, this must point to an array of length at least dist.full_nnz.
+    sint_t *rows;
+
+    // ---------------------------------------------------------------------------
+    ///  Reference to an array that holds the column indices for this operator's structural nonzeros.
+    ///
+    ///  If non-null, this must point to an array of length at least dist.full_nnz.
+    sint_t *cols;
 
     /////////////////////////////////////////////////////////////////////
     //
@@ -235,188 +360,231 @@ struct SparseSkOp {
     //
     /////////////////////////////////////////////////////////////////////
 
-    // ---------------------------------------------------------------------------
-    // 
-    //  @param[in] dist
-    //      A SparseDist object.
-    //      - Defines the number of rows and columns in this sketching operator.
-    //      - Indirectly controls sparsity pattern.
-    //      - Directly controls sparsity level.
-    // 
-    //  @param[in] state
-    //      An RNGState object.
-    //      - The RNG will use this as the starting point to generate all 
-    //        random numbers needed for this sketching operator.
-    // 
-    //  @param[in] rows
-    //      Pointer to int64_t array.
-    //      - stores row indices as part of the COO format.
-    // 
-    //  @param[in] cols
-    //      Pointer to int64_t array.
-    //      - stores column indices as part of the COO format.
-    // 
-    //  @param[in] vals
-    //      Pointer to array of real numerical type T.
-    //      - stores nonzeros as part of the COO format.
-    //  
-    //  @param[in] known_filled
-    //      A boolean. If true, then the arrays pointed to by
-    //      (rows, cols, vals) already contain the randomly sampled
-    //      data defining this sketching operator.
-    //      
+    /// ---------------------------------------------------------------------------
+    ///  **Standard constructor**. Arguments passed to this function are 
+    ///  used to initialize members of the same names. own_memory is initialized to true,
+    ///  nnz is initialized to -1, and (vals, rows, cols) are each initialized
+    ///  to nullptr. next_state is computed automatically from dist and seed_state.
+    ///  
+    ///  Although own_memory is initialized to true, RandBLAS will not attach
+    ///  memory to (vals, rows, cols) unless fill_sparse(SparseSkOp &S) is called. 
+    ///
+    ///  If a RandBLAS function needs an explicit representation of this operator and
+    ///  yet nnz < 0, then RandBLAS will construct a temporary
+    ///  explicit representation of this operator and delete that representation before returning.
+    ///  
     SparseSkOp(
         SparseDist dist,
-        const RNGState<RNG> &state,
-        sint_t *rows,
-        sint_t *cols,
+        const state_t &seed_state
+    ):  // variable definitions
+        dist(dist),
+        seed_state(seed_state),
+        next_state(compute_next_state(dist, seed_state)),
+        n_rows(dist.n_rows),
+        n_cols(dist.n_cols), own_memory(true), nnz(-1), vals(nullptr), rows(nullptr), cols(nullptr) { }
+
+    /// --------------------------------------------------------------------------------
+    ///  **Expert constructor**. Arguments passed to this function are 
+    ///  used to initialize members of the same names. own_memory is initialized to false.
+    /// 
+    SparseSkOp(
+        SparseDist dist,
+        const state_t &seed_state,
+        const state_t &next_state,
+        int64_t nnz,
         T *vals,
-        bool known_filled = true
+        sint_t *rows,
+        sint_t *cols
     ) : // variable definitions
+        dist(dist),
+        seed_state(seed_state),
+        next_state(next_state),
         n_rows(dist.n_rows),
         n_cols(dist.n_cols),
-        dist(dist),
-        seed_state(state),
         own_memory(false),
-        next_state(sparse::compute_next_state(dist, seed_state))
-    {   // sanity checks
-        randblas_require(this->dist.n_rows > 0);
-        randblas_require(this->dist.n_cols > 0);
-        randblas_require(this->dist.vec_nnz > 0);
-        // actual work
-        this->rows = rows;
-        this->cols = cols;
-        this->vals = vals;
-        this->known_filled = known_filled;
-    };
+        nnz(nnz), vals(vals), rows(rows), cols(cols){ };
 
-    // Useful for shallow copies (possibly with transposition)
-    SparseSkOp(
-        SparseDist dist,
-        const RNGState<RNG> &seed_state,
-        sint_t *rows,
-        sint_t *cols,
-        T *vals,
-        const RNGState<RNG> &next_state
-    ) : n_rows(dist.n_rows), n_cols(dist.n_cols), dist(dist), seed_state(seed_state), next_state(next_state), own_memory(false) {
-        randblas_require(this->dist.n_rows > 0);
-        randblas_require(this->dist.n_cols > 0);
-        randblas_require(this->dist.vec_nnz > 0);
-        // actual work
-        this->rows = rows;
-        this->cols = cols;
-        this->vals = vals;
-        this->known_filled = known_filled;
+    //  Move constructor
+    SparseSkOp(SparseSkOp<T,RNG,sint_t> &&S
+    ) : dist(S.dist), seed_state(S.seed_state), next_state(S.next_state),
+        n_rows(dist.n_rows), n_cols(dist.n_cols), own_memory(S.own_memory),
+        nnz(S.nnz), rows(S.rows), cols(S.cols), vals(S.vals)
+    {
+        S.rows = nullptr;
+        S.cols = nullptr;
+        S.vals = nullptr;
+        S.nnz = -1;
     }
-
-    SparseSkOp(
-        SparseDist dist,
-        uint32_t key,
-        sint_t *rows,
-        sint_t *cols,
-        T *vals 
-    ) : SparseSkOp(dist, RNGState<RNG>(key), rows, cols, vals) {};
-
-
-    ///---------------------------------------------------------------------------
-    /// The preferred constructor for SparseSkOp objects. There are other 
-    /// constructors, but they don't appear in the web documentation.
-    ///
-    /// @param[in] dist
-    ///     A SparseDist object.
-    ///     - Defines the number of rows and columns in this sketching operator.
-    ///     - Indirectly controls sparsity pattern.
-    ///     - Directly controls sparsity level.
-    ///
-    /// @param[in] state
-    ///     An RNGState object.
-    ///     - The RNG will use this as the starting point to generate all 
-    ///       random numbers needed for this sketching operator.
-    ///
-    SparseSkOp(
-        SparseDist dist,
-        const RNGState<RNG> &state
-    ) :  // variable definitions
-        n_rows(dist.n_rows),
-        n_cols(dist.n_cols),
-        dist(dist),
-        seed_state(state),
-        next_state(sparse::compute_next_state(dist, seed_state)),
-        own_memory(true)
-    {   // sanity checks
-        randblas_require(this->dist.n_rows > 0);
-        randblas_require(this->dist.n_cols > 0);
-        randblas_require(this->dist.vec_nnz > 0);
-        // actual work
-        int64_t minor_ax_len;
-        if (this->dist.major_axis == MajorAxis::Short) {
-            minor_ax_len = MAX(this->dist.n_rows, this->dist.n_cols);
-        } else { 
-            minor_ax_len = MIN(this->dist.n_rows, this->dist.n_cols);
-        }
-        int64_t nnz = this->dist.vec_nnz * minor_ax_len;
-        this->rows = new sint_t[nnz];
-        this->cols = new sint_t[nnz];
-        this->vals = new T[nnz];
-    }
-
-    SparseSkOp(
-        SparseDist dist,
-        uint32_t key
-    ) : SparseSkOp(dist, RNGState<RNG>(key)) {};
-
 
     //  Destructor
     ~SparseSkOp() {
-        if (this->own_memory) {
-            delete [] this->rows;
-            delete [] this->cols;
-            delete [] this->vals;
+        if (own_memory) {
+            if (rows != nullptr) delete [] rows;
+            if (cols != nullptr) delete [] cols;
+            if (vals != nullptr) delete [] vals;
         }
     }
 };
 
-// =============================================================================
-/// Performs the work in sampling S from its underlying distribution. This 
-/// entails populating S.rows, S.cols, and S.vals with COO-format sparse matrix
-/// data.
-///
-/// RandBLAS will automatically call this function if and when it is needed.
-///
-/// @param[in] S
-///     SparseSkOp object.
-///     
-template <typename SparseSkOp>
-void fill_sparse(SparseSkOp &S) {
-    
-    int64_t long_ax_len = MAX(S.dist.n_rows, S.dist.n_cols);
-    int64_t short_ax_len = MIN(S.dist.n_rows, S.dist.n_cols);
-    bool is_wide = S.dist.n_rows == short_ax_len;
 
-    using sint_t = typename SparseSkOp::index_t;
-    sint_t *short_ax_idxs = (is_wide) ? S.rows : S.cols;
-    sint_t *long_ax_idxs  = (is_wide) ? S.cols : S.rows;
-
-    if (S.dist.major_axis == MajorAxis::Short) {
-        sparse::repeated_fisher_yates(
-            S.seed_state, S.dist.vec_nnz, short_ax_len, long_ax_len,
-            short_ax_idxs, long_ax_idxs, S.vals
-        );
-    } else {
-        sparse::repeated_fisher_yates(
-            S.seed_state, S.dist.vec_nnz, long_ax_len, short_ax_len,
-            long_ax_idxs, short_ax_idxs, S.vals
-        );
+template <typename T, SignedInteger sint_t>
+void laso_merge_long_axis_vector_coo_data(
+    int64_t vec_nnz, T* vals, sint_t* idxs_lax, sint_t *idxs_sax, int64_t i,
+    std::unordered_map<sint_t, T> &loc2count,
+    std::unordered_map<sint_t, T> &loc2scale
+) {
+    loc2count.clear();
+    // ^ Used to count the number of times each long-axis index
+    //   appears in a given long-axis vector. Indices that don't
+    //   appear are not stored explicitly.
+    loc2scale.clear();
+    // ^ Stores a mean-zero variance-one subgaussian random variable for
+    //   each index appearing in the long-axis vector. Current
+    //   long-axis-sparse sampling uses Rademachers, but the literature
+    //   technically prefers Gaussians.
+    for (int64_t j = 0; j < vec_nnz; ++j) {
+        idxs_sax[j] = i;
+        sint_t ell = idxs_lax[j];
+        T      val = vals[j];
+        if (loc2scale.count(ell)) {
+            loc2count[ell] = loc2count[ell] + 1;
+        } else {
+            loc2scale[ell] = val;
+            loc2count[ell] = 1.0;
+        }
     }
-    S.known_filled = true;
+    if ((int64_t) loc2scale.size() < vec_nnz) {
+        // Then we have duplicates. We need to overwrite some of the values
+        // of (idxs_lax, vals, idxs_sax) and implicitly
+        // shift them backward to remove duplicates;
+        int64_t count = 0;
+        for (const auto& [ell,c] : loc2count) {
+            idxs_lax[count] = ell;
+            vals[count] = std::sqrt(c) * loc2scale[ell];
+            count += 1;
+        }
+    }
     return;
 }
 
-template <typename SKOP>
-void print_sparse(SKOP const &S0) {
+// =============================================================================
+/// @verbatim embed:rst:leading-slashes
+///
+///   .. |vals|  mathmacro:: \mathtt{vals}
+///   .. |rows|  mathmacro:: \mathtt{rows}
+///   .. |cols|  mathmacro:: \mathtt{cols}
+///   .. |Dfullnnz| mathmacro:: {\mathcal{D}\mathtt{.full\_nnz}}
+///
+/// @endverbatim
+/// This function is the underlying implementation of fill_sparse(SparseSkOp &S).
+/// It has no allocation stage and it skips checks for null pointers.
+///
+/// On entry, \math{(\vals,\rows,\cols)} are arrays of length at least \math{\Dfullnnz.}
+/// On exit, the first \math{\ttt{nnz}} entries of these arrays contain the data for 
+/// a COO sparse matrix representation of the SparseSkOp
+/// defined by \math{(\D,\ttt{seed_state)}.}
+///
+/// 
+template <typename T, typename sint_t, typename state_t>
+state_t fill_sparse_unpacked_nosub(
+    const SparseDist &D,
+    int64_t &nnz, T* vals, sint_t* rows, sint_t *cols,
+    const state_t &seed_state
+) {
+    int64_t dim_major = D.dim_major;
+    int64_t dim_minor = D.dim_minor;
+
+    sint_t *idxs_short = (D.n_rows <= D.n_cols) ? rows : cols;
+    sint_t *idxs_long  = (D.n_rows <= D.n_cols) ? cols : rows;
+    int64_t vec_nnz  = D.vec_nnz;
+
+    if (D.major_axis == Axis::Short) {
+        auto state = sparse::repeated_fisher_yates(
+            seed_state, vec_nnz, dim_major, dim_minor, idxs_short, idxs_long, vals
+        );
+        nnz = vec_nnz * dim_minor;
+        return state;
+    } else if (D.major_axis == Axis::Long) {
+        // We don't sample all at once since we might need to merge duplicate entries
+        // in each long-axis vector. The way we do this is different than the
+        // standard COOMatrix convention of just adding entries together.
+
+        // We begin by defining some datastructures that we repeatedly pass to a helper function.
+        // See the comments in the helper function for info on what these guys mean.
+        std::unordered_map<sint_t, T> loc2count{};
+        std::unordered_map<sint_t, T> loc2scale{}; 
+        int64_t total_nnz = 0;
+        auto state = seed_state;
+        for (int64_t i = 0; i < dim_minor; ++i) {
+            state = sample_indices_iid_uniform(dim_major, vec_nnz, idxs_long, vals, state);
+            // ^ That writes directly so S.vals and either S.rows or S.cols.
+            //   The new values might need to be changed if there are duplicates in lind.
+            //   We have a helper function for this since it's a tedious process.
+            //   The helper function also sets whichever of S.rows or S.cols wasn't populated.
+            laso_merge_long_axis_vector_coo_data(
+                vec_nnz, vals, idxs_long, idxs_short, i, loc2count, loc2scale
+            );
+            int64_t count = loc2count.size();
+            vals += count;
+            idxs_long  += count;
+            idxs_short += count;
+            total_nnz  += count;
+        }
+        nnz = total_nnz;
+        return state;
+    } else {
+        throw std::invalid_argument("D.major_axis must be Axis::Short or Axis::Long.");
+    }
+}
+
+
+// =============================================================================
+/// If \math{\ttt{S.own_memory}} is true then we enter an allocation stage. This stage
+/// inspects the reference members of \math{\ttt{S}}.
+/// Any reference member that's equal to \math{\ttt{nullptr}} is redirected to 
+/// the start of a new array (allocated with ``new []``) of length \math{\ttt{S.dist.full_nnz}.} 
+///
+/// After the allocation stage, we inspect the reference members of \math{\ttt{S}}
+/// and we raise an error if any of them are null.
+///
+/// If all reference members are are non-null, then we'll assume each of them has length 
+/// at least \math{\ttt{S.dist.full_nnz}.} We'll proceed to populate those members 
+/// (and \math{\ttt{S.nnz}}) with the data for the explicit representation of \math{\ttt{S}.}
+/// On exit, \math{\ttt{S}} can be equivalently represented by
+/// @verbatim embed:rst:leading-slashes
+///  .. code:: c++
+///
+///         RandBLAS::COOMatrix mat(S.n_rows, S.n_cols, S.nnz, S.vals, S.rows, S.cols);
+///
+/// @endverbatim
+template <typename SparseSkOp>
+void fill_sparse(SparseSkOp &S) {
+    using sint_t = typename SparseSkOp::index_t;
+    using T      = typename SparseSkOp::scalar_t;
+    int64_t full_nnz = S.dist.full_nnz;
+    if (S.own_memory) {
+        if (S.rows == nullptr) S.rows = new sint_t[full_nnz];
+        if (S.cols == nullptr) S.cols = new sint_t[full_nnz];
+        if (S.vals == nullptr) S.vals = new T[full_nnz];
+    }
+    randblas_require(S.rows != nullptr);
+    randblas_require(S.cols != nullptr);
+    randblas_require(S.vals != nullptr);
+    fill_sparse_unpacked_nosub(S.dist, S.nnz, S.vals, S.rows, S.cols, S.seed_state);
+    return;
+}
+
+#ifdef __cpp_concepts
+static_assert(SketchingOperator<SparseSkOp<float>>);
+static_assert(SketchingOperator<SparseSkOp<double>>);
+#endif
+
+template <typename SparseSkOp>
+void print_sparse(SparseSkOp const &S0) {
+    // TODO: clean up this function.
     std::cout << "SparseSkOp information" << std::endl;
     int64_t nnz;
-    if (S0.dist.major_axis == MajorAxis::Short) {
+    if (S0.dist.major_axis == Axis::Short) {
         nnz = S0.dist.vec_nnz * MAX(S0.dist.n_rows, S0.dist.n_cols);
         std::cout << "\tSASO: short-axis-sparse operator" << std::endl;
     } else {
@@ -425,91 +593,51 @@ void print_sparse(SKOP const &S0) {
     }
     std::cout << "\tn_rows = " << S0.dist.n_rows << std::endl;
     std::cout << "\tn_cols = " << S0.dist.n_cols << std::endl;
-    std::cout << "\tvector of row indices\n\t\t";
-    for (int64_t i = 0; i < nnz; ++i) {
-        std::cout << S0.rows[i] << ", ";
+    if (S0.rows != nullptr) {
+        std::cout << "\tvector of row indices\n\t\t";
+        for (int64_t i = 0; i < nnz; ++i) {
+            std::cout << S0.rows[i] << ", ";
+        }
+    } else {
+        std::cout << "\trows is the null pointer.\n\t\t";
     }
     std::cout << std::endl;
-    std::cout << "\tvector of column indices\n\t\t";
-    for (int64_t i = 0; i < nnz; ++i) {
-        std::cout << S0.cols[i] << ", ";
+    if (S0.cols != nullptr) {
+        std::cout << "\tvector of column indices\n\t\t";
+        for (int64_t i = 0; i < nnz; ++i) {
+            std::cout << S0.cols[i] << ", ";
+        }
+    } else {
+        std::cout << "\tcols is the null pointer.\n\t\t";
     }
     std::cout << std::endl;
-    std::cout << "\tvector of values\n\t\t";
-    for (int64_t i = 0; i < nnz; ++i) {
-        std::cout << S0.vals[i] << ", ";
+    if (S0.vals != nullptr) {
+        std::cout << "\tvector of values\n\t\t";
+        for (int64_t i = 0; i < nnz; ++i) {
+            std::cout << S0.vals[i] << ", ";
+        }
+    } else {
+        std::cout << "\tvals is the null pointer.\n\t\t";
     }
     std::cout << std::endl;
+    return;
 }
-
 
 } // end namespace RandBLAS
 
 namespace RandBLAS::sparse {
 
 using RandBLAS::SparseSkOp;
-using RandBLAS::MajorAxis;
+using RandBLAS::Axis;
 using RandBLAS::sparse_data::COOMatrix;
 
-template <typename SKOP>
-static bool has_fixed_nnz_per_col(
-    SKOP const &S0
-) {
-    if (S0.dist.major_axis == MajorAxis::Short) {
-        return S0.dist.n_rows < S0.dist.n_cols;
-    } else {
-        return S0.dist.n_cols < S0.dist.n_rows;
-    }
-}
-
-template <typename SKOP>
-static int64_t nnz(
-    SKOP const &S0
-) {
-    bool saso = S0.dist.major_axis == MajorAxis::Short;
-    bool wide = S0.dist.n_rows < S0.dist.n_cols;
-    if (saso & wide) {
-        return S0.dist.vec_nnz * S0.dist.n_cols;
-    } else if (saso & (!wide)) {
-        return S0.dist.vec_nnz * S0.dist.n_rows;
-    } else if (wide & (!saso)) {
-        return S0.dist.vec_nnz * S0.dist.n_rows;
-    } else {
-        // tall LASO
-        return S0.dist.vec_nnz * S0.dist.n_cols;
-    }
-}
-
-template <typename SkOp, typename T = SkOp::scalar_t, typename sint_t = SkOp::index_t>
-COOMatrix<T, sint_t> coo_view_of_skop(SkOp &S) {
-    if (!S.known_filled)
+template <typename SparseSkOp, typename T = SparseSkOp::scalar_t, typename sint_t = SparseSkOp::index_t>
+COOMatrix<T, sint_t> coo_view_of_skop(SparseSkOp &S) {
+    if (S.nnz <= 0)
         fill_sparse(S);
-    int64_t nnz = RandBLAS::sparse::nnz(S);
-    COOMatrix<T, sint_t> A(S.dist.n_rows, S.dist.n_cols, nnz, S.vals, S.rows, S.cols);
+    COOMatrix<T, sint_t> A(S.n_rows, S.n_cols, S.nnz, S.vals, S.rows, S.cols);
     return A;
 }
 
-// =============================================================================
-/// Return a SparseSkOp object representing the transpose of S.
-///
-/// @param[in] S
-///     SparseSkOp object.
-/// @return 
-///     A new SparseSkOp object that depends on the memory underlying S.
-///     (In particular, it depends on S.rows, S.cols, and S.vals.)
-///     
-template <typename SKOP>
-static auto transpose(SKOP const &S) {
-    randblas_require(S.known_filled);
-    SparseDist dist = {
-        .n_rows = S.dist.n_cols,
-        .n_cols = S.dist.n_rows,
-        .vec_nnz = S.dist.vec_nnz,
-        .major_axis = S.dist.major_axis
-    };
-    SKOP St(dist, S.seed_state, S.cols, S.rows, S.vals);
-    St.next_state = S.next_state;
-    return St;
-}
 
 } // end namespace RandBLAS::sparse
