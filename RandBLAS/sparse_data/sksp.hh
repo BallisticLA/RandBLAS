@@ -333,7 +333,7 @@ namespace RandBLAS {
 using namespace RandBLAS::dense;
 using namespace RandBLAS::sparse_data;
 
-// MARK: SKSP overloads, sub
+// MARK: SKSP overloads, full
 
 // =============================================================================
 /// \fn sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,  int64_t n, int64_t m,

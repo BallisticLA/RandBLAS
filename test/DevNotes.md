@@ -1,7 +1,7 @@
 # Developer notes for RandBLAS' testing infrastructure
 
 
-This document doesn't don't defend previous design decisions.
+This document doesn't defend previous design decisions.
 It just explains how things work right now.
 That's easier for me (Riley) to write, and it's more useful to others.
 (Plus, it helps make the pros and cons of the current approach self-evident.)
@@ -30,7 +30,7 @@ but I haven't actually verified this.
 
 ### test_basic_rng
 
-  * test_r123.cc has deterministic tests for Random123. The tests comapre generated values
+  * test_r123.cc has deterministic tests for Random123. The tests compare generated values
     to reference values computed ahead of time. The tests are __extremely__ messy, since they're
     adapted from tests in the official Random123 repository, and Random123 needs to handle a far wider
     range of compilers and languages than we assume for RandBLAS.

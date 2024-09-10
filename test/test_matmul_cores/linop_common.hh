@@ -77,15 +77,8 @@ auto random_matrix(int64_t m, int64_t n, RNGState<RNG> s) {
     return t;
 }
 
-template <typename T>
-dims64_t dimensions(SparseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols}; }
-
-template <typename T>
-dims64_t dimensions(DenseSkOp<T> &S) {return {S.dist.n_rows, S.dist.n_cols};}
-
-template <SparseMatrix SpMat>
-dims64_t dimensions(SpMat &S) {return {S.n_rows, S.n_cols};}
-
+template <typename LINOP>
+dims64_t dimensions(LINOP &S) {return {S.n_rows, S.n_cols};}
 
 template <typename T, SparseMatrix SpMat>
 void to_explicit_buffer(SpMat &a, T *mat_a, Layout layout) {
@@ -619,7 +612,7 @@ void test_right_apply_submatrix_to_eye(
 }
 
 template <typename T, typename LinOp>
-void test_right_apply_tranpose_to_eye(
+void test_right_apply_transpose_to_eye(
     // B = eye * S^T, where S is d-by-n, so eye is order n and B is n-by-d
     LinOp &S, Layout layout, int threads = 0
 ) {

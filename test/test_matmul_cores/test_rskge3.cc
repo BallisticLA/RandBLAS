@@ -67,7 +67,7 @@ class TestRSKGE3 : public ::testing::Test
     ) {
         DenseDist Dt(d, m);
         DenseSkOp<T> S0(Dt, seed);
-        test_right_apply_tranpose_to_eye<T>(S0, layout);
+        test_right_apply_transpose_to_eye<T>(S0, layout);
     }
 
     template <typename T>

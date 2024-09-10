@@ -143,12 +143,12 @@ class TestRightMultiply_Sparse : public ::testing::Test {
 
     void alpha_beta(uint32_t key, T alpha, T beta, int64_t m, int64_t n, Layout layout, T p) {
         auto A = this->make_test_matrix(m, n, p, key);
-       test_right_apply_submatrix_to_eye<T>(alpha, A, m, n, 0, 0, layout, beta, 0);
+        test_right_apply_submatrix_to_eye<T>(alpha, A, m, n, 0, 0, layout, beta, 0);
     }
 
     void transpose_self(uint32_t key, int64_t m, int64_t n, Layout layout, T p) {
         auto A = this->make_test_matrix(m, n, p, key);
-        test_right_apply_tranpose_to_eye<T>(A, layout, 0);
+        test_right_apply_transpose_to_eye<T>(A, layout, 0);
     }
 
     void submatrix_self(
