@@ -11,11 +11,11 @@ Once a sketching operator is sampled it is applied to a user provided *data matr
 
 Abstractly, a sketch is supposed to summarize some geometric information that underlies its data matrix.
 The RandNLA literature documents a huge array of possibilities for how to compute and process sketches to obtain various desired outcomes.
-It also documents sketching operators of many different "flavors;" some are sparse matrices, some are subsampled FFT-like operations, and others still are dense matrices. 
+It also documents sketching operators of different "flavors;" some are sparse matrices, some are subsampled FFT-like operations, and others still are dense matrices. 
 
 .. note::
 
-  We routinely abbreviate *sketching operator* by *operator.*
+  If we call something an "operator," we mean it's a *sketching operator* unless otherwise stated.
 
 RandBLAS, at a glance
   It's useful to think of RandBLAS' sketching workflow in three steps.
@@ -43,7 +43,7 @@ RandBLAS, at a glance
           1.0, A, 20000, S, 0.0, B, 20000
     ); // B = AS
 
-RandBLAS has a wealth of capabilities that are not reflected in that code sippet.
+RandBLAS has a wealth of capabilities that are not reflected in that code snippet.
 For example, it lets you set an integer-valued the seed when defining :math:`\texttt{state}`, and it provides a wide range of both dense and sparse sketching operators.
 It even lets you compute products against *submatrices* of sketching operators without ever forming the full operator in memory.
 

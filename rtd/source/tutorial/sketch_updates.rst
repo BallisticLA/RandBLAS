@@ -1,26 +1,16 @@
 
 
-  .. |denseskop| mathmacro:: \texttt{DenseSkOp}
   .. |seedstate| mathmacro:: \texttt{seed_state}
   .. |nextstate| mathmacro:: \texttt{next_state}
   .. |majoraxis| mathmacro:: \texttt{major_axis}
-  .. |mtx| mathmacro:: {}
   .. |ttt| mathmacro:: \texttt
   .. |D| mathmacro:: \mathcal{D}
-  .. |nrows| mathmacro:: \texttt{n_rows}
-  .. |ncols| mathmacro:: \texttt{n_cols}
-  .. |din| mathmacro::  d_{\text{long}}
-  .. |dout| mathmacro:: d_{\text{short}}
-  .. |cE| mathmacro:: \mathcal{E}
   .. |mS| mathmacro:: {S}
-  .. |mT| mathmacro:: {T}
   .. |mA| mathmacro:: {A}
   .. |mB| mathmacro:: {B}
-  .. |mC| mathmacro:: {C}
-  .. |mG| mathmacro:: {G}
   .. |mX| mathmacro:: {X}
   .. |mY| mathmacro:: {Y}
-  .. |mZ| mathmacro:: {Z}
+  .. |R| mathmacro:: \mathbb{R}
   .. |rank| mathmacro:: \operatorname{rank}
 
 .. _sketch_updates:

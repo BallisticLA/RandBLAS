@@ -25,15 +25,15 @@ RandBLAS' sketching operators can be divided into two categories.
   *Dense* sketching operators have entries that are sampled iid from
   a mean-zero distribution over the reals.
   Distributions over these operators are represented with the
-  :ref:`DenseDist <densedist_and_denseskop_api>` class.
+  :cpp:struct:`RandBLAS::DenseDist` type.
 
   *Sparse* sketching operators have random (but highly structured) sparsity patterns.
   Their nonzero entries are sampled iid and uniformly from :math:`\{-1,1\}.`
   Distributions over these operators are represented with the 
-  :ref:`SparseDist <sparsedist_and_sparseskop_api>` class.
+  :cpp:struct:`RandBLAS::SparseDist` type.
 
-The first order of business in correctly using RandBLAS is to decide which type of sketching
-operator is appropriate in your situation. 
+The first order of business in implementing sketching-based algorithms is to decide which type of
+distribution is appropriate in your situation. 
 From there, you need to instantiate a specific distribution by setting some parameters.
 This part of the tutorial gives tips on both of these points.
 
@@ -75,7 +75,7 @@ Discussion of Q2.
     As a result, they can't tolerate :math:`O(dmn)` operations for sketching while still providing
     asymptotically faster runtime than a direct least squares solver.
 
-With this in mind, note how our hueristic indicates a preference dense sketching over
+With this in mind, note how our heuristic indicates a preference dense sketching over
 sparse sketching when dense sketching can be afforded.
 This preference stems from how if the sketching dimension is fixed, then the statistical properties of dense sketching
 operators will generally be preferable to those of sparse
@@ -152,7 +152,7 @@ SparseDist: vec_nnz and major_axis
 ----------------------------------
 
 A SparseDist represents a distribution over sparse matrices with fixed dimensions, where 
-either the rows or the columns are sampled independently from certains distribution over
+either the rows or the columns are sampled independently from a certain distribution over
 sparse vectors.
 The distribution is determined by the trailing constructor arguments:  :math:`\vecnnz` and :math:`\majoraxis.`
 
@@ -203,11 +203,11 @@ SparseDist when :math:`\majoraxis = \ttt{Long}.`
   In the literature,
   :math:`\vecnnz = 1` corresponds to operators for sampling uniformly with replacement
   from the rows or columns of a data matrix (although the signs on the rows or
-  columns may be flipped). :math:`\vecnnz > 1` is a special case of LESS-uniform
+  columns may be flipped). Taking :math:`\vecnnz > 1` gives a special case of LESS-uniform
   distributions, where the underlying scalar sub-gaussian distribution is the uniform
   distribution over :math:`\pm 1.`
 
   It is important to use (much) larger values of :math:`\vecnnz` here compared to the 
-  short-axis-major case.
+  short-axis-major case, at least for the same sketch size :math:`d.`
   There is less consensus in the community for what constitutes "big enough in practice," 
   therefore we make no prescriptions on this front.

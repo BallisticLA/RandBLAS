@@ -47,7 +47,7 @@ Strictly speaking, we only need three things to use RandBLAS in other projects.
 2. The locations of Random123 header files.
 
 3. The locations of the header files and compiled binary for BLAS++ (which will
-   referred to as blaspp when installed on your system).
+   referred to as "blaspp" when installed on your system).
 
 If you have these things at hand, then compiling a RandBLAS-dependent
 program is just a matter of specifying standard compiler flags. 

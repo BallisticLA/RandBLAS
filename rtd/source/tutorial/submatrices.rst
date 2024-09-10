@@ -63,10 +63,10 @@ The corresponding GEMM-like function signature is as follows.
   template <typename T, typename LinOp>
   abstract_gemm(
     blas::Layout ell, blas::Op opA, blas::Op opB, int m, int n, int k,
-    T alpha, LinOp A, int ro_a, int co_a, const T* B, int ldb, T beta, T* C, int ldc
+    T alpha, LinOp &A, int ro_a, int co_a, const T* B, int ldb, T beta, T* C, int ldc
   )
 
-Analgous changes apply just as well in two other cases: when :math:`\mtx{B}` is abstract
+Analogous changes apply just as well in two other cases: when :math:`\mtx{B}` is abstract
 rather than :math:`\mtx{A}`, or when both :math:`\mtx{A}` and :math:`\mtx{B}` are abstract.
 
 RandBLAS doesn't actually have a function called :math:`\texttt{abstract_gemm}.`

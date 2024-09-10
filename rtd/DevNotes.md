@@ -19,7 +19,7 @@ within the ``rtd`` folder. (The role of this folder is explained below.)
 
 ## 3. Project file and folder structure
 
-We have one directory that contains all files needed for web documentation. We call this diretory "``rtd``", as an abbreviation for "read the docs". Here is the project structure relative to that directory.
+We have one directory that contains all files needed for web documentation. We call this directory "``rtd``", as an abbreviation for "read the docs". Here is the project structure relative to that directory.
 ```
 rtd/
 ├── source/
@@ -43,9 +43,9 @@ The files ``conf.py``, ``Doxyfile``, ``theme.conf``, and ``theme_overrides.css``
 
 The file ``mathmacros.py`` contains custom, nontrivial code. It's needed so that we can define LaTeX macros and use them in the C++ source code documentation. We clarify its role and explain how it's accessed below.
 
-The file ``index.rst`` defines the landing page of the sphinx website. This file is also used together with ``rtd/source/<OTHER_FOLDERS>`` to define *all* pages on the sphinx website. Because there's tons of information about general sphinx websites out there we won't go into much more detail about this file.
+The file ``index.rst`` defines the landing page of the sphinx website. This file is also used together with ``rtd/source/<OTHER_FOLDERS>`` to define *all* pages on the sphinx website. Because there's a ton of information about general sphinx websites out there we won't go into much more detail about this file.
 
-## 4. Where did these files come from and what goes into them?
+## 4. Where did these files come from, and what goes into them?
 
 ### 4.1. What goes into conf.py
 

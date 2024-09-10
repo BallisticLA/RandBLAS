@@ -29,19 +29,13 @@ Fundamentals
   ..  would access BLAS.
 
 RandBLAS has a polymorphic free-function API. We have spent a significant amount of 
-effort on minimizing the number of RandBLAS-specific datastructures needed in order
+effort on minimizing the number of RandBLAS–specific datastructures needed in order
 to achieve that polymorphism.
-
-RandBLAS is very light on C++ idioms. The main idioms we use are
-templating and function overloading, plus some mild memory management
-with destructor methods for structs. The only place we even use inheritance is
-in our test code!
 
 We have a bunch of functions that aren't documented on this website.
 If such a function looks useful, you should feel free to use it. If you
-end up doing that and you care about your code's compatibility with future
+end up doing that, and you care about your code's compatibility with future
 versions of RandBLAS, then please let us know by filing a quick GitHub issue.
-
 
 Preliminaries
 =============
@@ -61,8 +55,11 @@ Preliminaries
         :project: RandBLAS
         :members:
 
-Gaussians et al.
-================
+
+.. _densedist_and_denseskop_api:
+
+Dense sketching, with Gaussians *et al.*
+========================================
 
 .. dropdown:: DenseDist : a distribution over matrices with i.i.d., mean-zero, variance-one entries
   :animate: fade-in-slide-down
@@ -90,8 +87,10 @@ Gaussians et al.
       :project: RandBLAS
 
 
-CountSketch et al.
-==================
+.. _sparsedist_and_sparseskop_api:
+
+Sparse sketching, with CountSketch *et al.*
+===========================================
 
 .. dropdown:: SparseDist : a distribution over structured sparse matrices
   :animate: fade-in-slide-down

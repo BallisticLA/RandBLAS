@@ -20,7 +20,7 @@
 Working with dense data in RandBLAS
 ******************************************
 
-TODO: add a few words about the data model.
+.. TODO: add a few words about the data model.
 
 
 Sketching dense matrices and vectors 
@@ -30,7 +30,7 @@ RandBLAS has adaptions of GEMM, GEMV, and SYMM when one of their matrix operands
 These adaptations are provided through overloaded functions named sketch_general, sketch_vector, and sketch_symmetric.
 
 Out of the functions presented here, only sketch_general has low-level implementations;
-sketch_vector and sketch_symmetric are basic wrappers around sketch_general, and are provided to make
+sketch_vector and sketch_symmetric are basic wrappers around sketch_general, and are provided
 to make implementations less error-prone when porting code that currently uses BLAS
 or a BLAS-like interface.
 
