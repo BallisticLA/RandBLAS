@@ -41,7 +41,7 @@ DenseDist and SparseDist are simple structs. Why bother having constructors for 
 Why don't you automatically scale your sketching operators to give partial isometries in expectation?
   There are a few factors that led us to this decision. None of these factors is a huge deal, alone, but they become significant when considered together.
 
-  1. Many randomized algorithms are actually invariant under rescaling of the sketching operators that they use internally.
+  1. Many randomized algorithms have a property where their output is invariant under rescaling of the sketching operators that they use internally.
   2. Sketching operators are easier to describe if we think in terms of their "natural" scales before considering their use as tools for dimension reduction.
      For example, the natural scale for DenseSkOps is to have entries that are sampled iid from a mean-zero and variance-one distribution.
      The natural scale for SparseSkOps (with major_axis==Short) is for nonzero entries to have absolute value equal to one.
