@@ -328,6 +328,10 @@ void transpose_square(T* A, int64_t n, int64_t lda) {
     return;
 }
 
+template <typename T>
+T sqrt_epsilon() {
+    return std::sqrt(std::numeric_limits<T>::epsilon());
+}
 
 // =============================================================================
 /// \fn weights_to_cdf(int64_t n, T* w, T error_if_below = -std::numeric_limits<T>::epsilon())
@@ -344,7 +348,7 @@ void transpose_square(T* A, int64_t n, int64_t lda) {
 /// On exit, \math{w} is a CDF suitable for use with sample_indices_iid.
 ///
 template <typename T>
-void weights_to_cdf(int64_t n, T* w, T error_if_below = -std::numeric_limits<T>::epsilon()) {
+void weights_to_cdf(int64_t n, T* w, T error_if_below = -sqrt_epsilon<T>()) {
     T sum = 0.0;
     for (int64_t i = 0; i < n; ++i) {
         T val = w[i];

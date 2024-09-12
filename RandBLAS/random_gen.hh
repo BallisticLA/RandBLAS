@@ -74,7 +74,9 @@ static inline void sincospi(double x, double *s, double *c) {
 #include <Random123/philox.h>
 #include <Random123/threefry.h>
 // NOTE: we do not support Random123's AES or ARS generators.
+#pragma clang optimize off
 #include <Random123/boxmuller.hpp>
+#pragma clang optimize on
 #include <Random123/uniform.hpp>
 
 /// our extensions to random123
