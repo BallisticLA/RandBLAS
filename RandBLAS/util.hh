@@ -162,6 +162,9 @@ enum ArrayStyle : char {
     Python = 'P'
 };
 
+RandBLAS_OPTIMIZE_OFF
+// ^ It would be extra bad if a compiler somehow messed up the following function.
+
 // =============================================================================
 /// \fn print_buff_to_stream(
 ///     std::ostream &stream, int64_t n_rows, int64_t n_cols, T *A,
@@ -184,9 +187,6 @@ void print_buff_to_stream(
     std::ostream &stream, int64_t n_rows, int64_t n_cols, T *A,
     int64_t irs, int64_t ics, cout_able &label, int decimals = 8, ArrayStyle style = ArrayStyle::MATLAB
 ) {
-    RandBLAS_OPTIMIZE_OFF
-    // ^ It would be extra bad if a compiler somehow messed up this function.
-
     std::string abs_start, mid_start, mid_end, abs_end;
     if (style == ArrayStyle::MATLAB) {
         abs_start = " = [ ... \n";
@@ -218,9 +218,9 @@ void print_buff_to_stream(
         }
     }
     stream << std::endl;
-    RandBLAS_OPTIMIZE_ON
     return;
 }
+RandBLAS_OPTIMIZE_ON
 
 // =============================================================================
 /// \fn print_buff_to_stream(
