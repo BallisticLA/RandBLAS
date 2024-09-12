@@ -9,12 +9,19 @@ How do I do this and that?
 How do I sketch a const symmetric matrix that's only stored in an upper or lower triangle?
   You can only do this with dense sketching operators.
   You'll have to prepare the plain buffer representation yourself with 
-  :cpp:any:`RandBLAS::fill_dense_unpacked`
+  :cpp:any:`RandBLAS::fill_dense_unpacked`,
   and then you'll have to use that buffer in your own SYMM function.
 
 How do I sketch a submatrix of a sparse matrix?
-  You can only do this if the sparse matrix in in COO format.
+  You can only do this if the sparse matrix in COO format.
   Take a look at the ``lsksp3`` and ``rsksp3`` functions in the source code (they aren't documented on this website).
+
+
+.. note::
+
+  This section should be *waaaaaay* longer. If you're unclear on whether something
+  can be done in RandBLAS (or how it could be done), please let us know on GitHub! 
+  We'd love the opportunity to help users and expand this section in the process.
 
 
 Why did you ... ?
@@ -27,7 +34,7 @@ Why the name RandBLAS?
   
   The RandBLAS API is also as close as possible to the BLAS API while remaining polymorphic. Some may find this
   decision dubious, since the BLAS API is notoriously cumbersome for new users. We believe that these downsides
-  are made up for by the flexibilty and portability of a BLAS-like API. It is also our hope that popular high-level
+  are made up for by the flexibility and portability of a BLAS-like API. It is also our hope that popular high-level
   libraries that already wrap BLAS might find it straightforward to define similar wrappers for RandBLAS.
 
 DenseDist and SparseDist are simple structs. Why bother having constructors for these classes, when you could just use initialization lists?
@@ -59,12 +66,12 @@ I looked at the source code and found weird function names like "lskge3," "rskge
   First, having these names makes it easier to call RandBLAS from languages that don't support function overloading.
   Second, these short and specific names make it possible to communicate efficiently and precisely (useful for test code and developer documentation). 
 
-Why does sketch_symmetric not use a "side" argument, like symm in BLAS?
+Why does sketch_symmetric not use a "side" argument, like SYMM in BLAS?
   There are many BLAS functions that include a "side" argument. This argument always refers to the argument with the most notable structure.
-  In symm, the more structured argument is the symmetric matrix.
-  In RandBLAS, the more structed argument is always the sketching operator. Given this, we saw three options to move forward.
+  In SYMM, the more structured argument is the symmetric matrix.
+  In RandBLAS, the more structured argument is always the sketching operator. Given this, we saw three options to move forward.
 
-  1. Keep "side," and have it refer to the position of the symmetric matrix. This is superficially simmilar to the underlying BLAS convention.
+  1. Keep "side," and have it refer to the position of the symmetric matrix. This is superficially similar to the underlying BLAS convention.
   2. Keep "side," and have it refer to the position of the sketching operator. This is similar to BLAS at a deeper level, but people could
      easily use it incorrectly.
   3. Dispense with "side" altogether.
@@ -82,7 +89,7 @@ No complex domain support:
 No support for sparse-times-sparse (aka SpGEMM):
   This will probably "always" be the case, since we think it's valuable to keep RandBLAS' scope limited.
 
-No support for subrampled randomized trig transforms (SRFT, SRHT, SRCT, etc...):
+No support for subsampled randomized trig transforms (SRFT, SRHT, SRCT, etc...):
   We'd happily accept a contribution of a randomized Hadamard transform (without subsampling)
   that implicitly zero-pads inputs when needed. Given such a function we could figure out 
   how we'd like to build sketching operators on top of it.
@@ -97,13 +104,13 @@ No support for negative values of "incx" or "incy" in sketch_vector.
   The BLAS function GEMV supports negative strides between input and output vector elements.
   It would be easy to extend sketch_vector to support this if we had a proper
   SPMV implementation that supported negative increments. If someone wants to volunteer 
-  to extent our SPMV kernels to support that, then we'd happily accept such a contribution.
+  to extend our SPMV kernels to support that, then we'd happily accept such a contribution.
   (It shouldn't be hard! We just haven't gotten around to this.)
 
 Symmetric matrices have to be stored as general matrices.
-  This stems partly from a desire to have sketch_symmetric work equally well with DenseSkOp and SparseSkOp.
+  This stems partly from a desire for sketch_symmetric work equally well with DenseSkOp and SparseSkOp.
   Another reason is that BLAS' SYMM function doesn't allow transposes, which is a key tool we use
-  in sketch_general to resolve layout discrepencies between the various arguments.
+  in sketch_general to resolve layout discrepancies between the various arguments.
 
 
 Language interoperability
@@ -118,7 +125,7 @@ Things that affect our API:
    and arrays of 32-bit versus 64-bit signed integers.
  * Standard constructors. We use these for any nontrivial struct type in RandBLAS. They're important
    because many of our datatypes have const members that need to be initialized as functions (albeit
-   simple funcitons) of other members.
+   simple functions) of other members.
  * Move constructors. We use these to return nontrivial datastructures from a few undocumented functions.
    We mostly added them because we figured users would really want them.
  * C++20 Concepts. These make our assumptions around template parameters more explicit.
@@ -135,7 +142,7 @@ Things that are purely internal:
 C++ idioms and features we don't use
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  * The span or mdspan datastructures.
- * Inheritance.
+ * Inheritance (with the sole exception of :cpp:any:`RandBLAS::exceptions::Error`).
  * Private or protected members of structs.
  * Shared pointers.
  * Instance methods for structs (with the exceptions of constructors and destructors).
