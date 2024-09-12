@@ -121,5 +121,5 @@ Matrix format utility functions
 .. doxygenfunction:: RandBLAS::transpose_square(T* A, int64_t n, int64_t lda)
    :project: RandBLAS
 
-.. doxygenfunction:: RandBLAS::overwrite_triangle(blas::Layout layout, blas::Uplo to_overwrite, int64_t n, int64_t strict_offset,  T* A, int64_t lda)
+.. doxygenfunction:: RandBLAS::overwrite_triangle(blas::Layout layout, blas::Uplo to_overwrite, int64_t n, int64_t k,  T* A, int64_t lda)
    :project: RandBLAS

@@ -11,7 +11,7 @@ if (GTest_FOUND)
     #
     #####################################################################
 
-    add_executable(RandBLAS_tests
+    add_executable(densedata_tests
         test_datastructures/test_denseskop.cc
         test_datastructures/test_sparseskop.cc
 
@@ -23,8 +23,8 @@ if (GTest_FOUND)
         test_matmul_wrappers/test_sketch_vector.cc
         test_matmul_wrappers/test_sketch_symmetric.cc
     )
-    target_link_libraries(RandBLAS_tests RandBLAS GTest::GTest GTest::Main)
-    gtest_discover_tests(RandBLAS_tests)
+    target_link_libraries(densedata_tests RandBLAS GTest::GTest GTest::Main)
+    gtest_discover_tests(densedata_tests)
 
     #####################################################################
     #
@@ -32,7 +32,7 @@ if (GTest_FOUND)
     #
     #####################################################################
 
-    add_executable(SparseRandBLAS_tests
+    add_executable(sparsedata_tests
         test_datastructures/test_spmats/test_csc.cc
         test_datastructures/test_spmats/test_csr.cc
         test_datastructures/test_spmats/test_coo.cc
@@ -44,8 +44,8 @@ if (GTest_FOUND)
 
         test_matmul_wrappers/test_sketch_sparse.cc
     )
-    target_link_libraries(SparseRandBLAS_tests RandBLAS GTest::GTest GTest::Main)
-    gtest_discover_tests(SparseRandBLAS_tests)
+    target_link_libraries(sparsedata_tests RandBLAS GTest::GTest GTest::Main)
+    gtest_discover_tests(sparsedata_tests)
 
     #####################################################################
     #
@@ -53,14 +53,14 @@ if (GTest_FOUND)
     #
     #####################################################################
 
-    add_executable(RandBLAS_stats
+    add_executable(stat_tests
         test_basic_rng/test_r123.cc
         test_basic_rng/test_discrete.cc
         test_basic_rng/test_continuous.cc
         test_basic_rng/test_distortion.cc
     )
-    target_link_libraries(RandBLAS_stats RandBLAS GTest::GTest GTest::Main)
-    gtest_discover_tests(RandBLAS_stats)
+    target_link_libraries(stat_tests RandBLAS GTest::GTest GTest::Main)
+    gtest_discover_tests(stat_tests)
     file(COPY test_basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
     file(COPY test_basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/..)
     file(COPY test_basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/../test/)
@@ -71,11 +71,19 @@ if (GTest_FOUND)
     #
     #####################################################################
 
-    add_executable(MetaRandBLAS_tests
-        test_handrolled_lapack.cc
-    )
-    target_link_libraries(MetaRandBLAS_tests RandBLAS GTest::GTest GTest::Main)
-    gtest_discover_tests(MetaRandBLAS_tests)
+    add_executable(meta_tests test_handrolled_lapack.cc )
+    target_link_libraries(meta_tests RandBLAS GTest::GTest GTest::Main)
+    gtest_discover_tests(meta_tests)
+
+    #####################################################################
+    #
+    #   Literally any other tests that use the Googletest framework
+    #
+    #####################################################################
+
+    add_executable(misc_tests test_io.cc test_exceptions.cc )
+    target_link_libraries(misc_tests RandBLAS GTest::GTest GTest::Main)
+    gtest_discover_tests(misc_tests)
 
 endif()
 message(STATUS "Checking for regression tests ... ${tmp}")

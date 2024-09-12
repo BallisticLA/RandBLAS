@@ -31,11 +31,13 @@
 
 #include <RandBLAS/base.hh>
 #include <RandBLAS/exceptions.hh>
+#include <RandBLAS/compilers.hh>
 #include <blas.hh>
 #include <Random123/philox.h>
 #include <Random123/uniform.hpp>
 
 #include <iostream>
+#include <iomanip>
 #include <type_traits>
 #include <typeinfo>
 #ifndef _MSC_VER
@@ -148,51 +150,112 @@ void require_symmetric(blas::Layout layout, const T* A, int64_t n, int64_t lda, 
 
 namespace RandBLAS {
 
+
+// =============================================================================
+/// Specifies whether string representations of matrices should use
+/// MATLAB-style or Python-style formatting. You should be cable to copy
+/// the output of an array printed in a given style and paste it directly
+/// into the corresponding programming language's interpreter.
+/// 
 enum ArrayStyle : char {
     MATLAB = 'M',
     Python = 'P'
 };
 
 // =============================================================================
-/// \fn print_colmaj(int64_t n_rows, int64_t n_cols, T *a, cout_able &label, 
-///     ArrayStyle style = ArrayStyle::MATLAB, 
-///     std::ios_base::fmtflags &flags = std::cout.flags()
-/// )
-/// @verbatim embed:rst:leading-slashes
-/// Notes: see https://cplusplus.com/reference/ios/ios_base/fmtflags/ for info on the optional flags argument.
-/// @endverbatim
-template <typename T, typename cout_able>
-void print_colmaj(
-    int64_t n_rows, int64_t n_cols, T *a, cout_able &label,
-    ArrayStyle style = ArrayStyle::MATLAB, 
-    const std::ios_base::fmtflags flags = std::cout.flags()
+/// \fn print_buff_to_stream(
+///     std::ostream &stream, int64_t n_rows, int64_t n_cols, T *A,
+///     int64_t irs, int64_t ics, cout_able &label, int decimals, ArrayStyle style
+/// ) 
+/// Writes a string representation of \math{\mat(A)} to the provided stream.
+/// The first line of the output will be \math{\ttt{label} + " = "} followed by a style-specific 
+/// representation of the matrix (MATLAB style or NumPy/Python style).
+///
+/// The matrix \math{\mat(A)} is defined by reading from \math{\ttt{A}} with
+/// inter-row stride \math{\ttt{irs}} and inter-column stride \math{\ttt{ics}.}
+/// That means \math{\mat(A)_{ij} = \ttt{A}[i*\ttt{irs} + j*\ttt{ics}],} using
+/// zero-indexing.
+///
+/// Note: \math{\ttt{std::cout}} is a good choice of stream in most situations.
+/// We don't set a default value since it's better to be explicit in this context.
+///
+template <typename T, typename cout_able = std::string>
+void print_buff_to_stream(
+    std::ostream &stream, int64_t n_rows, int64_t n_cols, T *A,
+    int64_t irs, int64_t ics, cout_able &label, int decimals = 8, ArrayStyle style = ArrayStyle::MATLAB
 ) {
-    std::string abs_start {(style == ArrayStyle::MATLAB) ? "\n\t[ "  : "\nnp.array([\n\t[ " };
-    std::string mid_start {(style == ArrayStyle::MATLAB) ? "\t  "    : "\t[ "               };
-    std::string mid_end   {(style == ArrayStyle::MATLAB) ? "; ...\n" : "],\n"               };
-    std::string abs_end   {(style == ArrayStyle::MATLAB) ? "];\n"    : "]\n])\n"            };
+    RandBLAS_OPTIMIZE_OFF
+    // ^ It would be extra bad if a compiler somehow messed up this function.
+
+    std::string abs_start, mid_start, mid_end, abs_end;
+    if (style == ArrayStyle::MATLAB) {
+        abs_start = " = [ ... \n";
+        mid_start = "\t"; mid_end = " ; ...\n";
+        abs_end   = " ; ...\n];\n";
+    } else {
+        abs_start = " = np.array([\n";
+        mid_start = "\t["; mid_end = " ],\n";
+        abs_end =  " ]\n])\n";
+    }
 
 	int64_t i, j;
     T val;
-    auto old_flags = std::cout.flags();
-    std::cout.flags(flags);
-	std::cout << std::endl << label << abs_start << std::endl;
+	stream << std::endl << label << abs_start;
+    stream << std::setprecision(decimals);
     for (i = 0; i < n_rows; ++i) {
-        std::cout << mid_start;
+        stream << mid_start;
         for (j = 0; j < n_cols - 1; ++j) {
-            val = a[i + n_rows * j];
-            std::cout << "  " << val << ","; 
+            val = A[i*irs + j*ics];
+            stream << "  " << val << ","; 
         }
         // j = n_cols - 1
-        val = a[i + n_rows * j];
-        std::cout << "  " << val;
+        val = A[i*irs + j*ics];
+        stream << "  " << val;
         if (i < n_rows - 1) {
-           std::cout << mid_end;
+           stream << mid_end;
         } else {
-            std::cout << abs_end;
+            stream << abs_end;
         }
     }
-    std::cout.flags(old_flags);
+    stream << std::endl;
+    RandBLAS_OPTIMIZE_ON
+    return;
+}
+
+// =============================================================================
+/// \fn print_buff_to_stream(
+///     std::ostream &stream, blas::Layout layout, int64_t n_rows, int64_t n_cols, T *A,
+///     int64_t lda, cout_able &label, int decimals, ArrayStyle style
+/// ) 
+/// Writes a string representation of \math{\mat(A)} to the provided stream.
+/// The first line of the output will be \math{\ttt{label},} followed by a style-specific 
+/// representation of the matrix (MATLAB style or NumPy/Python style).
+///
+template <typename T, typename cout_able = std::string>
+void print_buff_to_stream(
+    std::ostream &stream, blas::Layout layout, int64_t n_rows, int64_t n_cols, T *A,
+    int64_t lda, cout_able &label, int decimals = 8, ArrayStyle style = ArrayStyle::MATLAB
+) {
+    int64_t irs, ics;
+    if (layout == blas::Layout::ColMajor) {
+        randblas_require(lda >= n_rows);
+        irs = 1; ics = lda;
+    } else {
+        randblas_require(lda >= n_cols);
+        irs = lda; ics = 1;
+    }
+    print_buff_to_stream(stream, n_rows, n_cols, A, irs, ics, label, decimals, style);
+    return;
+}
+
+// This function is here for compatibility with existing RandLAPACK code.
+// New code should use print_buff_to_stream.
+template <typename T, typename cout_able = std::string>
+inline void print_colmaj(
+    int64_t n_rows, int64_t n_cols, T *A, cout_able &label, int decimals = 8,
+    ArrayStyle style = ArrayStyle::MATLAB
+) {
+    print_buff_to_stream(std::cout, blas::Layout::ColMajor, n_rows, n_cols, A, label, decimals, style);
     return;
 }
 
@@ -265,7 +328,7 @@ void symmetrize(blas::Layout layout, blas::Uplo uplo, int64_t n, T* A, int64_t l
 
 // =============================================================================
 /// \fn overwrite_triangle(blas::Layout layout, blas::Uplo to_overwrite,
-///     int64_t n, int64_t strict_offset,  T* A, int64_t lda
+///     int64_t n, int64_t k,  T* A, int64_t lda
 /// )
 /// @verbatim embed:rst:leading-slashes
 /// Use this function to convert a matrix which BLAS can *interpret* as triangular into a matrix that's
@@ -273,31 +336,31 @@ void symmetrize(blas::Layout layout, blas::Uplo uplo, int64_t n, T* A, int64_t l
 /// 
 /// Formally, :math:`A` points to the start of a buffer for an :math:`n \times n` matrix :math:`\mat(A)`
 /// stored in :math:`\ttt{layout}` order with leading dimension :math:`\ttt{lda},`
-/// and :math:`\ttt{strict_offset}` is a nonnegative integer.
+/// and :math:`\ttt{k}` is a nonnegative integer.
 ///
 /// This function overwrites :math:`A` so that ...
 ///  * If :math:`\ttt{to_overwrite} = \ttt{Uplo::Lower},` then elements of :math:`\mat(A)` on or
-///    below its :math:`\ttt{strict_offset}^{\text{th}}` subdiagonal are overwritten with zero.
+///    below its :math:`\ttt{k}^{\text{th}}` subdiagonal are overwritten with zero.
 ///  * If :math:`\ttt{to_overwrite} = \ttt{Uplo::Upper},` then elements of :math:`\mat(A)` on or
-///    above its :math:`\ttt{strict_offset}^{\text{th}}` superdiagonal are overwritten with zero.
+///    above its :math:`\ttt{k}^{\text{th}}` superdiagonal are overwritten with zero.
 ///
-/// This function raises an error if :math:`\ttt{strict_offset}` is negative or if 
+/// This function raises an error if :math:`\ttt{k}` is negative or if 
 /// :math:`\ttt{to_overwrite}` is neither Upper nor Lower.
 ///
 /// @endverbatim
 template <typename T>
-void overwrite_triangle(blas::Layout layout, blas::Uplo to_overwrite, int64_t n, int64_t strict_offset,  T* A, int64_t lda) {
+void overwrite_triangle(blas::Layout layout, blas::Uplo to_overwrite, int64_t n, int64_t k,  T* A, int64_t lda) {
     auto [inter_row_stride, inter_col_stride] = layout_to_strides(layout, lda);
     #define matA(_i, _j) A[(_i)*inter_row_stride + (_j)*inter_col_stride]
     if (to_overwrite == blas::Uplo::Upper) {
         for (int64_t i = 0; i < n; ++i) {
-            for (int64_t j = i + strict_offset; j < n; ++j) {
+            for (int64_t j = i + k; j < n; ++j) {
                 matA(i,j) = 0.0;
             }
         }
     } else if (to_overwrite == blas::Uplo::Lower) {
         for (int64_t i = 0; i < n; ++i) {
-            for (int64_t j = i + strict_offset; j < n; ++j) {
+            for (int64_t j = i + k; j < n; ++j) {
                 matA(j,i) = 0.0;
             }
         }

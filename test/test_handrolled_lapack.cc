@@ -5,11 +5,8 @@
 
 #include "RandBLAS/util.hh"
 #include "handrolled_lapack.hh"
-#include "test_basic_rng/rng_common.hh"
 #include "comparison.hh"
 #include "RandBLAS/config.h"
-#include "RandBLAS/base.hh"
-#include "RandBLAS/util.hh"
 #include "RandBLAS/dense_skops.hh"
 using RandBLAS::DenseDist;
 using RandBLAS::ScalarDist;

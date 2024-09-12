@@ -25,12 +25,14 @@ Random sampling from index sets
 .. doxygenfunction:: RandBLAS::repeated_fisher_yates(int64_t k, int64_t n, int64_t r, sint_t *samples, const state_t &state)
   :project: RandBLAS 
 
-Debugging
-=========
+I/O and debugging
+=================
 
-.. doxygenfunction:: RandBLAS::print_colmaj
+.. doxygenenum:: RandBLAS::ArrayStyle
+    :project: RandBLAS
+
+.. doxygenfunction:: RandBLAS::print_buff_to_stream(std::ostream &stream, blas::Layout layout, int64_t n_rows, int64_t n_cols, T *A, int64_t lda, cout_able &label, int decimals, ArrayStyle style )
    :project: RandBLAS
 
 .. doxygenfunction:: RandBLAS::typeinfo_as_string()
    :project: RandBLAS
-
