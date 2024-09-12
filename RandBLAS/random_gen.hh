@@ -70,13 +70,42 @@ static inline void sincospi(double x, double *s, double *c) {
 }
 #endif
 
+// Define macros to toggle compiler optimizations in select places.
+//
+//     Right now we only use these for Random123/boxmuller.hpp.
+//     If we need to use these macros in other places, then we can stick
+//     these definitions in some kind of dedicated file.
+//
+#ifdef __clang__
+#define RandBLAS_OPTIMIZE_OFF _Pragma("clang optimize off")
+#define RandBLAS_OPTIMIZE_ON _Pragma("clang optimize on")
+#elif defined(__GNUC__)
+#define RandBLAS_OPTIMIZE_OFF _Pragma("GCC push_options") _Pragma("GCC optimize (\"O0\")")
+#define RandBLAS_OPTIMIZE_ON _Pragma("GCC pop_options")
+#elif defined(_MSC_VER)
+#define RandBLAS_OPTIMIZE_OFF __pragma(optimize("", off))
+#define RandBLAS_OPTIMIZE_ON __pragma(optimize("", on))
+#elif defined(__INTEL_COMPILER)
+#define RandBLAS_OPTIMIZE_OFF _Pragma("optimize('', off)")
+#define RandBLAS_OPTIMIZE_ON _Pragma("optimize('', on)")
+#else
+#define RandBLAS_OPTIMIZE_OFF
+#define RandBLAS_OPTIMIZE_ON
+#endif
+
+
 #include <Random123/array.h>
 #include <Random123/philox.h>
 #include <Random123/threefry.h>
 // NOTE: we do not support Random123's AES or ARS generators.
-#pragma clang optimize off
+
+RandBLAS_OPTIMIZE_OFF
 #include <Random123/boxmuller.hpp>
-#pragma clang optimize on
+// ^ We've run into correctness issues with that file when using clang and
+//   compiling with optimization enabled. To err on the side of caution
+//   we disable compiler optimizations for clang and three other compilers.
+//
+RandBLAS_OPTIMIZE_ON
 #include <Random123/uniform.hpp>
 
 /// our extensions to random123
