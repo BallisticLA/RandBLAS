@@ -22,7 +22,7 @@ RandBLAS, at a glance
 
     1. Get your hands on a random state.
     2. Define a sketching distribution, and use the random state to sample an operator from that distribution.
-    3. Apply the operator with a function that's *almost* identical to GEMM.
+    3. Apply the operator with a function that's *almost* identical to `GEMM <https://en.wikipedia.org/wiki/Basic_Linear_Algebra_Subprograms#Level_3>`_.
 
   To illustrate this workflow, suppose we have a 20,000-by-10,000 double-precision matrix :math:`A`  stored in column-major
   layout. Suppose also that we want to compute a sketch of the form :math:`B = AS`, where :math:`S` is a Gaussian matrix of size 10,000-by-50.

@@ -41,27 +41,60 @@ namespace RandBLAS::exceptions {
 // ^ Use to suppress compiler warnings for unused variables in functions.
 
 // -----------------------------------------------------------------------------
-/// Exception class for BLAS errors.
+/// Minimalist exception class for RandBLAS errors.
+///
+/// @verbatim embed:rst:leading-slashes
+///  These are typically triggered by statements of the form ``randblas_require(cond)``
+///  where ``cond`` was false. The curious can examine RandBLAS/exceptions.hh
+///  for the definition of ``randblas_require``.
+///  
+///  The vast majority of errors thrown by RandBLAS are due to invalid
+///  parameters for matrix dimensions or strides. These error messages 
+///  only say what went wrong; they offer no suggestions on how to fix
+///  what went wrong or why it might have happened. Please get in touch
+///  with us on GitHub if you've having trouble understanding or resolving
+///  an error.
+///
+/// @endverbatim
+///
 class Error: public std::exception {
 public:
-    /// Constructs BLAS error
+    // Constructs RandBLAS error
     Error():
         std::exception()
     {}
 
-    /// Constructs BLAS error with message
+    // ---------------------------------------
+    /// Constructs error with message
     Error( std::string const &msg ):
         std::exception(),
         msg_( msg )
     {}
 
-    /// Constructs BLAS error with message: "msg, in function func"
+    // Constructs RandBLAS error with message: "msg, in function func"
     Error( const char* msg, const char* func ):
         std::exception(),
         msg_( std::string(msg) + ", in function " + func )
     {}
 
-    /// Returns BLAS error message
+    // ---------------------------------------------------------------
+    /// Returns a C-string representation of this error's message.
+    /// It's common to wrap this function's return value with std::string.
+    /// For example ...
+    ///
+    /// @verbatim embed:rst:leading-slashes
+    /// .. code:: c++
+    ///
+    ///     try {
+    ///         /* do something that might raise a RandBLAS error */
+    ///         randblas_require(1 < 0);
+    ///     } catch (RandBLAS::Exceptions::Error &e) {
+    ///         std::string message{e.what()};
+    ///         /* inspect the message */
+    ///         std::cout << message << std::endl;
+    ///     }
+    ///
+    /// @endverbatim
     virtual const char* what() const noexcept override
         { return msg_.c_str(); }
 

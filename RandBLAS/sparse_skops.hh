@@ -40,6 +40,7 @@
 #include <cstdio>
 #include <cmath>
 #include <algorithm>
+#include <unordered_map>
 
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -106,10 +107,8 @@ static state_t repeated_fisher_yates(
 inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t dim_major, int64_t dim_minor) {
     if (major_axis == Axis::Short) {
         return std::pow(vec_nnz, -0.5); 
-    } else if (major_axis == Axis::Long) {
-        return std::sqrt( ((double) dim_major) / (vec_nnz * ((double) dim_minor)) );
     } else {
-        throw std::invalid_argument("Cannot compute the isometry scale for a sparse operator with unspecified major axis.");
+        return std::sqrt( ((double) dim_major) / (vec_nnz * ((double) dim_minor)) );
     }
 }
 

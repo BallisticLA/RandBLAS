@@ -129,24 +129,6 @@ struct RNGState {
 
 };
 
-
-// template <typename RNG>
-// RNGState<RNG>::RNGState(
-//     const RNGState<RNG> &s
-// ) {
-//     std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
-//     std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
-// }
-
-// template <typename RNG>
-// RNGState<RNG> &RNGState<RNG>::operator=(
-//     const RNGState &s
-// ) {
-//     std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
-//     std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
-//     return *this;
-// }
-
 template <typename RNG>
 std::ostream &operator<<(
     std::ostream &out,
@@ -457,3 +439,4 @@ concept SketchingOperator = requires {
 
 
 } // end namespace RandBLAS::base
+

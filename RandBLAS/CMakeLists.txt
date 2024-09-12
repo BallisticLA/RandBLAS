@@ -19,7 +19,7 @@ target_include_directories(RandBLAS INTERFACE
 
 target_link_libraries(RandBLAS INTERFACE ${RandBLAS_libs})
 
-set(RandBLAS_cxx_opts -Wall -Wextra)
+set(RandBLAS_cxx_opts -Wall -Wextra -Wno-comment)
 if (SANITIZE_ADDRESS)
     list(APPEND RandBLAS_cxx_opts -fsanitize=address)
     target_link_options(RandBLAS INTERFACE -fsanitize=address)
