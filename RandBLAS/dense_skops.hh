@@ -41,7 +41,7 @@
 #include <string>
 #include <tuple>
 
-#include <math.h>
+#include <cmath>
 #include <typeinfo>
 
 

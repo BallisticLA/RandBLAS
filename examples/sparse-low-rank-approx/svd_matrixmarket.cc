@@ -34,7 +34,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <iostream>
-#include <math.h>
+#include <cmath>
 #include <time.h>
 #include <stdlib.h>
 #include <chrono>

@@ -37,7 +37,7 @@
 #if !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
 #endif
-#include <math.h>
+#include <cmath>
 
 #if !defined(R123_NO_SINCOS) && defined(__APPLE__)
 /* MacOS X 10.10.5 (2015) doesn't have sincosf */
@@ -47,13 +47,13 @@
 
 #if R123_NO_SINCOS /* enable this if sincos and sincosf are not in the math library */
 R123_CUDA_DEVICE R123_STATIC_INLINE void sincosf(float x, float *s, float *c) {
-    *s = sinf(x);
-    *c = cosf(x);
+    *s = std::sinf(x);
+    *c = std::cosf(x);
 }
 
 R123_CUDA_DEVICE R123_STATIC_INLINE void sincos(double x, double *s, double *c) {
-    *s = sin(x);
-    *c = cos(x);
+    *s = std::sin(x);
+    *c = std::cos(x);
 }
 #endif /* sincos is not in the math library */
 

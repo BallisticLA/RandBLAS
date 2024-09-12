@@ -31,7 +31,7 @@
 
 #include "RandBLAS.hh"
 #include <gtest/gtest.h>
-#include <math.h>
+#include <cmath>
 #include <cmath>
 #include <numeric>
 #include <iostream>

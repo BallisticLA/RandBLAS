@@ -32,7 +32,7 @@
 #include <RandBLAS/util.hh>
 #include "test/comparison.hh"
 #include <gtest/gtest.h>
-#include <math.h>
+#include <cmath>
 
 using RandBLAS::RNGState;
 using RandBLAS::SignedInteger;
