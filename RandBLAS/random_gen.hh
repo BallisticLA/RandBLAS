@@ -31,6 +31,7 @@
 
 /// @file
 
+#include "compilers.hh"
 #include <Random123/features/compilerfeatures.h>
 
 // this is for sincosf
@@ -68,29 +69,6 @@ static inline void sincospi(double x, double *s, double *c) {
     const double PI = 3.1415926535897932;
     sincos(PI*x, s, c);
 }
-#endif
-
-// Define macros to toggle compiler optimizations in select places.
-//
-//     Right now we only use these for Random123/boxmuller.hpp.
-//     If we need to use these macros in other places, then we can stick
-//     these definitions in some kind of dedicated file.
-//
-#ifdef __clang__
-#define RandBLAS_OPTIMIZE_OFF _Pragma("clang optimize off")
-#define RandBLAS_OPTIMIZE_ON _Pragma("clang optimize on")
-#elif defined(__GNUC__)
-#define RandBLAS_OPTIMIZE_OFF _Pragma("GCC push_options") _Pragma("GCC optimize (\"O0\")")
-#define RandBLAS_OPTIMIZE_ON _Pragma("GCC pop_options")
-#elif defined(_MSC_VER)
-#define RandBLAS_OPTIMIZE_OFF __pragma(optimize("", off))
-#define RandBLAS_OPTIMIZE_ON __pragma(optimize("", on))
-#elif defined(__INTEL_COMPILER)
-#define RandBLAS_OPTIMIZE_OFF _Pragma("optimize('', off)")
-#define RandBLAS_OPTIMIZE_ON _Pragma("optimize('', on)")
-#else
-#define RandBLAS_OPTIMIZE_OFF
-#define RandBLAS_OPTIMIZE_ON
 #endif
 
 
