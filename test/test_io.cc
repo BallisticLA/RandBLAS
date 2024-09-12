@@ -25,6 +25,14 @@ class TestIO: public ::testing::Test {
     }
 };
 
+/***
+ * TODO: Have these "tests" actually check for correctness.
+ * Right now I just inspect them visually by running
+ * 
+ *  ctest -R TestIO --verbose
+ * 
+ */
+
 TEST_F(TestIO, test_matlab_tiny) {
     auto vec = get_pi_mat( 2, 1);
     print_buff_to_stream(std::cout, Layout::ColMajor, 1, 1, vec.data(), 1, "mat1x1", 9, ArrayStyle::MATLAB);

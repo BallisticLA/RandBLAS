@@ -28,6 +28,10 @@ Random sampling from index sets
 I/O and debugging
 =================
 
+.. doxygenclass:: RandBLAS::exceptions::Error
+    :project: RandBLAS
+    :members:
+
 .. doxygenenum:: RandBLAS::ArrayStyle
     :project: RandBLAS
 
