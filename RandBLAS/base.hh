@@ -428,15 +428,5 @@ concept SketchingOperator = requires {
 #define SketchingOperator typename
 #endif
 
-// I want to add a constraint to SketchingOperator so that conformant types SKOP have two-argument constructors of the form SKOP(typename SKOP::
-
-///    * - :math:`\ttt{S.own_memory}`
-///      - :math:`\ttt{bool}`
-///      - RandBLAS has permission to attach memory to :math:`\ttt{S}`
-///        if and only if this is true. If true at destruction time, RandBLAS
-///        must delete any memory attached to :math:`\ttt{S}.` RandBLAS is 
-///        forbidden from deleting attached memory under any other circumstances.
-
-
 } // end namespace RandBLAS::base
 

@@ -15,7 +15,7 @@ TEST_F(TestExceptions, randblas_require_var_arg) {
     bool successful_raise = false;
     try {
         randblas_require(successful_raise);
-    } catch (RandBLAS::exceptions::Error &e) {
+    } catch (RandBLAS::Error &e) {
         std::string message{e.what()};
         successful_raise = message.find("successful_raise") != std::string::npos;
     }
@@ -26,7 +26,7 @@ TEST_F(TestExceptions, randblas_require_expr_arg) {
     int flag = 0;
     try {
         randblas_require(flag > 1);
-    } catch (RandBLAS::exceptions::Error &e) {
+    } catch (RandBLAS::Error &e) {
         std::string message{e.what()};
         flag = (int) message.find("flag > 1") != std::string::npos;
     }
@@ -38,7 +38,7 @@ TEST_F(TestExceptions, randblas_error_if_msg_output) {
     bool expect_true = false;
     try {
         randblas_error_if_msg(error_trigger, "Custom message.");
-    } catch (RandBLAS::exceptions::Error &e) {
+    } catch (RandBLAS::Error &e) {
         std::string message{e.what()};
         expect_true = message.find("Custom message.") != std::string::npos;
     }

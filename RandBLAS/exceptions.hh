@@ -33,12 +33,9 @@
 #include <cstdarg>
 #include <string>
 
-namespace RandBLAS::exceptions {
-// Code below copy-pasted from BLAS++ with minimal changes.
+// Mose code in this file is adapted from BLAS++.
 
-#define UNUSED(x) (void)(x)
-#define SET_BUT_UNUSED(x) (void)(x)
-// ^ Use to suppress compiler warnings for unused variables in functions.
+namespace RandBLAS {
 
 // -----------------------------------------------------------------------------
 /// Minimalist exception class for RandBLAS errors.
@@ -88,7 +85,7 @@ public:
     ///     try {
     ///         /* do something that might raise a RandBLAS error */
     ///         randblas_require(1 < 0);
-    ///     } catch (RandBLAS::Exceptions::Error &e) {
+    ///     } catch (RandBLAS::Error &e) {
     ///         std::string message{e.what()};
     ///         /* inspect the message */
     ///         std::cout << message << std::endl;
@@ -101,6 +98,14 @@ public:
 private:
     std::string msg_;
 }; 
+
+} // end namespace RandBLAS
+
+namespace RandBLAS::exceptions {
+
+#define UNUSED(x) (void)(x)
+#define SET_BUT_UNUSED(x) (void)(x)
+// ^ Use to suppress compiler warnings for unused variables in functions.
 
 namespace internal {
 

@@ -503,7 +503,9 @@ state_t fill_sparse_unpacked_nosub(
         );
         nnz = vec_nnz * dim_minor;
         return state;
-    } else if (D.major_axis == Axis::Long) {
+    } else {
+        // We're long-axis major.
+        
         // We don't sample all at once since we might need to merge duplicate entries
         // in each long-axis vector. The way we do this is different than the
         // standard COOMatrix convention of just adding entries together.
@@ -517,7 +519,7 @@ state_t fill_sparse_unpacked_nosub(
         for (int64_t i = 0; i < dim_minor; ++i) {
             state = sample_indices_iid_uniform(dim_major, vec_nnz, idxs_long, vals, state);
             // ^ That writes directly so S.vals and either S.rows or S.cols.
-            //   The new values might need to be changed if there are duplicates in lind.
+            //   The new values might need to be changed if there are duplicates in idxs_long.
             //   We have a helper function for this since it's a tedious process.
             //   The helper function also sets whichever of S.rows or S.cols wasn't populated.
             laso_merge_long_axis_vector_coo_data(
@@ -531,8 +533,6 @@ state_t fill_sparse_unpacked_nosub(
         }
         nnz = total_nnz;
         return state;
-    } else {
-        throw std::invalid_argument("D.major_axis must be Axis::Short or Axis::Long.");
     }
 }
 

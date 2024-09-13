@@ -25,10 +25,10 @@ Random sampling from index sets
 .. doxygenfunction:: RandBLAS::repeated_fisher_yates(int64_t k, int64_t n, int64_t r, sint_t *samples, const state_t &state)
   :project: RandBLAS 
 
-I/O and debugging
+Debugging and I/O
 =================
 
-.. doxygenclass:: RandBLAS::exceptions::Error
+.. doxygenclass:: RandBLAS::Error
     :project: RandBLAS
     :members:
 
