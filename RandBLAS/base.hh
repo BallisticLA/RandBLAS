@@ -35,9 +35,7 @@
 #include "RandBLAS/random_gen.hh"
 
 #include <blas.hh>
-#include <tuple>
 #include <utility>
-#include <type_traits>
 #include <cstring>
 #include <cstdint>
 #include <iostream>
@@ -47,7 +45,6 @@
 #endif
 
 #include<iostream>
-#include<numeric>
 
 
 /// code common across the project
