@@ -101,6 +101,7 @@ static state_t repeated_fisher_yates(
             vec_work[ell] = swap;
         }
     }
+    ctr.incr(dim_minor * vec_nnz);
     return state_t {ctr, key};
 }
 
@@ -239,7 +240,7 @@ inline state_t repeated_fisher_yates(
     return sparse::repeated_fisher_yates(state, k, n, r, samples, (sint_t*) nullptr, (double*) nullptr);
 }
 
-template <typename RNG>
+template <typename RNG = DefaultRNG>
 RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
     int64_t num_mavec, incrs_per_mavec;
     if (dist.major_axis == Axis::Short) {
@@ -262,7 +263,7 @@ RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
 /// A sample from a distribution over structured sparse matrices with either
 /// independent rows or independent columns. This type conforms to the
 /// SketchingOperator concept.
-template <typename T, typename RNG = r123::Philox4x32, SignedInteger sint_t = int64_t>
+template <typename T, typename RNG = DefaultRNG, SignedInteger sint_t = int64_t>
 struct SparseSkOp {
 
     // ---------------------------------------------------------------------------

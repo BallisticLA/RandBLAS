@@ -52,13 +52,19 @@ namespace RandBLAS {
 
 typedef r123::Philox4x32 DefaultRNG;
 
-/** A representation of the state of a counter-based random number generator
- * (CBRNG) defined in Random123. The representation consists of two arrays:
- * the counter and the key. The arrays' types are statically sized, small
- * (typically of length 2 or 4), and can be distinct from one another.
+/** 
+ * This type acts as a stateful version of a traditionally-stateless 
+ * counter-based random number generator (CBRNG) from Random123;
+ * it packages a CBRNG with a pair of arrays called "counter" and "key."
  * 
- * The template parameter RNG is a CBRNG type in defined in Random123. We've found
- * that Philox-based CBRNGs work best for our purposes, but we also support Threefry-based CBRNGS.
+ * Most RandBLAS functions that accept an RNGState as an input will
+ * return a new RNGState with an appropriately updated counter.
+ * The only exceptions to this are constructors for SketchingOperator types,
+ * where the updated RNGState can be accessed as SketchingOperator::next_state.
+ * 
+ * Users can get access to independent "streams" of random numbers by
+ * defining CBRNGs with different keys; see RNGState constructors for more details.
+ * 
  */
 template <typename RNG = DefaultRNG>
 struct RNGState {
