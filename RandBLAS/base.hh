@@ -52,20 +52,20 @@ namespace RandBLAS {
 
 typedef r123::Philox4x32 DefaultRNG;
 
-/** 
- * This type acts as a stateful version of a traditionally-stateless 
- * counter-based random number generator (CBRNG) from Random123;
- * it packages a CBRNG with a pair of arrays called "counter" and "key."
- * 
- * Most RandBLAS functions that accept an RNGState as an input will
- * return a new RNGState with an appropriately updated counter.
- * The only exceptions to this are constructors for SketchingOperator types,
- * where the updated RNGState can be accessed as SketchingOperator::next_state.
- * 
- * Users can get access to independent "streams" of random numbers by
- * defining CBRNGs with different keys; see RNGState constructors for more details.
- * 
- */
+/// -------------------------------------------------------------------
+/// This is a stateful version of a
+/// *counter-based random number generator* (CBRNG) from Random123.
+/// It packages a CBRNG with two small arrays: "key" and "counter." 
+/// The key identifies a specific stream of pseudo-random numbers that
+/// the CBRNG is capable of generating, and the counter labels a location
+/// in that stream.
+/// 
+/// RNGStates are passed to SketchingOperator constructors.
+/// A SkektchingOperator stores an RNGState with an appropriately updated
+/// counter in its "next_state" member. All other RandBLAS functions that
+/// take an RNGState as input will return an RNGState with an approprately
+/// updated counter.
+/// 
 template <typename RNG = DefaultRNG>
 struct RNGState {
 
@@ -83,8 +83,8 @@ struct RNGState {
     // ^ The unsigned integer type used in this RNGState's counter array.
 
     /// -------------------------------------------------------------------
-    /// The unsigned integer type used in this RNGState's key array.
-    /// This is typically std::uint32_t, but it can be std::uint64_t.
+    /// The unsigned integer type used in this RNGState::key.
+    /// This is uint32 when using RandBLAS' default RNG (Philox4x32).
     using key_uint = typename RNG::key_type::value_type;
 
     const static int len_c = RNG::ctr_type::static_size;
@@ -98,7 +98,7 @@ struct RNGState {
     /// ------------------------------------------------------------------
     /// This RNGState's key array. If you want to manually advance the key
     /// by an integer increment of size "step," then you do so by calling 
-    /// this->key.incr(step).
+    /// key.incr(step).
     typename RNG::key_type key;
 
     /// Initialize the counter array to all zeros. Initialize the key array to have first
@@ -114,9 +114,12 @@ struct RNGState {
     // move construct from an initial counter and key
     RNGState(ctr_type &&c, key_type &&k) : counter(std::move(c)), key(std::move(k)) {}
 
+    // move constructor.
+    RNGState(RNGState<RNG> &&s) : RNGState(std::move(s.counter), std::move(s.key)) {};
+
     ~RNGState() {};
 
-    /// A copy constructor.
+    /// Copy constructor.
     RNGState(const RNGState<RNG> &s) : RNGState(s.counter, s.key) {};
 
     // A copy-assignment operator.
