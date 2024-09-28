@@ -101,12 +101,15 @@ struct RNGState {
     /// key.incr(step).
     typename RNG::key_type key;
 
+    /// Initialize the counter and key arrays to all zeros.
+    RNGState() : counter{}, key{} {}
+
     /// Initialize the counter array to all zeros. Initialize the key array to have first
     /// element equal to k and all other elements equal to zero.
-    RNGState(key_uint k = 0) : counter{{0}}, key{{k}} {}
+    RNGState(key_uint k) : counter{}, key{{k}} {}
 
     // construct from a key
-    RNGState(key_type const &k) : counter{{0}}, key(k) {}
+    RNGState(key_type const &k) : counter{}, key(k) {}
 
     // Initialize counter and key arrays at the given values.
     RNGState(ctr_type const &c, key_type const &k) : counter(c), key(k) {}
