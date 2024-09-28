@@ -678,7 +678,8 @@ class TestRNGState : public ::testing::Test {
 
     void test_uint_key_constructors() {
         using RNG = r123::Philox4x32;
-        ASSERT_EQ(RandBLAS::RNGState<RNG>::len_k, 2);
+        int len_k = RNG::key_type::static_size;
+        ASSERT_EQ(len_k, 2);
         // No-arugment constructor
         RandBLAS::RNGState<RNG> s;
         ASSERT_EQ(s.key[0], 0);
