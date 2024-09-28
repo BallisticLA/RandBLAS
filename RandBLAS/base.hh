@@ -87,10 +87,6 @@ struct RNGState {
     /// This is uint32 when using RandBLAS' default RNG (Philox4x32).
     using key_uint = typename RNG::key_type::value_type;
 
-    const static int len_c = RNG::ctr_type::static_size;
-    static_assert(len_c >= 2);
-    const static int len_k = RNG::key_type::static_size;
-
     typename RNG::ctr_type counter;
     // ^ This RNGState's counter array.  Exclude from doxygen comments
     //   since end-users shouldn't touch it.
@@ -100,6 +96,10 @@ struct RNGState {
     /// by an integer increment of size "step," then you do so by calling 
     /// key.incr(step).
     typename RNG::key_type key;
+
+    const static int len_c = RNG::ctr_type::static_size;
+    static_assert(len_c >= 2);
+    const static int len_k = RNG::key_type::static_size;
 
     /// Initialize the counter and key arrays to all zeros.
     RNGState() : counter{}, key{} {}
@@ -130,6 +130,25 @@ struct RNGState {
         std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
         std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
         return *this;
+    };
+
+    //
+    // Comparators (for now, these are just for testing and debugging)
+    // 
+
+    bool operator==(const RNGState<RNG> &s) {
+        // the compiler should only allow comparisons between RNGStates of the same type.
+        for (int i = 0; i < len_c; ++i) {
+            if (counter.v[i] != s.counter.v[i]) { return false; }
+        }
+        for (int i = 0; i < len_k; ++i) {
+            if (key.v[i] != s.key.v[i]) { return false; }
+        }
+        return true;
+    };
+
+    bool operator!=(const RNGState<RNG> &s) {
+        return !(this == s);
     };
 
 };
