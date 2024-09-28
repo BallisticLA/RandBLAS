@@ -672,6 +672,37 @@ void run_ut_uniform(){
 
 // MARK: my tests + Googletest
 
+class TestRNGState : public ::testing::Test {
+
+    protected:
+
+    void test_uint_key_constructors() {
+        using RNG = r123::Philox4x32;
+        // No-arugment constructor
+        auto s = RandBLAS::RNGState<RNG>();
+        ASSERT_EQ(s.len_k, 2);
+        ASSERT_EQ(s.key[0], 0);
+        ASSERT_EQ(s.key[1], 0);
+        for (int i = 0; i < 4; ++i) {
+            ASSERT_EQ(s.counter[i], 0) << "Failed at index " << i;
+        }
+        // unsigned-int constructor
+        RandBLAS::RNGState<RNG> t(42);
+        ASSERT_EQ(t.len_k, 2);
+        ASSERT_EQ(t.key[0], 42);
+        ASSERT_EQ(t.key[1], 0);
+        for (int i = 0; i < 4; ++i) {
+            ASSERT_EQ(t.counter[i], 0) << "Failed at index " << i;
+        }
+        return;
+    }
+};
+
+TEST_F(TestRNGState, uint_key_constructors) {
+    test_uint_key_constructors();
+}
+
+
 class TestRandom123 : public ::testing::Test { 
 
     protected:
