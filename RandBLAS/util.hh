@@ -453,17 +453,16 @@ state_t sample_indices_iid(int64_t n, const T* cdf, int64_t k, sint_t* samples, 
     int64_t len_c = (int64_t) state.len_c;
     int64_t rv_index = 0;
     for (int64_t i = 0; i < k; ++i) {
-        if ((i+1) % len_c == 1) {
-            ctr.incr(1);
-            rv_array = r123ext::uneg11::generate(gen, ctr, key);
-            rv_index = 0;
-        }
         auto random_unif01 = uneg11_to_u01<T>(rv_array[rv_index]);
         sint_t sample_index = std::lower_bound(cdf, cdf + n, random_unif01) - cdf;
         samples[i] = sample_index;
         rv_index += 1;
+        if (rv_index == len_c) {
+            ctr.incr(1);
+            rv_array = r123ext::uneg11::generate(gen, ctr, key);
+            rv_index = 0;
+        }
     }
-    ctr.incr(1);
     return state_t(ctr, key);
 }
  

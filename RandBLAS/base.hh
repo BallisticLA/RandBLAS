@@ -57,7 +57,7 @@ typedef r123::Philox4x32 DefaultRNG;
 /// *counter-based random number generator* (CBRNG) from Random123.
 /// It packages a CBRNG with two small arrays: "key" and "counter." 
 /// The key identifies a specific stream of pseudo-random numbers that
-/// the CBRNG is capable of generating, and the counter labels a location
+/// the CBRNG can generate, and the counter encodes a location
 /// in that stream.
 /// 
 /// RNGStates are passed to SketchingOperator constructors.
@@ -136,7 +136,7 @@ struct RNGState {
     // Comparators (for now, these are just for testing and debugging)
     // 
 
-    bool operator==(const RNGState<RNG> &s) {
+    bool operator==(const RNGState<RNG> &s) const {
         // the compiler should only allow comparisons between RNGStates of the same type.
         for (int i = 0; i < len_c; ++i) {
             if (counter.v[i] != s.counter.v[i]) { return false; }
@@ -147,7 +147,7 @@ struct RNGState {
         return true;
     };
 
-    bool operator!=(const RNGState<RNG> &s) {
+    bool operator!=(const RNGState<RNG> &s) const {
         return !(this == s);
     };
 
