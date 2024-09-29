@@ -391,13 +391,19 @@ void transpose_square(T* A, int64_t n, int64_t lda) {
     return;
 }
 
+// =============================================================================
+/// \fn sqrt_epsilon()
+/// Alias for sqrt(numeric_limits<T>::epsilon()). For example,
+/// \math{\ttt{sqrt_epsilon<float>} \approx 0.0003452}, and 
+/// \math{\ttt{sqrt_epsilon<double>} \approx 1.4901\text{e-}8}.
+/// 
 template <typename T>
 T sqrt_epsilon() {
     return std::sqrt(std::numeric_limits<T>::epsilon());
 }
 
 // =============================================================================
-/// \fn weights_to_cdf(int64_t n, T* w, T error_if_below = -std::numeric_limits<T>::epsilon())
+/// \fn weights_to_cdf(int64_t n, T* w, T error_if_below = -sqrt_epsilon<T>())
 /// @verbatim embed:rst:leading-slashes
 /// Checks if all elements of length-:math:`n` array ":math:`w`" are at no smaller than 
 /// :math:`\ttt{error_if_below}.` If this check passes, then we (implicitly) initialize :math:`v := w`` 
