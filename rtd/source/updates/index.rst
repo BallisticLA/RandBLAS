@@ -2,17 +2,20 @@
 Changes to RandBLAS
 ===================
 
-This page details changes made to RandBLAS over time, in reverse chronological order.
+This page reviews changes made to RandBLAS over time, in reverse chronological order.
 We have a tentative policy of providing bugfix support for any release of 
 RandBLAS upon request, no matter how old. With any luck, this project will grow enough
 that we'll have to change this policy.
 
-RandBLAS follows `Semantic Versioning <https://semver.org>`_.
+RandBLAS follows `Semantic Versioning <https://semver.org>`_. Any function documented
+on this website is part of the public API. There are many functions which are not
+part of our public API, but could be added to it if there is user interest. 
 
+RandBLAS' latest version is :ref:`1.0.1 <v10x_patches>`.
 
 RandBLAS 1.0
 ------------
-*Release date: September 12, 2024. Release manager: Riley Murray.*
+*Original release date: September 12, 2024. Release manager: Riley Murray.*
 
 Today marks RandBLAS' second-ever release, its first *stable* release,
 and its first release featuring the contributions of someone who showed
@@ -94,6 +97,13 @@ National Technology and Engineering Solutions of Sandia, LLC., a wholly owned su
 of Honeywell International, Inc., for the U.S. Department of Energy’s National Nuclear
 Security Administration under contract DE-NA-0003525.
 
+.. _v10x_patches:
+
+Patch releases in series 1.0.x
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Version 1.0.1 (September 29, 2024). This patches bugs in values of RNGStates
+returned from functions for sampling from index sets. See GitHub for more details.
 
 
 RandBLAS 0.2

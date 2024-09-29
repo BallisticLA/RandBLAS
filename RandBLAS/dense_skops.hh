@@ -204,17 +204,15 @@ inline blas::Layout natural_layout(Axis major_axis, int64_t n_rows, int64_t n_co
 namespace RandBLAS {
 
 // =============================================================================
-/// We support two distributions for dense sketching operators: those whose
-/// entries are iid Gaussians or iid uniform over a symmetric interval.
-/// 
+/// Names for mean-zero variance-one distributions on the reals.
 enum class ScalarDist : char {
     // ---------------------------------------------------------------------------
-    ///  Indicates the Gaussian distribution with mean 0 and variance 1.
+    ///  The Gaussian distribution with mean 0 and variance 1.
     Gaussian = 'G',
 
     // ---------------------------------------------------------------------------
-    ///  Indicates the uniform distribution over [-r, r] where r := sqrt(3)
-    ///  is the radius that provides for a variance of 1.
+    ///  The uniform distribution over \math{[-r, r],} where 
+    ///  \math{r := \sqrt{3}} provides for a variance of 1.
     Uniform = 'U'
 };
 
@@ -333,7 +331,7 @@ static_assert(SketchingDistribution<DenseDist>);
 ///  A sample from a distribution over matrices whose entries are iid
 ///  mean-zero variance-one random variables.
 ///  This type conforms to the SketchingOperator concept.
-template <typename T, typename RNG = r123::Philox4x32>
+template <typename T, typename RNG = DefaultRNG>
 struct DenseSkOp {
 
     // ---------------------------------------------------------------------------
@@ -537,7 +535,7 @@ static_assert(SketchingOperator<DenseSkOp<double>>);
 ///      - Used to define :math:`\mtxS` as a sample from :math:`\D.`
 ///
 /// @endverbatim
-template<typename T, typename RNG = r123::Philox4x32>
+template<typename T, typename RNG = DefaultRNG>
 RNGState<RNG> fill_dense_unpacked(blas::Layout layout, const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s, T* buff, const RNGState<RNG> &seed) {
     using RandBLAS::dense::fill_dense_submat_impl;
     randblas_require(D.n_rows >= n_rows + ro_s);
@@ -597,7 +595,7 @@ RNGState<RNG> fill_dense_unpacked(blas::Layout layout, const DenseDist &D, int64
 ///      A CBRNG state
 ///      - Used to define \math{\mat(\buff)} as a sample from \math{\D}.
 ///
-template <typename T, typename RNG = r123::Philox4x32>
+template <typename T, typename RNG = DefaultRNG>
 RNGState<RNG> fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed) {
     return fill_dense_unpacked(D.natural_layout, D, D.n_rows, D.n_cols, 0, 0, buff, seed);
 }
