@@ -51,21 +51,17 @@
 namespace RandBLAS {
 
 typedef r123::Philox4x32 DefaultRNG;
+using std::uint64_t;
 
 /// -------------------------------------------------------------------
 /// This is a stateful version of a
 /// *counter-based random number generator* (CBRNG) from Random123.
-/// It packages a CBRNG with two small arrays: "key" and "counter." 
-/// The key identifies a specific stream of pseudo-random numbers that
-/// the CBRNG can generate, and the counter encodes a location
-/// in that stream.
+/// It packages a CBRNG together with two instances of Random123-defined
+/// arrays (key and counter; see below for details).
 /// 
-/// RNGStates are passed to SketchingOperator constructors.
-/// A SkektchingOperator stores an RNGState with an appropriately updated
-/// counter in its "next_state" member. All other RandBLAS functions that
-/// take an RNGState as input will return an RNGState with an approprately
-/// updated counter.
-/// 
+/// RNGStates are passed to SketchingOperator constructors and 
+/// a handful of free-functions that perform random sampling.
+///
 template <typename RNG = DefaultRNG>
 struct RNGState {
 
@@ -81,20 +77,36 @@ struct RNGState {
     // ^ An array type defined in Random123.
     using ctr_uint = typename RNG::ctr_type::value_type;
     // ^ The unsigned integer type used in this RNGState's counter array.
-
-    /// -------------------------------------------------------------------
-    /// The unsigned integer type used in this RNGState::key.
-    /// This is uint32 when using RandBLAS' default RNG (Philox4x32).
     using key_uint = typename RNG::key_type::value_type;
-
-    typename RNG::ctr_type counter;
-    // ^ This RNGState's counter array.  Exclude from doxygen comments
-    //   since end-users shouldn't touch it.
+    // ^ The unsigned integer type used in this RNGState's key array.
 
     /// ------------------------------------------------------------------
-    /// This RNGState's key array. If you want to manually advance the key
-    /// by an integer increment of size "step," then you do so by calling 
-    /// key.incr(step).
+    /// This is a Random123-defined statically-sized array of unsigned integers.
+    /// With RandBLAS' default, the array contains four 32-bit unsigned ints
+    /// and is interpreted as one 128-bit unsigned int.
+    /// 
+    /// This member specifies the "location" of this RNGState in
+    /// the random stream defined by RNGState::generator and RNGState::key.
+    /// Random sampling functions in RandBLAS effectively consume elements
+    /// of the random stream starting from this location.
+    ///
+    /// RandBLAS functions do not mutate input RNGStates. Free-functions 
+    /// return new RNGStates with suitably updated counters. Constructors
+    /// for SketchingOperator objects store updated RNGStates in the
+    /// object's next_state member.
+    typename RNG::ctr_type counter;
+
+    /// ------------------------------------------------------------------
+    /// This is a Random123-defined statically-sized array of unsigned integers.
+    /// With RandBLAS' default, the array contains two 32-bit unsigned ints
+    /// and is interpreted as one 64-bit unsigned int.
+    ///
+    /// This member defines a specific sequece of pseudo-random numbers
+    /// that RNGState::generator can produce. Any fixed sequence has
+    /// fairly large period (\math{2^{132}}, with RandBLAS' default) and
+    /// is statistically independent from sequences induced by different keys.
+    ///
+    /// The key can be incremented by size "step" by \math{\ttt{key.incr(step)}.
     typename RNG::key_type key;
 
     const static int len_c = RNG::ctr_type::static_size;
@@ -104,9 +116,9 @@ struct RNGState {
     /// Initialize the counter and key arrays to all zeros.
     RNGState() : counter{}, key{} {}
 
-    /// Initialize the counter array to all zeros. Initialize the key array to have first
-    /// element equal to k and all other elements equal to zero.
-    RNGState(key_uint k) : counter{}, key{{k}} {}
+    /// Initialize the counter and key arrays to all zeros,
+    /// then increment the key by k.
+    RNGState(uint64_t k) : counter{}, key{} { key.incr(k); }
 
     // construct from a key
     RNGState(key_type const &k) : counter{}, key(k) {}
