@@ -56,11 +56,10 @@ using std::uint64_t;
 /// -------------------------------------------------------------------
 /// This is a stateful version of a
 /// *counter-based random number generator* (CBRNG) from Random123.
-/// It packages a CBRNG together with two instances of Random123-defined
-/// arrays (key and counter; see below for details).
+/// It packages a CBRNG together with two arrays, called "counter" and "key,"
+/// which are interpreted as extended-width unsigned integers.
 /// 
-/// RNGStates are passed to SketchingOperator constructors and 
-/// a handful of free-functions that perform random sampling.
+/// RNGStates are used in every RandBLAS function that involves random sampling.
 ///
 template <typename RNG = DefaultRNG>
 struct RNGState {
@@ -82,15 +81,15 @@ struct RNGState {
 
     /// ------------------------------------------------------------------
     /// This is a Random123-defined statically-sized array of unsigned integers.
-    /// With RandBLAS' default, the array contains four 32-bit unsigned ints
+    /// With RandBLAS' default, it contains four 32-bit unsigned ints
     /// and is interpreted as one 128-bit unsigned int.
     /// 
-    /// This member specifies the "location" of this RNGState in
-    /// the random stream defined by RNGState::generator and RNGState::key.
+    /// This member specifies a "location" in the random stream
+    /// defined by RNGState::generator and RNGState::key.
     /// Random sampling functions in RandBLAS effectively consume elements
     /// of the random stream starting from this location.
     ///
-    /// RandBLAS functions do not mutate input RNGStates. Free-functions 
+    /// **RandBLAS functions do not mutate input RNGStates.** Free-functions 
     /// return new RNGStates with suitably updated counters. Constructors
     /// for SketchingOperator objects store updated RNGStates in the
     /// object's next_state member.
@@ -98,26 +97,25 @@ struct RNGState {
 
     /// ------------------------------------------------------------------
     /// This is a Random123-defined statically-sized array of unsigned integers.
-    /// With RandBLAS' default, the array contains two 32-bit unsigned ints
+    /// With RandBLAS' default, it contains two 32-bit unsigned ints
     /// and is interpreted as one 64-bit unsigned int.
     ///
-    /// This member defines a specific sequece of pseudo-random numbers
+    /// This member specifices a sequece of pseudo-random numbers
     /// that RNGState::generator can produce. Any fixed sequence has
-    /// fairly large period (\math{2^{132}}, with RandBLAS' default) and
+    /// fairly large period (\math{2^{132},} with RandBLAS' default) and
     /// is statistically independent from sequences induced by different keys.
     ///
-    /// The key can be incremented by size "step" by \math{\ttt{key.incr(step)}.
+    /// To increment the key by "step," call \math{\ttt{key.incr(step)}}.
     typename RNG::key_type key;
 
     const static int len_c = RNG::ctr_type::static_size;
     static_assert(len_c >= 2);
     const static int len_k = RNG::key_type::static_size;
 
-    /// Initialize the counter and key arrays to all zeros.
+    /// Initialize the counter and key to zero.
     RNGState() : counter{}, key{} {}
 
-    /// Initialize the counter and key arrays to all zeros,
-    /// then increment the key by k.
+    /// Initialize the counter and key to zero, then increment the key by k.
     RNGState(uint64_t k) : counter{}, key{} { key.incr(k); }
 
     // construct from a key

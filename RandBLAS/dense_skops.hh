@@ -204,17 +204,15 @@ inline blas::Layout natural_layout(Axis major_axis, int64_t n_rows, int64_t n_co
 namespace RandBLAS {
 
 // =============================================================================
-/// We support two distributions for dense sketching operators: those whose
-/// entries are iid Gaussians or iid uniform over a symmetric interval.
-/// 
+/// Names for mean-zero variance-one distributions on the reals.
 enum class ScalarDist : char {
     // ---------------------------------------------------------------------------
-    ///  Indicates the Gaussian distribution with mean 0 and variance 1.
+    ///  The Gaussian distribution with mean 0 and variance 1.
     Gaussian = 'G',
 
     // ---------------------------------------------------------------------------
-    ///  Indicates the uniform distribution over [-r, r] where r := sqrt(3)
-    ///  is the radius that provides for a variance of 1.
+    ///  The uniform distribution over \math{[-r, r],} where 
+    ///  \math{r := \sqrt{3}} provides for a variance of 1.
     Uniform = 'U'
 };
 

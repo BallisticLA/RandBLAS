@@ -394,8 +394,8 @@ void transpose_square(T* A, int64_t n, int64_t lda) {
 // =============================================================================
 /// \fn sqrt_epsilon()
 /// Alias for sqrt(numeric_limits<T>::epsilon()). For example,
-/// \math{\ttt{sqrt_epsilon<float>} \approx 0.0003452}, and 
-/// \math{\ttt{sqrt_epsilon<double>} \approx 1.4901\text{e-}8}.
+/// \math{\ttt{sqrt_epsilon<float>()} \approx 0.0003452}, and 
+/// \math{\ttt{sqrt_epsilon<double>()} \approx 1.4901\text{e-}8}.
 /// 
 template <typename T>
 T sqrt_epsilon() {
