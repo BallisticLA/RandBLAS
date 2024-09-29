@@ -101,6 +101,7 @@ static state_t repeated_fisher_yates(
             vec_work[ell] = swap;
         }
     }
+    ctr.incr(dim_minor * vec_nnz);
     return state_t {ctr, key};
 }
 
@@ -239,7 +240,7 @@ inline state_t repeated_fisher_yates(
     return sparse::repeated_fisher_yates(state, k, n, r, samples, (sint_t*) nullptr, (double*) nullptr);
 }
 
-template <typename RNG>
+template <typename RNG = DefaultRNG>
 RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
     int64_t num_mavec, incrs_per_mavec;
     if (dist.major_axis == Axis::Short) {
@@ -249,7 +250,7 @@ RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
         //   See repeated_fisher_yates.
     } else {
         num_mavec = std::min(dist.n_rows, dist.n_cols);
-        incrs_per_mavec = dist.vec_nnz * ((int64_t) state.len_c/2);
+        incrs_per_mavec = (int64_t) std::ceil((double) dist.vec_nnz / ((double) state.len_c/2));
         // ^ LASOs do try to be frugal with CBRNG increments.
         //   See sample_indices_iid_uniform.
     }
@@ -262,7 +263,7 @@ RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
 /// A sample from a distribution over structured sparse matrices with either
 /// independent rows or independent columns. This type conforms to the
 /// SketchingOperator concept.
-template <typename T, typename RNG = r123::Philox4x32, SignedInteger sint_t = int64_t>
+template <typename T, typename RNG = DefaultRNG, SignedInteger sint_t = int64_t>
 struct SparseSkOp {
 
     // ---------------------------------------------------------------------------
@@ -483,6 +484,10 @@ void laso_merge_long_axis_vector_coo_data(
 /// a COO sparse matrix representation of the SparseSkOp
 /// defined by \math{(\D,\ttt{seed_state)}.}
 ///
+/// Note: the "nosub" suffix in this function name reflects how it has no ability
+/// to sample submatrices of sparse sketching operators. A future release of
+/// RandBLAS will add a function called "fill_sparse_unpacked()" with capabilities
+/// that are completely analogous to fill_dense_unpacked().
 /// 
 template <typename T, typename sint_t, typename state_t>
 state_t fill_sparse_unpacked_nosub(
@@ -570,6 +575,7 @@ void fill_sparse(SparseSkOp &S) {
     randblas_require(S.cols != nullptr);
     randblas_require(S.vals != nullptr);
     fill_sparse_unpacked_nosub(S.dist, S.nnz, S.vals, S.rows, S.cols, S.seed_state);
+    // ^ We ignore the return value from that function call.
     return;
 }
 

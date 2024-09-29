@@ -391,13 +391,19 @@ void transpose_square(T* A, int64_t n, int64_t lda) {
     return;
 }
 
+// =============================================================================
+/// \fn sqrt_epsilon()
+/// Alias for sqrt(numeric_limits<T>::epsilon()). For example,
+/// \math{\ttt{sqrt_epsilon<float>()} \approx 0.0003452}, and 
+/// \math{\ttt{sqrt_epsilon<double>()} \approx 1.4901\text{e-}8}.
+/// 
 template <typename T>
 T sqrt_epsilon() {
     return std::sqrt(std::numeric_limits<T>::epsilon());
 }
 
 // =============================================================================
-/// \fn weights_to_cdf(int64_t n, T* w, T error_if_below = -std::numeric_limits<T>::epsilon())
+/// \fn weights_to_cdf(int64_t n, T* w, T error_if_below = -sqrt_epsilon<T>())
 /// @verbatim embed:rst:leading-slashes
 /// Checks if all elements of length-:math:`n` array ":math:`w`" are at no smaller than 
 /// :math:`\ttt{error_if_below}.` If this check passes, then we (implicitly) initialize :math:`v := w`` 
@@ -426,7 +432,7 @@ void weights_to_cdf(int64_t n, T* w, T error_if_below = -sqrt_epsilon<T>()) {
 }
 
 template <typename TO, typename TI>
-static inline TO uneg11_to_uneg01(TI in) {
+static inline TO uneg11_to_u01(TI in) {
     return ((TO) in + (TO) 1.0)/ ((TO) 2.0);
 }
 
@@ -453,15 +459,15 @@ state_t sample_indices_iid(int64_t n, const T* cdf, int64_t k, sint_t* samples, 
     int64_t len_c = (int64_t) state.len_c;
     int64_t rv_index = 0;
     for (int64_t i = 0; i < k; ++i) {
-        if ((i+1) % len_c == 1) {
+        auto random_unif01 = uneg11_to_u01<T>(rv_array[rv_index]);
+        sint_t sample_index = std::lower_bound(cdf, cdf + n, random_unif01) - cdf;
+        samples[i] = sample_index;
+        rv_index += 1;
+        if (rv_index == len_c) {
             ctr.incr(1);
             rv_array = r123ext::uneg11::generate(gen, ctr, key);
             rv_index = 0;
         }
-        auto random_unif01 = uneg11_to_uneg01<T>(rv_array[rv_index]);
-        sint_t sample_index = std::lower_bound(cdf, cdf + n, random_unif01) - cdf;
-        samples[i] = sample_index;
-        rv_index += 1;
     }
     return state_t(ctr, key);
 }
@@ -480,7 +486,7 @@ state_t sample_indices_iid_uniform(int64_t n, int64_t k, sint_t* samples, T* rad
     int64_t rv_index = 0;
     double dN = (double) n;
     for (int64_t i = 0; i < k; ++i) {
-        auto random_unif01 = uneg11_to_uneg01<double>(rv_array[rv_index]);
+        auto random_unif01 = uneg11_to_u01<double>(rv_array[rv_index]);
         sint_t sample_index = (sint_t) dN * random_unif01;
         samples[i] = sample_index;
         rv_index += 1;
@@ -494,6 +500,7 @@ state_t sample_indices_iid_uniform(int64_t n, int64_t k, sint_t* samples, T* rad
             rv_index = 0;
         }
     }
+    if (rv_index < len_c) ctr.incr(1);
     return state_t(ctr, key);
 }
 

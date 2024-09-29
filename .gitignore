@@ -53,6 +53,9 @@
 
 ## Local 
 
+RandBLAS/config.h
+temp_vscode
+
 .vscode/*
 .idea/*.xml
 
