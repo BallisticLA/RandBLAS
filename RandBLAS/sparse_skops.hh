@@ -484,6 +484,10 @@ void laso_merge_long_axis_vector_coo_data(
 /// a COO sparse matrix representation of the SparseSkOp
 /// defined by \math{(\D,\ttt{seed_state)}.}
 ///
+/// Note: the "nosub" suffix in this function name reflects how it has no ability
+/// to sample submatrices of sparse sketching operators. A future release of
+/// RandBLAS will add a function called "fill_sparse_unpacked()" with capabilities
+/// that are completely analogous to fill_dense_unpacked().
 /// 
 template <typename T, typename sint_t, typename state_t>
 state_t fill_sparse_unpacked_nosub(
