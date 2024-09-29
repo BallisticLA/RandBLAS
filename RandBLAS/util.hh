@@ -469,6 +469,7 @@ state_t sample_indices_iid(int64_t n, const T* cdf, int64_t k, sint_t* samples, 
             rv_index = 0;
         }
     }
+    if (rv_index < len_c) ctr.incr(1);
     return state_t(ctr, key);
 }
  
