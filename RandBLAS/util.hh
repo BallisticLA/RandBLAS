@@ -469,7 +469,7 @@ state_t sample_indices_iid(int64_t n, const T* cdf, int64_t k, sint_t* samples, 
             rv_index = 0;
         }
     }
-    if (rv_index < len_c) ctr.incr(1);
+    if (0 < rv_index) ctr.incr(1);
     return state_t(ctr, key);
 }
  
@@ -501,7 +501,7 @@ state_t sample_indices_iid_uniform(int64_t n, int64_t k, sint_t* samples, T* rad
             rv_index = 0;
         }
     }
-    if (rv_index < len_c) ctr.incr(1);
+    if (0 < rv_index) ctr.incr(1);
     return state_t(ctr, key);
 }
 
