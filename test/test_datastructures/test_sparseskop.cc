@@ -34,12 +34,14 @@
 #include <gtest/gtest.h>
 #include <cmath>
 
+using std::vector;
 using RandBLAS::RNGState;
 using RandBLAS::SignedInteger;
 using RandBLAS::SparseDist;
 using RandBLAS::SparseSkOp;
 using RandBLAS::Axis;
 using RandBLAS::fill_sparse;
+using RandBLAS::fill_sparse_unpacked_nosub;
 
 
 class TestSparseSkOpConstruction : public ::testing::Test
@@ -143,6 +145,31 @@ class TestSparseSkOpConstruction : public ::testing::Test
         test::comparison::buffs_approx_equal(vals.data(), vals_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (T) 0, (T) 0);
         return;
     }
+
+    void unpacked_nosub(const SparseDist &D) {
+        RNGState<RandBLAS::DefaultRNG> s(1);
+        SparseSkOp<float> S(D, s);
+        auto expect_next = S.next_state;
+        fill_sparse(S);
+        vector<int64_t> rows(D.full_nnz);
+        vector<int64_t> cols(D.full_nnz);
+        vector<float>   vals(D.full_nnz);
+        int64_t nnz = 0;
+        auto actual_next = fill_sparse_unpacked_nosub(
+            D, nnz, vals.data(), rows.data(), cols.data(), s
+        );
+        EXPECT_EQ(S.nnz, nnz);
+        EXPECT_TRUE(actual_next == expect_next);
+        test::comparison::buffs_approx_equal(
+            vals.data(), S.vals, nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
+        test::comparison::buffs_approx_equal(
+            rows.data(), S.rows, nnz,  __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
+        test::comparison::buffs_approx_equal(
+            cols.data(), S.cols, nnz,  __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
+    }
 };
 
 TEST_F(TestSparseSkOpConstruction, respect_ownership) {
@@ -155,6 +182,15 @@ TEST_F(TestSparseSkOpConstruction, respect_ownership) {
     respect_ownership<int>(7, 20);
 }
 
+TEST_F(TestSparseSkOpConstruction, fill_unpacked_nosub_saso) {
+    unpacked_nosub({10,20,7,Axis::Short});
+    unpacked_nosub({20,10,7,Axis::Short});
+}
+
+TEST_F(TestSparseSkOpConstruction, fill_unpacked_nosub_laso) {
+    unpacked_nosub({10,20,7,Axis::Long});
+    unpacked_nosub({20,10,7,Axis::Long});
+}
 
 ////////////////////////////////////////////////////////////////////////
 //

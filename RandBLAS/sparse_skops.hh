@@ -250,7 +250,7 @@ RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
         //   See repeated_fisher_yates.
     } else {
         num_mavec = std::min(dist.n_rows, dist.n_cols);
-        incrs_per_mavec = dist.vec_nnz * ((int64_t) state.len_c/2);
+        incrs_per_mavec = (int64_t) std::ceil((double) dist.vec_nnz / ((double) state.len_c/2));
         // ^ LASOs do try to be frugal with CBRNG increments.
         //   See sample_indices_iid_uniform.
     }
@@ -571,6 +571,7 @@ void fill_sparse(SparseSkOp &S) {
     randblas_require(S.cols != nullptr);
     randblas_require(S.vals != nullptr);
     fill_sparse_unpacked_nosub(S.dist, S.nnz, S.vals, S.rows, S.cols, S.seed_state);
+    // ^ We ignore the return value from that function call.
     return;
 }
 
