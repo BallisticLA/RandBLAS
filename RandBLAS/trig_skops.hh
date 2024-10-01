@@ -37,7 +37,6 @@ namespace RandBLAS {
             // Each thread has its own RNG instance
             RNG rng;
 
-            // You can use any seed value for the key
             RNG::key_type k = {{key_seed + omp_get_thread_num()}}; // Unique key for each thread
 
             // Thread-local counter
@@ -263,10 +262,8 @@ RandBLAS::RNGState<RNG> fill_trig(
     int64_t r = Tr.dim_short;
     int64_t d = Tr.dim_long;
 
-    // Output containers
-    std::vector<sint_t> idxs_major(r); // Stores the sampled integers
-    std::vector<sint_t> idxs_minor(r); // Not needed in your case
-    std::vector<T> vals(r); // Not needed in your case, but required by the function
+    std::vector<sint_t> idxs_minor(r); // Placeholder
+    std::vector<T> vals(r); // Placeholder
 
     RandBLAS::repeated_fisher_yates<T, RNG, sint_t>(
         Tr.seed_state,
