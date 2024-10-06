@@ -5,7 +5,8 @@
    Installation <installation/index>
    Tutorial <tutorial/index>
    API Reference <api_reference/index>
-   Changelog <updates/index>
+   Release History <updates/index>
+   Acknowledgements <acknowledgements>
    FAQ and Limitations <FAQ>
 
 .. default-domain:: cpp
@@ -32,3 +33,5 @@ If we've piqued your interest, try RandBLAS yourself!
 We've got a handy `installation guide <installation/index.html>`_  on this website
 and `examples <https://github.com/BallisticLA/RandBLAS/tree/main/examples>`_ in
 our `GitHub repository <https://github.com/BallisticLA/RandBLAS>`_.
+You can go beyond our small set of examples by checking out `RandLAPACK <https://github.com/BallisticLA/RandLAPACK>`_
+or reading `our book <https://arxiv.org/abs/2302.11474>`_!

@@ -1,4 +1,6 @@
 
+.. _changes_to_randblas:
+
 Changes to RandBLAS
 ===================
 
