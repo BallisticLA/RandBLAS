@@ -27,7 +27,9 @@ namespace RandBLAS {
     /// WARNING: None of the following functions or overloads thereof are part of the
     /// public API
     ///
-    void generateRademacherVector_r123(std::vector<int64_t> &buff, uint32_t key_seed, uint32_t ctr_seed, int n) {
+    template<SignedInteger sint_t>
+    // void generateRademacherVector_r123(std::vector<int64_t> &buff, uint32_t key_seed, uint32_t ctr_seed, int64_t n) {
+    void generateRademacherVector_r123(sint_t* buff, uint32_t key_seed, uint32_t ctr_seed, int64_t n) {
         typedef r123::Philox2x32 RNG;
         // std::vector<int64_t> rademacherVector(n);
 
@@ -90,8 +92,9 @@ namespace RandBLAS {
     }
     }
 
-    template<typename T>
-    void applyDiagonalRademacher(int64_t rows, int64_t cols, T* A, std::vector<int64_t> &diag) {
+    template<typename T, SignedInteger sint_t>
+    // void applyDiagonalRademacher(int64_t rows, int64_t cols, T* A, std::vector<int64_t> &diag) {
+    void applyDiagonalRademacher(int64_t rows, int64_t cols, T* A, sint_t* diag) {
         //NOTE: Only considers sketching from the left + ColMajor format as of now
         for(int col=0; col < cols; col++) {
         if(diag[col] > 0)
@@ -105,13 +108,14 @@ namespace RandBLAS {
     // B <- alpha * diag(Rademacher) * op(A) + beta * B
     // `alpha`, `beta` aren't needed and shape(A) == shape(B)
     // lda == ldb
-    template<typename T>
+    template<typename T, SignedInteger sint_t>
     void applyDiagonalRademacher(
         blas::Layout layout,
         blas::Op opA, // taken from `sketch_general/lskget`
         int64_t n, // everything is the same size as `op(A)`: m-by-n
         int64_t m,
-        std::vector<int64_t> &diag,
+        // std::vector<int64_t> &diag,
+        sint_t* diag,
         const T* A, // The data matrix that won't be modified
         // int64_t lda,
         T* B // The destination matrix
@@ -182,12 +186,15 @@ namespace RandBLAS {
 }
 };
 
-    template<typename T, SignedInteger sint_t, typename RNG = r123::Philox4x32>
+    template<typename T, typename RNG = r123::Philox4x32, SignedInteger sint_t = int64_t>
     struct TrigSkOp {
         using generator = RNG;
         using state_type = RNGState<RNG>;
         using buffer_type = T;
 
+        //TODO: Where should the logic for deciding the size of `H` to use go?
+        // Since that will be accompanied by padding of (DA) maybe it should
+        // go inside of `lskget`?
         const int64_t n_rows;
         const int64_t n_cols;
         int64_t dim_short;
@@ -198,28 +205,28 @@ namespace RandBLAS {
 
 
         const RNGState<RNG> seed_state;
-
         RNGState<RNG> next_state;
 
         const blas::Layout layout;
         const bool sketchFromLeft = true;
         bool known_filled = false;
 
-        T* DiagonalRademacher = nullptr;
-        T* SampledRows = nullptr;
+        sint_t* DiagonalRademacher = nullptr;
+        sint_t* SampledRows = nullptr;
 
         TrigSkOp(
             TrigDist dist,
             RNGState<RNG> const &state,
-            bool known_filled = true
-        ) : n_rows(dist.n_rows), n_cols(dist.n_cols), dist(dist), seed_state(state), known_filled(known_filled), dim_short(dist.dim_short), dim_long(dist.dim_long){
+            blas::Layout layout,
+            bool known_filled = false
+        ) : n_rows(dist.n_rows), n_cols(dist.n_cols), dist(dist), seed_state(state), known_filled(known_filled), dim_short(dist.dim_short), dim_long(dist.dim_long), layout(layout){
             // Memory for Rademacher diagonal gets allocated here
             // Number of rows/cols to be sampled gets decided here
             // i.e. `n_sampled` gets set
             if(sketchFromLeft)
-                DiagonalRademacher = new T[n_rows];
+                DiagonalRademacher = new sint_t[n_rows];
             else
-                DiagonalRademacher = new T[n_cols];
+                DiagonalRademacher = new sint_t[n_cols];
 
             SampledRows = new sint_t[dim_short];
 
@@ -236,27 +243,32 @@ namespace RandBLAS {
             uint32_t key
         ) : n_rows(n_rows), n_cols(n_cols), dist(TrigDist{n_rows, n_cols, family}), seed_state() {};
 
+        //TODO: Write a proper deconstructor
+        //Free up DiagonalRademacher && SampledRows
         ~TrigSkOp();
 };
 
-// Populates the Rademacher diagonal entries and decides the rows/cols to
-// be sampled at the end
+template <typename T, typename RNG, SignedInteger sint_t>
+TrigSkOp<T, RNG, sint_t>::~TrigSkOp() {
+    delete [] this->DiagonalRademacher;
+    delete [] this->SampledRows;
+};
+
 template<typename T, typename RNG, SignedInteger sint_t>
 RandBLAS::RNGState<RNG> fill_trig(
-    TrigSkOp<T, RNG> &Tr
+    TrigSkOp<T, RNG, sint_t> &Tr
 ) {
     /**
      * Will do the work of filling in the diagonal Rademacher entries
      * and selecting the rows/cols to be sampled
      */
-
     auto [ctr, key] = Tr.seed_state;
 
     // Fill in the Rademacher diagonal
     if(Tr.sketchFromLeft)
-        generateRademacherVector_r123(Tr.DiagonalRademacher, key, ctr, Tr.n_rows);
+        generateRademacherVector_r123(Tr.DiagonalRademacher, key[0], ctr[0], Tr.n_rows);
     else
-        generateRademacherVector_r123(Tr.DiagonalRademacher, key, ctr, Tr.n_cols);
+        generateRademacherVector_r123(Tr.DiagonalRademacher, key[0], ctr[0], Tr.n_cols);
 
     //NOTE: Select the rows/cols to be sampled --- use the `repeated_fisher_yates` function
     int64_t r = Tr.dim_short;
@@ -265,7 +277,7 @@ RandBLAS::RNGState<RNG> fill_trig(
     std::vector<sint_t> idxs_minor(r); // Placeholder
     std::vector<T> vals(r); // Placeholder
 
-    RandBLAS::repeated_fisher_yates<T, RNG, sint_t>(
+    Tr.next_state = RandBLAS::repeated_fisher_yates<T, RNG, sint_t>(
         Tr.seed_state,
         r,         // Number of samples (vec_nnz)
         d,         // Total number of elements (dim_major)
@@ -274,6 +286,8 @@ RandBLAS::RNGState<RNG> fill_trig(
         idxs_minor.data(),  // Placeholder
         vals.data()         // Placeholder
     );
+    Tr.known_filled = true;
+    return Tr.next_state;
 }
 }
 
@@ -310,6 +324,6 @@ inline void lskget(
     //TODO: Apply the Hadamard transform
 
     //... and finally permute the rows
-    permuteRowsToTop(m, n, Tr.SampledRows, B, ldb);
+    // permuteRowsToTop(m, n, Tr.SampledRows, B, ldb);
 }
 }
