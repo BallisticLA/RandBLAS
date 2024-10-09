@@ -94,13 +94,26 @@ namespace RandBLAS {
 
     template<typename T, SignedInteger sint_t>
     // void applyDiagonalRademacher(int64_t rows, int64_t cols, T* A, std::vector<int64_t> &diag) {
-    void applyDiagonalRademacher(int64_t rows, int64_t cols, T* A, sint_t* diag) {
-        //NOTE: Only considers sketching from the left + ColMajor format as of now
-        for(int col=0; col < cols; col++) {
-        if(diag[col] > 0)
-            continue;
-        blas::scal(rows, diag[col], &A[col * rows], 1);
-    }
+    void applyDiagonalRademacher(
+                                blas::Layout layout,
+                                int64_t rows,
+                                int64_t cols,
+                                T* A,
+                                sint_t* diag
+                                )
+    {
+        //TODO: Only considers sketching from the left + ColMajor format as of now
+        if(layout == blas::Layout::ColMajor) {
+            // In a `ColMajor` setting we parallelize over columns
+            for(int col=0; col < cols; col++) {
+                if(diag[col] > 0)
+                    continue;
+                blas::scal(rows, diag[col], &A[col * rows], 1);
+            }
+        }
+        else {
+            // In a `RowMajor` setting we vectorize over rows
+        }
     }
 
     // `applyDiagonalRademacher`should have a similar API as `sketch_general`
@@ -140,20 +153,27 @@ namespace RandBLAS {
     // `B` will be passed in by the user to `sketch_general/lskget` and `permuteRowsToTop` will take in
     // the `B` that has been modified by `applyRademacherDiagonal`
     // Will also be called inside of `lskget`
-    template<typename T>
-    void permuteRowsToTop(int rows, int cols, std::vector<int64_t> selectedRows, T* B, int ldb) {
+    template<typename T, SignedInteger sint_t>
+    void permuteRowsToTop(
+                          blas::Layout layout,
+                          int64_t rows,
+                          int64_t cols,
+                          sint_t* selectedRows,
+                          int64_t d, // size of `selectedRows`
+                          T* A
+                          ) {
         //NOTE: There should be a similar `permuteColsToLeft`
         int top = 0;  // Keeps track of the topmost unselected row
 
-        // Compute `r` internally
-        // int64_t r = 100;
-        // std::vector<int64_t> selectedRows = generateRademacherVector_parallel(r);
+        int64_t lda = rows;
+        if(layout == blas::Layout::RowMajor)
+            lda = cols;
 
-        for (int selected : selectedRows) {
-            if (selected != top) {
+        for (int i=0; i < d; i++) {
+            if (selectedRows[i] != top) {
                 // Use BLAS swap to swap the entire rows
                 // Swapping row 'selected' with row 'top'
-                blas::swap(cols, &B[selected], ldb, &B[top], ldb);
+                blas::swap(cols, &A[selectedRows[i]], lda, &A[top], lda);
             }
             top++;
         }
@@ -325,5 +345,59 @@ inline void lskget(
 
     //... and finally permute the rows
     // permuteRowsToTop(m, n, Tr.SampledRows, B, ldb);
+}
+
+
+/*
+ * These functions apply an in-place, SRHT-like transform to the input matrix
+ * i.e. A <- (\Pi H D)A OR A <- A(D H \Pi) (which is equivalent to A <- A(\Pi H D)^{-1})
+ * layout: Layout of the input matrix (`ColMajor/RowMajor`)
+ * A: (m x n), input dimensions of `A`
+ * d: The number of rows/columns that will be permuted by the action of $\Pi$
+ */
+template <typename T, typename RNG = r123::Philox4x32, SignedInteger sint_t = int64_t>
+inline void lmiget(
+    blas::Layout layout,
+    RandBLAS::RNGState<RNG> random_state,
+    int64_t m, // `A` is `(m x n)`
+    int64_t n,
+    int64_t d, // `d` is the number of rows that have to be permuted by `\Pi`
+    T* A // data-matrix
+)
+{
+    // Size of the Rademacher entries = |A_cols|
+    //TODO: Change `diag` to float/doubles (same data type as the matrix)
+    sint_t* diag = new sint_t[n];
+    sint_t* selected_rows = new sint_t[d];
+
+    auto [ctr, key] = random_state;
+
+    //Step 1: Scale with `D`
+        //Populating `diag`
+    generateRademacherVector_r123(diag, key[0], ctr[0], n);
+    applyDiagonalRademacher(layout, m, n, A, diag);
+
+    //Step 2: Apply the Hadamard transform
+
+    //Step 3: Permute the rows
+    std::vector<sint_t> idxs_minor(d); // Placeholder
+    std::vector<T> vals(d); // Placeholder
+
+        // Populating `selected_rows`
+        //TODO: Do I return this at some point?
+    RandBLAS::RNGState<RNG> next_state = RandBLAS::repeated_fisher_yates<T, RNG, sint_t>(
+        random_state,
+        d,         // Number of samples (vec_nnz)
+        m,         // Total number of elements (dim_major)
+        1,         // Single sample round (dim_minor)
+        selected_rows,  // Holds the required output
+        idxs_minor.data(),  // Placeholder
+        vals.data()         // Placeholder
+    );
+
+    permuteRowsToTop(layout, m, n, selected_rows, d, A);
+
+    free(diag);
+    free(selected_rows);
 }
 }
