@@ -179,6 +179,45 @@ namespace RandBLAS {
         }
     }
 
+    void fht_left_col_major(double *buf, int log_n, int num_rows, int num_cols) {
+        // No Padding of the columns in this implementation,
+        // the #rows must exactly be a power of 2
+        // Padding would be straight-forward to address
+        int n = 1 << log_n;
+        std::cout << n << std::endl;
+
+        // Apply FHT to each column independently
+        for (int col = 0; col < num_cols; ++col) {
+            // Pointer to the beginning of the current column in the Column-Major order
+            double* col_buf = buf + col * num_rows;
+
+            // Apply the original FHT on this column
+            for (int i = 0; i < log_n; ++i) {
+                int s1 = 1 << i;
+                int s2 = s1 << 1;
+                for (int j = 0; j < n; j += s2) {
+                    for (int k = 0; k < s1; ++k) {
+                        // For implicitly padding the input we just have to make sure
+                        // we replace all out-of-bounds accesses with zeros
+                        bool b1 = j + k < num_rows;
+                        bool b2 = j + k + s1 < num_rows;
+                        double u = b1 ? col_buf[j + k] : 0;
+                        double v = b2 ? col_buf[j + k + s1] : 0;
+                        if(b1 && b2) {
+                            col_buf[j + k] = u + v;
+                            col_buf[j + k + s1] = u - v;
+                        }
+                        else if(!b2 && b1) {
+                            col_buf[j + k] = u + v;
+                        }
+                        else if(!b2 && !b1)
+                            continue;
+                    }
+                }
+            }
+        }
+    }
+
     enum class TrigDistName: char {
         Fourier = 'F',
 
@@ -375,9 +414,10 @@ inline void lmiget(
     //Step 1: Scale with `D`
         //Populating `diag`
     generateRademacherVector_r123(diag, key[0], ctr[0], n);
-    applyDiagonalRademacher(layout, m, n, A, diag);
+    // applyDiagonalRademacher(layout, m, n, A, diag);
 
     //Step 2: Apply the Hadamard transform
+    fht_left_col_major(A, std::log2(MAX(m, n)), m, n);
 
     //Step 3: Permute the rows
     std::vector<sint_t> idxs_minor(d); // Placeholder
@@ -395,7 +435,7 @@ inline void lmiget(
         vals.data()         // Placeholder
     );
 
-    permuteRowsToTop(layout, m, n, selected_rows, d, A);
+    // permuteRowsToTop(layout, m, n, selected_rows, d, A);
 
     free(diag);
     free(selected_rows);
