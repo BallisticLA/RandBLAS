@@ -282,7 +282,35 @@ namespace RandBLAS {
     }
 
     void fht_right_col_major(double *buf, int log_n, int num_rows, int num_cols) {
-        //TODO:
+        int n = 1 << log_n;
+
+        // Apply FHT to each row independently
+        for (int row= 0; row < num_rows; ++row) {
+            // Apply the original FHT on this column
+            for (int i = 0; i < log_n; ++i) {
+                int s1 = 1 << i;
+                int s2 = s1 << 1;
+                for (int j = 0; j < n; j += s2) {
+                    for (int k = 0; k < s1; ++k) {
+                        // For implicitly padding the input we just have to make sure
+                        // we replace all out-of-bounds accesses with zeros
+                        bool b1 = j + k < num_cols;
+                        bool b2 = j + k + s1 < num_cols;
+                        double u = b1 ? buf[(j + k) * num_rows + row] : 0;
+                        double v = b2 ? buf[(j + k + s1) * num_rows + row] : 0;
+                        if(b1 && b2) {
+                            buf[(j + k) * num_rows + row] = u + v;
+                            buf[(j + k + s1) * num_rows + row] = u - v;
+                        }
+                        else if(!b2 && b1) {
+                            buf[(j + k) * num_rows + row] = u + v;
+                        }
+                        else if(!b2 && !b1)
+                            continue;
+                    }
+                }
+            }
+        }
     }
 
     void fht_dispatch(
@@ -498,7 +526,8 @@ inline void lmiget(
     //TODO: Clean via `fht_dispatch`
     // fht_left_col_major(A, std::log2(MAX(m, n)), m, n);
     // fht_right_row_major(A, std::log2(MAX(m, n)), m, n);
-    fht_left_row_major(A, std::log2(MAX(m, n)), m, n);
+    // fht_left_row_major(A, std::log2(MAX(m, n)), m, n);
+    fht_right_col_major(A, std::log2(MAX(m, n)), m, n);
 
     //Step 3: Permute the rows
     std::vector<sint_t> idxs_minor(d); // Placeholder
