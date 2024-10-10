@@ -171,7 +171,6 @@ namespace RandBLAS {
     // Will also be called inside of `lskget`
     template<typename T, SignedInteger sint_t>
     void permuteRowsToTop(
-                          bool left,
                           blas::Layout layout,
                           int64_t rows,
                           int64_t cols,
@@ -179,21 +178,28 @@ namespace RandBLAS {
                           int64_t d, // size of `selectedRows`
                           T* A
                           ) {
-        //NOTE: There should be a similar `permuteColsToLeft` for sketching
+        //TODO: There should be a similar `permuteColsToLeft` for sketching
         //from the right
-        int top = 0;  // Keeps track of the topmost unselected row
+        int64_t top = 0;  // Keeps track of the topmost unselected row
 
-        int64_t lda = rows;
-        if(layout == blas::Layout::RowMajor)
-            lda = cols;
-
-        for (int i=0; i < d; i++) {
-            if (selectedRows[i] != top) {
-                // Use BLAS swap to swap the entire rows
-                // Swapping row 'selected' with row 'top'
-                blas::swap(cols, &A[selectedRows[i]], lda, &A[top], lda);
+        if(layout == blas::Layout::ColMajor) {
+            for (int64_t i=0; i < d; i++) {
+                if (selectedRows[i] != top) {
+                    // Use BLAS swap to swap the entire rows
+                    // Swapping row 'selected' with row 'top'
+                    blas::swap(cols, &A[selectedRows[i]], rows, &A[top], rows);
+                }
+                top++;
             }
-            top++;
+        }
+        else {
+            // For `RowMajor` ordering
+            for (int64_t i=0; i < d; i++) {
+                if (selectedRows[i] != top) {
+                    blas::swap(cols, &A[cols * selectedRows[i]], 1, &A[cols * top], 1);
+                }
+                top++;
+            }
         }
     }
 
@@ -568,7 +574,7 @@ inline void lmiget(
         vals.data()         // Placeholder
     );
 
-    // permuteRowsToTop(layout, m, n, selected_rows, d, A);
+    permuteRowsToTop(layout, m, n, selected_rows, d, A);
 
     free(diag);
     free(selected_rows);
