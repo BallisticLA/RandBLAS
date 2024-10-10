@@ -314,6 +314,7 @@ namespace RandBLAS {
     }
 
     void fht_dispatch(
+        bool left,
         blas::Layout layout,
         double* buff,
         int64_t log_n,
@@ -322,6 +323,14 @@ namespace RandBLAS {
         )
     {
         //TODO:
+        if(left && layout == blas::Layout::ColMajor)
+            fht_left_col_major(buff, log_n, num_rows, num_cols);
+        else if(left && layout == blas::Layout::RowMajor)
+            fht_left_row_major(buff, log_n, num_rows, num_cols);
+        else if(!left && layout == blas::Layout::ColMajor)
+            fht_right_col_major(buff, log_n, num_rows, num_cols);
+        else
+            fht_right_row_major(buff, log_n, num_rows, num_cols);
     }
 
     enum class TrigDistName: char {
@@ -523,11 +532,7 @@ inline void lmiget(
     // applyDiagonalRademacher(layout, m, n, A, diag);
 
     //Step 2: Apply the Hadamard transform
-    //TODO: Clean via `fht_dispatch`
-    // fht_left_col_major(A, std::log2(MAX(m, n)), m, n);
-    // fht_right_row_major(A, std::log2(MAX(m, n)), m, n);
-    // fht_left_row_major(A, std::log2(MAX(m, n)), m, n);
-    fht_right_col_major(A, std::log2(MAX(m, n)), m, n);
+    fht_dispatch(true, layout, A, std::log2(MAX(m, n)), m, n);
 
     //Step 3: Permute the rows
     std::vector<sint_t> idxs_minor(d); // Placeholder
