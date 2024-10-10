@@ -93,8 +93,8 @@ namespace RandBLAS {
     }
 
     template<typename T, SignedInteger sint_t>
-    // void applyDiagonalRademacher(int64_t rows, int64_t cols, T* A, std::vector<int64_t> &diag) {
     void applyDiagonalRademacher(
+                                bool left,
                                 blas::Layout layout,
                                 int64_t rows,
                                 int64_t cols,
@@ -102,17 +102,33 @@ namespace RandBLAS {
                                 sint_t* diag
                                 )
     {
-        //TODO: Only considers sketching from the left + ColMajor format as of now
-        if(layout == blas::Layout::ColMajor) {
-            // In a `ColMajor` setting we parallelize over columns
+        if(left && layout == blas::Layout::ColMajor) {
             for(int col=0; col < cols; col++) {
                 if(diag[col] > 0)
                     continue;
                 blas::scal(rows, diag[col], &A[col * rows], 1);
             }
         }
+        else if(left && layout == blas::Layout::RowMajor) {
+            for(int col=0; col < cols; col++) {
+                if(diag[col] > 0)
+                    continue;
+                blas::scal(rows, diag[col], &A[col], cols);
+            }
+        }
+        else if(!left && layout == blas::Layout::ColMajor) {
+            for(int row = 0; row < rows; row++) {
+                if(diag[row] > 0)
+                    continue;
+                blas::scal(cols, diag[row], &A[row], rows);
+            }
+        }
         else {
-            // In a `RowMajor` setting we vectorize over rows
+            for(int row = 0; row < rows; row++) {
+                if(diag[row] > 0)
+                    continue;
+                blas::scal(cols, diag[row], &A[row * cols], 1);
+            }
         }
     }
 
@@ -155,6 +171,7 @@ namespace RandBLAS {
     // Will also be called inside of `lskget`
     template<typename T, SignedInteger sint_t>
     void permuteRowsToTop(
+                          bool left,
                           blas::Layout layout,
                           int64_t rows,
                           int64_t cols,
@@ -162,7 +179,8 @@ namespace RandBLAS {
                           int64_t d, // size of `selectedRows`
                           T* A
                           ) {
-        //NOTE: There should be a similar `permuteColsToLeft`
+        //NOTE: There should be a similar `permuteColsToLeft` for sketching
+        //from the right
         int top = 0;  // Keeps track of the topmost unselected row
 
         int64_t lda = rows;
@@ -528,8 +546,8 @@ inline void lmiget(
 
     //Step 1: Scale with `D`
         //Populating `diag`
-    generateRademacherVector_r123(diag, key[0], ctr[0], n);
-    // applyDiagonalRademacher(layout, m, n, A, diag);
+    generateRademacherVector_r123(diag, key[3], ctr[0], n);
+    applyDiagonalRademacher(true, layout, m, n, A, diag);
 
     //Step 2: Apply the Hadamard transform
     fht_dispatch(true, layout, A, std::log2(MAX(m, n)), m, n);
