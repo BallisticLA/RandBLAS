@@ -203,6 +203,38 @@ namespace RandBLAS {
         }
     }
 
+    template<typename T, SignedInteger sint_t>
+    void permuteColsToLeft(
+                          blas::Layout layout,
+                          int64_t rows,
+                          int64_t cols,
+                          sint_t* selectedCols,
+                          int64_t d, // size of `selectedRows`
+                          T* A
+                          ) {
+        int64_t left = 0;  // Keeps track of the topmost unselected column
+
+        if(layout == blas::Layout::ColMajor) {
+            for (int64_t i=0; i < d; i++) {
+                if (selectedCols[i] != left) {
+                    // Use BLAS::swap to swap entire columns at once
+                    // Swapping col 'selected' with col 'top'
+                    blas::swap(rows, &A[rows * selectedCols[i]], 1, &A[rows * left], 1);
+                }
+                left++;
+            }
+        }
+        else {
+            // For `RowMajor` ordering
+            for (int64_t i=0; i < d; i++) {
+                if (selectedCols[i] != left) {
+                    blas::swap(rows, &A[selectedCols[i]], cols, &A[left], cols);
+                }
+                left++;
+            }
+        }
+    }
+
     void fht_left_col_major(double *buf, int log_n, int num_rows, int num_cols) {
         int n = 1 << log_n;
 
@@ -346,7 +378,6 @@ namespace RandBLAS {
         int64_t num_cols
         )
     {
-        //TODO:
         if(left && layout == blas::Layout::ColMajor)
             fht_left_col_major(buff, log_n, num_rows, num_cols);
         else if(left && layout == blas::Layout::RowMajor)
@@ -552,7 +583,7 @@ inline void lmiget(
 
     //Step 1: Scale with `D`
         //Populating `diag`
-    generateRademacherVector_r123(diag, key[3], ctr[0], n);
+    generateRademacherVector_r123(diag, key[0], ctr[0], n);
     applyDiagonalRademacher(true, layout, m, n, A, diag);
 
     //Step 2: Apply the Hadamard transform
@@ -578,5 +609,53 @@ inline void lmiget(
 
     free(diag);
     free(selected_rows);
+}
+
+
+template <typename T, typename RNG = r123::Philox4x32, SignedInteger sint_t = int64_t>
+inline void rmiget(
+    blas::Layout layout,
+    RandBLAS::RNGState<RNG> random_state,
+    int64_t m, // `A` is `(m x n)`
+    int64_t n,
+    int64_t d, // `d` is the number of cols that have to be permuted by `\Pi`
+    T* A // data-matrix
+)
+{
+    // Size of the Rademacher entries = |A_cols|
+    //TODO: Change `diag` to float/doubles (same data type as the matrix)
+    sint_t* diag = new sint_t[m];
+    sint_t* selected_cols = new sint_t[d];
+
+    auto [ctr, key] = random_state;
+
+    //Step 1: Scale with `D`
+        //Populating `diag`
+    generateRademacherVector_r123(diag, key[0], ctr[0], n);
+    applyDiagonalRademacher(false, layout, m, n, A, diag);
+
+    //Step 2: Apply the Hadamard transform
+    fht_dispatch(false, layout, A, std::log2(MAX(m, n)), m, n);
+
+    //Step 3: Permute the rows
+    std::vector<sint_t> idxs_minor(d); // Placeholder
+    std::vector<T> vals(d); // Placeholder
+
+        // Populating `selected_rows`
+        //TODO: Do I return this at some point?
+    RandBLAS::RNGState<RNG> next_state = RandBLAS::repeated_fisher_yates<T, RNG, sint_t>(
+        random_state,
+        d,         // Number of samples (vec_nnz)
+        m,         // Total number of elements (dim_major)
+        1,         // Single sample round (dim_minor)
+        selected_cols,  // Holds the required output
+        idxs_minor.data(),  // Placeholder
+        vals.data()         // Placeholder
+    );
+
+    permuteColsToLeft(layout, m, n, selected_cols, d, A);
+
+    free(diag);
+    free(selected_cols);
 }
 }
