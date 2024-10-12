@@ -6,14 +6,12 @@
 #include <Random123/philox.h>
 #include <blas.hh>
 #include <lapack.hh>
-#include <omp.h>
 
 #include <iostream>
 #include <stdio.h>
 #include <stdexcept>
 #include <string>
 #include <tuple>
-#include <random>
 
 #include <math.h>
 #include <typeinfo>
@@ -27,69 +25,52 @@ namespace RandBLAS {
     /// WARNING: None of the following functions or overloads thereof are part of the
     /// public API
     ///
-    template<SignedInteger sint_t>
+
+    // Generates a vector of Rademacher entries using the Random123 library
+    template<SignedInteger sint_t, typename RNG = r123::Philox4x32>
     void generateRademacherVector_r123(sint_t* buff, uint32_t key_seed, uint32_t ctr_seed, int64_t n) {
-        typedef r123::Philox2x32 RNG;
+        RNG rng;
 
-        // Use OpenMP to parallelize the Rademacher vector generation
-        #pragma omp parallel
-        {
-            // Each thread has its own RNG instance
-            RNG rng;
+        typename RNG::ctr_type c;
+        typename RNG::key_type key = {{key_seed}};
 
-            RNG::key_type k = {{key_seed + omp_get_thread_num()}}; // Unique key for each thread
+        // Sequential loop for generating Rademacher entries
+        for (int i = 0; i < n; ++i) {
+            // Set the counter for each random number
+            c[0] = ctr_seed + i;  // Ensure each counter is unique
 
-            // Thread-local counter
-            RNG::ctr_type c;
+            // Generate a 2x32-bit random number using the Philox generator
+            typename RNG::ctr_type r = rng(c, key);
 
-            // Parallel for loop
-            #pragma omp for
-            for (int i = 0; i < n; ++i) {
-                // Set the counter for each random number (unique per thread)
-                c[0] = ctr_seed + i; // Ensure the counter is unique across threads
+            // Convert the random number into a float in [0, 1) using u01fixedpt
+            float randValue = r123::u01fixedpt<float>(r.v[0]);
 
-                // Generate a 2x32-bit random number using the Philox generator
-                RNG::ctr_type r = rng(c, k);
-
-                // Convert the random number into a float in [0, 1) using u01fixedpt
-                float randValue = r123::u01fixedpt<float>(r.v[0]);
-
-                // Convert the float into a Rademacher entry (-1 or 1)
-                buff[i] = randValue < 0.5 ? -1 : 1;
-            }
+            // Convert the float into a Rademacher entry (-1 or 1)
+            buff[i] = randValue < 0.5 ? -1 : 1;
         }
     }
 
-    std::vector<int64_t> generateRademacherVector_parallel(int64_t n) {
-        std::vector<int64_t> rademacherVec(n);
+    template<SignedInteger sint_t, typename RNG = r123::Philox4x32>
+    RandBLAS::RNGState<RNG> generateRademacherVector_r123(sint_t* buff, int64_t n, RandBLAS::RNGState<RNG> seed_state) {
+        RNG rng;
+        auto [ctr, key] = seed_state;
 
-        #pragma omp parallel
-        {
-            // Each thread gets its own random number generator
-            std::random_device rd;
-            std::mt19937 gen(rd());
-            std::bernoulli_distribution bernoulli(0.5);
+        for (int64_t i = 0; i < n; ++i) {
+            typename RNG::ctr_type r = rng(ctr, key);
 
-            #pragma omp for
-            for (int64_t i = 0; i < n; ++i) {
-                rademacherVec[i] = bernoulli(gen) ? 1 : -1;
-            }
+            float randValue = r123::u01fixedpt<float>(r.v[0]);
+
+            buff[i] = randValue < 0.5 ? -1 : 1;
+
+            ctr.incr();
         }
 
-        return rademacherVec;
+        // Return the updated RNGState (with the incremented counter)
+        return RandBLAS::RNGState<RNG> {ctr, key};
     }
 
-    template<typename T>
-    void applyDiagonalRademacher(int64_t rows, int64_t cols, T* A) {
-        std::vector<int64_t> diag = generateRademacherVector_parallel(cols);
-
-        for(int col=0; col < cols; col++) {
-        if(diag[col] > 0)
-            continue;
-        blas::scal(rows, diag[col], &A[col * rows], 1);
-    }
-    }
-
+    // Catch-all method for applying the diagonal Rademacher
+    // entries in-place to an input matrix, `A`
     template<typename T, SignedInteger sint_t>
     void applyDiagonalRademacher(
                                 bool left,
@@ -98,8 +79,9 @@ namespace RandBLAS {
                                 int64_t cols,
                                 T* A,
                                 sint_t* diag
-                                )
-    {
+                                ) {
+        //TODO: Investigate better schemes for performing the scaling
+        //TODO: Move to `RandBLAS/util.hh`
         if(left && layout == blas::Layout::ColMajor) {
             for(int col=0; col < cols; col++) {
                 if(diag[col] > 0)
@@ -130,43 +112,6 @@ namespace RandBLAS {
         }
     }
 
-    // `applyDiagonalRademacher`should have a similar API as `sketch_general`
-    // Will be called inside of `lskget`
-    // B <- alpha * diag(Rademacher) * op(A) + beta * B
-    // `alpha`, `beta` aren't needed and shape(A) == shape(B)
-    // lda == ldb
-    template<typename T, SignedInteger sint_t>
-    void applyDiagonalRademacher(
-        blas::Layout layout,
-        blas::Op opA, // taken from `sketch_general/lskget`
-        int64_t n, // everything is the same size as `op(A)`: m-by-n
-        int64_t m,
-        // std::vector<int64_t> &diag,
-        sint_t* diag,
-        const T* A, // The data matrix that won't be modified
-        // int64_t lda,
-        T* B // The destination matrix
-        // int64_t ldb
-    ) {
-        // B <- alpha * diag(Rademacher) * op(A) + beta * B
-        // `alpha`, `beta` aren't needed
-        // && shape(A) == shape(B) && lda == ldb && shape({A | B}) = m-by-n
-        //NOTE: Use `layout` and `opA` for working with RowMajor data
-        int64_t lda = m;
-        int64_t ldb = m;
-
-        //NOTE: Should the copy be made inside of `applyDiagonalRademacher` or
-        // should it be inside of `lskget`?
-        lapack::lacpy(lapack::MatrixType::General, m, n, A, lda, B, ldb);
-
-        applyDiagonalRademacher(m, n, B, diag);
-    }
-
-
-    // `permuteRowsToTop` should just take in `B` as an input
-    // `B` will be passed in by the user to `sketch_general/lskget` and `permuteRowsToTop` will take in
-    // the `B` that has been modified by `applyRademacherDiagonal`
-    // Will also be called inside of `lskget`
     template<typename T, SignedInteger sint_t>
     void permuteRowsToTop(
                           blas::Layout layout,
@@ -176,8 +121,6 @@ namespace RandBLAS {
                           int64_t d, // size of `selectedRows`
                           T* A
                           ) {
-        //TODO: There should be a similar `permuteColsToLeft` for sketching
-        //from the right
         int64_t top = 0;  // Keeps track of the topmost unselected row
 
         if(layout == blas::Layout::ColMajor) {
@@ -404,8 +347,7 @@ inline void lmiget(
     int64_t n,
     int64_t d, // `d` is the number of rows that have to be permuted by `\Pi`
     T* A // data-matrix
-)
-{
+) {
     // Size of the Rademacher entries = |A_cols|
     //TODO: Change `diag` to float/doubles (same data type as the matrix)
     sint_t* diag = new sint_t[n];
