@@ -28,7 +28,7 @@ namespace RandBLAS {
 
     // Generates a vector of Rademacher entries using the Random123 library
     template<SignedInteger sint_t, typename RNG = r123::Philox4x32>
-    void generateRademacherVector_r123(sint_t* buff, uint32_t key_seed, uint32_t ctr_seed, int64_t n) {
+    void generate_rademacher_vector_r123(sint_t* buff, uint32_t key_seed, uint32_t ctr_seed, int64_t n) {
         RNG rng;
 
         typename RNG::ctr_type c;
@@ -43,24 +43,24 @@ namespace RandBLAS {
             typename RNG::ctr_type r = rng(c, key);
 
             // Convert the random number into a float in [0, 1) using u01fixedpt
-            float randValue = r123::u01fixedpt<float>(r.v[0]);
+            float rand_value = r123::u01fixedpt<float>(r.v[0]);
 
             // Convert the float into a Rademacher entry (-1 or 1)
-            buff[i] = randValue < 0.5 ? -1 : 1;
+            buff[i] = rand_value < 0.5 ? -1 : 1;
         }
     }
 
     template<SignedInteger sint_t, typename RNG = r123::Philox4x32>
-    RandBLAS::RNGState<RNG> generateRademacherVector_r123(sint_t* buff, int64_t n, RandBLAS::RNGState<RNG> seed_state) {
+    RandBLAS::RNGState<RNG> generate_rademacher_vector_r123(sint_t* buff, int64_t n, RandBLAS::RNGState<RNG> seed_state) {
         RNG rng;
         auto [ctr, key] = seed_state;
 
         for (int64_t i = 0; i < n; ++i) {
             typename RNG::ctr_type r = rng(ctr, key);
 
-            float randValue = r123::u01fixedpt<float>(r.v[0]);
+            float rand_value = r123::u01fixedpt<float>(r.v[0]);
 
-            buff[i] = randValue < 0.5 ? -1 : 1;
+            buff[i] = rand_value < 0.5 ? -1 : 1;
 
             ctr.incr();
         }
@@ -72,7 +72,7 @@ namespace RandBLAS {
     // Catch-all method for applying the diagonal Rademacher
     // entries in-place to an input matrix, `A`
     template<typename T, SignedInteger sint_t>
-    void applyDiagonalRademacher(
+    void apply_diagonal_rademacher(
                                 bool left,
                                 blas::Layout layout,
                                 int64_t rows,
@@ -117,18 +117,18 @@ namespace RandBLAS {
                           blas::Layout layout,
                           int64_t rows,
                           int64_t cols,
-                          sint_t* selectedRows,
-                          int64_t d, // size of `selectedRows`
+                          sint_t* selected_rows,
+                          int64_t d, // size of `selected_rows`
                           T* A
                           ) {
         int64_t top = 0;  // Keeps track of the topmost unselected row
 
         if(layout == blas::Layout::ColMajor) {
             for (int64_t i=0; i < d; i++) {
-                if (selectedRows[i] != top) {
+                if (selected_rows[i] != top) {
                     // Use BLAS swap to swap the entire rows
                     // Swapping row 'selected' with row 'top'
-                    blas::swap(cols, &A[selectedRows[i]], rows, &A[top], rows);
+                    blas::swap(cols, &A[selected_rows[i]], rows, &A[top], rows);
                 }
                 top++;
             }
@@ -136,8 +136,8 @@ namespace RandBLAS {
         else {
             // For `RowMajor` ordering
             for (int64_t i=0; i < d; i++) {
-                if (selectedRows[i] != top) {
-                    blas::swap(cols, &A[cols * selectedRows[i]], 1, &A[cols * top], 1);
+                if (selected_rows[i] != top) {
+                    blas::swap(cols, &A[cols * selected_rows[i]], 1, &A[cols * top], 1);
                 }
                 top++;
             }
@@ -149,7 +149,7 @@ namespace RandBLAS {
                           blas::Layout layout,
                           int64_t rows,
                           int64_t cols,
-                          sint_t* selectedCols,
+                          sint_t* selected_cols,
                           int64_t d, // size of `selectedRows`
                           T* A
                           ) {
@@ -157,10 +157,10 @@ namespace RandBLAS {
 
         if(layout == blas::Layout::ColMajor) {
             for (int64_t i=0; i < d; i++) {
-                if (selectedCols[i] != left) {
+                if (selected_cols[i] != left) {
                     // Use BLAS::swap to swap entire columns at once
                     // Swapping col 'selected' with col 'top'
-                    blas::swap(rows, &A[rows * selectedCols[i]], 1, &A[rows * left], 1);
+                    blas::swap(rows, &A[rows * selected_cols[i]], 1, &A[rows * left], 1);
                 }
                 left++;
             }
@@ -168,8 +168,8 @@ namespace RandBLAS {
         else {
             // For `RowMajor` ordering
             for (int64_t i=0; i < d; i++) {
-                if (selectedCols[i] != left) {
-                    blas::swap(rows, &A[selectedCols[i]], cols, &A[left], cols);
+                if (selected_cols[i] != left) {
+                    blas::swap(rows, &A[selected_cols[i]], cols, &A[left], cols);
                 }
                 left++;
             }
@@ -357,8 +357,8 @@ inline void lmiget(
 
     //Step 1: Scale with `D`
         //Populating `diag`
-    generateRademacherVector_r123(diag, key[0], ctr[0], n);
-    applyDiagonalRademacher(true, layout, m, n, A, diag);
+    generate_rademacher_vector_r123(diag, key[0], ctr[0], n);
+    apply_diagonal_rademacher(true, layout, m, n, A, diag);
 
     //Step 2: Apply the Hadamard transform
     fht_dispatch(true, layout, A, std::log2(MAX(m, n)), m, n);
@@ -405,8 +405,8 @@ inline void rmiget(
 
     //Step 1: Scale with `D`
         //Populating `diag`
-    generateRademacherVector_r123(diag, key[0], ctr[0], n);
-    applyDiagonalRademacher(false, layout, m, n, A, diag);
+    generate_rademacher_vector_r123(diag, key[0], ctr[0], n);
+    apply_diagonal_rademacher(false, layout, m, n, A, diag);
 
     //Step 2: Apply the Hadamard transform
     fht_dispatch(false, layout, A, std::log2(MAX(m, n)), m, n);
