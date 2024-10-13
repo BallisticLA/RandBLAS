@@ -35,7 +35,7 @@ namespace RandBLAS {
         typename RNG::key_type key = {{key_seed}};
 
         // Sequential loop for generating Rademacher entries
-        for (int i = 0; i < n; ++i) {
+        for (int64_t i = 0; i < n; ++i) {
             // Set the counter for each random number
             c[0] = ctr_seed + i;  // Ensure each counter is unique
 
@@ -83,28 +83,28 @@ namespace RandBLAS {
         //TODO: Investigate better schemes for performing the scaling
         //TODO: Move to `RandBLAS/util.hh`
         if(left && layout == blas::Layout::ColMajor) {
-            for(int col=0; col < cols; col++) {
+            for(int64_t col=0; col < cols; col++) {
                 if(diag[col] > 0)
                     continue;
                 blas::scal(rows, diag[col], &A[col * rows], 1);
             }
         }
         else if(left && layout == blas::Layout::RowMajor) {
-            for(int col=0; col < cols; col++) {
+            for(int64_t col=0; col < cols; col++) {
                 if(diag[col] > 0)
                     continue;
                 blas::scal(rows, diag[col], &A[col], cols);
             }
         }
         else if(!left && layout == blas::Layout::ColMajor) {
-            for(int row = 0; row < rows; row++) {
+            for(int64_t row = 0; row < rows; row++) {
                 if(diag[row] > 0)
                     continue;
                 blas::scal(cols, diag[row], &A[row], rows);
             }
         }
         else {
-            for(int row = 0; row < rows; row++) {
+            for(int64_t row = 0; row < rows; row++) {
                 if(diag[row] > 0)
                     continue;
                 blas::scal(cols, diag[row], &A[row * cols], 1);
@@ -177,26 +177,26 @@ namespace RandBLAS {
     }
 
     template <typename T>
-    void fht_left_col_major(T *buf, int log_n, int num_rows, int num_cols) {
-        int n = 1 << log_n;
+    void fht_left_col_major(T *buf, int64_t log_n, int64_t num_rows, int64_t num_cols) {
+        int64_t n = 1 << log_n;
 
         // Apply FHT to each column independently
-        for (int col = 0; col < num_cols; ++col) {
+        for (int64_t col = 0; col < num_cols; ++col) {
             // Pointer to the beginning of the current column in the Column-Major order
-            double* col_buf = buf + col * num_rows;
+            T* col_buf = buf + col * num_rows;
 
             // Apply the original FHT on this column
-            for (int i = 0; i < log_n; ++i) {
-                int s1 = 1 << i;
-                int s2 = s1 << 1;
-                for (int j = 0; j < n; j += s2) {
-                    for (int k = 0; k < s1; ++k) {
+            for (int64_t i = 0; i < log_n; ++i) {
+                int64_t s1 = 1 << i;
+                int64_t s2 = s1 << 1;
+                for (int64_t j = 0; j < n; j += s2) {
+                    for (int64_t k = 0; k < s1; ++k) {
                         // For implicitly padding the input we just have to make sure
                         // we replace all out-of-bounds accesses with zeros
                         bool b1 = j + k < num_rows;
                         bool b2 = j + k + s1 < num_rows;
-                        double u = b1 ? col_buf[j + k] : 0;
-                        double v = b2 ? col_buf[j + k + s1] : 0;
+                        T u = b1 ? col_buf[j + k] : 0;
+                        T v = b2 ? col_buf[j + k + s1] : 0;
                         if(b1 && b2) {
                             col_buf[j + k] = u + v;
                             col_buf[j + k + s1] = u - v;
@@ -213,23 +213,23 @@ namespace RandBLAS {
     }
 
     template <typename T>
-    void fht_left_row_major(T *buf, int log_n, int num_rows, int num_cols) {
-        int n = 1 << log_n;
+    void fht_left_row_major(T *buf, int64_t log_n, int64_t num_rows, int64_t num_cols) {
+        int64_t n = 1 << log_n;
 
         // Apply FHT to each column independently
-        for (int col = 0; col < num_cols; ++col) {
+        for (int64_t col = 0; col < num_cols; ++col) {
             // Apply the original FHT on this column
-            for (int i = 0; i < log_n; ++i) {
-                int s1 = 1 << i;
-                int s2 = s1 << 1;
-                for (int j = 0; j < n; j += s2) {
-                    for (int k = 0; k < s1; ++k) {
+            for (int64_t i = 0; i < log_n; ++i) {
+                int64_t s1 = 1 << i;
+                int64_t s2 = s1 << 1;
+                for (int64_t j = 0; j < n; j += s2) {
+                    for (int64_t k = 0; k < s1; ++k) {
                         // For implicitly padding the input we just have to make sure
                         // we replace all out-of-bounds accesses with zeros
                         bool b1 = j + k < num_rows;
                         bool b2 = j + k + s1 < num_rows;
-                        double u = b1 ? buf[(j + k) * num_cols + col] : 0;
-                        double v = b2 ? buf[(j + k + s1) * num_cols + col] : 0;
+                        T u = b1 ? buf[(j + k) * num_cols + col] : 0;
+                        T v = b2 ? buf[(j + k + s1) * num_cols + col] : 0;
                         if(b1 && b2) {
                             buf[(j + k) * num_cols + col] = u + v;
                             buf[(j + k + s1) * num_cols + col] = u - v;
@@ -246,26 +246,26 @@ namespace RandBLAS {
     }
 
     template <typename T>
-    void fht_right_row_major(T *buf, int log_n, int num_rows, int num_cols) {
-        int n = 1 << log_n;
+    void fht_right_row_major(T *buf, int64_t log_n, int64_t num_rows, int64_t num_cols) {
+        int64_t n = 1 << log_n;
 
         // Apply FHT to each row independently
-        for (int row = 0; row < num_rows; ++row) {
+        for (int64_t row = 0; row < num_rows; ++row) {
             // Pointer to the beginning of the current row in RowMajor order
-            double* row_buf = buf + row * num_cols;
+            T * row_buf = buf + row * num_cols;
 
             // Apply the original FHT on this row
-            for (int i = 0; i < log_n; ++i) {
-                int s1 = 1 << i;
-                int s2 = s1 << 1;
-                for (int j = 0; j < n; j += s2) {
-                    for (int k = 0; k < s1; ++k) {
+            for (int64_t i = 0; i < log_n; ++i) {
+                int64_t s1 = 1 << i;
+                int64_t s2 = s1 << 1;
+                for (int64_t j = 0; j < n; j += s2) {
+                    for (int64_t k = 0; k < s1; ++k) {
                         // For implicitly padding the input we just have to make sure
                         // we replace all out-of-bounds accesses with zeros
                         bool b1 = j + k < num_cols;
                         bool b2 = j + k + s1 < num_cols;
-                        double u = b1 ? row_buf[j + k] : 0;
-                        double v = b2 ? row_buf[j + k + s1] : 0;
+                        T u = b1 ? row_buf[j + k] : 0;
+                        T v = b2 ? row_buf[j + k + s1] : 0;
                         if(b1 && b2) {
                             row_buf[j + k] = u + v;
                             row_buf[j + k + s1] = u - v;
@@ -282,23 +282,23 @@ namespace RandBLAS {
     }
 
     template <typename T>
-    void fht_right_col_major(T *buf, int log_n, int num_rows, int num_cols) {
-        int n = 1 << log_n;
+    void fht_right_col_major(T *buf, int64_t log_n, int64_t num_rows, int64_t num_cols) {
+        int64_t n = 1 << log_n;
 
         // Apply FHT to each row independently
-        for (int row= 0; row < num_rows; ++row) {
+        for (int64_t row= 0; row < num_rows; ++row) {
             // Apply the original FHT on this column
-            for (int i = 0; i < log_n; ++i) {
-                int s1 = 1 << i;
-                int s2 = s1 << 1;
-                for (int j = 0; j < n; j += s2) {
-                    for (int k = 0; k < s1; ++k) {
+            for (int64_t i = 0; i < log_n; ++i) {
+                int64_t s1 = 1 << i;
+                int64_t s2 = s1 << 1;
+                for (int64_t j = 0; j < n; j += s2) {
+                    for (int64_t k = 0; k < s1; ++k) {
                         // For implicitly padding the input we just have to make sure
                         // we replace all out-of-bounds accesses with zeros
                         bool b1 = j + k < num_cols;
                         bool b2 = j + k + s1 < num_cols;
-                        double u = b1 ? buf[(j + k) * num_rows + row] : 0;
-                        double v = b2 ? buf[(j + k + s1) * num_rows + row] : 0;
+                        T u = b1 ? buf[(j + k) * num_rows + row] : 0;
+                        T v = b2 ? buf[(j + k + s1) * num_rows + row] : 0;
                         if(b1 && b2) {
                             buf[(j + k) * num_rows + row] = u + v;
                             buf[(j + k + s1) * num_rows + row] = u - v;
