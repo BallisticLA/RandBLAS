@@ -176,7 +176,8 @@ namespace RandBLAS {
         }
     }
 
-    void fht_left_col_major(double *buf, int log_n, int num_rows, int num_cols) {
+    template <typename T>
+    void fht_left_col_major(T *buf, int log_n, int num_rows, int num_cols) {
         int n = 1 << log_n;
 
         // Apply FHT to each column independently
@@ -211,7 +212,8 @@ namespace RandBLAS {
         }
     }
 
-    void fht_left_row_major(double *buf, int log_n, int num_rows, int num_cols) {
+    template <typename T>
+    void fht_left_row_major(T *buf, int log_n, int num_rows, int num_cols) {
         int n = 1 << log_n;
 
         // Apply FHT to each column independently
@@ -243,7 +245,8 @@ namespace RandBLAS {
         }
     }
 
-    void fht_right_row_major(double *buf, int log_n, int num_rows, int num_cols) {
+    template <typename T>
+    void fht_right_row_major(T *buf, int log_n, int num_rows, int num_cols) {
         int n = 1 << log_n;
 
         // Apply FHT to each row independently
@@ -278,7 +281,8 @@ namespace RandBLAS {
         }
     }
 
-    void fht_right_col_major(double *buf, int log_n, int num_rows, int num_cols) {
+    template <typename T>
+    void fht_right_col_major(T *buf, int log_n, int num_rows, int num_cols) {
         int n = 1 << log_n;
 
         // Apply FHT to each row independently
@@ -310,10 +314,11 @@ namespace RandBLAS {
         }
     }
 
+    template <typename T>
     void fht_dispatch(
         bool left,
         blas::Layout layout,
-        double* buff,
+        T* buff,
         int64_t log_n,
         int64_t num_rows,
         int64_t num_cols
