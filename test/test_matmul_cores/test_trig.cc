@@ -250,43 +250,41 @@ class TestLMIGET : public::testing::Test
         uint32_t seed,
         int64_t m, // Generated data matrix, `A` is of size `(m x n)`
         int64_t n,
-        int64_t d,
+        int64_t d, // #rows/cols that will be permuted
         bool left,
         blas::Layout layout,
         double epsilon=1e-5
     ) {
         // Grabbing a random matrix
         std::vector<double> A_vec = generate_random_vector(m * n, 0.0, 10.0);
-        // Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> A_col(m, n);
         Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> A_col = Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>>(A_vec.data(), m, n);
-        // A_col.setRandom();
         Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A_row(A_vec.data(), m, n);
 
         // Deep copy
         MatrixXd B;
         if(layout == blas::Layout::RowMajor)
-        B = A_row;
+            B = A_row;
         else
-        B = A_col;
+            B = A_col;
 
         //// Performing \Pi H D
         // Step 1: setup the diagonal scaling
         std::vector<sint_t> buff = left ? std::vector<sint_t>(n, -1) : std::vector<sint_t>(m, -1);
 
         if(layout == blas::Layout::RowMajor) {
-        RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_row.data(), buff.data());
+            RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_row.data(), buff.data());
         }
         else {
-        RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_col.data(), buff.data());
+            RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_col.data(), buff.data());
         }
 
         // Step 2: apply the hadamard transform
         int ld = (left) ? m : n;
         if(layout == blas::Layout::ColMajor){
-        RandBLAS::fht_dispatch(left, layout, A_col.data(), int(std::log2(ld)), m, n);
+            RandBLAS::fht_dispatch(left, layout, A_col.data(), int(std::log2(ld)), m, n);
         }
         else {
-        RandBLAS::fht_dispatch(left, layout, A_row.data(), int(std::log2(ld)), m, n);
+            RandBLAS::fht_dispatch(left, layout, A_row.data(), int(std::log2(ld)), m, n);
         }
 
         // Step 3: Permuting
@@ -295,15 +293,15 @@ class TestLMIGET : public::testing::Test
         std::iota(indices.begin(), indices.end(), 1);
         if(left) {
             if(layout == blas::Layout::RowMajor)
-            RandBLAS::permuteRowsToTop(layout, m, n, indices.data(), d, A_row.data());
+                RandBLAS::permuteRowsToTop(layout, m, n, indices.data(), d, A_row.data());
             else
-            RandBLAS::permuteRowsToTop(layout, m, n, indices.data(), d, A_col.data());
+                RandBLAS::permuteRowsToTop(layout, m, n, indices.data(), d, A_col.data());
         }
         else {
             if(layout == blas::Layout::RowMajor)
-            RandBLAS::permuteColsToLeft(layout, m, n, indices.data(), d, A_row.data());
+                RandBLAS::permuteColsToLeft(layout, m, n, indices.data(), d, A_row.data());
             else
-            RandBLAS::permuteColsToLeft(layout, m, n, indices.data(), d, A_col.data());
+                RandBLAS::permuteColsToLeft(layout, m, n, indices.data(), d, A_col.data());
         }
 
         //// Performing D H \Pi
@@ -313,42 +311,42 @@ class TestLMIGET : public::testing::Test
 
         if(left) {
             if(layout == blas::Layout::RowMajor)
-            RandBLAS::permuteRowsToTop(layout, m, n, indices.data(), d, A_row.data());
+                RandBLAS::permuteRowsToTop(layout, m, n, indices.data(), d, A_row.data());
             else
-            RandBLAS::permuteRowsToTop(layout, m, n, indices.data(), d, A_col.data());
+                RandBLAS::permuteRowsToTop(layout, m, n, indices.data(), d, A_col.data());
         }
         else {
             if(layout == blas::Layout::RowMajor)
-            RandBLAS::permuteColsToLeft(layout, m, n, indices.data(), d, A_row.data());
+                RandBLAS::permuteColsToLeft(layout, m, n, indices.data(), d, A_row.data());
             else
-            RandBLAS::permuteColsToLeft(layout, m, n, indices.data(), d, A_col.data());
+                RandBLAS::permuteColsToLeft(layout, m, n, indices.data(), d, A_col.data());
         }
 
         // Step-2: Apply H^{-1}
         if(layout == blas::Layout::ColMajor) {
-        RandBLAS::fht_dispatch(left, layout, A_col.data(), int(std::log2(ld)), m, n);
-        A_col = A_col * 1/std::pow(2, int(std::log2(ld)));
+            RandBLAS::fht_dispatch(left, layout, A_col.data(), int(std::log2(ld)), m, n);
+            A_col = A_col * 1/std::pow(2, int(std::log2(ld)));
         }
         else {
-        RandBLAS::fht_dispatch(left, layout, A_row.data(), int(std::log2(ld)), m, n);
-        A_row = A_row * 1/std::pow(2, int(std::log2(ld)));
+            RandBLAS::fht_dispatch(left, layout, A_row.data(), int(std::log2(ld)), m, n);
+            A_row = A_row * 1/std::pow(2, int(std::log2(ld)));
         }
 
         //Step-3: Inverting `D`
         if(layout == blas::Layout::RowMajor) {
-        RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_row.data(), buff.data());
+            RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_row.data(), buff.data());
         }
         else {
-        RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_col.data(), buff.data());
+            RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_col.data(), buff.data());
         }
 
         double norm_inverse = 0.0;
 
         if(layout == blas::Layout::RowMajor) {
-        norm_inverse = (A_row - B).norm();
+            norm_inverse = (A_row - B).norm();
         }
         else {
-        norm_inverse = (A_col - B).norm();
+            norm_inverse = (A_col - B).norm();
         }
 
         randblas_require(norm_inverse < epsilon);
