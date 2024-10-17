@@ -122,10 +122,11 @@ namespace RandBLAS {
                           ) {
         int64_t top = 0;  // Keeps track of the topmost unselected row
 
+        //TODO: discuss precise semantics of `selected_rows` in this function
         if(layout == blas::Layout::ColMajor) {
             for (int64_t i=0; i < d; i++) {
                 randblas_error_if_msg(selected_rows[i] == top,
-                                    "The list of provided indices should be unique");
+                                      "The list of provided indices should be unique");
                 if (selected_rows[i] != top) {
                     // Use BLAS swap to swap the entire rows
                     // Swapping row 'selected' with row 'top'
@@ -138,7 +139,8 @@ namespace RandBLAS {
             // For `RowMajor` ordering
             for (int64_t i=0; i < d; i++) {
                 randblas_error_if_msg(selected_rows[i] == top,
-                                    "The list of provided indices should be unique");
+                                      "The list of provided indices should be unique");
+                std::cout << "see here" << selected_rows[i] << std::endl;
                 if (selected_rows[i] != top) {
                     blas::swap(cols, &A[cols * selected_rows[i]], 1, &A[cols * top], 1);
                     // top = selected_rows[i];
@@ -160,8 +162,6 @@ namespace RandBLAS {
 
         if(layout == blas::Layout::ColMajor) {
             for (int64_t i=0; i < d; i++) {
-                randblas_error_if_msg(selected_cols[i] == left,
-                                    "The list of provided indices should be unique");
                 if (selected_cols[i] != left) {
                     // Use BLAS::swap to swap entire columns at once
                     // Swapping col 'selected' with col 'top'
@@ -173,8 +173,6 @@ namespace RandBLAS {
         else {
             // For `RowMajor` ordering
             for (int64_t i=0; i < d; i++) {
-                randblas_error_if_msg(selected_cols[i] == left,
-                                    "The list of provided indices should be unique");
                 if (selected_cols[i] != left) {
                     blas::swap(rows, &A[selected_cols[i]], cols, &A[left], cols);
                 }

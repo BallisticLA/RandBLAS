@@ -27,7 +27,6 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-// #include "test/test_matmul_cores/linop_common.hh"
 #include "RandBLAS.hh"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/trig_skops.hh"
@@ -36,6 +35,7 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <cmath>
+#include <random>
 #include <gtest/gtest.h>
 
 using RandBLAS::trig::lmiget;
@@ -88,6 +88,25 @@ class TestLMIGET : public::testing::Test
         return H_flat;
     }
 
+    static std::vector<double> generate_random_vector(int size, double lower_bound, double upper_bound) {
+        // Create a random device and seed the random number generator
+        std::random_device rd;
+        std::mt19937 gen(rd());
+
+        // Define the distribution range for the random doubles
+        std::uniform_real_distribution<> dist(lower_bound, upper_bound);
+
+        // Create a vector of the specified size
+        std::vector<double> random_vector(size);
+
+        // Generate random doubles and fill the vector
+        for (int i = 0; i < size; ++i) {
+            random_vector[i] = dist(gen);
+        }
+
+        return random_vector;
+    }
+
     enum class transforms {diag_scale, hadamard, permute};
 
     // Tests to verify correctness of each of the transforms
@@ -103,24 +122,25 @@ class TestLMIGET : public::testing::Test
         double epsilon=1e-5
     ) {
         // Grabbing a random matrix
-        Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> A(m, n);
-        A.setRandom();
+        std::vector<double> A_vec = generate_random_vector(m * n, 0.0, 10.0);
+        Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> A_col = Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>>(A_vec.data(), m, n);
+        Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A_row(A_vec.data(), m, n);
 
         // Deep copy
-        MatrixXd B = A;
+        MatrixXd B;
+        if(layout == blas::Layout::RowMajor)
+        B = A_row;
+        else
+        B = A_col;
 
         switch (transform) {
         case transforms::permute: {
             // Simply compares against Eigen::PermutationMatrix
             Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> perm(5);
 
-            // Define the indices of the permutation manually
-            // Eigen::VectorXi indices = left ? Eigen::VectorXi(m) : Eigen::VectorXi(n);
-
             std::vector<int> V = left ? std::vector<int>(m) : std::vector<int>(n);
 
             int cnt = 0;
-            // int cnt = 0;
             for(int i = 0; i < V.size(); i++) {
                 if(i == 0)
                 V[i] = V.size() - 1;
@@ -136,24 +156,34 @@ class TestLMIGET : public::testing::Test
             // Set the indices in the permutation matrix
             perm.indices() = indices;
 
-            // std::reverse(V.begin(), V.end());
             sint_t* v = new sint_t;
             *v = V.size() - 1;
-            if(left)
-                RandBLAS::permuteRowsToTop(layout, m, n, v, 1, A.data());
-            else
-                RandBLAS::permuteColsToLeft(layout, m, n, v, 1, A.data());
+            if(left) {
+                if(layout == blas::Layout::RowMajor)
+                RandBLAS::permuteRowsToTop(layout, m, n, v, 1, A_row.data());
+                else
+                RandBLAS::permuteRowsToTop(layout, m, n, v, 1, A_col.data());
+            }
+            else {
+                if(layout == blas::Layout::RowMajor)
+                RandBLAS::permuteColsToLeft(layout, m, n, v, 1, A_row.data());
+                else
+                RandBLAS::permuteColsToLeft(layout, m, n, v, 1, A_col.data());
+            }
 
-            std::cout << "orig" << std::endl << B << std::endl;
-            std::cout << "eigen_permute" << std::endl << perm * B << std::endl;
-            std::cout << "I permute" << std::endl << A << std::endl;
             // Or just do A.isApprox(B)
             double norm_permute = 0.0;
-            if(left)
-            norm_permute = (A - perm * B).norm();
+            if(left) {
+                if(layout == blas::Layout::RowMajor)
+                norm_permute = (A_row - perm * B).norm();
+                else
+                norm_permute = (A_col - perm * B).norm();
+            }
             else {
-            norm_permute = (A - B * perm).norm();
-            std::cout << norm_permute << std::endl;
+            if(layout == blas::Layout::RowMajor)
+                norm_permute = (A_row - B * perm).norm();
+            else
+                norm_permute = (A_row - B * perm).norm();
             }
 
             // Or do A.isApprox(H * B)
@@ -163,13 +193,29 @@ class TestLMIGET : public::testing::Test
         }
         case transforms::hadamard: {
             // Here, simply check against explicit application of the Hadamard matrix
-            RandBLAS::fht_dispatch(left, layout, A.data(), std::log2(m), m, n);
-            std::vector<double> H_vec = generate_hadamard(std::log2(m));
-            //TODO: Should have a check here to enforce that `m` is a power of 2 (since
-            // my `generate_hadamard` function does not take care to pad an input matrix)
-            MatrixXd H = Eigen::Map<MatrixXd>(H_vec.data(), int(std::pow(2, std::log2(m))), int(std::pow(2, std::log2(m))));
+            int ld = (left) ? m : n;
+            if(layout == blas::Layout::ColMajor)
+            RandBLAS::fht_dispatch(left, layout, A_col.data(), std::log2(ld), m, n);
+            else
+            RandBLAS::fht_dispatch(left, layout, A_row.data(), std::log2(ld), m, n);
 
-            double norm_hadamard = (A - H * B).norm();
+            std::vector<double> H_vec = generate_hadamard(std::log2(ld));
+            //TODO: Should have a check here to enforce that `m` and `n` are powers of 2 (since
+            // my `generate_hadamard` function does not take care to pad an input matrix)
+            MatrixXd H = Eigen::Map<MatrixXd>(H_vec.data(), int(std::pow(2, std::log2(ld))), int(std::pow(2, std::log2(ld))));
+
+            double norm_hadamard = 0.0;
+            if(left)
+            if(layout == blas::Layout::RowMajor)
+                norm_hadamard = (A_row - H * B).norm();
+            else
+                norm_hadamard = (A_col - H * B).norm();
+            else
+            if(layout == blas::Layout::RowMajor)
+                norm_hadamard = (A_row - B * H).norm();
+            else
+                norm_hadamard = (A_col - B * H).norm();
+
             randblas_require(norm_hadamard < epsilon);
 
             break;
@@ -178,9 +224,16 @@ class TestLMIGET : public::testing::Test
             // Scales all rows/cols by -1 and checks if A == -A
             std::vector<sint_t> buff = left ? std::vector<sint_t>(n, -1) : std::vector<sint_t>(m, -1);
 
-            RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A.data(), buff.data());
+            double norm_diag = 0.0;
+            if(layout == blas::Layout::RowMajor) {
+            RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_row.data(), buff.data());
+            double norm_diag = (A_row + B).norm();
+            }
+            else {
+            RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_col.data(), buff.data());
+            double norm_diag = (A_col + B).norm();
+            }
 
-            double norm_diag = (A + B).norm();
             randblas_require(norm_diag < epsilon);
 
             break;
