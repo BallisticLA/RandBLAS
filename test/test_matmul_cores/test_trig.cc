@@ -116,7 +116,6 @@ class TestLMIGET : public::testing::Test
         transforms transform,
         int64_t m, // Generated data matrix, `A` is of size `(m x n)`
         int64_t n,
-        int64_t d, // The permutation matrix permutes `d` of the final rows/cols
         bool left,
         blas::Layout layout,
         double epsilon=1e-5
@@ -129,9 +128,9 @@ class TestLMIGET : public::testing::Test
         // Deep copy
         MatrixXd B;
         if(layout == blas::Layout::RowMajor)
-        B = A_row;
+            B = A_row;
         else
-        B = A_col;
+            B = A_col;
 
         switch (transform) {
         case transforms::permute: {
@@ -141,13 +140,14 @@ class TestLMIGET : public::testing::Test
             std::vector<int> V = left ? std::vector<int>(m) : std::vector<int>(n);
 
             int cnt = 0;
+            // int cnt = 0;
             for(int i = 0; i < V.size(); i++) {
                 if(i == 0)
-                V[i] = V.size() - 1;
+                    V[i] = V.size() - 1;
                 else if(i == V.size() - 1)
-                V[i] = 0;
+                    V[i] = 0;
                 else
-                V[i] = cnt;
+                    V[i] = cnt;
                 cnt++;
             }
 
@@ -158,32 +158,33 @@ class TestLMIGET : public::testing::Test
 
             sint_t* v = new sint_t;
             *v = V.size() - 1;
+
             if(left) {
                 if(layout == blas::Layout::RowMajor)
-                RandBLAS::permuteRowsToTop(layout, m, n, v, 1, A_row.data());
+                    RandBLAS::permuteRowsToTop(layout, m, n, v, 1, A_row.data());
                 else
-                RandBLAS::permuteRowsToTop(layout, m, n, v, 1, A_col.data());
+                    RandBLAS::permuteRowsToTop(layout, m, n, v, 1, A_col.data());
             }
             else {
                 if(layout == blas::Layout::RowMajor)
-                RandBLAS::permuteColsToLeft(layout, m, n, v, 1, A_row.data());
+                    RandBLAS::permuteColsToLeft(layout, m, n, v, 1, A_row.data());
                 else
-                RandBLAS::permuteColsToLeft(layout, m, n, v, 1, A_col.data());
+                    RandBLAS::permuteColsToLeft(layout, m, n, v, 1, A_col.data());
             }
 
             // Or just do A.isApprox(B)
             double norm_permute = 0.0;
             if(left) {
                 if(layout == blas::Layout::RowMajor)
-                norm_permute = (A_row - perm * B).norm();
+                    norm_permute = (A_row - perm * B).norm();
                 else
-                norm_permute = (A_col - perm * B).norm();
+                    norm_permute = (A_col - perm * B).norm();
             }
             else {
             if(layout == blas::Layout::RowMajor)
                 norm_permute = (A_row - B * perm).norm();
             else
-                norm_permute = (A_row - B * perm).norm();
+                norm_permute = (A_col - B * perm).norm();
             }
 
             // Or do A.isApprox(H * B)
@@ -193,11 +194,12 @@ class TestLMIGET : public::testing::Test
         }
         case transforms::hadamard: {
             // Here, simply check against explicit application of the Hadamard matrix
+
             int ld = (left) ? m : n;
             if(layout == blas::Layout::ColMajor)
-            RandBLAS::fht_dispatch(left, layout, A_col.data(), std::log2(ld), m, n);
+                RandBLAS::fht_dispatch(left, layout, A_col.data(), std::log2(ld), m, n);
             else
-            RandBLAS::fht_dispatch(left, layout, A_row.data(), std::log2(ld), m, n);
+                RandBLAS::fht_dispatch(left, layout, A_row.data(), std::log2(ld), m, n);
 
             std::vector<double> H_vec = generate_hadamard(std::log2(ld));
             //TODO: Should have a check here to enforce that `m` and `n` are powers of 2 (since
@@ -205,16 +207,18 @@ class TestLMIGET : public::testing::Test
             MatrixXd H = Eigen::Map<MatrixXd>(H_vec.data(), int(std::pow(2, std::log2(ld))), int(std::pow(2, std::log2(ld))));
 
             double norm_hadamard = 0.0;
-            if(left)
+            if(left) {
             if(layout == blas::Layout::RowMajor)
                 norm_hadamard = (A_row - H * B).norm();
             else
                 norm_hadamard = (A_col - H * B).norm();
-            else
+            }
+            else {
             if(layout == blas::Layout::RowMajor)
                 norm_hadamard = (A_row - B * H).norm();
             else
                 norm_hadamard = (A_col - B * H).norm();
+            }
 
             randblas_require(norm_hadamard < epsilon);
 
@@ -257,7 +261,6 @@ TEST_F(TestLMIGET, test_diag_left_colmajor) {
             transforms::diag_scale,
             100,
             100,
-            0,
             true,
             blas::Layout::ColMajor
         );
@@ -270,7 +273,6 @@ TEST_F(TestLMIGET, test_diag_right_colmajor) {
             transforms::diag_scale,
             100,
             100,
-            0,
             false,
             blas::Layout::ColMajor
         );
@@ -283,7 +285,6 @@ TEST_F(TestLMIGET, test_diag_left_rowmajor) {
             transforms::diag_scale,
             100,
             100,
-            0,
             true,
             blas::Layout::RowMajor
         );
@@ -296,7 +297,6 @@ TEST_F(TestLMIGET, test_diag_right_rowmajor) {
             transforms::diag_scale,
             100,
             100,
-            0,
             false,
             blas::Layout::RowMajor
         );
@@ -309,7 +309,6 @@ TEST_F(TestLMIGET, test_permute_left_colmajor) {
             transforms::permute,
             100,
             100,
-            0,
             true,
             blas::Layout::ColMajor
         );
@@ -322,7 +321,6 @@ TEST_F(TestLMIGET, test_permute_right_colmajor) {
             transforms::permute,
             100,
             100,
-            0,
             false,
             blas::Layout::ColMajor
         );
@@ -335,7 +333,6 @@ TEST_F(TestLMIGET, test_permute_left_rowmajor) {
             transforms::permute,
             100,
             100,
-            0,
             true,
             blas::Layout::RowMajor
         );
@@ -348,7 +345,6 @@ TEST_F(TestLMIGET, test_permute_right_rowmajor) {
             transforms::permute,
             100,
             100,
-            0,
             false,
             blas::Layout::RowMajor
         );
@@ -361,7 +357,6 @@ TEST_F(TestLMIGET, test_hadamard_left_colmajor) {
             transforms::hadamard,
             128,
             100,
-            0,
             true,
             blas::Layout::ColMajor
         );
@@ -374,7 +369,6 @@ TEST_F(TestLMIGET, test_hadamard_right_colmajor) {
             transforms::hadamard,
             100,
             128,
-            0,
             false,
             blas::Layout::ColMajor
         );
@@ -387,7 +381,6 @@ TEST_F(TestLMIGET, test_hadamard_left_rowmajor) {
             transforms::hadamard,
             128,
             100,
-            0,
             true,
             blas::Layout::RowMajor
         );
@@ -400,7 +393,6 @@ TEST_F(TestLMIGET, test_hadamard_right_rowmajor) {
             transforms::hadamard,
             100,
             128,
-            0,
             false,
             blas::Layout::RowMajor
         );

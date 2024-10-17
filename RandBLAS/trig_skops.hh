@@ -131,7 +131,6 @@ namespace RandBLAS {
                     // Use BLAS swap to swap the entire rows
                     // Swapping row 'selected' with row 'top'
                     blas::swap(cols, &A[top], rows, &A[selected_rows[i]], rows);
-                    // top = selected_rows[i];
                 }
             }
         }
@@ -140,10 +139,8 @@ namespace RandBLAS {
             for (int64_t i=0; i < d; i++) {
                 randblas_error_if_msg(selected_rows[i] == top,
                                       "The list of provided indices should be unique");
-                std::cout << "see here" << selected_rows[i] << std::endl;
                 if (selected_rows[i] != top) {
                     blas::swap(cols, &A[cols * selected_rows[i]], 1, &A[cols * top], 1);
-                    // top = selected_rows[i];
                 }
             }
         }
@@ -167,7 +164,6 @@ namespace RandBLAS {
                     // Swapping col 'selected' with col 'top'
                     blas::swap(rows, &A[rows * selected_cols[i]], 1, &A[rows * left], 1);
                 }
-                // left++;
             }
         }
         else {
@@ -176,7 +172,6 @@ namespace RandBLAS {
                 if (selected_cols[i] != left) {
                     blas::swap(rows, &A[selected_cols[i]], cols, &A[left], cols);
                 }
-                // left++;
             }
         }
     }
