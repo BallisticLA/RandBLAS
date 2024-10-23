@@ -27,30 +27,7 @@ namespace RandBLAS {
 
     // Generates a vector of Rademacher entries using the Random123 library
     template<SignedInteger sint_t, typename RNG = r123::Philox4x32>
-    void generate_rademacher_vector_r123(sint_t* buff, uint32_t key_seed, uint32_t ctr_seed, int64_t n) {
-        RNG rng;
-
-        typename RNG::ctr_type c;
-        typename RNG::key_type key = {{key_seed}};
-
-        // Sequential loop for generating Rademacher entries
-        for (int64_t i = 0; i < n; ++i) {
-            // Set the counter for each random number
-            c[0] = ctr_seed + i;  // Ensure each counter is unique
-
-            // Generate a 2x32-bit random number using the Philox generator
-            typename RNG::ctr_type r = rng(c, key);
-
-            // Convert the random number into a float in [0, 1) using u01fixedpt
-            float rand_value = r123::u01fixedpt<float>(r.v[0]);
-
-            // Convert the float into a Rademacher entry (-1 or 1)
-            buff[i] = rand_value < 0.5 ? -1 : 1;
-        }
-    }
-
-    template<SignedInteger sint_t, typename RNG = r123::Philox4x32>
-    RandBLAS::RNGState<RNG> generate_rademacher_vector_r123(sint_t* buff, int64_t n, RandBLAS::RNGState<RNG> seed_state) {
+    RNGState<RNG> generate_rademacher_vector_r123(sint_t* buff, int64_t n, RNGState<RNG> seed_state) {
         RNG rng;
         auto [ctr, key] = seed_state;
 
@@ -65,14 +42,14 @@ namespace RandBLAS {
         }
 
         // Return the updated RNGState (with the incremented counter)
-        return RandBLAS::RNGState<RNG> {ctr, key};
+        return RNGState<RNG> {ctr, key};
     }
 
     // Catch-all method for applying the diagonal Rademacher
     // entries in-place to an input matrix, `A`
     template<typename T, SignedInteger sint_t>
     void apply_diagonal_rademacher(
-                                bool left,
+                                bool left, // Pre-multiplying?
                                 blas::Layout layout,
                                 int64_t rows,
                                 int64_t cols,
@@ -82,37 +59,37 @@ namespace RandBLAS {
         //TODO: Investigate better schemes for performing the scaling
         //TODO: Move to `RandBLAS/util.hh`
         if(left && layout == blas::Layout::ColMajor) {
-            for(int64_t col=0; col < cols; col++) {
-                if(diag[col] > 0)
-                    continue;
-                blas::scal(rows, diag[col], &A[col * rows], 1);
-            }
-        }
-        else if(left && layout == blas::Layout::RowMajor) {
-            for(int64_t col=0; col < cols; col++) {
-                if(diag[col] > 0)
-                    continue;
-                blas::scal(rows, diag[col], &A[col], cols);
-            }
-        }
-        else if(!left && layout == blas::Layout::ColMajor) {
             for(int64_t row = 0; row < rows; row++) {
                 if(diag[row] > 0)
                     continue;
                 blas::scal(cols, diag[row], &A[row], rows);
             }
         }
-        else {
+        else if(left && layout == blas::Layout::RowMajor) {
             for(int64_t row = 0; row < rows; row++) {
                 if(diag[row] > 0)
                     continue;
                 blas::scal(cols, diag[row], &A[row * cols], 1);
             }
         }
+        else if(!left && layout == blas::Layout::ColMajor) {
+            for(int64_t col=0; col < cols; col++) {
+                if(diag[col] > 0)
+                    continue;
+                blas::scal(rows, diag[col], &A[col * rows], 1);
+            }
+        }
+        else {
+            for(int64_t col=0; col < cols; col++) {
+                if(diag[col] > 0)
+                    continue;
+                blas::scal(rows, diag[col], &A[col], cols);
+            }
+        }
     }
 
     template<typename T, SignedInteger sint_t>
-    void permuteRowsToTop(
+    void permute_rows_to_top(
                           blas::Layout layout,
                           int64_t rows,
                           int64_t cols,
@@ -147,7 +124,7 @@ namespace RandBLAS {
     }
 
     template<typename T, SignedInteger sint_t>
-    void permuteColsToLeft(
+    void permute_cols_to_left(
                           blas::Layout layout,
                           int64_t rows,
                           int64_t cols,
@@ -316,22 +293,22 @@ namespace RandBLAS {
 
     template <typename T>
     void fht_dispatch(
-        bool left,
+        bool left, // Pre-multiplying?
         blas::Layout layout,
-        T* buff,
-        int64_t log_n,
         int64_t num_rows,
-        int64_t num_cols
+        int64_t num_cols,
+        int64_t log_n,
+        T* A
         )
     {
         if(left && layout == blas::Layout::ColMajor)
-            fht_left_col_major(buff, log_n, num_rows, num_cols);
+            fht_left_col_major(A, log_n, num_rows, num_cols);
         else if(left && layout == blas::Layout::RowMajor)
-            fht_left_row_major(buff, log_n, num_rows, num_cols);
+            fht_left_row_major(A, log_n, num_rows, num_cols);
         else if(!left && layout == blas::Layout::ColMajor)
-            fht_right_col_major(buff, log_n, num_rows, num_cols);
+            fht_right_col_major(A, log_n, num_rows, num_cols);
         else
-            fht_right_row_major(buff, log_n, num_rows, num_cols);
+            fht_right_row_major(A, log_n, num_rows, num_cols);
     }
 }
 
@@ -345,9 +322,9 @@ namespace RandBLAS::trig {
  * d: The number of rows/columns that will be permuted by the action of $\Pi$
  */
 template <typename T, typename RNG = r123::Philox4x32, SignedInteger sint_t = int64_t>
-inline void lmiget(
+inline RandBLAS::RNGState<RNG> lmiget(
     blas::Layout layout,
-    RandBLAS::RNGState<RNG> random_state,
+    const RandBLAS::RNGState<RNG> &random_state,
     int64_t m, // `A` is `(m x n)`
     int64_t n,
     int64_t d, // `d` is the number of rows that have to be permuted by `\Pi`
@@ -362,11 +339,11 @@ inline void lmiget(
 
     //Step 1: Scale with `D`
         //Populating `diag`
-    generate_rademacher_vector_r123(diag, key[0], ctr[0], n);
+    generate_rademacher_vector_r123(diag, n, random_state);
     apply_diagonal_rademacher(true, layout, m, n, A, diag);
 
     //Step 2: Apply the Hadamard transform
-    fht_dispatch(true, layout, A, std::log2(MAX(m, n)), m, n);
+    fht_dispatch(true, layout, m, n, std::log2(MAX(m, n)), A);
 
     //Step 3: Permute the rows
     std::vector<sint_t> idxs_minor(d); // Placeholder
@@ -384,17 +361,19 @@ inline void lmiget(
         vals.data()         // Placeholder
     );
 
-    permuteRowsToTop(layout, m, n, selected_rows, d, A);
+    permute_rows_to_top(layout, m, n, selected_rows, d, A);
 
     free(diag);
     free(selected_rows);
+
+    return next_state;
 }
 
 
 template <typename T, typename RNG = r123::Philox4x32, SignedInteger sint_t = int64_t>
-inline void rmiget(
+inline RandBLAS::RNGState<RNG> rmiget(
     blas::Layout layout,
-    RandBLAS::RNGState<RNG> random_state,
+    const RandBLAS::RNGState<RNG> &random_state,
     int64_t m, // `A` is `(m x n)`
     int64_t n,
     int64_t d, // `d` is the number of cols that have to be permuted by `\Pi`
@@ -410,11 +389,11 @@ inline void rmiget(
 
     //Step 1: Scale with `D`
         //Populating `diag`
-    generate_rademacher_vector_r123(diag, key[0], ctr[0], n);
+    generate_rademacher_vector_r123(diag, n, random_state);
     apply_diagonal_rademacher(false, layout, m, n, A, diag);
 
     //Step 2: Apply the Hadamard transform
-    fht_dispatch(false, layout, A, std::log2(MAX(m, n)), m, n);
+    fht_dispatch(false, layout, m, n, std::log2(MAX(m, n)), A);
 
     //Step 3: Permute the rows
     std::vector<sint_t> idxs_minor(d); // Placeholder
@@ -432,9 +411,11 @@ inline void rmiget(
         vals.data()         // Placeholder
     );
 
-    permuteColsToLeft(layout, m, n, selected_cols, d, A);
+    permute_cols_to_left(layout, m, n, selected_cols, d, A);
 
     free(diag);
     free(selected_cols);
+
+    return next_state;
 }
 }
