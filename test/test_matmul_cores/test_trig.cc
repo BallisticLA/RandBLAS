@@ -394,16 +394,8 @@ class TestLMIGET : public::testing::Test
             RandBLAS::trig::invert(hmo, A_row.data());
         }
         else {
-            // std::cout << A_col << std::endl;
-            // std::cout << "<-------x------->" << std::endl;
             RandBLAS::trig::miget(hmo, seed_state, A_col.data());
-            // for(int i = 0; i < d; i ++)
-            //     std::cout << hmo.selected_idxs[i] << std::endl;
-            // std::cout << A_col << std::endl;
-            // std::cout << "<-------x------->" << std::endl;
             RandBLAS::trig::invert(hmo, A_col.data());
-            // std::cout << A_col << std::endl;
-            // std::cout << "<-------x------->" << std::endl;
         }
 
         T norm_inverse = 0.0;
