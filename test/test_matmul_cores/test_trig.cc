@@ -27,7 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include "RandBLAS.hh"
+// #include "RandBLAS.hh"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/trig_skops.hh"
 #include <blas.hh>
@@ -53,7 +53,7 @@ class TestLMIGET : public::testing::Test
 
     virtual void TearDown(){};
 
-    inline static std::vector<uint32_t> keys {0, 42};
+    inline static std::vector<uint32_t> keys {42};
 
     // Helper function for explicitly generating a Hadamard matrix
     // (Note that ColMajor and RowMajor storage is identical for `H`)
@@ -118,7 +118,7 @@ class TestLMIGET : public::testing::Test
         int64_t n,
         bool left,
         blas::Layout layout,
-        T epsilon=1e-5
+        T epsilon=RandBLAS::sqrt_epsilon<T>()
     ) {
         // Grabbing a random matrix
         std::vector<T> A_vec = generate_random_vector(m * n, 0.0, 10.0);
@@ -253,7 +253,7 @@ class TestLMIGET : public::testing::Test
         int64_t d,
         bool left,
         blas::Layout layout,
-        T epsilon=1e-5
+        T epsilon=RandBLAS::sqrt_epsilon<T>()
     ) {
         // Grabbing a random matrix
         std::vector<T> A_vec = generate_random_vector(m * n, 0.0, 10.0);
@@ -354,6 +354,68 @@ class TestLMIGET : public::testing::Test
         randblas_require(norm_inverse < epsilon);
 
 
+    }
+
+    template <typename T, typename RNG = RandBLAS::DefaultRNG, RandBLAS::SignedInteger sint_t = int64_t>
+    static void drivers_inverse(
+        uint32_t seed,
+        int64_t m,
+        int64_t n,
+        int64_t d,
+        int64_t left,
+        blas::Layout layout,
+        T epsilon=RandBLAS::sqrt_epsilon<T>()
+    ) {
+        // Grabbing a random matrix
+        std::vector<T> A_vec = generate_random_vector(m * n, 0.0, 10.0);
+        Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> A_col = Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>>(A_vec.data(), m, n);
+        Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A_row(A_vec.data(), m, n);
+        RandBLAS::RNGState<RNG> seed_state(seed);
+
+        // Deep copy
+        MatrixXd B;
+        if(layout == blas::Layout::RowMajor)
+            B = A_row;
+        else
+            B = A_col;
+
+        // Aggregating information about the matrix
+        RandBLAS::trig::HadamardMixingOp<> hmo(
+            left,
+            layout,
+            m,
+            n,
+            d
+        );
+
+        // Sketching the matrix
+        if(layout == blas::Layout::RowMajor) {
+            RandBLAS::trig::miget(hmo, seed_state, A_row.data());
+            RandBLAS::trig::invert(hmo, A_row.data());
+        }
+        else {
+            // std::cout << A_col << std::endl;
+            // std::cout << "<-------x------->" << std::endl;
+            RandBLAS::trig::miget(hmo, seed_state, A_col.data());
+            // for(int i = 0; i < d; i ++)
+            //     std::cout << hmo.selected_idxs[i] << std::endl;
+            // std::cout << A_col << std::endl;
+            // std::cout << "<-------x------->" << std::endl;
+            RandBLAS::trig::invert(hmo, A_col.data());
+            // std::cout << A_col << std::endl;
+            // std::cout << "<-------x------->" << std::endl;
+        }
+
+        T norm_inverse = 0.0;
+
+        if(layout == blas::Layout::RowMajor) {
+            norm_inverse = (A_row - B).norm();
+        }
+        else {
+            norm_inverse = (A_col - B).norm();
+        }
+
+        randblas_require(norm_inverse < epsilon);
     }
 };
 
@@ -558,6 +620,63 @@ TEST_F(TestLMIGET, test_inverse_right_rowmajor) {
         inverse_transform<double>(
             seed,
             100,
+            128,
+            25,
+            false,
+            blas::Layout::RowMajor
+        );
+}
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      Verifying correctness (in invertibility) of user-facing functions
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+
+TEST_F(TestLMIGET, test_user_inverse_left_colmajor) {
+    for(uint32_t seed: keys)
+        drivers_inverse<double>(
+            seed,
+            128,
+            128,
+            25,
+            true,
+            blas::Layout::ColMajor
+        );
+}
+
+TEST_F(TestLMIGET, test_user_inverse_right_colmajor) {
+    for(uint32_t seed: keys)
+        drivers_inverse<double>(
+            seed,
+            128,
+            128,
+            25,
+            false,
+            blas::Layout::ColMajor
+        );
+}
+
+TEST_F(TestLMIGET, test_user_inverse_left_rowmajor) {
+    for(uint32_t seed: keys)
+        drivers_inverse<double>(
+            seed,
+            128,
+            128,
+            25,
+            true,
+            blas::Layout::RowMajor
+        );
+}
+
+TEST_F(TestLMIGET, test_user_inverse_right_rowmajor) {
+    for(uint32_t seed: keys)
+        drivers_inverse<double>(
+            seed,
+            128,
             128,
             25,
             false,

@@ -10,23 +10,24 @@
 #include <stdio.h>
 #include <stdexcept>
 #include <string>
+#include <sys/_types/_int64_t.h>
 #include <tuple>
 
 #include <math.h>
 #include <typeinfo>
+#include <vector>
 
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 namespace RandBLAS {
-
     // =============================================================================
     /// WARNING: None of the following functions or overloads thereof are part of the
     /// public API
     ///
 
     // Generates a vector of Rademacher entries using the Random123 library
-    template<SignedInteger sint_t, typename RNG = r123::Philox4x32>
+    template<SignedInteger sint_t = int64_t, typename RNG = DefaultRNG>
     RNGState<RNG> generate_rademacher_vector_r123(sint_t* buff, int64_t n, RNGState<RNG> seed_state) {
         RNG rng;
         auto [ctr, key] = seed_state;
@@ -47,7 +48,7 @@ namespace RandBLAS {
 
     // Catch-all method for applying the diagonal Rademacher
     // entries in-place to an input matrix, `A`
-    template<typename T, SignedInteger sint_t>
+    template<typename T, SignedInteger sint_t = int64_t>
     void apply_diagonal_rademacher(
                                 bool left, // Pre-multiplying?
                                 blas::Layout layout,
@@ -88,7 +89,7 @@ namespace RandBLAS {
         }
     }
 
-    template<typename T, SignedInteger sint_t>
+    template<typename T, SignedInteger sint_t = int64_t>
     void permute_rows_to_top(
                           blas::Layout layout,
                           int64_t rows,
@@ -102,28 +103,28 @@ namespace RandBLAS {
         //TODO: discuss precise semantics of `selected_rows` in this function
         if(layout == blas::Layout::ColMajor) {
             for (int64_t i=0; i < d; i++) {
-                randblas_error_if_msg(selected_rows[i] == top,
-                                      "The list of provided indices should be unique");
                 if (selected_rows[i] != top) {
                     // Use BLAS swap to swap the entire rows
                     // Swapping row 'selected' with row 'top'
                     blas::swap(cols, &A[top], rows, &A[selected_rows[i]], rows);
                 }
+                else
+                    continue;
             }
         }
         else {
             // For `RowMajor` ordering
             for (int64_t i=0; i < d; i++) {
-                randblas_error_if_msg(selected_rows[i] == top,
-                                      "The list of provided indices should be unique");
                 if (selected_rows[i] != top) {
                     blas::swap(cols, &A[cols * selected_rows[i]], 1, &A[cols * top], 1);
                 }
+                else
+                    continue;
             }
         }
     }
 
-    template<typename T, SignedInteger sint_t>
+    template<typename T, SignedInteger sint_t = int64_t>
     void permute_cols_to_left(
                           blas::Layout layout,
                           int64_t rows,
@@ -141,6 +142,8 @@ namespace RandBLAS {
                     // Swapping col 'selected' with col 'top'
                     blas::swap(rows, &A[rows * selected_cols[i]], 1, &A[rows * left], 1);
                 }
+                else
+                    continue;
             }
         }
         else {
@@ -149,6 +152,8 @@ namespace RandBLAS {
                 if (selected_cols[i] != left) {
                     blas::swap(rows, &A[selected_cols[i]], cols, &A[left], cols);
                 }
+                else
+                    continue;
             }
         }
     }
@@ -314,6 +319,86 @@ namespace RandBLAS {
 
 
 namespace RandBLAS::trig {
+template <SignedInteger sint_t = int64_t>
+struct HadamardMixingOp{
+    sint_t* diag_scale;
+    sint_t* selected_idxs;
+    blas::Layout layout;
+    int64_t m;
+    int64_t n;
+    int64_t d;
+    bool left;
+    bool filled = false; // will be updated by `miget`
+
+    // Constructor
+    HadamardMixingOp(bool left,
+                     blas::Layout layout,
+                     int64_t m,
+                     int64_t n,
+                     int64_t d
+                    ) : left(left), layout(layout), m(m), n(n), d(d) {
+        if(left)
+            diag_scale = new sint_t[m];
+        else
+            diag_scale = new sint_t[n];
+        selected_idxs = new sint_t[d];
+    }
+
+    // Destructor
+    ~HadamardMixingOp() {
+        free(this->diag_scale);
+        free(this->selected_idxs);
+    }
+
+    private:
+};
+
+/*
+ * A free-function that performs an inversion of a matrix transformed by `lmiget | rmiget`
+ * the inversion is also performed in-place
+*/
+template <typename T, SignedInteger sint_t = int64_t>
+void invert(
+    HadamardMixingOp<sint_t> &hmo, // details about the transform
+    T* SA // sketched matrix
+) {
+    // We have to make sure we apply the operation in the inverted order
+    // with the operations appropriately inverted
+    randblas_error_if_msg(!hmo.filled, "You are trying to call `invert` on an untransformed matrix,\
+                                       please call `miget` on your matrix before calling `invert`");
+
+    // Creating a vector out of `selected_idxs` to be able to conveniently reverse
+    std::vector<sint_t> selected_idxs(hmo.selected_idxs, hmo.selected_idxs + hmo.d);
+    // Reversing the indices for performing the inverse
+    std::reverse(selected_idxs.begin(), selected_idxs.end());
+
+    //Step 1: Permute the rows/cols
+        // Perform the permutation (for the way we define permutations
+        // invSelected_idxs = reverse(Selected_idxs))
+    if(hmo.left)
+        permute_rows_to_top(hmo.layout, hmo.m, hmo.n, selected_idxs.data(), hmo.d, SA);
+    else
+        permute_cols_to_left(hmo.layout, hmo.m, hmo.n, selected_idxs.data(), hmo.d, SA);
+
+    //Step 2: Apply the Hadamard transform (invH = H.T = H)
+    int ld = (hmo.left) ? hmo.m : hmo.n;
+
+    T log_sz = std::log2(ld);
+    T log_int_sz, log_final_sz;
+    T log_frac_sz = std::modf(log_sz, &log_int_sz);
+
+    if(log_frac_sz < 1e-3)
+        log_final_sz = log_int_sz;
+    else
+        log_final_sz = log_int_sz + 1;
+
+    fht_dispatch(hmo.left, hmo.layout, hmo.m, hmo.n, log_final_sz, SA);
+    blas::scal(hmo.m * hmo.n, 1/std::pow(2, int(std::log2(ld))), SA, 1);
+
+    //Step 3: Scale with `D` (invD = D for rademacher entries)
+    apply_diagonal_rademacher(hmo.left, hmo.layout, hmo.m, hmo.n, SA, hmo.diag_scale);
+}
+
 /*
  * These functions apply an in-place, SRHT-like transform to the input matrix
  * i.e. A <- (\Pi H D)A OR A <- A(D H \Pi) (which is equivalent to A <- A(\Pi H D)^{-1})
@@ -321,100 +406,48 @@ namespace RandBLAS::trig {
  * A: (m x n), input dimensions of `A`
  * d: The number of rows/columns that will be permuted by the action of $\Pi$
  */
-template <typename T, typename RNG = r123::Philox4x32, SignedInteger sint_t = int64_t>
-inline RandBLAS::RNGState<RNG> lmiget(
-    blas::Layout layout,
-    const RandBLAS::RNGState<RNG> &random_state,
-    int64_t m, // `A` is `(m x n)`
-    int64_t n,
-    int64_t d, // `d` is the number of rows that have to be permuted by `\Pi`
-    T* A // data-matrix
+template <typename T, typename RNG = DefaultRNG, SignedInteger sint_t = int64_t>
+inline RNGState<RNG> miget(
+    HadamardMixingOp<sint_t> &hmo, // All information about `A` && the $\mathbb{\Pi\text{RHT}}$
+    const RNGState<RNG> &random_state,
+    T* A // The data-matrix
 ) {
-    // Size of the Rademacher entries = |A_cols|
-    //TODO: Change `diag` to float/doubles (same data type as the matrix)
-    sint_t* diag = new sint_t[n];
-    sint_t* selected_rows = new sint_t[d];
-
     auto [ctr, key] = random_state;
 
     //Step 1: Scale with `D`
         //Populating `diag`
-    generate_rademacher_vector_r123(diag, n, random_state);
-    apply_diagonal_rademacher(true, layout, m, n, A, diag);
+    RNGState<RNG> state_idxs = generate_rademacher_vector_r123(hmo.diag_scale, hmo.n, random_state);
+    apply_diagonal_rademacher(hmo.left, hmo.layout, hmo.m, hmo.n, A, hmo.diag_scale);
 
     //Step 2: Apply the Hadamard transform
-    fht_dispatch(true, layout, m, n, std::log2(MAX(m, n)), A);
+    int ld = (hmo.left) ? hmo.m : hmo.n;
+    T log_sz = std::log2(ld);
+    T log_int_sz, log_final_sz;
+    T log_frac_sz = std::modf(log_sz, &log_int_sz);
+
+    if(log_frac_sz < 1e-3)
+        log_final_sz = log_int_sz;
+    else
+        log_final_sz = log_int_sz + 1;
+    fht_dispatch(hmo.left, hmo.layout, hmo.m, hmo.n, log_final_sz, A);
 
     //Step 3: Permute the rows
-    std::vector<sint_t> idxs_minor(d); // Placeholder
-    std::vector<T> vals(d); // Placeholder
-
-    // Populating `selected_rows`
-        //TODO: Do I return this at some point?
-    RandBLAS::RNGState<RNG> next_state = RandBLAS::repeated_fisher_yates<T, RNG, sint_t>(
-        random_state,
-        d,         // Number of samples (vec_nnz)
-        m,         // Total number of elements (dim_major)
-        1,         // Single sample round (dim_minor)
-        selected_rows,  // Holds the required output
-        idxs_minor.data(),  // Placeholder
-        vals.data()         // Placeholder
+        // Uniformly samples `d` entries from the index set [0, ..., m - 1]
+    RNGState<RNG> next_state = repeated_fisher_yates<sint_t>(
+        hmo.d,
+        hmo.m,
+        1,
+        hmo.selected_idxs,
+        state_idxs
     );
 
-    permute_rows_to_top(layout, m, n, selected_rows, d, A);
+    if(hmo.left)
+        permute_rows_to_top(hmo.layout, hmo.m, hmo.n, hmo.selected_idxs, hmo.d, A);
+    else
+        permute_cols_to_left(hmo.layout, hmo.m, hmo.n, hmo.selected_idxs, hmo.d, A);
 
-    free(diag);
-    free(selected_rows);
-
-    return next_state;
-}
-
-
-template <typename T, typename RNG = r123::Philox4x32, SignedInteger sint_t = int64_t>
-inline RandBLAS::RNGState<RNG> rmiget(
-    blas::Layout layout,
-    const RandBLAS::RNGState<RNG> &random_state,
-    int64_t m, // `A` is `(m x n)`
-    int64_t n,
-    int64_t d, // `d` is the number of cols that have to be permuted by `\Pi`
-    T* A // data-matrix
-)
-{
-    // Size of the Rademacher entries = |A_cols|
-    //TODO: Change `diag` to float/doubles (same data type as the matrix)
-    sint_t* diag = new sint_t[m];
-    sint_t* selected_cols = new sint_t[d];
-
-    auto [ctr, key] = random_state;
-
-    //Step 1: Scale with `D`
-        //Populating `diag`
-    generate_rademacher_vector_r123(diag, n, random_state);
-    apply_diagonal_rademacher(false, layout, m, n, A, diag);
-
-    //Step 2: Apply the Hadamard transform
-    fht_dispatch(false, layout, m, n, std::log2(MAX(m, n)), A);
-
-    //Step 3: Permute the rows
-    std::vector<sint_t> idxs_minor(d); // Placeholder
-    std::vector<T> vals(d); // Placeholder
-
-    // Populating `selected_rows`
-        //TODO: Do I return this at some point?
-    RandBLAS::RNGState<RNG> next_state = RandBLAS::repeated_fisher_yates<T, RNG, sint_t>(
-        random_state,
-        d,         // Number of samples (vec_nnz)
-        m,         // Total number of elements (dim_major)
-        1,         // Single sample round (dim_minor)
-        selected_cols,  // Holds the required output
-        idxs_minor.data(),  // Placeholder
-        vals.data()         // Placeholder
-    );
-
-    permute_cols_to_left(layout, m, n, selected_cols, d, A);
-
-    free(diag);
-    free(selected_cols);
+    // `invert` can now be called with this instance of `HadamardMixingOp`
+    hmo.filled = true;
 
     return next_state;
 }
