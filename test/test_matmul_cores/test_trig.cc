@@ -27,24 +27,15 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-// #include "RandBLAS.hh"
+#include "RandBLAS.hh"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/trig_skops.hh"
+#include "RandBLAS/util.hh"
 #include <blas.hh>
 
-#include <Eigen/Core>
-#include <Eigen/Dense>
 #include <cmath>
 #include <random>
 #include <gtest/gtest.h>
-
-using RandBLAS::trig::lmiget;
-using RandBLAS::trig::rmiget;
-using RandBLAS::generate_rademacher_vector_r123;
-using RandBLAS::apply_diagonal_rademacher;
-using RandBLAS::fht_dispatch;
-using Eigen::MatrixXd;
-
 
 class TestLMIGET : public::testing::Test
 {
@@ -54,6 +45,23 @@ class TestLMIGET : public::testing::Test
     virtual void TearDown(){};
 
     inline static std::vector<uint32_t> keys {42};
+
+    // Helper function for generating a row-permutation matrix
+    // in ColMajor format
+    //NOTE: Need to deallocate memory explicitly
+    template <typename T>
+    static T* generate_row_permutation_row_major(int size, const std::vector<int>& final_row_order) {
+        // Allocate memory for a size x size matrix and initialize with zeros
+        T* perm_matrix = new T[size * size]();
+
+        // Fill in the matrix with '1's at positions corresponding to the final row order
+        for (int i = 0; i < size; ++i) {
+            int final_row = final_row_order[i];
+            perm_matrix[i * size + final_row] = 1.0;  // Set the '1' in the permuted position (RowMajor)
+        }
+
+        return perm_matrix;
+    }
 
     // Helper function for explicitly generating a Hadamard matrix
     // (Note that ColMajor and RowMajor storage is identical for `H`)
@@ -118,26 +126,17 @@ class TestLMIGET : public::testing::Test
         int64_t n,
         bool left,
         blas::Layout layout,
-        T epsilon=RandBLAS::sqrt_epsilon<T>()
+        T tol=RandBLAS::sqrt_epsilon<T>()
     ) {
         // Grabbing a random matrix
         std::vector<T> A_vec = generate_random_vector(m * n, 0.0, 10.0);
-        Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> A_col = Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>>(A_vec.data(), m, n);
-        Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A_row(A_vec.data(), m, n);
-
-        // Deep copy
-        MatrixXd B;
-        if(layout == blas::Layout::RowMajor)
-            B = A_row;
-        else
-            B = A_col;
+        std::vector<T> B_vec(A_vec);
 
         switch (transform) {
         case transforms::permute: {
-            // Simply compares against Eigen::PermutationMatrix
-            Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> perm(5);
+            int ld = (left) ? m : n;
 
-            std::vector<int> V = left ? std::vector<int>(m) : std::vector<int>(n);
+            std::vector<int> V = std::vector<int>(ld);
 
             int cnt = 0;
             // int cnt = 0;
@@ -151,44 +150,101 @@ class TestLMIGET : public::testing::Test
                 cnt++;
             }
 
-            Eigen::VectorXi indices = Eigen::Map<Eigen::VectorXi>(V.data(), V.size());
-
-            // Set the indices in the permutation matrix
-            perm.indices() = indices;
+            T* perm_matrix = generate_row_permutation_row_major<T>(ld, V);
+            T* true_perm_matrix = new T[m * n];
 
             sint_t* v = new sint_t;
             *v = V.size() - 1;
 
             if(left) {
-                if(layout == blas::Layout::RowMajor)
-                    RandBLAS::permute_rows_to_top(layout, m, n, v, 1, A_row.data());
-                else
-                    RandBLAS::permute_rows_to_top(layout, m, n, v, 1, A_col.data());
+                if(layout == blas::Layout::RowMajor) {
+                    blas::gemm(
+                        blas::Layout::RowMajor,
+                        blas::Op::Trans,
+                        blas::Op::NoTrans,
+                        m,
+                        n,
+                        m,
+                        1.0,
+                        perm_matrix,
+                        m,
+                        A_vec.data(),
+                        n,
+                        0.0,
+                        true_perm_matrix,
+                        n
+                    );
+                    RandBLAS::permute_rows_to_top(layout, m, n, v, 1, A_vec.data());
+                }
+                else {
+                    blas::gemm(
+                        blas::Layout::ColMajor,
+                        blas::Op::Trans,
+                        blas::Op::NoTrans,
+                        m,
+                        n,
+                        m,
+                        1.0,
+                        perm_matrix,
+                        m,
+                        A_vec.data(),
+                        m,
+                        0.0,
+                        true_perm_matrix,
+                        m
+                    );
+                    RandBLAS::permute_rows_to_top(layout, m, n, v, 1, A_vec.data());
+                }
             }
             else {
-                if(layout == blas::Layout::RowMajor)
-                    RandBLAS::permute_cols_to_left(layout, m, n, v, 1, A_row.data());
-                else
-                    RandBLAS::permute_cols_to_left(layout, m, n, v, 1, A_col.data());
+                if(layout == blas::Layout::RowMajor) {
+                    blas::gemm(
+                        blas::Layout::RowMajor,
+                        blas::Op::NoTrans,
+                        blas::Op::NoTrans,
+                        m,
+                        n,
+                        n,
+                        1.0,
+                        A_vec.data(),
+                        n,
+                        perm_matrix,
+                        n,
+                        0.0,
+                        true_perm_matrix,
+                        n
+                    );
+                    RandBLAS::permute_cols_to_left(layout, m, n, v, 1, A_vec.data());
+                }
+                else {
+                    blas::gemm(
+                        blas::Layout::ColMajor,
+                        blas::Op::NoTrans,
+                        blas::Op::NoTrans,
+                        m,
+                        n,
+                        n,
+                        1.0,
+                        A_vec.data(),
+                        m,
+                        perm_matrix,
+                        n,
+                        0.0,
+                        true_perm_matrix,
+                        m
+                    );
+                    RandBLAS::permute_cols_to_left(layout, m, n, v, 1, A_vec.data());
+                }
             }
 
-            // Or just do A.isApprox(B)
             T norm_permute = 0.0;
-            if(left) {
-                if(layout == blas::Layout::RowMajor)
-                    norm_permute = (A_row - perm * B).norm();
-                else
-                    norm_permute = (A_col - perm * B).norm();
-            }
-            else {
-            if(layout == blas::Layout::RowMajor)
-                norm_permute = (A_row - B * perm).norm();
-            else
-                norm_permute = (A_col - B * perm).norm();
-            }
+            blas::axpy(m * n, -1.0, A_vec.data(), 1, true_perm_matrix, 1);
+            norm_permute = blas::nrm2(m * n, true_perm_matrix, 1);
 
-            // Or do A.isApprox(H * B)
-            randblas_require(norm_permute < epsilon);
+            randblas_require(norm_permute < tol);
+
+            delete [] perm_matrix;
+            delete [] true_perm_matrix;
 
             break;
         }
@@ -196,31 +252,104 @@ class TestLMIGET : public::testing::Test
             // Here, simply check against explicit application of the Hadamard matrix
 
             int ld = (left) ? m : n;
-            if(layout == blas::Layout::ColMajor)
-                RandBLAS::fht_dispatch(left, layout, m, n, std::log2(ld), A_col.data());
-            else
-                RandBLAS::fht_dispatch(left, layout, m, n, std::log2(ld), A_row.data());
+            RandBLAS::fht_dispatch(left, layout, m, n, std::log2(ld), A_vec.data());
 
             std::vector<T> H_vec = generate_hadamard<double>(std::log2(ld));
             //TODO: Should have a check here to enforce that `m` and `n` are powers of 2 (since
             // my `generate_hadamard` function does not take care to pad an input matrix)
-            MatrixXd H = Eigen::Map<MatrixXd>(H_vec.data(), int(std::pow(2, std::log2(ld))), int(std::pow(2, std::log2(ld))));
+
+            T* true_H_mult = new T[m * n];
 
             T norm_hadamard = 0.0;
+
             if(left) {
-            if(layout == blas::Layout::RowMajor)
-                norm_hadamard = (A_row - H * B).norm();
-            else
-                norm_hadamard = (A_col - H * B).norm();
+                if(layout == blas::Layout::RowMajor) {
+                    blas::gemm(
+                        blas::Layout::RowMajor,
+                        blas::Op::NoTrans,
+                        blas::Op::NoTrans,
+                        m,
+                        n,
+                        m,
+                        1.0,
+                        H_vec.data(),
+                        m,
+                        B_vec.data(),
+                        n,
+                        0.0,
+                        true_H_mult,
+                        n
+                    );
+                    blas::axpy(m * n, -1.0, A_vec.data(), 1, true_H_mult, 1);
+                    norm_hadamard = blas::nrm2(m * n, true_H_mult, 1);
+                }
+                else {
+                    blas::gemm(
+                        blas::Layout::ColMajor,
+                        blas::Op::NoTrans,
+                        blas::Op::NoTrans,
+                        m,
+                        n,
+                        m,
+                        1.0,
+                        H_vec.data(),
+                        m,
+                        B_vec.data(),
+                        m,
+                        0.0,
+                        true_H_mult,
+                        m
+                    );
+                    blas::axpy(m * n, -1.0, A_vec.data(), 1, true_H_mult, 1);
+                    norm_hadamard = blas::nrm2(m * n, true_H_mult, 1);
+                }
             }
             else {
-            if(layout == blas::Layout::RowMajor)
-                norm_hadamard = (A_row - B * H).norm();
-            else
-                norm_hadamard = (A_col - B * H).norm();
+                if(layout == blas::Layout::RowMajor) {
+                    blas::gemm(
+                        blas::Layout::RowMajor,
+                        blas::Op::NoTrans,
+                        blas::Op::NoTrans,
+                        m,
+                        n,
+                        n,
+                        1.0,
+                        B_vec.data(),
+                        n,
+                        H_vec.data(),
+                        n,
+                        0.0,
+                        true_H_mult,
+                        n
+                    );
+                    blas::axpy(m * n, -1.0, A_vec.data(), 1, true_H_mult, 1);
+                    norm_hadamard = blas::nrm2(m * n, true_H_mult, 1);
+                }
+                else {
+                    blas::gemm(
+                        blas::Layout::ColMajor,
+                        blas::Op::NoTrans,
+                        blas::Op::NoTrans,
+                        m,
+                        n,
+                        n,
+                        1.0,
+                        B_vec.data(),
+                        m,
+                        H_vec.data(),
+                        n,
+                        0.0,
+                        true_H_mult,
+                        m
+                    );
+                    blas::axpy(m * n, -1.0, A_vec.data(), 1, true_H_mult, 1);
+                    norm_hadamard = blas::nrm2(m * n, true_H_mult, 1);
+                }
             }
 
-            randblas_require(norm_hadamard < epsilon);
+            randblas_require(norm_hadamard < tol);
+
+            delete [] true_H_mult;
 
             break;
         }
@@ -228,132 +357,23 @@ class TestLMIGET : public::testing::Test
             // Scales all rows/cols by -1 and checks if A == -A
             std::vector<sint_t> buff = left ? std::vector<sint_t>(n, -1) : std::vector<sint_t>(m, -1);
 
+            RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_vec.data(), buff.data());
+
             T norm_diag = 0.0;
             if(layout == blas::Layout::RowMajor) {
-            RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_row.data(), buff.data());
-            norm_diag = (A_row + B).norm();
+                blas::axpy(m * n, 1.0, A_vec.data(), 1, B_vec.data(), 1);
+                norm_diag = blas::nrm2(m * n, B_vec.data(), 1);
             }
             else {
-            RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_col.data(), buff.data());
-            norm_diag = (A_col + B).norm();
+                blas::axpy(m * n, 1.0, A_vec.data(), 1, B_vec.data(), 1);
+                norm_diag = blas::nrm2(m * n, B_vec.data(), 1);
             }
 
-            randblas_require(norm_diag < epsilon);
+            randblas_require(norm_diag < tol);
 
             break;
         }
         }
-    }
-
-    template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
-    static void inverse_transform(
-        uint32_t seed,
-        int64_t m, // Generated data matrix, `A` is of size `(m x n)`
-        int64_t n,
-        int64_t d,
-        bool left,
-        blas::Layout layout,
-        T epsilon=RandBLAS::sqrt_epsilon<T>()
-    ) {
-        // Grabbing a random matrix
-        std::vector<T> A_vec = generate_random_vector(m * n, 0.0, 10.0);
-        // Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> A_col(m, n);
-        Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> A_col = Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>>(A_vec.data(), m, n);
-        // A_col.setRandom();
-        Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A_row(A_vec.data(), m, n);
-
-        // Deep copy
-        MatrixXd B;
-        if(layout == blas::Layout::RowMajor)
-        B = A_row;
-        else
-        B = A_col;
-
-        //// Performing \Pi H D
-        // Step 1: setup the diagonal scaling
-        std::vector<sint_t> buff = left ? std::vector<sint_t>(m, -1) : std::vector<sint_t>(n, -1);
-
-        if(layout == blas::Layout::RowMajor) {
-        RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_row.data(), buff.data());
-        }
-        else {
-        RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_col.data(), buff.data());
-        }
-
-        // Step 2: apply the hadamard transform
-        int ld = (left) ? m : n;
-        if(layout == blas::Layout::ColMajor){
-            RandBLAS::fht_dispatch(left, layout, m, n, int(std::log2(ld)), A_col.data());
-        }
-        else {
-            RandBLAS::fht_dispatch(left, layout, m, n, int(std::log2(ld)), A_row.data());
-        }
-
-        // Step 3: Permuting
-        std::vector<int64_t> indices(d);
-
-        std::iota(indices.begin(), indices.end(), 1);
-        if(left) {
-            if(layout == blas::Layout::RowMajor)
-            RandBLAS::permute_rows_to_top(layout, m, n, indices.data(), d, A_row.data());
-            else
-            RandBLAS::permute_rows_to_top(layout, m, n, indices.data(), d, A_col.data());
-        }
-        else {
-            if(layout == blas::Layout::RowMajor)
-            RandBLAS::permute_cols_to_left(layout, m, n, indices.data(), d, A_row.data());
-            else
-            RandBLAS::permute_cols_to_left(layout, m, n, indices.data(), d, A_col.data());
-        }
-
-        //// Performing D H \Pi
-
-        //Step 1: Un-permute
-        std::reverse(indices.begin(), indices.end());
-
-        if(left) {
-            if(layout == blas::Layout::RowMajor)
-            RandBLAS::permute_rows_to_top(layout, m, n, indices.data(), d, A_row.data());
-            else
-            RandBLAS::permute_rows_to_top(layout, m, n, indices.data(), d, A_col.data());
-        }
-        else {
-            if(layout == blas::Layout::RowMajor)
-            RandBLAS::permute_cols_to_left(layout, m, n, indices.data(), d, A_row.data());
-            else
-            RandBLAS::permute_cols_to_left(layout, m, n, indices.data(), d, A_col.data());
-        }
-
-        // Step-2: Apply H^{-1}
-        if(layout == blas::Layout::ColMajor) {
-            RandBLAS::fht_dispatch(left, layout, m, n, int(std::log2(ld)), A_col.data());
-            A_col = A_col * 1/std::pow(2, int(std::log2(ld)));
-        }
-        else {
-            RandBLAS::fht_dispatch(left, layout, m, n, int(std::log2(ld)), A_row.data());
-            A_row = A_row * 1/std::pow(2, int(std::log2(ld)));
-        }
-
-        //Step-3: Inverting `D`
-        if(layout == blas::Layout::RowMajor) {
-        RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_row.data(), buff.data());
-        }
-        else {
-        RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_col.data(), buff.data());
-        }
-
-        T norm_inverse = 0.0;
-
-        if(layout == blas::Layout::RowMajor) {
-        norm_inverse = (A_row - B).norm();
-        }
-        else {
-        norm_inverse = (A_col - B).norm();
-        }
-
-        randblas_require(norm_inverse < epsilon);
-
-
     }
 
     template <typename T, typename RNG = RandBLAS::DefaultRNG, RandBLAS::SignedInteger sint_t = int64_t>
@@ -364,20 +384,13 @@ class TestLMIGET : public::testing::Test
         int64_t d,
         int64_t left,
         blas::Layout layout,
-        T epsilon=RandBLAS::sqrt_epsilon<T>()
+        T tol=RandBLAS::sqrt_epsilon<T>()
     ) {
         // Grabbing a random matrix
         std::vector<T> A_vec = generate_random_vector(m * n, 0.0, 10.0);
-        Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> A_col = Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>>(A_vec.data(), m, n);
-        Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A_row(A_vec.data(), m, n);
-        RandBLAS::RNGState<RNG> seed_state(seed);
+        std::vector<T> B_vec(A_vec);
 
-        // Deep copy
-        MatrixXd B;
-        if(layout == blas::Layout::RowMajor)
-            B = A_row;
-        else
-            B = A_col;
+        RandBLAS::RNGState<RNG> seed_state(seed);
 
         // Aggregating information about the matrix
         RandBLAS::trig::HadamardMixingOp<> hmo(
@@ -388,26 +401,17 @@ class TestLMIGET : public::testing::Test
             d
         );
 
-        // Sketching the matrix
-        if(layout == blas::Layout::RowMajor) {
-            RandBLAS::trig::miget(hmo, seed_state, A_row.data());
-            RandBLAS::trig::invert(hmo, A_row.data());
-        }
-        else {
-            RandBLAS::trig::miget(hmo, seed_state, A_col.data());
-            RandBLAS::trig::invert(hmo, A_col.data());
-        }
+        // Performing the transform and...
+        RandBLAS::trig::miget(hmo, seed_state, A_vec.data());
+        RandBLAS::trig::invert_hadamard(hmo, A_vec.data());
+        // ... inverting
 
         T norm_inverse = 0.0;
 
-        if(layout == blas::Layout::RowMajor) {
-            norm_inverse = (A_row - B).norm();
-        }
-        else {
-            norm_inverse = (A_col - B).norm();
-        }
+        blas::axpy(m * n, -1.0, A_vec.data(), 1, B_vec.data(), 1);
+        norm_inverse = blas::nrm2(m * n, B_vec.data(), 1);
 
-        randblas_require(norm_inverse < epsilon);
+        randblas_require(norm_inverse < tol);
     }
 };
 
@@ -558,62 +562,6 @@ TEST_F(TestLMIGET, test_hadamard_right_rowmajor) {
             transforms::hadamard,
             100,
             128,
-            false,
-            blas::Layout::RowMajor
-        );
-}
-
-////////////////////////////////////////////////////////////////////////
-//
-//
-//      Verifying invertibility of the transform
-//
-//
-////////////////////////////////////////////////////////////////////////
-
-TEST_F(TestLMIGET, test_inverse_left_colmajor) {
-    for(uint32_t seed: keys)
-        inverse_transform<double>(
-            seed,
-            128,
-            100,
-            25,
-            true,
-            blas::Layout::ColMajor
-        );
-}
-
-TEST_F(TestLMIGET, test_inverse_right_colmajor) {
-    for(uint32_t seed: keys)
-        inverse_transform<double>(
-            seed,
-            100,
-            128,
-            25,
-            false,
-            blas::Layout::ColMajor
-        );
-}
-
-TEST_F(TestLMIGET, test_inverse_left_rowmajor) {
-    for(uint32_t seed: keys)
-        inverse_transform<double>(
-            seed,
-            128,
-            100,
-            25,
-            true,
-            blas::Layout::RowMajor
-        );
-}
-
-TEST_F(TestLMIGET, test_inverse_right_rowmajor) {
-    for(uint32_t seed: keys)
-        inverse_transform<double>(
-            seed,
-            100,
-            128,
-            25,
             false,
             blas::Layout::RowMajor
         );
