@@ -360,14 +360,8 @@ class TestLMIGET : public::testing::Test
             RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_vec.data(), buff.data());
 
             T norm_diag = 0.0;
-            if(layout == blas::Layout::RowMajor) {
-                blas::axpy(m * n, 1.0, A_vec.data(), 1, B_vec.data(), 1);
-                norm_diag = blas::nrm2(m * n, B_vec.data(), 1);
-            }
-            else {
-                blas::axpy(m * n, 1.0, A_vec.data(), 1, B_vec.data(), 1);
-                norm_diag = blas::nrm2(m * n, B_vec.data(), 1);
-            }
+            blas::axpy(m * n, 1.0, A_vec.data(), 1, B_vec.data(), 1);
+            norm_diag = blas::nrm2(m * n, B_vec.data(), 1);
 
             randblas_require(norm_diag < tol);
 
