@@ -11,8 +11,6 @@ RandBLAS follows `Semantic Versioning <https://semver.org>`_. Any function docum
 on this website is part of the public API. There are many functions which are not
 part of our public API, but could be added to it if there is user interest. 
 
-RandBLAS is in the 1.0.x release series. The latest version is :ref:`1.0.1 <v10x_patches>`.
-See below for a general overview of each release series.
 
 RandBLAS 1.0
 ------------

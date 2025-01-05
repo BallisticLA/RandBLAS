@@ -34,6 +34,7 @@
 #include <vector>
 
 using namespace RandBLAS::sparse_data;
+using namespace RandBLAS::sparse_data::coo;
 using namespace RandBLAS::sparse_data::csr;
 using namespace test::test_datastructures::test_spmats;
 using namespace RandBLAS::sparse_data::conversions;
@@ -130,7 +131,33 @@ class TestCSR_Conversions : public ::testing::Test
         delete [] mat_actual;
         return;
     }
+
+    template <typename T = double>
+    static void test_csr_to_coo_band_diagonal() {
+        int64_t n = 8;
+        int64_t nnz = 32;
+        std::vector<T> vals{6, -1, -1, -1, -1, 6, -1, -1, -1, 6, -1, -1, -1, -1, 6, -1, -1, 6, -1, -100, 99, -1, 6, -1, -1, -1, 6, -1, -1, -1, -1, 6};
+        std::vector<int64_t> rowptr{0, 4, 8, 12, 16, 20, 24, 28, 32};
+        std::vector<int64_t> colidxs{0, 1, 2, 4, 0, 1, 3, 5, 0, 2, 3, 6, 1, 2, 3, 7, 0, 4, 5, 6, 1, 4, 5, 7, 2, 4, 6, 7, 3, 5, 6, 7};
+        CSRMatrix<T> A_csr(n,n,nnz,vals.data(),rowptr.data(),colidxs.data());
+        COOMatrix<T> A_coo(n,n);
+        csr_to_coo(A_csr, A_coo);
+        std::vector<T> A_dense_coo(n*n);
+        std::vector<T> A_dense_csr(n*n);
+        coo_to_dense(A_coo, Layout::ColMajor, A_dense_coo.data());
+        csr_to_dense(A_csr, Layout::ColMajor, A_dense_csr.data());
+        test::comparison::matrices_approx_equal(
+            Layout::ColMajor, Layout::ColMajor, blas::Op::NoTrans,
+            n, n, A_dense_csr.data(), n, A_dense_coo.data(), n,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
+    }
+    
 };
+
+TEST_F(TestCSR_Conversions, band) {
+    test_csr_to_coo_band_diagonal();
+}
 
 TEST_F(TestCSR_Conversions, dense_square_diagonal) {
     test_csr_to_dense_diagonal(3);
