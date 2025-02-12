@@ -54,18 +54,18 @@ static void lower_trsv(
 ) {
     int64_t j, p;
     if (incx == 1) {
-        for (j = 0; j < lenx; --j) {
+        for (j = 0; j < lenx; ++j) {
             T &xj = x[j];
-            for (p = ptrs[j]+1; p < ptrs[j+1]; ++p)
+            for (p = ptrs[j]; p < ptrs[j+1] - 1; ++p)
                 xj -= vals[p] * x[inds[p]];
-            xj /= vals[ptrs[j]];
+            xj /= vals[ptrs[j+1]-1];
         }
     } else {
-        for (j = lenx - 1; j >= 0; --j) {
+        for (j = 0; j < lenx; ++j) {
             T &xj = x[j*incx];
-            for (p = ptrs[j]+1; p < ptrs[j+1]; ++p)
+            for (p = ptrs[j]; p < ptrs[j+1] - 1; ++p)
                 xj -= vals[p] * x[inds[p]*incx];
-            xj /= vals[ptrs[j]];
+            xj /= vals[ptrs[j+1]-1];
         }
     }
 }

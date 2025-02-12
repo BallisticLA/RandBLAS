@@ -138,9 +138,9 @@ int64_t trianglize_coo(
     int64_t ell = 0;
     int64_t new_nnz = 0;
     while (ell < spmat.nnz) {
-        if (!upper && spmat.rows[ell] <= spmat.cols[ell] && spmat.vals[ell] != 0.0) {
+        if (upper && spmat.rows[ell] <= spmat.cols[ell] && spmat.vals[ell] != 0.0) {
             new_nnz += 1;
-	} else if (upper && spmat.rows[ell] >= spmat.cols[ell] && spmat.vals[ell] != 0.0) {
+	} else if (!upper && spmat.rows[ell] >= spmat.cols[ell] && spmat.vals[ell] != 0.0) {
             new_nnz += 1;
   } else {
             spmat.vals[ell] = 0.0;

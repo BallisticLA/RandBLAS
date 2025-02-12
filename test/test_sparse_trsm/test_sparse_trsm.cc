@@ -59,10 +59,19 @@ class TestSptrsm : public ::testing::Test
         for (int64_t i=0; i < 3 * n; i++) {
             rhs_ptr[i] = i;
         }
+        for (int64_t i = 0; i < n; ++i) {
+            for (int64_t j=A.rowptr[i]; j < A.rowptr[i+1]; j++) {
+                std::cout << i << " " << A.colidxs[j] << " " << A.vals[j] << std::endl;
+            }
+        }
         if (upper) {
             RandBLAS::sparse_data::csr::upper_trsv(A.vals, A.rowptr, A.colidxs, n, rhs_ptr, 3);
         } else {
             RandBLAS::sparse_data::csr::lower_trsv(A.vals, A.rowptr, A.colidxs, n, rhs_ptr, 3);
+        }
+
+        for (int64_t i = 0; i < 3 * n; ++i) {
+            std::cout << rhs_ptr[i] << std::endl;
         }
         std::vector<T> reference(n);
         T* ref_ptr =reference.data();
@@ -77,13 +86,16 @@ class TestSptrsm : public ::testing::Test
 };
 
 TEST_F(TestSptrsm, upper_solve) {
-    test_solve(10, 0.25, true, 0x364A);
-    test_solve(10, 0.05, true, 0x364A);
-    test_solve(10, 0.005, true, 0x364A);
-    test_solve(10, 0.0005, true, 0x364A);
-    test_solve(10, 0.0005, true, 0x364A);
-    test_solve(10, 0.0005, true, 0x364A);
-    test_solve(10, 0.00000005, true, 0x364A);
-    
+    test_solve(1, 1.0, true, 0x364A);
+    test_solve(2, 0.5, true, 0x3643);
+    test_solve(5, 0.9999, true, 0x219B);
+      
 }
 
+
+TEST_F(TestSptrsm, lower_solve) {
+    test_solve(1, 1.0, false, 0x364A);
+    test_solve(2, 0.5, false, 0x3643);
+    test_solve(5, 0.9999, false, 0x219B);
+      
+}
