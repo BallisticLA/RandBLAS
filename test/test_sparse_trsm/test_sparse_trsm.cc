@@ -61,26 +61,17 @@ class TestSptrsm : public ::testing::Test
         for (int64_t i=0; i < incx * n; i++) {
             rhs_ptr[i] = i;
         }
-        for (int64_t i = 0; i < n; ++i) {
-            for (int64_t j=A.rowptr[i]; j < A.rowptr[i+1]; j++) {
-                std::cout << i << " " << A.colidxs[j] << " " << A.vals[j] << std::endl;
-            }
-        }
         if (upper) {
             RandBLAS::sparse_data::csr::upper_trsv(A.vals, A.rowptr, A.colidxs, n, rhs_ptr, incx);
         } else {
             RandBLAS::sparse_data::csr::lower_trsv(A.vals, A.rowptr, A.colidxs, n, rhs_ptr, incx);
         }
 
-        for (int64_t i = 0; i < incx * n; ++i) {
-            std::cout << rhs_ptr[i] << std::endl;
-        }
         std::vector<T> reference(n);
         T* ref_ptr =reference.data();
         RandBLAS::spmm(blas::Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans, n, 1, n, 1.0, A, rhs_ptr, incx, 0.0, ref_ptr, 1);
         
         for (int64_t i = 0; i < n; ++i) {
-            std::cout << ref_ptr[i] << "   " << incx * i << std::endl;
             randblas_require(std::abs(ref_ptr[i] - incx * i) <= RandBLAS::sqrt_epsilon<T>());
         }
         return;
@@ -96,30 +87,17 @@ class TestSptrsm : public ::testing::Test
         for (int64_t i=0; i < incx* n; i++) {
             rhs_ptr[i] = i;
         }
-        for (int64_t j = 0; j < n +1; ++j) {
-            std::cout << A.colptr[j] << " ";
-        }
-        std::cout << std::endl;
-        for (int64_t j = 0; j < n; ++j) {
-            for (int64_t i=A.colptr[j]; i < A.colptr[j+1]; i++) {
-                std::cout << A.rowidxs[i] << " " << j << " " << A.vals[i] << std::endl;
-            }
-        }
         if (upper) {
             RandBLAS::sparse_data::csc::upper_trsv(A.vals, A.rowidxs, A.colptr, n, rhs_ptr, incx);
         } else {
             RandBLAS::sparse_data::csc::lower_trsv(A.vals, A.rowidxs, A.colptr, n, rhs_ptr, incx);
         }
 
-        for (int64_t i = 0; i < incx* n; ++i) {
-            std::cout << rhs_ptr[i] << std::endl;
-        }
         std::vector<T> reference(n);
         T* ref_ptr =reference.data();
         RandBLAS::spmm(blas::Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans, n, 1, n, 1.0, A, rhs_ptr,incx, 0.0, ref_ptr, 1);
         
         for (int64_t i = 0; i < n; ++i) {
-            std::cout << ref_ptr[i] << "   " << incx * i << std::endl;
             randblas_require(std::abs(ref_ptr[i] - incx * i) <= RandBLAS::sqrt_epsilon<T>());
         }
         return;
