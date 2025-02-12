@@ -81,14 +81,14 @@ static void upper_trsv(
     int64_t j, p;
     if (incx == 1) {
         for (j = lenx - 1; j >= 0; --j) {
-            x[j] /= vals[ptrs[j]];
-            for (p = ptrs[j] + 1; p < ptrs[j+1]; ++p)
+            x[j] /= vals[ptrs[j+1]-1];
+            for (p = ptrs[j]; p < ptrs[j+1] - 1; ++p)
                 x[inds[p]] -= vals[p] * x[j];
         }
     } else {
         for (j = lenx - 1; j >= 0; --j) {
-            x[j*incx] /= vals[ptrs[j]];
-            for (p = ptrs[j] + 1; p < ptrs[j+1]; ++p)
+            x[j*incx] /= vals[ptrs[j+1] - 1];
+            for (p = ptrs[j]; p < ptrs[j+1] - 1; ++p)
                 x[inds[p]*incx] -= vals[p] * x[j*incx];
         } 
     }

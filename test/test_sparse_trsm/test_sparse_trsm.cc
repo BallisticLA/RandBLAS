@@ -6,7 +6,9 @@
 #include <RandBLAS/exceptions.hh>
 #include <RandBLAS/sparse_skops.hh>
 #include <RandBLAS/sparse_data/csr_trsm_impl.hh>
+#include <RandBLAS/sparse_data/csc_trsm_impl.hh>
 using RandBLAS::sparse_data::CSRMatrix;
+using RandBLAS::sparse_data::CSCMatrix;
 using RandBLAS::sparse_data::COOMatrix;
 #include "../comparison.hh"
 #include "../test_datastructures/test_spmats/common.hh"
@@ -31,7 +33,7 @@ class TestSptrsm : public ::testing::Test
 {
     protected:
     template<typename T>
-    static CSRMatrix<T> make_test_matrix(int64_t n, T nonzero_prob, bool upper, uint32_t key = 0) {
+    static COOMatrix<T> make_test_matrix(int64_t n, T nonzero_prob, bool upper, uint32_t key = 0) {
         randblas_require(nonzero_prob >= 0);
         randblas_require(nonzero_prob <= 1);
         COOMatrix<T> A(n, n);
@@ -42,9 +44,7 @@ class TestSptrsm : public ::testing::Test
 
         COOMatrix<T> A_triangular(n, n);
         test::test_datastructures::test_spmats::trianglize_coo<T>(A, upper, A_triangular);
-        CSRMatrix<T> A_tri_csr(n, n);
-        RandBLAS::sparse_data::conversions::coo_to_csr(A_triangular, A_tri_csr);
-        return A_tri_csr;
+        return A_triangular;
     }
     
     virtual void SetUp(){};
@@ -52,11 +52,13 @@ class TestSptrsm : public ::testing::Test
     virtual void TearDown(){};
 
     template<typename T>
-    static void test_solve(int64_t n, T p, bool upper, uint32_t key) {
-        auto A = make_test_matrix(n, p, upper, key);
-        std::vector<T> rhs(3 * n);
+    static void test_csr_solve(int64_t n, T p, bool upper, int64_t incx, uint32_t key) {
+        auto A_coo = make_test_matrix(n, p, upper, key);
+        CSRMatrix<T> A(n, n);
+        RandBLAS::sparse_data::conversions::coo_to_csr(A_coo, A);
+        std::vector<T> rhs(incx * n);
         T* rhs_ptr = rhs.data();
-        for (int64_t i=0; i < 3 * n; i++) {
+        for (int64_t i=0; i < incx * n; i++) {
             rhs_ptr[i] = i;
         }
         for (int64_t i = 0; i < n; ++i) {
@@ -65,37 +67,103 @@ class TestSptrsm : public ::testing::Test
             }
         }
         if (upper) {
-            RandBLAS::sparse_data::csr::upper_trsv(A.vals, A.rowptr, A.colidxs, n, rhs_ptr, 3);
+            RandBLAS::sparse_data::csr::upper_trsv(A.vals, A.rowptr, A.colidxs, n, rhs_ptr, incx);
         } else {
-            RandBLAS::sparse_data::csr::lower_trsv(A.vals, A.rowptr, A.colidxs, n, rhs_ptr, 3);
+            RandBLAS::sparse_data::csr::lower_trsv(A.vals, A.rowptr, A.colidxs, n, rhs_ptr, incx);
         }
 
-        for (int64_t i = 0; i < 3 * n; ++i) {
+        for (int64_t i = 0; i < incx * n; ++i) {
             std::cout << rhs_ptr[i] << std::endl;
         }
         std::vector<T> reference(n);
         T* ref_ptr =reference.data();
-        RandBLAS::spmm(blas::Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans, n, 1, n, 1.0, A, rhs_ptr, 3, 0.0, ref_ptr, 1);
+        RandBLAS::spmm(blas::Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans, n, 1, n, 1.0, A, rhs_ptr, incx, 0.0, ref_ptr, 1);
         
         for (int64_t i = 0; i < n; ++i) {
-            std::cout << ref_ptr[i] << "   " << 3 * i << std::endl;
-            randblas_require(std::abs(ref_ptr[i] - 3 * i) <= RandBLAS::sqrt_epsilon<T>());
+            std::cout << ref_ptr[i] << "   " << incx * i << std::endl;
+            randblas_require(std::abs(ref_ptr[i] - incx * i) <= RandBLAS::sqrt_epsilon<T>());
+        }
+        return;
+    }
+
+    template<typename T>
+    static void test_csc_solve(int64_t n, T p, bool upper, int64_t incx, uint32_t key) {
+        auto A_coo = make_test_matrix(n, p, upper, key);
+        CSCMatrix<T> A(n, n);
+        RandBLAS::sparse_data::conversions::coo_to_csc(A_coo, A);
+        std::vector<T> rhs(incx * n);
+        T* rhs_ptr = rhs.data();
+        for (int64_t i=0; i < incx* n; i++) {
+            rhs_ptr[i] = i;
+        }
+        for (int64_t j = 0; j < n +1; ++j) {
+            std::cout << A.colptr[j] << " ";
+        }
+        std::cout << std::endl;
+        for (int64_t j = 0; j < n; ++j) {
+            for (int64_t i=A.colptr[j]; i < A.colptr[j+1]; i++) {
+                std::cout << A.rowidxs[i] << " " << j << " " << A.vals[i] << std::endl;
+            }
+        }
+        if (upper) {
+            RandBLAS::sparse_data::csc::upper_trsv(A.vals, A.rowidxs, A.colptr, n, rhs_ptr, incx);
+        } else {
+            RandBLAS::sparse_data::csc::lower_trsv(A.vals, A.rowidxs, A.colptr, n, rhs_ptr, incx);
+        }
+
+        for (int64_t i = 0; i < incx* n; ++i) {
+            std::cout << rhs_ptr[i] << std::endl;
+        }
+        std::vector<T> reference(n);
+        T* ref_ptr =reference.data();
+        RandBLAS::spmm(blas::Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans, n, 1, n, 1.0, A, rhs_ptr,incx, 0.0, ref_ptr, 1);
+        
+        for (int64_t i = 0; i < n; ++i) {
+            std::cout << ref_ptr[i] << "   " << incx * i << std::endl;
+            randblas_require(std::abs(ref_ptr[i] - incx * i) <= RandBLAS::sqrt_epsilon<T>());
         }
         return;
     }
 };
 
-TEST_F(TestSptrsm, upper_solve) {
-    test_solve(1, 1.0, true, 0x364A);
-    test_solve(2, 0.5, true, 0x3643);
-    test_solve(5, 0.9999, true, 0x219B);
+TEST_F(TestSptrsm, upper_csr_solve) {
+    test_csr_solve(1, 1.0, true, 3, 0x364A);
+    test_csr_solve(2, 0.5, true, 3, 0x3643);
+    test_csr_solve(5, 0.9999, true, 3, 0x219B);
       
+    test_csr_solve(1, 1.0, true, 1, 0x364A);
+    test_csr_solve(2, 0.5, true, 1, 0x3643);
+    test_csr_solve(5, 0.9999, true, 1, 0x219B);
 }
 
 
-TEST_F(TestSptrsm, lower_solve) {
-    test_solve(1, 1.0, false, 0x364A);
-    test_solve(2, 0.5, false, 0x3643);
-    test_solve(5, 0.9999, false, 0x219B);
+TEST_F(TestSptrsm, lower_csr_solve) {
+    test_csr_solve(1, 1.0, false, 3, 0x364A);
+    test_csr_solve(2, 0.5, false, 3, 0x3643);
+    test_csr_solve(5, 0.9999, false, 3, 0x219B);
       
+    test_csr_solve(1, 1.0, false, 1, 0x364A);
+    test_csr_solve(2, 0.5, false, 1, 0x3643);
+    test_csr_solve(5, 0.9999, false, 1, 0x219B);
+}
+
+TEST_F(TestSptrsm, upper_csc_solve) {
+    test_csc_solve(1, 1.0, true, 3, 0x364A);
+    test_csc_solve(2, 0.5, true, 3, 0x3643);
+    test_csc_solve(5, 0.9999, true, 3, 0x219B);
+    
+    test_csc_solve(1, 1.0, true, 1, 0x364A);
+    test_csc_solve(2, 0.5, true, 1, 0x3643);
+    test_csc_solve(5, 0.9999, true, 1, 0x219B);
+}
+
+
+TEST_F(TestSptrsm, lower_csc_solve) {
+    test_csc_solve(1, 1.0, false, 3, 0x364A);
+    test_csc_solve(2, 0.5, false, 3, 0x3643);
+    test_csc_solve(5, 0.9999, false, 3, 0x219B);
+
+    test_csc_solve(1, 1.0, false, 1, 0x364A);
+    test_csc_solve(2, 0.5, false, 1, 0x3643);
+    test_csc_solve(5, 0.9999, false, 1, 0x219B);
 }
