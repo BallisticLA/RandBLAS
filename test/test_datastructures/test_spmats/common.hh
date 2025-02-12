@@ -129,4 +129,37 @@ void coo_from_diag(
     return;
 }
 
+template <typename T>
+int64_t trianglize_coo(
+    RandBLAS::sparse_data::COOMatrix<T> &spmat,
+    bool upper,
+    RandBLAS::sparse_data::COOMatrix<T> &spmat_out
+) {
+    int64_t ell = 0;
+    int64_t new_nnz = 0;
+    while (ell < spmat.nnz) {
+        if (!upper && spmat.rows[ell] <= spmat.cols[ell] && spmat.vals[ell] != 0.0) {
+            new_nnz += 1;
+	} else if (upper && spmat.rows[ell] >= spmat.cols[ell] && spmat.vals[ell] != 0.0) {
+            new_nnz += 1;
+  } else {
+            spmat.vals[ell] = 0.0;
+	}
+	++ell;
+    }
+    reserve_coo(new_nnz, spmat_out);
+    ell = 0;
+    int64_t ell_new = 0;
+    while (ell < spmat.nnz) {
+	if (spmat.vals[ell] != 0.0) {
+	    spmat_out.rows[ell_new] = spmat.rows[ell];
+	    spmat_out.cols[ell_new] = spmat.cols[ell];
+	    spmat_out.vals[ell_new] = spmat.vals[ell];
+	    ++ell_new;
+	}
+        ++ell;
+    }
+    return new_nnz;
+}
+
 }
