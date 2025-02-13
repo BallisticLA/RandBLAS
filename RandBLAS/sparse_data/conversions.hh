@@ -72,7 +72,7 @@ void csc_to_coo(CSCMatrix<T, sint_t1> &csc, COOMatrix<T, sint_t2> &coo) {
     for (int64_t j = 0; j < csc.n_cols; ++j) {
         for (int64_t i = csc.colptr[j]; i < csc.colptr[j+1]; ++i) {
             coo.vals[ell] = csc.vals[ell];
-            coo.rows[ell] = (sint_t2) i;
+            coo.rows[ell] = (sint_t2) csc.rowidxs[i];
             coo.cols[ell] = (sint_t2) j;
             ++ell;
         }
@@ -114,7 +114,7 @@ void csr_to_coo(CSRMatrix<T, sint_t1> &csr, COOMatrix<T, sint_t2> &coo) {
         for (int64_t j = csr.rowptr[i]; j < csr.rowptr[i+1]; ++j) {
             coo.vals[ell] = csr.vals[ell];
             coo.rows[ell] = (sint_t2) i;
-            coo.cols[ell] = (sint_t2) j;
+            coo.cols[ell] = (sint_t2) csr.colidxs[j];
             ++ell;
         }
     }

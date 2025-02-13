@@ -34,6 +34,7 @@
 #include <vector>
 
 using namespace RandBLAS::sparse_data;
+using namespace RandBLAS::sparse_data::coo;
 using namespace RandBLAS::sparse_data::csc;
 using namespace test::test_datastructures::test_spmats;
 using namespace RandBLAS::sparse_data::conversions;
@@ -106,7 +107,32 @@ class TestCSC_Conversions : public ::testing::Test {
         delete [] mat_actual;
         return;
     }
+    template <typename T = double>
+    static void test_csc_to_coo_band_diag() {
+        int64_t n = 8;
+        int64_t nnz = 32;
+        std::vector<T> vals{6, -1, -2, -3, -1, 6, -1, -1, -1, 6, -1, -1, -1, -1, 6, -1, -1, 6, -1, -1, -1, -1, 6, -1, -1, -1, 6, -1, -1, -1, -1, 6};
+        std::vector<int64_t> colptr{0, 4, 8, 12, 16, 20, 24, 28, 32};
+        std::vector<int64_t> rowidxs{0, 1, 2, 4, 0, 1, 3, 5, 0, 2, 3, 6, 1, 2, 3, 7, 0, 4, 5, 6, 1, 4, 5, 7, 2, 4, 6, 7, 3, 5, 6, 7};
+        CSCMatrix<T> A_csc(n,n,nnz,vals.data(),rowidxs.data(),colptr.data());
+        COOMatrix<T> A_coo(n,n);
+        csc_to_coo(A_csc, A_coo);
+        std::vector<T> A_dense_coo(n*n);
+        std::vector<T> A_dense_csc(n*n);
+        coo_to_dense(A_coo, Layout::ColMajor, A_dense_coo.data());
+        csc_to_dense(A_csc, Layout::ColMajor, A_dense_csc.data());
+        test::comparison::matrices_approx_equal(
+            Layout::ColMajor, Layout::ColMajor, blas::Op::NoTrans,
+            n, n, A_dense_csc.data(), n, A_dense_coo.data(), n,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
+    }
+    
 };
+
+TEST_F(TestCSC_Conversions, band) {
+    test_csc_to_coo_band_diag();
+}
  
 TEST_F(TestCSC_Conversions, dense_random_rowmajor) {
     test_csc_from_random_sparsified(Layout::RowMajor, 10, 5, 0.7);
