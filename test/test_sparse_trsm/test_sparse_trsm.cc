@@ -102,6 +102,36 @@ class TestSptrsm : public ::testing::Test
         }
         return;
     }
+
+    template<typename T>
+    static void test_csc_solve_matrix(int64_t n, T p, bool upper, int64_t k, uint32_t key) {
+        auto A_coo = make_test_matrix(n, p, upper, key);
+        CSCMatrix<T> A(n, n);
+        RandBLAS::sparse_data::conversions::coo_to_csc(A_coo, A);
+        std::vector<T> rhs(k * n);
+        T* rhs_ptr = rhs.data();
+        for (int64_t i=0; i < k * n; i++) {
+            rhs_ptr[i] = i;
+        }
+        if (upper) {
+            // RandBLAS::sparse_data::csc::upper_trsm_jki_p11(blas::Layout::RowMajor, n, k, A, rhs_ptr, 1); 
+        } else {
+            RandBLAS::sparse_data::csc::lower_trsm_jki_p11(blas::Layout::RowMajor, n, k, A, rhs_ptr, k); 
+        }
+        return;
+
+        std::vector<T> reference(k * n);
+        T* ref_ptr =reference.data();
+        RandBLAS::spmm(blas::Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans, n, k, n, 1.0, A, rhs_ptr, k, 0.0, ref_ptr, k);
+        
+        for (int64_t i = 0; i < k * n; ++i) {
+	    std::cout << ref_ptr[i] << "\t" << i << std::endl;
+            randblas_require(std::abs(ref_ptr[i] - i) <= RandBLAS::sqrt_epsilon<T>());
+        }
+        return;
+    }
+
+
 };
 
 TEST_F(TestSptrsm, upper_csr_solve) {
@@ -144,4 +174,14 @@ TEST_F(TestSptrsm, lower_csc_solve) {
     test_csc_solve(1, 1.0, false, 1, 0x364A);
     test_csc_solve(2, 0.5, false, 1, 0x3643);
     test_csc_solve(5, 0.9999, false, 1, 0x219B);
+}
+
+TEST_F(TestSptrsm, lower_csc_solve_matrix) {
+    test_csc_solve_matrix(1, 1.0, false, 1, 0x364A);
+    test_csc_solve_matrix(2, 0.5, false, 1, 0x3643);
+    test_csc_solve_matrix(5, 0.9999, false, 1, 0x219B);
+
+    test_csc_solve_matrix(1, 1.0, false, 3, 0x364A);
+    test_csc_solve_matrix(2, 0.5, false, 3, 0x3643);
+    test_csc_solve_matrix(5, 0.9999, false, 3, 0x219B);
 }
