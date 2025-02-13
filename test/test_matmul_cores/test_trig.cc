@@ -98,8 +98,8 @@ class TestLMIGET : public::testing::Test
     template <typename T>
     static std::vector<T> generate_random_vector(int size, T lower_bound, T upper_bound) {
         // Create a random device and seed the random number generator
-        std::random_device rd;
-        std::mt19937 gen(rd());
+        // std::random_device rd;
+        std::mt19937 gen(42);
 
         // Define the distribution range for the random Ts
         std::uniform_real_distribution<> dist(lower_bound, upper_bound);
@@ -386,19 +386,43 @@ class TestLMIGET : public::testing::Test
 
         RandBLAS::RNGState<RNG> seed_state(seed);
 
-        // Aggregating information about the matrix
-        RandBLAS::trig::HadamardMixingOp<> hmo(
+        int64_t dim = left ? m : n;
+        int64_t lda = layout == blas::Layout::ColMajor ? m : n;
+        RandBLAS::trig::HadamardMixingOp<T, sint_t, RandBLAS::RNGState<RNG>> hmo(
+            dim,
+            d,
+            seed_state
+        );
+
+        RandBLAS::trig::HadamardMatrixCouple<T> hmc(
             left,
             layout,
             m,
             n,
-            d
+            A_vec.data(),
+            lda,
+            nullptr
         );
 
-        // Performing the transform and...
-        RandBLAS::trig::miget(hmo, seed_state, A_vec.data());
-        RandBLAS::trig::invert_hadamard(hmo, A_vec.data());
+        int64_t workspace_ld = std::pow(2, int64_t(std::log2(hmo.dim)) + 1) - hmo.dim;
+        int64_t workspace_sz = RandBLAS::trig::miget_workspace_sz(hmo, hmc);
+        T* workspace = new T[workspace_sz]();
+
+        hmc.workspace = workspace;
+        hmc.workspace_ld = workspace_ld;
+
+        RandBLAS::trig::fill_hadamard(hmo);
+
+        //NOTE: debugging stuff, ignore, use to call `RandBLAS::print_colmaj`
+        std::string label = "A";
+        int dec = 8;
+        RandBLAS::ArrayStyle as = RandBLAS::ArrayStyle::Python;
+
+        // Appplying the transform..
+        RandBLAS::trig::miget(hmo, hmc);
+
         // ... inverting
+        RandBLAS::trig::invert_hadamard(hmo, hmc);
 
         T norm_inverse = 0.0;
 
@@ -406,6 +430,8 @@ class TestLMIGET : public::testing::Test
         norm_inverse = blas::nrm2(m * n, B_vec.data(), 1);
 
         randblas_require(norm_inverse < tol);
+
+        delete[] workspace;
     }
 };
 
@@ -574,9 +600,9 @@ TEST_F(TestLMIGET, test_user_inverse_left_colmajor) {
     for(uint32_t seed: keys)
         drivers_inverse<double>(
             seed,
-            128,
-            128,
-            25,
+            129,
+            998,
+            33,
             true,
             blas::Layout::ColMajor
         );
@@ -586,9 +612,9 @@ TEST_F(TestLMIGET, test_user_inverse_right_colmajor) {
     for(uint32_t seed: keys)
         drivers_inverse<double>(
             seed,
-            128,
-            128,
-            25,
+            55,
+            190,
+            33,
             false,
             blas::Layout::ColMajor
         );
@@ -598,8 +624,8 @@ TEST_F(TestLMIGET, test_user_inverse_left_rowmajor) {
     for(uint32_t seed: keys)
         drivers_inverse<double>(
             seed,
-            128,
-            128,
+            129,
+            998,
             25,
             true,
             blas::Layout::RowMajor
@@ -610,9 +636,9 @@ TEST_F(TestLMIGET, test_user_inverse_right_rowmajor) {
     for(uint32_t seed: keys)
         drivers_inverse<double>(
             seed,
-            128,
-            128,
-            25,
+            345,
+            712,
+            123,
             false,
             blas::Layout::RowMajor
         );
