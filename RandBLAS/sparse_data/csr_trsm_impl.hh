@@ -99,5 +99,65 @@ static void upper_trsv(
     }
 }
 
+template <typename T, SignedInteger sin_t = int64_t>
+static void trsm_jki_p11 (
+    blas::Layout layout_B,
+    blas::Uplo uplo,
+    int64_t n,
+    int64_t k,
+    const CSRMatrix<T, sin_t> &A,
+    T *B,
+    int64_t ldb
+){
+    randblas_require(n == A.n_rows);
+    randblas_require(n == A.n_cols);
+
+    for (int64_t ell = 0; ell < n; ++ell) {
+        size_t rowptr;
+        if (uplo == blas::Uplo::Lower) {
+            rowptr = A.rowptr[ell+1] - 1;
+        } else {
+            rowptr = A.rowptr[ell];
+        }
+        randblas_require(A.colidxs[rowptr] == ell);
+        randblas_require(A.vals[rowptr] != 0.0);
+    }
+
+    auto s = layout_to_strides(layout_B, ldb);
+    auto B_inter_col_stride = s.inter_col_stride;
+    auto B_inter_row_stride = s.inter_row_stride;
+
+    if (uplo == blas::Uplo::Lower) {
+        #pragma omp parallel default(shared)
+        {
+            #pragma omp for schedule(static)
+            for (int64_t ell = 0; ell < k; ell++) {
+                int64_t j, p;
+                for (j = 0; j < n; ++j) {
+                    T &Bjl = B[j*B_inter_row_stride + ell*B_inter_col_stride];
+                    for (p = A.rowptr[j]; p < A.rowptr[j+1]-1; ++p)
+                        Bjl -= A.vals[p] * B[A.colidxs[p]*B_inter_row_stride + ell*B_inter_col_stride];
+                    Bjl /= A.vals[A.rowptr[j+1]-1];
+                }
+            }
+        }
+    } else {
+        #pragma omp parallel default(shared)
+        {
+            #pragma omp for schedule(static)
+            for (int64_t ell = 0; ell < k; ell++) {
+                
+                int64_t j, p;
+                for (j = n - 1; j >= 0; --j) {
+                    T &Bjl = B[j*B_inter_row_stride + ell*B_inter_col_stride];
+                    for (p = A.rowptr[j]+1; p < A.rowptr[j+1]; ++p)
+                        Bjl -= A.vals[p] * B[A.colidxs[p]*B_inter_row_stride + ell*B_inter_col_stride];
+                    Bjl /= A.vals[A.rowptr[j]];
+                }
+            }
+        }
+    }
+}
 
 }
+

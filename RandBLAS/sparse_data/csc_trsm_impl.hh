@@ -95,8 +95,9 @@ static void upper_trsv(
 }
 
 template<typename T, SignedInteger sin_t=int64_t>
-static void lower_trsm_jki_p11(
+static void trsm_jki_p11(
     blas::Layout layout_B,
+    blas::Uplo uplo,
     int64_t n,
     int64_t k,
     const CSCMatrix<T, sin_t> &A,
@@ -106,8 +107,14 @@ static void lower_trsm_jki_p11(
     randblas_require(n == A.n_rows);
     randblas_require(n == A.n_cols);
     for (int64_t ell = 0; ell < n; ++ell) {
-        randblas_require(A.rowidxs[A.colptr[ell]] == ell);
-        randblas_require(A.vals[A.colptr[ell]] != 0.0);
+        int64_t ptr;
+        if (uplo == blas::Uplo::Lower) {
+            ptr = A.colptr[ell];
+        } else {
+            ptr = A.colptr[ell+1] - 1;
+        }
+        randblas_require(A.rowidxs[ptr] == ell);
+        randblas_require(A.vals[ptr] != 0.0);
 
     }
 
@@ -115,23 +122,34 @@ static void lower_trsm_jki_p11(
     auto B_inter_col_stride = s.inter_col_stride;
     auto B_inter_row_stride = s.inter_row_stride;
 
-    std::cout << B_inter_col_stride << " " << B_inter_row_stride << std::endl;
-
-    
-    #pragma omp parallel default(shared)
-    {
-        #pragma omp for schedule(static)
-        for (int64_t ell = 0; ell < k; ell++) {
-            int64_t j, p;
-            for (j = 0; j < n; ++j) {
-                B[j*B_inter_row_stride + ell*B_inter_col_stride] /= A.vals[A.colptr[j]];
-                for (p = A.colptr[j]+1; p < A.colptr[j+1]; ++p)
-                    B[A.rowidxs[p]*B_inter_row_stride + ell*B_inter_col_stride] -=
-                        A.vals[p] * B[j*B_inter_row_stride + ell*B_inter_col_stride];
+    if (uplo == blas::Uplo::Lower) {
+        #pragma omp parallel default(shared)
+        {
+            #pragma omp for schedule(static)
+            for (int64_t ell = 0; ell < k; ell++) {
+                int64_t j, p;
+                for (j = 0; j < n; ++j) {
+                    B[j*B_inter_row_stride + ell*B_inter_col_stride] /= A.vals[A.colptr[j]];
+                    for (p = A.colptr[j]+1; p < A.colptr[j+1]; ++p)
+                        B[A.rowidxs[p]*B_inter_row_stride + ell*B_inter_col_stride] -=
+                            A.vals[p] * B[j*B_inter_row_stride + ell*B_inter_col_stride];
+                }
             }
         }
-    }
+    } else {
+        #pragma omp parallel default(shared)
+        {
+            #pragma omp for schedule(static)
+            for (int64_t ell = 0; ell < k; ell++) {
+                int64_t j, p;
+                for (j = n-1; j >= 0; --j) {
+                    B[j*B_inter_row_stride + ell*B_inter_col_stride] /= A.vals[A.colptr[j+1] - 1];
+                    for (p = A.colptr[j]; p < A.colptr[j+1] - 1; ++p)
+                        B[A.rowidxs[p]*B_inter_row_stride + ell*B_inter_col_stride] -=
+                            A.vals[p] * B[j*B_inter_row_stride + ell*B_inter_col_stride];
+                }
+            }
+        }    }
 }
-
     
 }
