@@ -193,6 +193,7 @@ static_assert(SparseMatrix<CSCMatrix<double>>);
 ///
 template <typename T, SignedInteger sint_t>
 void reserve_csc(int64_t nnz, CSCMatrix<T,sint_t> &M) {
+    randblas_require(nnz > 0);
     randblas_require(M.own_memory);
     randblas_require(M.rowidxs == nullptr);
     randblas_require(M.vals    == nullptr);
