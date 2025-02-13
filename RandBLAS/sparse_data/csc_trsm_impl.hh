@@ -29,7 +29,6 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#pragma once
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
