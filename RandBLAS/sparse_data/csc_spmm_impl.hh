@@ -46,8 +46,8 @@ template <typename T, SignedInteger sint_t = int64_t>
 static void apply_csc_to_vector_from_left_ki(
     // CSC-format data
     const T *vals,
-    sint_t *rowidxs,
-    sint_t *colptr,
+    const sint_t *rowidxs,
+    const sint_t *colptr,
     // input-output vector data
     int64_t len_v,
     const T *v,
@@ -71,7 +71,7 @@ static void apply_regular_csc_to_vector_from_left_ki(
     // data for "regular CSC": CSC with fixed nnz per col,
     // which obviates the requirement for colptr.
     const T *vals,
-    sint_t *rowidxs,
+    const sint_t *rowidxs,
     int64_t col_nnz,
     // input-output vector data
     int64_t len_v,
@@ -97,7 +97,7 @@ static void apply_csc_left_jki_p11(
     int64_t d,
     int64_t n,
     int64_t m,
-    CSCMatrix<T, sint_t> &A,
+    const CSCMatrix<T, sint_t> &A,
     const T *B,
     int64_t ldb,
     T *C,
@@ -160,7 +160,7 @@ static void apply_csc_left_kib_rowmajor_1p1(
     int64_t d,
     int64_t n,
     int64_t m,
-    CSCMatrix<T, sint_t> &A,
+    const CSCMatrix<T, sint_t> &A,
     const T *B,
     int64_t ldb,
     T *C,
