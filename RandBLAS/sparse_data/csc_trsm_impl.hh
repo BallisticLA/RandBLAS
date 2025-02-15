@@ -106,9 +106,9 @@ static void trsm_jki_p11(
     randblas_require(n == A.n_rows);
     randblas_require(n == A.n_cols);
 
-    sint_t* ptrs = A.colptr;
-    sint_t* idxs = A.rowidxs;
-    T*      vals = A.vals;
+    const sint_t* ptrs = A.colptr;
+    const sint_t* idxs = A.rowidxs;
+    const T*      vals = A.vals;
 
     int64_t j, p, ell;
     for (ell = 0; ell < n; ++ell) {
@@ -126,7 +126,7 @@ static void trsm_jki_p11(
     auto B_inter_row_stride = s.inter_row_stride;
 
     if (uplo == blas::Uplo::Lower) {
-        #pragma omp parallel default(shared)
+        #pragma omp parallel default(shared) private(j, p, ell)
         {
             #pragma omp for schedule(static)
             for (ell = 0; ell < k; ell++) {
@@ -140,7 +140,7 @@ static void trsm_jki_p11(
             }
         }
     } else {
-        #pragma omp parallel default(shared)
+        #pragma omp parallel default(shared) private(j, p, ell)
         {
             #pragma omp for schedule(static)
             for (ell = 0; ell < k; ell++) {
