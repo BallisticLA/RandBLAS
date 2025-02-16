@@ -31,11 +31,14 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/trig_skops.hh"
 #include "RandBLAS/util.hh"
+#include "test/comparison.hh"
+#include "test/test_matmuL_cores/linop_common.hh"
 #include <blas.hh>
 
 #include <cmath>
 #include <random>
 #include <gtest/gtest.h>
+
 
 class TestLMIGET : public::testing::Test
 {
@@ -95,30 +98,10 @@ class TestLMIGET : public::testing::Test
         return H_flat;
     }
 
-    template <typename T>
-    static std::vector<T> generate_random_vector(int size, T lower_bound, T upper_bound) {
-        // Create a random device and seed the random number generator
-        // std::random_device rd;
-        std::mt19937 gen(42);
-
-        // Define the distribution range for the random Ts
-        std::uniform_real_distribution<> dist(lower_bound, upper_bound);
-
-        // Create a vector of the specified size
-        std::vector<T> random_vector(size);
-
-        // Generate random doubles and fill the vector
-        for (int i = 0; i < size; ++i) {
-            random_vector[i] = dist(gen);
-        }
-
-        return random_vector;
-    }
-
     enum class transforms {diag_scale, hadamard, permute};
 
     // Tests to verify correctness of each of the transforms
-    template <typename T, RandBLAS::SignedInteger sint_t = int64_t>
+    template <typename T, RandBLAS::SignedInteger sint_t = int64_t, typename RNG = RandBLAS::DefaultRNG>
     static void correctness(
         uint32_t seed,
         transforms transform,
@@ -129,7 +112,8 @@ class TestLMIGET : public::testing::Test
         T tol=RandBLAS::sqrt_epsilon<T>()
     ) {
         // Grabbing a random matrix
-        std::vector<T> A_vec = generate_random_vector(m * n, 0.0, 10.0);
+        RandBLAS::RNGState<RNG> seed_state(seed);
+        std::vector<T> A_vec = std::get<0>(test::linop_common::random_matrix<T>(m, n, seed_state));
         std::vector<T> B_vec(A_vec);
 
         switch (transform) {
@@ -155,93 +139,43 @@ class TestLMIGET : public::testing::Test
 
             sint_t* v = new sint_t;
             *v = V.size() - 1;
+            int64_t lda = (layout == blas::Layout::ColMajor) ? m : n;
 
             if(left) {
                 if(layout == blas::Layout::RowMajor) {
                     blas::gemm(
-                        blas::Layout::RowMajor,
-                        blas::Op::Trans,
-                        blas::Op::NoTrans,
-                        m,
-                        n,
-                        m,
-                        1.0,
-                        perm_matrix,
-                        m,
-                        A_vec.data(),
-                        n,
-                        0.0,
-                        true_perm_matrix,
-                        n
+                        blas::Layout::RowMajor, blas::Op::Trans, blas::Op::NoTrans,
+                        m, n, m, 1.0,perm_matrix, m, A_vec.data(), lda, 0.0, true_perm_matrix, lda
                     );
-                    RandBLAS::permute_rows_to_top(layout, m, n, v, 1, A_vec.data());
+                    RandBLAS::trig::kernels::permute_rows_to_top(layout, m, n, v, 1, A_vec.data());
                 }
                 else {
                     blas::gemm(
-                        blas::Layout::ColMajor,
-                        blas::Op::Trans,
-                        blas::Op::NoTrans,
-                        m,
-                        n,
-                        m,
-                        1.0,
-                        perm_matrix,
-                        m,
-                        A_vec.data(),
-                        m,
-                        0.0,
-                        true_perm_matrix,
-                        m
+                        blas::Layout::ColMajor, blas::Op::Trans, blas::Op::NoTrans, m,
+                        n, m, 1.0, perm_matrix, m, A_vec.data(), lda, 0.0, true_perm_matrix, lda
                     );
-                    RandBLAS::permute_rows_to_top(layout, m, n, v, 1, A_vec.data());
+                    RandBLAS::trig::kernels::permute_rows_to_top(layout, m, n, v, 1, A_vec.data());
                 }
             }
             else {
                 if(layout == blas::Layout::RowMajor) {
                     blas::gemm(
-                        blas::Layout::RowMajor,
-                        blas::Op::NoTrans,
-                        blas::Op::NoTrans,
-                        m,
-                        n,
-                        n,
-                        1.0,
-                        A_vec.data(),
-                        n,
-                        perm_matrix,
-                        n,
-                        0.0,
-                        true_perm_matrix,
-                        n
+                        blas::Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans, m, n, n, 1.0,
+                        A_vec.data(), lda, perm_matrix, n, 0.0, true_perm_matrix, lda
                     );
-                    RandBLAS::permute_cols_to_left(layout, m, n, v, 1, A_vec.data());
+                    RandBLAS::trig::kernels::permute_cols_to_left(layout, m, n, v, 1, A_vec.data());
                 }
                 else {
                     blas::gemm(
-                        blas::Layout::ColMajor,
-                        blas::Op::NoTrans,
-                        blas::Op::NoTrans,
-                        m,
-                        n,
-                        n,
-                        1.0,
-                        A_vec.data(),
-                        m,
-                        perm_matrix,
-                        n,
-                        0.0,
-                        true_perm_matrix,
-                        m
+                        blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans, m, n, n, 1.0,
+                        A_vec.data(), lda, perm_matrix, n, 0.0, true_perm_matrix, lda
                     );
-                    RandBLAS::permute_cols_to_left(layout, m, n, v, 1, A_vec.data());
+                    RandBLAS::trig::kernels::permute_cols_to_left(layout, m, n, v, 1, A_vec.data());
                 }
             }
 
-            T norm_permute = 0.0;
-            blas::axpy(m * n, -1.0, A_vec.data(), 1, true_perm_matrix, 1);
-            norm_permute = blas::nrm2(m * n, true_perm_matrix, 1);
-
-            randblas_require(norm_permute < tol);
+            test::comparison::matrices_approx_equal(layout, blas::Op::NoTrans, m, n, A_vec.data(), lda,
+                                  true_perm_matrix, lda, "correctness_perm_kernel", "", 178);
 
             delete [] perm_matrix;
             delete [] true_perm_matrix;
@@ -252,7 +186,7 @@ class TestLMIGET : public::testing::Test
             // Here, simply check against explicit application of the Hadamard matrix
 
             int ld = (left) ? m : n;
-            RandBLAS::fht_dispatch(left, layout, m, n, std::log2(ld), A_vec.data());
+            RandBLAS::trig::kernels::fht_dispatch(left, layout, m, n, std::log2(ld), A_vec.data());
 
             std::vector<T> H_vec = generate_hadamard<double>(std::log2(ld));
             //TODO: Should have a check here to enforce that `m` and `n` are powers of 2 (since
@@ -265,89 +199,34 @@ class TestLMIGET : public::testing::Test
             if(left) {
                 if(layout == blas::Layout::RowMajor) {
                     blas::gemm(
-                        blas::Layout::RowMajor,
-                        blas::Op::NoTrans,
-                        blas::Op::NoTrans,
-                        m,
-                        n,
-                        m,
-                        1.0,
-                        H_vec.data(),
-                        m,
-                        B_vec.data(),
-                        n,
-                        0.0,
-                        true_H_mult,
-                        n
+                        blas::Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans, m, n, m,
+                        1.0, H_vec.data(), m, B_vec.data(), n, 0.0, true_H_mult, n
                     );
-                    blas::axpy(m * n, -1.0, A_vec.data(), 1, true_H_mult, 1);
-                    norm_hadamard = blas::nrm2(m * n, true_H_mult, 1);
                 }
                 else {
                     blas::gemm(
-                        blas::Layout::ColMajor,
-                        blas::Op::NoTrans,
-                        blas::Op::NoTrans,
-                        m,
-                        n,
-                        m,
-                        1.0,
-                        H_vec.data(),
-                        m,
-                        B_vec.data(),
-                        m,
-                        0.0,
-                        true_H_mult,
-                        m
+                        blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans, m, n, m, 1.0,
+                        H_vec.data(), m, B_vec.data(), m, 0.0, true_H_mult, m
                     );
-                    blas::axpy(m * n, -1.0, A_vec.data(), 1, true_H_mult, 1);
-                    norm_hadamard = blas::nrm2(m * n, true_H_mult, 1);
                 }
             }
             else {
                 if(layout == blas::Layout::RowMajor) {
                     blas::gemm(
-                        blas::Layout::RowMajor,
-                        blas::Op::NoTrans,
-                        blas::Op::NoTrans,
-                        m,
-                        n,
-                        n,
-                        1.0,
-                        B_vec.data(),
-                        n,
-                        H_vec.data(),
-                        n,
-                        0.0,
-                        true_H_mult,
-                        n
+                        blas::Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans, m, n, n, 1.0,
+                        B_vec.data(), n, H_vec.data(), n, 0.0, true_H_mult, n
                     );
-                    blas::axpy(m * n, -1.0, A_vec.data(), 1, true_H_mult, 1);
-                    norm_hadamard = blas::nrm2(m * n, true_H_mult, 1);
                 }
                 else {
                     blas::gemm(
-                        blas::Layout::ColMajor,
-                        blas::Op::NoTrans,
-                        blas::Op::NoTrans,
-                        m,
-                        n,
-                        n,
-                        1.0,
-                        B_vec.data(),
-                        m,
-                        H_vec.data(),
-                        n,
-                        0.0,
-                        true_H_mult,
-                        m
+                        blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans, m, n, n, 1.0,
+                        B_vec.data(), m, H_vec.data(), n, 0.0, true_H_mult, m
                     );
-                    blas::axpy(m * n, -1.0, A_vec.data(), 1, true_H_mult, 1);
-                    norm_hadamard = blas::nrm2(m * n, true_H_mult, 1);
                 }
             }
 
-            randblas_require(norm_hadamard < tol);
+            test::comparison::matrices_approx_equal(layout, blas::Op::NoTrans, m, n, A_vec.data(), ld,
+                          true_H_mult, ld, "correctness_fht_kernel", "", 230);
 
             delete [] true_H_mult;
 
@@ -356,15 +235,14 @@ class TestLMIGET : public::testing::Test
         case transforms::diag_scale: {
             // Scales all rows/cols by -1 and checks if A == -A
             std::vector<sint_t> buff = left ? std::vector<sint_t>(n, -1) : std::vector<sint_t>(m, -1);
+            int ld = (left) ? m : n;
 
-            RandBLAS::apply_diagonal_rademacher(left, layout, m, n, A_vec.data(), buff.data());
+            RandBLAS::trig::kernels::apply_diagonal_rademacher(left, layout, m, n, A_vec.data(), buff.data());
 
-            T norm_diag = 0.0;
-            blas::axpy(m * n, 1.0, A_vec.data(), 1, B_vec.data(), 1);
-            norm_diag = blas::nrm2(m * n, B_vec.data(), 1);
-
-            randblas_require(norm_diag < tol);
-
+            // Scaling again
+            blas::scal(m * n, -1.0, A_vec.data(), 1);
+            test::comparison::matrices_approx_equal(layout, blas::Op::NoTrans, m, n, A_vec.data(), ld, B_vec.data(), ld,
+                                                    "correctness_diag_scal_kernel", "", 250);
             break;
         }
         }
@@ -381,35 +259,23 @@ class TestLMIGET : public::testing::Test
         T tol=RandBLAS::sqrt_epsilon<T>()
     ) {
         // Grabbing a random matrix
-        std::vector<T> A_vec = generate_random_vector(m * n, 0.0, 10.0);
-        std::vector<T> B_vec(A_vec);
-
+        //
         RandBLAS::RNGState<RNG> seed_state(seed);
+        std::vector<T> A_vec = std::get<0>(test::linop_common::random_matrix<T>(m, n, seed_state));
+        std::vector<T> B_vec(A_vec);
 
         int64_t dim = left ? m : n;
         int64_t lda = layout == blas::Layout::ColMajor ? m : n;
-        RandBLAS::trig::HadamardMixingOp<T, sint_t, RandBLAS::RNGState<RNG>> hmo(
-            dim,
-            d,
-            seed_state
-        );
+        RandBLAS::trig::HadamardMixingOp<T, sint_t, RandBLAS::RNGState<RNG>> hmo(dim, d, seed_state);
 
-        RandBLAS::trig::HadamardMatrixCouple<T> hmc(
-            left,
-            layout,
-            m,
-            n,
-            A_vec.data(),
-            lda,
-            nullptr
-        );
+        RandBLAS::trig::PaddedMatrix<T> pm(left, layout, m, n, A_vec.data(), lda, nullptr);
 
         int64_t workspace_ld = std::pow(2, int64_t(std::log2(hmo.dim)) + 1) - hmo.dim;
-        int64_t workspace_sz = RandBLAS::trig::miget_workspace_sz(hmo, hmc);
+        int64_t workspace_sz = RandBLAS::trig::miget_workspace_sz(hmo, pm);
         T* workspace = new T[workspace_sz]();
 
-        hmc.workspace = workspace;
-        hmc.workspace_ld = workspace_ld;
+        pm.work = workspace;
+        pm.work_ld = workspace_ld;
 
         RandBLAS::trig::fill_hadamard(hmo);
 
@@ -419,17 +285,14 @@ class TestLMIGET : public::testing::Test
         RandBLAS::ArrayStyle as = RandBLAS::ArrayStyle::Python;
 
         // Appplying the transform..
-        RandBLAS::trig::miget(hmo, hmc);
+        RandBLAS::trig::miget(hmo, pm);
 
         // ... inverting
-        RandBLAS::trig::invert_hadamard(hmo, hmc);
+        RandBLAS::trig::invert_hadamard(hmo, pm);
 
-        T norm_inverse = 0.0;
 
-        blas::axpy(m * n, -1.0, A_vec.data(), 1, B_vec.data(), 1);
-        norm_inverse = blas::nrm2(m * n, B_vec.data(), 1);
-
-        randblas_require(norm_inverse < tol);
+        test::comparison::matrices_approx_equal(layout, blas::Op::NoTrans, m, n, A_vec.data(), pm.lda, B_vec.data(), pm.lda,
+                                                "inverse_pirht_test", "", 310);
 
         delete[] workspace;
     }
@@ -445,146 +308,64 @@ class TestLMIGET : public::testing::Test
 
 TEST_F(TestLMIGET, test_diag_left_colmajor) {
     for(uint32_t seed: keys)
-        correctness<double>(
-            seed,
-            transforms::diag_scale,
-            100,
-            100,
-            true,
-            blas::Layout::ColMajor
-        );
+        correctness<double>(seed, transforms::diag_scale, 100, 100, true, blas::Layout::ColMajor);
 }
 
 TEST_F(TestLMIGET, test_diag_right_colmajor) {
     for(uint32_t seed: keys)
-        correctness<double>(
-            seed,
-            transforms::diag_scale,
-            100,
-            100,
-            false,
-            blas::Layout::ColMajor
-        );
+        correctness<double>(seed, transforms::diag_scale, 100, 100, false, blas::Layout::ColMajor);
 }
 
 TEST_F(TestLMIGET, test_diag_left_rowmajor) {
     for(uint32_t seed: keys)
-        correctness<double>(
-            seed,
-            transforms::diag_scale,
-            100,
-            100,
-            true,
-            blas::Layout::RowMajor
-        );
+        correctness<double>(seed, transforms::diag_scale, 100, 100, true, blas::Layout::RowMajor);
 }
 
 TEST_F(TestLMIGET, test_diag_right_rowmajor) {
     for(uint32_t seed: keys)
-        correctness<double>(
-            seed,
-            transforms::diag_scale,
-            100,
-            100,
-            false,
-            blas::Layout::RowMajor
-        );
+        correctness<double>(seed, transforms::diag_scale, 100, 100, false, blas::Layout::RowMajor);
 }
 
 TEST_F(TestLMIGET, test_permute_left_colmajor) {
     for(uint32_t seed: keys)
-        correctness<double>(
-            seed,
-            transforms::permute,
-            100,
-            100,
-            true,
-            blas::Layout::ColMajor
-        );
+        correctness<double>(seed, transforms::permute, 100, 100, true, blas::Layout::ColMajor);
 }
 
 TEST_F(TestLMIGET, test_permute_right_colmajor) {
     for(uint32_t seed: keys)
-        correctness<double>(
-            seed,
-            transforms::permute,
-            100,
-            100,
-            false,
-            blas::Layout::ColMajor
-        );
+        correctness<double>(seed, transforms::permute, 100, 100, false, blas::Layout::ColMajor);
 }
 
 TEST_F(TestLMIGET, test_permute_left_rowmajor) {
     for(uint32_t seed: keys)
-        correctness<double>(
-            seed,
-            transforms::permute,
-            100,
-            100,
-            true,
-            blas::Layout::RowMajor
-        );
+        correctness<double>(seed, transforms::permute, 100, 100, true, blas::Layout::RowMajor);
 }
 
 TEST_F(TestLMIGET, test_permute_right_rowmajor) {
     for(uint32_t seed: keys)
-        correctness<double>(
-            seed,
-            transforms::permute,
-            100,
-            100,
-            false,
-            blas::Layout::RowMajor
-        );
+        correctness<double>(seed, transforms::permute, 100, 100, false, blas::Layout::RowMajor);
 }
 
+//NOTE: I do not bother with padding input matrices for testing the FHT kernels
+// which is why there's neat powers of two in the input dimensions here
 TEST_F(TestLMIGET, test_hadamard_left_colmajor) {
     for(uint32_t seed: keys)
-        correctness<double>(
-            seed,
-            transforms::hadamard,
-            128,
-            100,
-            true,
-            blas::Layout::ColMajor
-        );
+        correctness<double>(seed, transforms::hadamard, 128, 100, true, blas::Layout::ColMajor);
 }
 
 TEST_F(TestLMIGET, test_hadamard_right_colmajor) {
     for(uint32_t seed: keys)
-        correctness<double>(
-            seed,
-            transforms::hadamard,
-            100,
-            128,
-            false,
-            blas::Layout::ColMajor
-        );
+        correctness<double>(seed, transforms::hadamard, 128, 128, false, blas::Layout::ColMajor);
 }
 
 TEST_F(TestLMIGET, test_hadamard_left_rowmajor) {
     for(uint32_t seed: keys)
-        correctness<double>(
-            seed,
-            transforms::hadamard,
-            128,
-            100,
-            true,
-            blas::Layout::RowMajor
-        );
+        correctness<double>(seed, transforms::hadamard, 128, 128, true, blas::Layout::RowMajor);
 }
 
 TEST_F(TestLMIGET, test_hadamard_right_rowmajor) {
     for(uint32_t seed: keys)
-        correctness<double>(
-            seed,
-            transforms::hadamard,
-            100,
-            128,
-            false,
-            blas::Layout::RowMajor
-        );
+        correctness<double>(seed, transforms::hadamard, 100, 128, false, blas::Layout::RowMajor);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -598,48 +379,20 @@ TEST_F(TestLMIGET, test_hadamard_right_rowmajor) {
 
 TEST_F(TestLMIGET, test_user_inverse_left_colmajor) {
     for(uint32_t seed: keys)
-        drivers_inverse<double>(
-            seed,
-            129,
-            998,
-            33,
-            true,
-            blas::Layout::ColMajor
-        );
+        drivers_inverse<double>(seed, 129, 998, 33, true, blas::Layout::ColMajor);
 }
 
 TEST_F(TestLMIGET, test_user_inverse_right_colmajor) {
     for(uint32_t seed: keys)
-        drivers_inverse<double>(
-            seed,
-            55,
-            190,
-            33,
-            false,
-            blas::Layout::ColMajor
-        );
+        drivers_inverse<double>(seed, 55, 190, 33, false, blas::Layout::ColMajor);
 }
 
 TEST_F(TestLMIGET, test_user_inverse_left_rowmajor) {
     for(uint32_t seed: keys)
-        drivers_inverse<double>(
-            seed,
-            129,
-            998,
-            25,
-            true,
-            blas::Layout::RowMajor
-        );
+        drivers_inverse<double>( seed, 129, 998, 25, true, blas::Layout::RowMajor);
 }
 
 TEST_F(TestLMIGET, test_user_inverse_right_rowmajor) {
     for(uint32_t seed: keys)
-        drivers_inverse<double>(
-            seed,
-            345,
-            712,
-            123,
-            false,
-            blas::Layout::RowMajor
-        );
+        drivers_inverse<double>(seed, 345, 712, 123, false, blas::Layout::RowMajor);
 }

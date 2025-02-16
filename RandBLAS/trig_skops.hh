@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <stdexcept>
 #include <string>
-#include <sys/_types/_int64_t.h>
 #include <tuple>
 
 #include <math.h>
@@ -21,302 +20,301 @@
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
-namespace RandBLAS {
-    // =============================================================================
-    /// WARNING: None of the following functions or overloads thereof are part of the
-    /// public API
-    ///
+namespace RandBLAS::trig::kernels {
+// =============================================================================
+/// WARNING: None of the following functions or overloads thereof are part of the
+/// public API
+///
 
-    // Generates a vector of Rademacher entries using the Random123 library
-    template<SignedInteger sint_t = int64_t, typename state_t = RNGState<DefaultRNG>>
-    state_t generate_rademacher_vector_r123(sint_t* buff, int64_t n, state_t &seed_state) {
-        DefaultRNG rng;
-        auto [ctr, key] = seed_state;
+// Generates a vector of Rademacher entries using the Random123 library
+template<SignedInteger sint_t = int64_t, typename state_t = RNGState<DefaultRNG>>
+state_t generate_rademacher_vector_r123(sint_t* buff, int64_t n, state_t &seed_state) {
+    DefaultRNG rng;
+    auto [ctr, key] = seed_state;
 
-        for (int64_t i = 0; i < n; ++i) {
-            typename DefaultRNG::ctr_type r = rng(ctr, key);
+    for (int64_t i = 0; i < n; ++i) {
+        typename DefaultRNG::ctr_type r = rng(ctr, key);
 
-            float rand_value = r123::u01fixedpt<float>(r.v[0]);
+        float rand_value = r123::u01fixedpt<float>(r.v[0]);
 
-            buff[i] = rand_value < 0.5 ? -1 : 1;
+        buff[i] = rand_value < 0.5 ? -1 : 1;
 
-            ctr.incr();
-        }
-
-        // Return the updated RNGState (with the incremented counter)
-        return state_t {ctr, key};
+        ctr.incr();
     }
 
-    // Catch-all method for applying the diagonal Rademacher
-    // entries in-place to an input matrix, `A`
-    template<typename T, SignedInteger sint_t = int64_t>
-    void apply_diagonal_rademacher(
-                                bool left, // Pre-multiplying?
-                                blas::Layout layout,
-                                int64_t rows,
-                                int64_t cols,
-                                T* A,
-                                sint_t* diag
-                                ) {
-        //TODO: Investigate better schemes for performing the scaling
-        //TODO: Move to `RandBLAS/util.hh`
-        if(left && layout == blas::Layout::ColMajor) {
-            for(int64_t row = 0; row < rows; row++) {
-                if(diag[row] > 0)
-                    continue;
-                blas::scal(cols, diag[row], &A[row], rows);
-            }
-        }
-        else if(left && layout == blas::Layout::RowMajor) {
-            for(int64_t row = 0; row < rows; row++) {
-                if(diag[row] > 0)
-                    continue;
-                blas::scal(cols, diag[row], &A[row * cols], 1);
-            }
-        }
-        else if(!left && layout == blas::Layout::ColMajor) {
-            for(int64_t col=0; col < cols; col++) {
-                if(diag[col] > 0)
-                    continue;
-                blas::scal(rows, diag[col], &A[col * rows], 1);
-            }
-        }
-        else {
-            for(int64_t col=0; col < cols; col++) {
-                if(diag[col] > 0)
-                    continue;
-                blas::scal(rows, diag[col], &A[col], cols);
-            }
+    // Return the updated RNGState (with the incremented counter)
+    return state_t {ctr, key};
+}
+
+// Catch-all method for applying the diagonal Rademacher
+// entries in-place to an input matrix, `A`
+template<typename T, SignedInteger sint_t = int64_t>
+void apply_diagonal_rademacher(
+    bool left, // Pre-multiplying?
+    blas::Layout layout,
+    int64_t rows,
+    int64_t cols,
+    T* A,
+    sint_t* diag
+) {
+    //TODO: Investigate better schemes for performing the scaling
+    //TODO: Move to `RandBLAS/util.hh`
+    if(left && layout == blas::Layout::ColMajor) {
+        for(int64_t row = 0; row < rows; row++) {
+            if(diag[row] > 0)
+                continue;
+            blas::scal(cols, diag[row], &A[row], rows);
         }
     }
-
-    template<typename T, SignedInteger sint_t = int64_t>
-    void permute_rows_to_top(
-                          blas::Layout layout,
-                          int64_t rows,
-                          int64_t cols,
-                          sint_t* selected_rows,
-                          int64_t d, // size of `selected_rows`
-                          T* A
-                          ) {
-        int64_t top = 0;  // Keeps track of the topmost unselected row
-
-        //TODO: discuss precise semantics of `selected_rows` in this function
-        if(layout == blas::Layout::ColMajor) {
-            for (int64_t i=0; i < d; i++) {
-                if (selected_rows[i] != top) {
-                    // Use BLAS swap to swap the entire rows
-                    // Swapping row 'selected' with row 'top'
-                    blas::swap(cols, &A[top], rows, &A[selected_rows[i]], rows);
-                } // else, continue;
-            }
-        }
-        else {
-            // For `RowMajor` ordering
-            for (int64_t i=0; i < d; i++) {
-                if (selected_rows[i] != top) {
-                    blas::swap(cols, &A[cols * selected_rows[i]], 1, &A[cols * top], 1);
-                } // else, continue;
-            }
+    else if(left && layout == blas::Layout::RowMajor) {
+        for(int64_t row = 0; row < rows; row++) {
+            if(diag[row] > 0)
+                continue;
+            blas::scal(cols, diag[row], &A[row * cols], 1);
         }
     }
+    else if(!left && layout == blas::Layout::ColMajor) {
+        for(int64_t col=0; col < cols; col++) {
+            if(diag[col] > 0)
+                continue;
+            blas::scal(rows, diag[col], &A[col * rows], 1);
+        }
+    }
+    else {
+        for(int64_t col=0; col < cols; col++) {
+            if(diag[col] > 0)
+                continue;
+            blas::scal(rows, diag[col], &A[col], cols);
+        }
+    }
+}
 
-    template<typename T, SignedInteger sint_t = int64_t>
-    void permute_cols_to_left(
-                          blas::Layout layout,
-                          int64_t rows,
-                          int64_t cols,
-                          sint_t* selected_cols,
-                          int64_t d, // size of `selectedRows`
-                          T* A
-                          ) {
-        int64_t left = 0;  // Keeps track of the topmost unselected column
+template<typename T, SignedInteger sint_t = int64_t>
+void permute_rows_to_top(
+    blas::Layout layout,
+    int64_t rows,
+    int64_t cols,
+    sint_t* selected_rows,
+    int64_t d, // size of `selected_rows`
+    T* A
+) {
+    int64_t top = 0;  // Keeps track of the topmost unselected row
 
-        if(layout == blas::Layout::ColMajor) {
-            for (int64_t i=0; i < d; i++) {
-                if (selected_cols[i] != left) {
-                    // Use BLAS::swap to swap entire columns at once
-                    // Swapping col 'selected' with col 'top'
-                    blas::swap(rows, &A[rows * selected_cols[i]], 1, &A[rows * left], 1);
+    //TODO: discuss precise semantics of `selected_rows` in this function
+    if(layout == blas::Layout::ColMajor) {
+        for (int64_t i=0; i < d; i++) {
+            if (selected_rows[i] != top) {
+                // Use BLAS swap to swap the entire rows
+                // Swapping row 'selected' with row 'top'
+                blas::swap(cols, &A[top], rows, &A[selected_rows[i]], rows);
+            } // else, continue;
+        }
+    }
+    else {
+        // For `RowMajor` ordering
+        for (int64_t i=0; i < d; i++) {
+            if (selected_rows[i] != top) {
+                blas::swap(cols, &A[cols * selected_rows[i]], 1, &A[cols * top], 1);
+            } // else, continue;
+        }
+    }
+}
+
+template<typename T, SignedInteger sint_t = int64_t>
+void permute_cols_to_left(
+    blas::Layout layout,
+    int64_t rows,
+    int64_t cols,
+    sint_t* selected_cols,
+    int64_t d, // size of `selectedRows`
+    T* A
+) {
+int64_t left = 0;  // Keeps track of the topmost unselected column
+
+if(layout == blas::Layout::ColMajor) {
+    for (int64_t i=0; i < d; i++) {
+        if (selected_cols[i] != left) {
+            // Use BLAS::swap to swap entire columns at once
+            // Swapping col 'selected' with col 'top'
+            blas::swap(rows, &A[rows * selected_cols[i]], 1, &A[rows * left], 1);
+        }
+    }
+}
+else {
+    // For `RowMajor` ordering
+    for (int64_t i=0; i < d; i++) {
+        if (selected_cols[i] != left) {
+            blas::swap(rows, &A[selected_cols[i]], cols, &A[left], cols);
+        }
+    }
+}
+}
+
+template <typename T>
+void fht_left_col_major(T *buf, T* workspace_buf, int64_t workspace_ld, int64_t log_n, int64_t num_rows, int64_t num_cols) {
+int64_t n = 1 << log_n;
+
+// Apply FHT to each column independently
+for (int64_t col = 0; col < num_cols; ++col) {
+    // Pointer to the beginning of the current column in the Column-Major order
+    T* col_buf = buf + col * num_rows;
+    T* col_buf_workspace = workspace_buf + col * workspace_ld;
+
+    // Apply the original FHT on this column
+    for (int64_t i = 0; i < log_n; ++i) {
+        int64_t s1 = 1 << i;
+        int64_t s2 = s1 << 1;
+        for (int64_t j = 0; j < n; j += s2) {
+            for (int64_t k = 0; k < s1; ++k) {
+                bool b1 = j + k < num_rows;
+                bool b2 = j + k + s1 < num_rows;
+                T u = b1 ? col_buf[j + k] : col_buf_workspace[j + k - num_rows];
+                T v = b2 ? col_buf[j + k + s1] : col_buf_workspace[j + k + s1 - num_rows];
+                if(b1 && b2) {
+                    col_buf[j + k] = u + v;
+                    col_buf[j + k + s1] = u - v;
                 }
-            }
-        }
-        else {
-            // For `RowMajor` ordering
-            for (int64_t i=0; i < d; i++) {
-                if (selected_cols[i] != left) {
-                    blas::swap(rows, &A[selected_cols[i]], cols, &A[left], cols);
+                else if(!b2 && b1) {
+                    col_buf[j + k] = u + v;
+                    col_buf_workspace[j + k + s1 - num_rows] = u - v;
                 }
-            }
-        }
-    }
-
-    template <typename T>
-    void fht_left_col_major(T *buf, T* workspace_buf, int64_t workspace_ld, int64_t log_n, int64_t num_rows, int64_t num_cols) {
-        int64_t n = 1 << log_n;
-
-        // Apply FHT to each column independently
-        for (int64_t col = 0; col < num_cols; ++col) {
-            // Pointer to the beginning of the current column in the Column-Major order
-            T* col_buf = buf + col * num_rows;
-            T* col_buf_workspace = workspace_buf + col * workspace_ld;
-
-            // Apply the original FHT on this column
-            for (int64_t i = 0; i < log_n; ++i) {
-                int64_t s1 = 1 << i;
-                int64_t s2 = s1 << 1;
-                for (int64_t j = 0; j < n; j += s2) {
-                    for (int64_t k = 0; k < s1; ++k) {
-                        bool b1 = j + k < num_rows;
-                        bool b2 = j + k + s1 < num_rows;
-                        T u = b1 ? col_buf[j + k] : col_buf_workspace[j + k - num_rows];
-                        T v = b2 ? col_buf[j + k + s1] : col_buf_workspace[j + k + s1 - num_rows];
-                        if(b1 && b2) {
-                            col_buf[j + k] = u + v;
-                            col_buf[j + k + s1] = u - v;
-                        }
-                        else if(!b2 && b1) {
-                            col_buf[j + k] = u + v;
-                            col_buf_workspace[j + k + s1 - num_rows] = u - v;
-                        }
-                        else if(!b2 && !b1) {
-                            col_buf_workspace[j + k - num_rows] = u + v;
-                            col_buf_workspace[j + k + s1 - num_rows] = u - v;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    template <typename T>
-    void fht_left_row_major(T *buf, T* workspace_buf, int64_t log_n, int64_t num_rows, int64_t num_cols) {
-        int64_t n = 1 << log_n;
-
-        // Apply FHT to each column independently
-        for (int64_t col = 0; col < num_cols; ++col) {
-            // Apply the original FHT on this column
-            for (int64_t i = 0; i < log_n; ++i) {
-                int64_t s1 = 1 << i;
-                int64_t s2 = s1 << 1;
-                for (int64_t j = 0; j < n; j += s2) {
-                    for (int64_t k = 0; k < s1; ++k) {
-                        bool b1 = (j + k) * num_cols + col < num_rows * num_cols;
-                        bool b2 = (j + k + s1) * num_cols + col < num_rows * num_cols;
-                        T u = b1 ? buf[(j + k) * num_cols + col] : workspace_buf[(j + k) * num_cols + col - num_rows * num_cols];
-                        T v = b2 ? buf[(j + k + s1) * num_cols + col] : workspace_buf[(j + k + s1) * num_cols + col - num_rows * num_cols];
-                        if(b1 && b2) {
-                            buf[(j + k) * num_cols + col] = u + v;
-                            buf[(j + k + s1) * num_cols + col] = u - v;
-                        }
-                        else if(!b2 && b1) {
-                            buf[(j + k) * num_cols + col] = u + v;
-                            workspace_buf[(j + k + s1) * num_cols + col - num_rows * num_cols] = u - v;
-                        }
-                        else if(!b2 && !b1) {
-                            workspace_buf[(j + k) * num_cols + col - num_rows * num_cols] = u + v;
-                            workspace_buf[(j + k + s1) * num_cols + col - num_rows * num_cols] = u - v;
-                        }
-                    }
+                else if(!b2 && !b1) {
+                    col_buf_workspace[j + k - num_rows] = u + v;
+                    col_buf_workspace[j + k + s1 - num_rows] = u - v;
                 }
             }
         }
     }
+}
+}
 
-    template <typename T>
-    void fht_right_row_major(T *buf, T* workspace_buf, int64_t workspace_ld, int64_t log_n, int64_t num_rows, int64_t num_cols) {
-        int64_t n = 1 << log_n;
+template <typename T>
+void fht_left_row_major(T *buf, T* workspace_buf, int64_t log_n, int64_t num_rows, int64_t num_cols) {
+int64_t n = 1 << log_n;
 
-        // Apply FHT to each row independently
-        for (int64_t row = 0; row < num_rows; ++row) {
-            // Pointer to the beginning of the current row in RowMajor order
-            // for both the main buffer and the workspace
-            T * row_buf = buf + row * num_cols;
-            T* row_buf_workspace = workspace_buf + row * workspace_ld;
-
-            // Apply the original FHT on this row
-            for (int64_t i = 0; i < log_n; ++i) {
-                int64_t s1 = 1 << i;
-                int64_t s2 = s1 << 1;
-                for (int64_t j = 0; j < n; j += s2) {
-                    for (int64_t k = 0; k < s1; ++k) {
-                        bool b1 = j + k < num_cols;
-                        bool b2 = j + k + s1 < num_cols;
-                        T u = b1 ? row_buf[j + k] : row_buf_workspace[j + k - num_cols];
-                        T v = b2 ? row_buf[j + k + s1] : row_buf_workspace[j + k + s1 - num_cols];
-                        if(b1 && b2) {
-                            row_buf[j + k] = u + v;
-                            row_buf[j + k + s1] = u - v;
-                        }
-                        else if(!b2 && b1) {
-                            row_buf[j + k] = u + v;
-                            row_buf_workspace[j + k + s1 - num_cols] = u - v;
-                        }
-                        else if(!b2 && !b1) {
-                            row_buf_workspace[j + k - num_cols] = u + v;
-                            row_buf_workspace[j + k + s1 - num_cols] = u - v;
-                        }
-                    }
+// Apply FHT to each column independently
+for (int64_t col = 0; col < num_cols; ++col) {
+    // Apply the original FHT on this column
+    for (int64_t i = 0; i < log_n; ++i) {
+        int64_t s1 = 1 << i;
+        int64_t s2 = s1 << 1;
+        for (int64_t j = 0; j < n; j += s2) {
+            for (int64_t k = 0; k < s1; ++k) {
+                bool b1 = (j + k) * num_cols + col < num_rows * num_cols;
+                bool b2 = (j + k + s1) * num_cols + col < num_rows * num_cols;
+                T u = b1 ? buf[(j + k) * num_cols + col] : workspace_buf[(j + k) * num_cols + col - num_rows * num_cols];
+                T v = b2 ? buf[(j + k + s1) * num_cols + col] : workspace_buf[(j + k + s1) * num_cols + col - num_rows * num_cols];
+                if(b1 && b2) {
+                    buf[(j + k) * num_cols + col] = u + v;
+                    buf[(j + k + s1) * num_cols + col] = u - v;
+                }
+                else if(!b2 && b1) {
+                    buf[(j + k) * num_cols + col] = u + v;
+                    workspace_buf[(j + k + s1) * num_cols + col - num_rows * num_cols] = u - v;
+                }
+                else if(!b2 && !b1) {
+                    workspace_buf[(j + k) * num_cols + col - num_rows * num_cols] = u + v;
+                    workspace_buf[(j + k + s1) * num_cols + col - num_rows * num_cols] = u - v;
                 }
             }
         }
     }
+}
+}
 
-    template <typename T>
-    void fht_right_col_major(T *buf, T* workspace_buf, int64_t log_n, int64_t num_rows, int64_t num_cols) {
-        int64_t n = 1 << log_n;
+template <typename T>
+void fht_right_row_major(T *buf, T* workspace_buf, int64_t workspace_ld, int64_t log_n, int64_t num_rows, int64_t num_cols) {
+int64_t n = 1 << log_n;
 
-        // Apply FHT to each row independently
-        for (int64_t row= 0; row < num_rows; ++row) {
-            // Apply the original FHT on this row
-            for (int64_t i = 0; i < log_n; ++i) {
-                int64_t s1 = 1 << i;
-                int64_t s2 = s1 << 1;
-                for (int64_t j = 0; j < n; j += s2) {
-                    for (int64_t k = 0; k < s1; ++k) {
-                        bool b1 = (j + k) * num_rows + row < num_cols * num_rows;
-                        bool b2 = (j + k + s1) * num_rows + row < num_cols * num_rows;
-                        T u = b1 ? buf[(j + k) * num_rows + row] : workspace_buf[(j + k) * num_rows + row - num_rows * num_cols];
-                        T v = b2 ? buf[(j + k + s1) * num_rows + row] : workspace_buf[(j + k + s1) * num_rows + row - num_rows * num_cols];
-                        if(b1 && b2) {
-                            buf[(j + k) * num_rows + row] = u + v;
-                            buf[(j + k + s1) * num_rows + row] = u - v;
-                        }
-                        else if(!b2 && b1) {
-                            buf[(j + k) * num_rows + row] = u + v;
-                            workspace_buf[(j + k + s1) * num_rows + row - num_rows * num_cols] = u - v;
-                        }
-                        else if(!b2 && !b1) {
-                            workspace_buf[(j + k) * num_rows + row - num_rows * num_cols] = u + v;
-                            workspace_buf[(j + k + s1) * num_rows + row - num_rows * num_cols] = u - v;
-                        }
-                    }
+// Apply FHT to each row independently
+for (int64_t row = 0; row < num_rows; ++row) {
+    // Pointer to the beginning of the current row in RowMajor order
+    // for both the main buffer and the workspace
+    T * row_buf = buf + row * num_cols;
+    T* row_buf_workspace = workspace_buf + row * workspace_ld;
+
+    // Apply the original FHT on this row
+    for (int64_t i = 0; i < log_n; ++i) {
+        int64_t s1 = 1 << i;
+        int64_t s2 = s1 << 1;
+        for (int64_t j = 0; j < n; j += s2) {
+            for (int64_t k = 0; k < s1; ++k) {
+                bool b1 = j + k < num_cols;
+                bool b2 = j + k + s1 < num_cols;
+                T u = b1 ? row_buf[j + k] : row_buf_workspace[j + k - num_cols];
+                T v = b2 ? row_buf[j + k + s1] : row_buf_workspace[j + k + s1 - num_cols];
+                if(b1 && b2) {
+                    row_buf[j + k] = u + v;
+                    row_buf[j + k + s1] = u - v;
+                }
+                else if(!b2 && b1) {
+                    row_buf[j + k] = u + v;
+                    row_buf_workspace[j + k + s1 - num_cols] = u - v;
+                }
+                else if(!b2 && !b1) {
+                    row_buf_workspace[j + k - num_cols] = u + v;
+                    row_buf_workspace[j + k + s1 - num_cols] = u - v;
                 }
             }
         }
     }
+}
+}
 
-    template <typename T>
-    void fht_dispatch(
-        bool left, // Pre-multiplying?
-        blas::Layout layout,
-        int64_t num_rows,
-        int64_t num_cols,
-        int64_t log_n,
-        T* A,
-        int64_t workspace_ld=0, // leading dimension of the workspace buffer
-        T* workspace_buf=nullptr
-        )
-    {
-        if(left && layout == blas::Layout::ColMajor)
-            fht_left_col_major(A, workspace_buf, workspace_ld, log_n, num_rows, num_cols);
-        else if(left && layout == blas::Layout::RowMajor)
-            fht_left_row_major(A, workspace_buf, log_n, num_rows, num_cols);
-        else if(!left && layout == blas::Layout::ColMajor)
-            fht_right_col_major(A, workspace_buf, log_n, num_rows, num_cols);
-        else
-            fht_right_row_major(A, workspace_buf, workspace_ld, log_n, num_rows, num_cols);
+template <typename T>
+void fht_right_col_major(T *buf, T* workspace_buf, int64_t log_n, int64_t num_rows, int64_t num_cols) {
+int64_t n = 1 << log_n;
+
+// Apply FHT to each row independently
+for (int64_t row= 0; row < num_rows; ++row) {
+    // Apply the original FHT on this row
+    for (int64_t i = 0; i < log_n; ++i) {
+        int64_t s1 = 1 << i;
+        int64_t s2 = s1 << 1;
+        for (int64_t j = 0; j < n; j += s2) {
+            for (int64_t k = 0; k < s1; ++k) {
+                bool b1 = (j + k) * num_rows + row < num_cols * num_rows;
+                bool b2 = (j + k + s1) * num_rows + row < num_cols * num_rows;
+                T u = b1 ? buf[(j + k) * num_rows + row] : workspace_buf[(j + k) * num_rows + row - num_rows * num_cols];
+                T v = b2 ? buf[(j + k + s1) * num_rows + row] : workspace_buf[(j + k + s1) * num_rows + row - num_rows * num_cols];
+                if(b1 && b2) {
+                    buf[(j + k) * num_rows + row] = u + v;
+                    buf[(j + k + s1) * num_rows + row] = u - v;
+                }
+                else if(!b2 && b1) {
+                    buf[(j + k) * num_rows + row] = u + v;
+                    workspace_buf[(j + k + s1) * num_rows + row - num_rows * num_cols] = u - v;
+                }
+                else if(!b2 && !b1) {
+                    workspace_buf[(j + k) * num_rows + row - num_rows * num_cols] = u + v;
+                    workspace_buf[(j + k + s1) * num_rows + row - num_rows * num_cols] = u - v;
+                }
+            }
+        }
     }
+}
+}
+
+template <typename T>
+void fht_dispatch(
+    bool left, // Pre-multiplying?
+    blas::Layout layout,
+    int64_t num_rows,
+    int64_t num_cols,
+    int64_t log_n,
+    T* A,
+    int64_t workspace_ld=0, // leading dimension of the workspace buffer
+    T* workspace_buf=nullptr
+) {
+if(left && layout == blas::Layout::ColMajor)
+    fht_left_col_major(A, workspace_buf, workspace_ld, log_n, num_rows, num_cols);
+else if(left && layout == blas::Layout::RowMajor)
+    fht_left_row_major(A, workspace_buf, log_n, num_rows, num_cols);
+else if(!left && layout == blas::Layout::ColMajor)
+    fht_right_col_major(A, workspace_buf, log_n, num_rows, num_cols);
+else
+    fht_right_row_major(A, workspace_buf, workspace_ld, log_n, num_rows, num_cols);
+}
 }
 
 
@@ -327,40 +325,52 @@ namespace RandBLAS::trig {
  * while applying the transform
  */
 template <typename T>
-struct HadamardMatrixCouple {
+struct PaddedMatrix {
     int64_t n_rows;
     int64_t n_cols;
     blas::Layout layout;
-    T* A; // Data-matrix
+    T* data; // Data-matrix
     int64_t lda;
-    T* workspace; // Extra space of sz: (2 ** n_closest - lda) * cols/rows
+    T* work; // Extra space of sz: (2 ** n_closest - lda) * cols/rows
                   // Memory **has** to be managed by the user
                   //NOTE: I am also going to assume that the user is kind enough to
                   // populate this fully with zeros
     //NOTE: We could (should?) explore the possibility of managing the buffer by ourselves
-    int64_t workspace_ld;
+    int64_t work_ld;
     bool left;
 
     // Trivial constructor
-    HadamardMatrixCouple(
+    PaddedMatrix(
         bool left,
         blas::Layout layout,
         int64_t rows,
         int64_t cols,
-        T* A,
+        T* data,
         int64_t lda,
-        T* workspace
-    ) : left(left), layout(layout), n_rows(rows), n_cols(cols), A(A), lda(lda), workspace(workspace) {};
+        T* work
+    ) : left(left), layout(layout), n_rows(rows), n_cols(cols), data(data), lda(lda), work(work) {};
 };
+
+/*
+ * Helper function for computing the next state, sum of all of the counter increments
+ * made under `fill_hadamard`
+ */
+template <typename T, SignedInteger sint_t = int64_t, typename state_t = RNGState<DefaultRNG>>
+state_t compute_next_state(state_t state, int64_t dim, int64_t d) {
+    state.counter.incr(d * 1 + dim);
+
+    return state;
+}
 
 /*
  * A `pure` description of the \PiRHT as a «data-oblvious» transform
  */
 template <typename T, SignedInteger sint_t = int64_t, typename state_t = RNGState<DefaultRNG>>
-struct HadamardMixingOp{
+struct HadamardMixingOp {
     sint_t* diag_scale = nullptr;
-    sint_t* selected_idxs = nullptr;
+    sint_t* perm_idx = nullptr;
     const state_t seed_state;
+    const state_t next_state;
     int64_t dim; // The dimension to be sketched
     int64_t d; // The number of cols/rows to be permuted at the end of the operation
     bool own_memory = false; // Do we manage our own memory?
@@ -369,19 +379,19 @@ struct HadamardMixingOp{
     HadamardMixingOp(int64_t dim,
                      int64_t d,
                      state_t seed_state
-                    ) : dim(dim), d(d), seed_state(seed_state), own_memory(true) {};
+                    ) : dim(dim), d(d), seed_state(seed_state), next_state(compute_next_state<T>(seed_state, dim, d)), own_memory(true) {};
 
 
     // Constructor, user-managed memory
     HadamardMixingOp(int64_t dim,
                      int64_t d,
                      sint_t* diag_scale,
-                     sint_t* selected_idxs
-                    ) : dim(dim), d(d), diag_scale(diag_scale), selected_idxs(selected_idxs), seed_state(seed_state), own_memory(false) {};
+                     sint_t* perm_idx
+                    ) : dim(dim), d(d), diag_scale(diag_scale), perm_idx(perm_idx), seed_state(seed_state), own_memory(false) {};
 
     bool filled() {
         if(this -> diag_scale == nullptr \
-        && this -> selected_idxs == nullptr)
+        && this -> perm_idx == nullptr)
             return false;
         else
             return true;
@@ -391,7 +401,7 @@ struct HadamardMixingOp{
     ~HadamardMixingOp() {
         if (own_memory) {
             if (diag_scale != nullptr) delete [] diag_scale;
-            if (selected_idxs != nullptr) delete [] selected_idxs;
+            if (perm_idx != nullptr) delete [] perm_idx;
         }
     }
 
@@ -399,33 +409,31 @@ struct HadamardMixingOp{
 };
 
 /*
-* Populates a `HadamardMixingOp`: `selected_idxs` and `diag_scale`
+* Populates a `HadamardMixingOp`: `perm_idx` and `diag_scale`
 */
 template <typename T, typename state_t = RNGState<DefaultRNG>, SignedInteger sint_t = int64_t>
-state_t fill_hadamard(
-                    HadamardMixingOp<T, sint_t> &hmo
-                  ) {
-    if(!hmo.filled()) {
-        hmo.diag_scale = new sint_t[hmo.dim];
+void fill_hadamard(
+    HadamardMixingOp<T, sint_t> &hmo
+) {
+if(!hmo.filled()) {
+    hmo.diag_scale = new sint_t[hmo.dim];
 
-        hmo.selected_idxs = new sint_t[hmo.d];
+    hmo.perm_idx = new sint_t[hmo.d];
 
-        auto [ctr, key] = hmo.seed_state;
+    auto [ctr, key] = hmo.seed_state;
 
-        // Populating `diag`
-        auto next_state = generate_rademacher_vector_r123(hmo.diag_scale, hmo.dim, hmo.seed_state);
+    // Populating `diag`
+    auto next_state = RandBLAS::trig::kernels::generate_rademacher_vector_r123(hmo.diag_scale, hmo.dim, hmo.seed_state);
 
-        // Populating `selected_idxs`
-        next_state = repeated_fisher_yates<sint_t>(
-            hmo.d,
-            hmo.dim,
-            1,
-            hmo.selected_idxs,
-            next_state
-        );
-
-        return next_state;
-    }
+    // Populating `perm_idx`
+    next_state = repeated_fisher_yates<sint_t>(
+        hmo.d,
+        hmo.dim,
+        1,
+        hmo.perm_idx,
+        next_state
+    );
+}
 }
 
 /*
@@ -435,28 +443,28 @@ state_t fill_hadamard(
 template <typename T, SignedInteger sint_t = int64_t>
 void invert_hadamard(
     HadamardMixingOp<T, sint_t> &hmo, // details about the transform
-    HadamardMatrixCouple<T> &hmc
+    PaddedMatrix<T> &pm
 ) {
     // We have to make sure we apply the operation in the inverted order
     // with the operations appropriately inverted
     randblas_error_if_msg(!hmo.filled(), "You are trying to call `invert` on an uninitialized transform,\
                                         please call `miget` (or `fill_hadamard`) on your matrix before calling `invert_hadamard`");
 
-    // Creating a vector out of `selected_idxs` to be able to conveniently reverse
-    std::vector<sint_t> selected_idxs(hmo.selected_idxs, hmo.selected_idxs + hmo.d);
+    // Creating a vector out of `perm_idx` to be able to conveniently reverse
+    std::vector<sint_t> perm_idx(hmo.perm_idx, hmo.perm_idx + hmo.d);
     // Reversing the indices for performing the inverse
-    std::reverse(selected_idxs.begin(), selected_idxs.end());
+    std::reverse(perm_idx.begin(), perm_idx.end());
 
     //Step 1: Permute the rows/cols
-    if(hmc.left)
-        permute_rows_to_top(hmc.layout, hmc.n_rows, hmc.n_cols, selected_idxs.data(), hmo.d, hmc.A);
+    if(pm.left)
+        RandBLAS::trig::kernels::permute_rows_to_top(pm.layout, pm.n_rows, pm.n_cols, perm_idx.data(), hmo.d, pm.data);
     else
-        permute_cols_to_left(hmc.layout, hmc.n_rows, hmc.n_cols, selected_idxs.data(), hmo.d, hmc.A);
+        RandBLAS::trig::kernels::permute_cols_to_left(pm.layout, pm.n_rows, pm.n_cols, perm_idx.data(), hmo.d, pm.data);
 
     //Step 2: Apply the Hadamard transform (invH = H.T = H)
     // This has to be a `double` because `blas::scal` really doesn't like being passed integer types
-    double padded_ld = std::pow(2, int(std::log2(hmo.dim)) + 1);
-    int64_t workspace_ld = (padded_ld - hmo.dim);
+    double scal_factor = std::pow(2, int(std::log2(hmo.dim)) + 1);
+    int64_t workspace_ld = (scal_factor - hmo.dim);
 
     T log_sz = std::log2(hmo.dim);
     T log_int_sz, log_final_sz;
@@ -467,13 +475,13 @@ void invert_hadamard(
     else
         log_final_sz = log_int_sz + 1;
 
-    fht_dispatch(hmc.left, hmc.layout, hmc.n_rows, hmc.n_cols, log_final_sz, hmc.A, workspace_ld, hmc.workspace);
+    RandBLAS::trig::kernels::fht_dispatch(pm.left, pm.layout, pm.n_rows, pm.n_cols, log_final_sz, pm.data, workspace_ld, pm.work);
 
     // Scaling appropriately
-    blas::scal(hmc.n_rows * hmc.n_cols, 1 / padded_ld, hmc.A, 1);
+    blas::scal(pm.n_rows * pm.n_cols, 1 / scal_factor, pm.data, 1);
 
     //Step 3: Scale with `D` (invD = D for rademacher entries)
-    apply_diagonal_rademacher(hmc.left, hmc.layout, hmc.n_rows, hmc.n_cols, hmc.A, hmo.diag_scale);
+    RandBLAS::trig::kernels::apply_diagonal_rademacher(pm.left, pm.layout, pm.n_rows, pm.n_cols, pm.data, hmo.diag_scale);
 }
 
 /*
@@ -485,8 +493,9 @@ void invert_hadamard(
 template <typename T, typename state_t = RNGState<DefaultRNG>, SignedInteger sint_t = int64_t>
 inline int64_t miget_workspace_sz(
     HadamardMixingOp<T, sint_t, state_t> &hmo,
-    HadamardMatrixCouple<T> &hmc) {
-    int64_t stride = hmc.left ? hmc.n_cols : hmc.n_rows;
+    PaddedMatrix<T> &pm
+) {
+    int64_t stride = pm.left ? pm.n_cols : pm.n_rows;
 
     // Grabs the power of 2 that is just bigger than the leading dimension
     int64_t padded_ld = std::pow(2, int(std::log2(hmo.dim)) + 1);
@@ -498,12 +507,12 @@ inline int64_t miget_workspace_sz(
  * Applies an in-place, SRHT-like transform to the input matrix
  * i.e. A <- (\Pi H D)A OR A <- A(D H \Pi) (which is equivalent to A <- A(\Pi H D)^{-1})
  * `HadamardMixingOp hmo`:  Data-oblivious description of the \PiRHT at hand
- * `HadamardMatrixCouple hmc`: Description of the data to be sketched
+ * `PaddedMatrix pm`: Description of the data to be sketched
  */
 template <typename T, typename state_t = RNGState<DefaultRNG>, SignedInteger sint_t = int64_t>
 inline void miget(
     HadamardMixingOp<T, sint_t> &hmo, // All information about `A` && the $\mathbb{\Pi\text{RHT}}$
-    HadamardMatrixCouple<T> &hmc
+    PaddedMatrix<T> &pm
 ) {
 
     if(!hmo.filled()) {
@@ -511,10 +520,10 @@ inline void miget(
     }
 
     //Step 1: Scale with `D`
-    apply_diagonal_rademacher(hmc.left, hmc.layout, hmc.n_rows, hmc.n_cols, hmc.A, hmo.diag_scale);
+    RandBLAS::trig::kernels::apply_diagonal_rademacher(pm.left, pm.layout, pm.n_rows, pm.n_cols, pm.data, hmo.diag_scale);
 
     //Step 2: Apply the Hadamard transform
-    int ld = (hmc.left) ? hmc.n_rows : hmc.n_cols;
+    int ld = (pm.left) ? pm.n_rows : pm.n_cols;
     T log_sz = std::log2(ld);
     T log_int_sz, log_final_sz;
     T log_frac_sz = std::modf(log_sz, &log_int_sz);
@@ -527,12 +536,12 @@ inline void miget(
     else
         log_final_sz = log_int_sz + 1;
 
-    fht_dispatch(hmc.left, hmc.layout, hmc.n_rows, hmc.n_cols, log_final_sz, hmc.A, workspace_ld, hmc.workspace);
+    RandBLAS::trig::kernels::fht_dispatch(pm.left, pm.layout, pm.n_rows, pm.n_cols, log_final_sz, pm.data, workspace_ld, pm.work);
 
     // Step 3: Permute the rows/cols
-    if(hmc.left)
-        permute_rows_to_top(hmc.layout, hmc.n_rows, hmc.n_cols, hmo.selected_idxs, hmo.d, hmc.A);
+    if(pm.left)
+        RandBLAS::trig::kernels::permute_rows_to_top(pm.layout, pm.n_rows, pm.n_cols, hmo.perm_idx, hmo.d, pm.data);
     else
-        permute_cols_to_left(hmc.layout, hmc.n_rows, hmc.n_cols, hmo.selected_idxs, hmo.d, hmc.A);
+        RandBLAS::trig::kernels::permute_cols_to_left(pm.layout, pm.n_rows, pm.n_cols, hmo.perm_idx, hmo.d, pm.data);
     }
 }
