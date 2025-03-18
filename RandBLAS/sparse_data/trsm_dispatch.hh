@@ -48,13 +48,14 @@ template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
 void left_trsm(
     blas::Op opA, T alpha, const SpMat &A, blas::Uplo uplo, blas::Diag diag, blas::Layout layout, int64_t n, T *B, int64_t ldb
 ) {
+    using blas::Op;
+    using blas::Uplo;
 
     if (opA == Op::Trans) {
-        using blas::Uplo;
         using sint_t = typename SpMat::index_t;
         constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
         constexpr bool is_csr = std::is_same_v<SpMat, CSRMatrix<T, sint_t>>;
-        bool trans_uplo = (uplo == Uplo::Lower) ? Uplo::Upper : Uplo::Lower;
+        auto trans_uplo = (uplo == Uplo::Lower) ? Uplo::Upper : Uplo::Lower;
         if constexpr (is_csc) {
             auto At = RandBLAS::sparse_data::conversions::transpose_as_csr(A);
             left_trsm(Op::NoTrans, alpha, At, trans_uplo, diag, layout, n, B, ldb);
@@ -91,19 +92,25 @@ void left_trsm(
 
     int64_t p, ell;
     if constexpr (is_csr) {
+        const sint_t* ptrs = A.rowptr;
+        const sint_t* idxs = A.colidxs;
+        const T*      vals = A.vals;
         for (ell = 0; ell < m; ++ell) {
             p = (uplo == blas::Uplo::Lower) ? ptrs[ell+1] - 1 : ptrs[ell];
             randblas_require(idxs[p] == ell);
             randblas_require(vals[p] != 0.0);
         }
-        sparse_data::csr::trsm_jki_p11(layout, uplo, diag, m, n, A, B, ldb);
+        sparse_data::csr::trsm_jki_p11(layout, uplo, diag, n, A, B, ldb);
     } else {
+        const sint_t* ptrs = A.colptr;
+        const sint_t* idxs = A.rowidxs;
+        const T*      vals = A.vals;
         for (ell = 0; ell < m; ++ell) {
             p = (uplo == blas::Uplo::Lower) ? ptrs[ell] : ptrs[ell+1] - 1;
             randblas_require(idxs[p] == ell);
             randblas_require(vals[p] != 0.0);
         }
-        sparse_data::csc::trsm_jki_p11(layout, uplo, diag, m, n, A, B, ldb);
+        sparse_data::csc::trsm_jki_p11(layout, uplo, diag, n, A, B, ldb);
     }
     return;
 }
