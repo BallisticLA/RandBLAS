@@ -41,6 +41,7 @@ namespace RandBLAS::sparse_data::csc {
 
 template <typename T, SignedInteger sint_t = int64_t>
 static void lower_trsv(
+    const bool nonunit,
     // CSC-format data
     const T      *vals,  // vals
     const sint_t *inds,  // rowidxs
@@ -53,13 +54,15 @@ static void lower_trsv(
     int64_t j, p;
     if (incx == 1) {
         for (j = 0; j < lenx; ++j) {
-            x[j] /= vals[ptrs[j]];
+            if (nonunit)
+                x[j] /= vals[ptrs[j]];
             for (p = ptrs[j] + 1; p < ptrs[j+1]; ++p)
                 x[inds[p]] -= vals[p] * x[j];
         }
     } else {
         for (j = 0; j < lenx; ++j) {
-            x[j*incx] /= vals[ptrs[j]];
+            if (nonunit)
+                x[j*incx] /= vals[ptrs[j]];
             for (p = ptrs[j]+1; p < ptrs[j+1]; ++p)
                 x[inds[p]*incx] -= vals[p] * x[j*incx];
         }
@@ -68,6 +71,7 @@ static void lower_trsv(
 
 template <typename T, SignedInteger sint_t = int64_t>
 static void upper_trsv(
+    const bool nonunit,
     // CSC-format data
     const T      *vals,  // vals
     const sint_t *inds,  // rowidxs
@@ -80,13 +84,15 @@ static void upper_trsv(
     int64_t j, p;
     if (incx == 1) {
         for (j = lenx - 1; j >= 0; --j) {
-            x[j] /= vals[ptrs[j+1]-1];
+            if (nonunit)
+                x[j] /= vals[ptrs[j+1]-1];
             for (p = ptrs[j]; p < ptrs[j+1] - 1; ++p)
                 x[inds[p]] -= vals[p] * x[j];
         }
     } else {
         for (j = lenx - 1; j >= 0; --j) {
-            x[j*incx] /= vals[ptrs[j+1] - 1];
+            if (nonunit)
+                x[j*incx] /= vals[ptrs[j+1] - 1];
             for (p = ptrs[j]; p < ptrs[j+1] - 1; ++p)
                 x[inds[p]*incx] -= vals[p] * x[j*incx];
         } 
@@ -97,43 +103,34 @@ template<typename T, SignedInteger sint_t = int64_t>
 static void trsm_jki_p11(
     blas::Layout layout_B,
     blas::Uplo uplo,
+    blas::Diag diag,
     int64_t n,
-    int64_t k,
     const CSCMatrix<T, sint_t> &A,
     T *B,
     int64_t ldb
 ){
-    randblas_require(n == A.n_rows);
-    randblas_require(n == A.n_cols);
-
+    int64_t m = A.n_rows;
     const sint_t* ptrs = A.colptr;
     const sint_t* idxs = A.rowidxs;
     const T*      vals = A.vals;
-
-    int64_t j, p, ell;
-    for (ell = 0; ell < n; ++ell) {
-        if (uplo == blas::Uplo::Lower) {
-            p = ptrs[ell];
-        } else {
-            p = ptrs[ell+1] - 1;
-        }
-        randblas_require(idxs[p] == ell);
-        randblas_require(vals[p] != 0.0);
-    }
 
     auto s = layout_to_strides(layout_B, ldb);
     auto B_inter_col_stride = s.inter_col_stride;
     auto B_inter_row_stride = s.inter_row_stride;
 
+    const bool nonunit = diag == blas::Diag::NonUnit;
+
+    int64_t j, p, ell;
     if (uplo == blas::Uplo::Lower) {
         #pragma omp parallel default(shared) private(j, p, ell)
         {
             #pragma omp for schedule(static)
-            for (ell = 0; ell < k; ell++) {
+            for (ell = 0; ell < n; ell++) {
                 T* col_B = &B[ell * B_inter_col_stride];
-                for (j = 0; j < n; ++j) {
+                for (j = 0; j < m; ++j) {
                     T &Bjl = col_B[j * B_inter_row_stride];
-                    Bjl /= vals[ptrs[j]];
+                    if (nonunit)
+                        Bjl /= vals[ptrs[j]];
                     for (p = ptrs[j]+1; p < ptrs[j+1]; ++p)
                         col_B[idxs[p] * B_inter_row_stride] -= vals[p] * Bjl;
                 }
@@ -143,11 +140,12 @@ static void trsm_jki_p11(
         #pragma omp parallel default(shared) private(j, p, ell)
         {
             #pragma omp for schedule(static)
-            for (ell = 0; ell < k; ell++) {
+            for (ell = 0; ell < n; ell++) {
                 T* col_B = &B[ell * B_inter_col_stride];
-                for (j = n-1; j >= 0; --j) {
+                for (j = m-1; j >= 0; --j) {
                     T &Bjl = col_B[j * B_inter_row_stride];
-                    Bjl /= vals[ptrs[j+1] - 1];
+                    if (nonunit)
+                        Bjl /= vals[ptrs[j+1] - 1];
                     for (p = ptrs[j]; p < ptrs[j+1] - 1; ++p)
                         col_B[idxs[p] * B_inter_row_stride] -= vals[p] * Bjl;
                 }

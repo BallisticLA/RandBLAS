@@ -13,6 +13,7 @@ using RandBLAS::sparse_data::COOMatrix;
 using blas::Layout;
 using blas::Uplo;
 using blas::Op;
+using blas::Diag;
 #include "../comparison.hh"
 #include "../test_datastructures/test_spmats/common.hh"
 
@@ -65,9 +66,9 @@ class TestSptrsm : public ::testing::Test
             rhs_ptr[i] = i;
         }
         if (upper) {
-            RandBLAS::sparse_data::csr::upper_trsv(A.vals, A.rowptr, A.colidxs, n, rhs_ptr, incx);
+            RandBLAS::sparse_data::csr::upper_trsv(true, A.vals, A.rowptr, A.colidxs, n, rhs_ptr, incx);
         } else {
-            RandBLAS::sparse_data::csr::lower_trsv(A.vals, A.rowptr, A.colidxs, n, rhs_ptr, incx);
+            RandBLAS::sparse_data::csr::lower_trsv(true, A.vals, A.rowptr, A.colidxs, n, rhs_ptr, incx);
         }
 
         std::vector<T> reference(n);
@@ -91,9 +92,9 @@ class TestSptrsm : public ::testing::Test
             rhs_ptr[i] = i;
         }
         if (upper) {
-            RandBLAS::sparse_data::csc::upper_trsv(A.vals, A.rowidxs, A.colptr, n, rhs_ptr, incx);
+            RandBLAS::sparse_data::csc::upper_trsv(true, A.vals, A.rowidxs, A.colptr, n, rhs_ptr, incx);
         } else {
-            RandBLAS::sparse_data::csc::lower_trsv(A.vals, A.rowidxs, A.colptr, n, rhs_ptr, incx);
+            RandBLAS::sparse_data::csc::lower_trsv(true, A.vals, A.rowidxs, A.colptr, n, rhs_ptr, incx);
         }
 
         std::vector<T> reference(n);
@@ -117,9 +118,9 @@ class TestSptrsm : public ::testing::Test
             rhs_ptr[i] = i;
         }
         if (upper) {
-            RandBLAS::sparse_data::csc::trsm_jki_p11(Layout::RowMajor, Uplo::Upper, n, k, A, rhs_ptr, k); 
+            RandBLAS::sparse_data::csc::trsm_jki_p11(Layout::RowMajor, Uplo::Upper, Diag::NonUnit, k, A, rhs_ptr, k); 
         } else {
-            RandBLAS::sparse_data::csc::trsm_jki_p11(Layout::RowMajor, Uplo::Lower, n, k, A, rhs_ptr, k); 
+            RandBLAS::sparse_data::csc::trsm_jki_p11(Layout::RowMajor, Uplo::Lower, Diag::NonUnit, k, A, rhs_ptr, k); 
         }
 
         std::vector<T> reference(k * n);
@@ -144,9 +145,9 @@ class TestSptrsm : public ::testing::Test
             rhs_ptr[i] = i;
         }
         if (upper) {
-            RandBLAS::sparse_data::csr::trsm_jki_p11(Layout::RowMajor, Uplo::Upper, n, k, A, rhs_ptr, k); 
+            RandBLAS::sparse_data::csr::trsm_jki_p11(Layout::RowMajor, Uplo::Upper, Diag::NonUnit, k, A, rhs_ptr, k); 
         } else {
-            RandBLAS::sparse_data::csr::trsm_jki_p11(Layout::RowMajor, Uplo::Lower, n, k, A, rhs_ptr, k); 
+            RandBLAS::sparse_data::csr::trsm_jki_p11(Layout::RowMajor, Uplo::Lower, Diag::NonUnit, k, A, rhs_ptr, k); 
         }
 
         std::vector<T> reference(k * n);
