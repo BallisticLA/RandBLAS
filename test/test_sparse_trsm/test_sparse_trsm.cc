@@ -73,7 +73,7 @@ class TestSptrsm : public ::testing::Test
         }
 
         std::vector<T> reference(n);
-        T* ref_ptr =reference.data();
+        T* ref_ptr = reference.data();
         RandBLAS::spmm(Layout::RowMajor, Op::NoTrans, Op::NoTrans, n, 1, n, 1.0, A, rhs_ptr, incx, 0.0, ref_ptr, 1);
         
         for (int64_t i = 0; i < n; ++i) {
@@ -109,7 +109,7 @@ class TestSptrsm : public ::testing::Test
     }
 
     template<typename T>
-    static void test_csc_solve_matrix(int64_t n, T p, Uplo uplo, int64_t k, uint32_t key) {
+    static void test_csc_solve_matrix(int64_t n, T p, Op op,  Uplo uplo, int64_t k, uint32_t key) {
         auto A_coo = make_test_matrix(n, p, uplo == Uplo::Upper, key);
         CSCMatrix<T> A(n, n);
         RandBLAS::sparse_data::conversions::coo_to_csc(A_coo, A);
@@ -118,11 +118,11 @@ class TestSptrsm : public ::testing::Test
         for (int64_t i=0; i < k * n; i++) {
             rhs_ptr[i] = i;
         }
-        RandBLAS::sparse_data::left_trsm(Op::NoTrans, (T)1.0, A, uplo, Diag::NonUnit, Layout::RowMajor, k, rhs_ptr, k);
+        RandBLAS::sparse_data::left_trsm(Layout::RowMajor, op, (T)1.0, A, uplo, Diag::NonUnit, k, rhs_ptr, k);
 
         std::vector<T> reference(k * n);
         T* ref_ptr = reference.data();
-        RandBLAS::spmm(Layout::RowMajor, Op::NoTrans, Op::NoTrans, n, k, n, 1.0, A, rhs_ptr, k, 0.0, ref_ptr, k);
+        RandBLAS::spmm(Layout::RowMajor, op, Op::NoTrans, n, k, n, 1.0, A, rhs_ptr, k, 0.0, ref_ptr, k);
         
         for (int64_t i = 0; i < k * n; ++i) {
 	    std::cout << ref_ptr[i] << "\t" << i << std::endl;
@@ -132,7 +132,7 @@ class TestSptrsm : public ::testing::Test
     }
 
     template<typename T>
-    static void test_csr_solve_matrix(int64_t n, T p, Uplo uplo, int64_t k, uint32_t key) {
+    static void test_csr_solve_matrix(int64_t n, T p, Op op, Uplo uplo, int64_t k, uint32_t key) {
         auto A_coo = make_test_matrix(n, p, uplo == Uplo::Upper, key);
         CSRMatrix<T> A(n, n);
         RandBLAS::sparse_data::conversions::coo_to_csr(A_coo, A);
@@ -141,11 +141,11 @@ class TestSptrsm : public ::testing::Test
         for (int64_t i=0; i < k * n; i++) {
             rhs_ptr[i] = i;
         }
-        RandBLAS::sparse_data::left_trsm(Op::NoTrans, (T)1.0, A, uplo, Diag::NonUnit, Layout::RowMajor, k, rhs_ptr, k);
+        RandBLAS::sparse_data::left_trsm(Layout::RowMajor, op, (T)1.0, A, uplo, Diag::NonUnit, k, rhs_ptr, k);
 
         std::vector<T> reference(k * n);
         T* ref_ptr = reference.data();
-        RandBLAS::spmm(Layout::RowMajor, Op::NoTrans, Op::NoTrans, n, k, n, 1.0, A, rhs_ptr, k, 0.0, ref_ptr, k);
+        RandBLAS::spmm(Layout::RowMajor, op, Op::NoTrans, n, k, n, 1.0, A, rhs_ptr, k, 0.0, ref_ptr, k);
         
         for (int64_t i = 0; i < k * n; ++i) {
 	        std::cout << ref_ptr[i] << "\t" << i << std::endl;
@@ -201,41 +201,81 @@ TEST_F(TestSptrsm, lower_csc_solve) {
 
 
 TEST_F(TestSptrsm, lower_csc_solve_matrix) {
-    test_csc_solve_matrix(1, 1.0, Uplo::Lower, 1, 0x364A);
-    test_csc_solve_matrix(2, 0.5, Uplo::Lower, 1, 0x3643);
-    test_csc_solve_matrix(5, 0.9999, Uplo::Lower, 1, 0x219B);
+    test_csc_solve_matrix(1, 1.0,    Op::NoTrans, Uplo::Lower, 1, 0x364A);
+    test_csc_solve_matrix(2, 0.5,    Op::NoTrans, Uplo::Lower, 1, 0x3643);
+    test_csc_solve_matrix(5, 0.9999, Op::NoTrans, Uplo::Lower, 1, 0x219B);
 
-    test_csc_solve_matrix(1, 1.0, Uplo::Lower, 3, 0x364A);
-    test_csc_solve_matrix(2, 0.5, Uplo::Lower, 3, 0x3643);
-    test_csc_solve_matrix(5, 0.9999, Uplo::Lower, 3, 0x219B);
+    test_csc_solve_matrix(1, 1.0,    Op::NoTrans, Uplo::Lower, 3, 0x364A);
+    test_csc_solve_matrix(2, 0.5,    Op::NoTrans, Uplo::Lower, 3, 0x3643);
+    test_csc_solve_matrix(5, 0.9999, Op::NoTrans, Uplo::Lower, 3, 0x219B);
 }
 
 TEST_F(TestSptrsm, upper_csc_solve_matrix) {
-    test_csc_solve_matrix(1, 1.0, Uplo::Upper, 1, 0x364A);
-    test_csc_solve_matrix(2, 0.5, Uplo::Upper, 1, 0x3643);
-    test_csc_solve_matrix(5, 0.9999, Uplo::Upper, 1, 0x219B);
+    test_csc_solve_matrix(1, 1.0,    Op::NoTrans, Uplo::Upper, 1, 0x364A);
+    test_csc_solve_matrix(2, 0.5,    Op::NoTrans, Uplo::Upper, 1, 0x3643);
+    test_csc_solve_matrix(5, 0.9999, Op::NoTrans, Uplo::Upper, 1, 0x219B);
 
-    test_csc_solve_matrix(1, 1.0, Uplo::Upper, 3, 0x364A);
-    test_csc_solve_matrix(2, 0.5, Uplo::Upper, 3, 0x3643);
-    test_csc_solve_matrix(5, 0.9999, Uplo::Upper, 3, 0x219B);
+    test_csc_solve_matrix(1, 1.0,    Op::NoTrans, Uplo::Upper, 3, 0x364A);
+    test_csc_solve_matrix(2, 0.5,    Op::NoTrans, Uplo::Upper, 3, 0x3643);
+    test_csc_solve_matrix(5, 0.9999, Op::NoTrans, Uplo::Upper, 3, 0x219B);
 }
 
 TEST_F(TestSptrsm, lower_csr_solve_matrix) {
-    test_csr_solve_matrix(1, 1.0, Uplo::Lower, 1, 0x364A);
-    test_csr_solve_matrix(2, 0.5, Uplo::Lower, 1, 0x3643);
-    test_csr_solve_matrix(5, 0.9999, Uplo::Lower, 1, 0x219B);
+    test_csr_solve_matrix(1, 1.0,    Op::NoTrans, Uplo::Lower, 1, 0x364A);
+    test_csr_solve_matrix(2, 0.5,    Op::NoTrans, Uplo::Lower, 1, 0x3643);
+    test_csr_solve_matrix(5, 0.9999, Op::NoTrans, Uplo::Lower, 1, 0x219B);
 
-    test_csr_solve_matrix(1, 1.0, Uplo::Lower, 3, 0x364A);
-    test_csr_solve_matrix(2, 0.5, Uplo::Lower, 3, 0x3643);
-    test_csr_solve_matrix(5, 0.9999, Uplo::Lower, 3, 0x219B);
+    test_csr_solve_matrix(1, 1.0,    Op::NoTrans, Uplo::Lower, 3, 0x364A);
+    test_csr_solve_matrix(2, 0.5,    Op::NoTrans, Uplo::Lower, 3, 0x3643);
+    test_csr_solve_matrix(5, 0.9999, Op::NoTrans, Uplo::Lower, 3, 0x219B);
 }
 
 TEST_F(TestSptrsm, upper_csr_solve_matrix) {
-    test_csr_solve_matrix(1, 1.0, Uplo::Upper, 1, 0x364A);
-    test_csr_solve_matrix(2, 0.5, Uplo::Upper, 1, 0x3643);
-    test_csr_solve_matrix(5, 0.9999, Uplo::Upper, 1, 0x219B);
+    test_csr_solve_matrix(1, 1.0,    Op::NoTrans, Uplo::Upper, 1, 0x364A);
+    test_csr_solve_matrix(2, 0.5,    Op::NoTrans, Uplo::Upper, 1, 0x3643);
+    test_csr_solve_matrix(5, 0.9999, Op::NoTrans, Uplo::Upper, 1, 0x219B);
 
-    test_csr_solve_matrix(1, 1.0, Uplo::Upper, 3, 0x364A);
-    test_csr_solve_matrix(2, 0.5, Uplo::Upper, 3, 0x3643);
-    test_csr_solve_matrix(5, 0.9999, Uplo::Upper, 3, 0x219B);
+    test_csr_solve_matrix(1, 1.0,    Op::NoTrans, Uplo::Upper, 3, 0x364A);
+    test_csr_solve_matrix(2, 0.5,    Op::NoTrans, Uplo::Upper, 3, 0x3643);
+    test_csr_solve_matrix(5, 0.9999, Op::NoTrans, Uplo::Upper, 3, 0x219B);
+}
+
+TEST_F(TestSptrsm, lower_csc_trans_solve_matrix) {
+    test_csc_solve_matrix(1, 1.0,    Op::Trans, Uplo::Lower, 1, 0x364A);
+    test_csc_solve_matrix(2, 0.5,    Op::Trans, Uplo::Lower, 1, 0x3643);
+    test_csc_solve_matrix(5, 0.9999, Op::Trans, Uplo::Lower, 1, 0x219B);
+
+    test_csc_solve_matrix(1, 1.0,    Op::Trans, Uplo::Lower, 3, 0x364A);
+    test_csc_solve_matrix(2, 0.5,    Op::Trans, Uplo::Lower, 3, 0x3643);
+    test_csc_solve_matrix(5, 0.9999, Op::Trans, Uplo::Lower, 3, 0x219B);
+}
+
+TEST_F(TestSptrsm, upper_csc_trans_solve_matrix) {
+    test_csc_solve_matrix(1, 1.0,    Op::Trans, Uplo::Upper, 1, 0x364A);
+    test_csc_solve_matrix(2, 0.5,    Op::Trans, Uplo::Upper, 1, 0x3643);
+    test_csc_solve_matrix(5, 0.9999, Op::Trans, Uplo::Upper, 1, 0x219B);
+
+    test_csc_solve_matrix(1, 1.0,    Op::Trans, Uplo::Upper, 3, 0x364A);
+    test_csc_solve_matrix(2, 0.5,    Op::Trans, Uplo::Upper, 3, 0x3643);
+    test_csc_solve_matrix(5, 0.9999, Op::Trans, Uplo::Upper, 3, 0x219B);
+}
+
+TEST_F(TestSptrsm, lower_csr_trans_solve_matrix) {
+    test_csr_solve_matrix(1, 1.0,    Op::Trans, Uplo::Lower, 1, 0x364A);
+    test_csr_solve_matrix(2, 0.5,    Op::Trans, Uplo::Lower, 1, 0x3643);
+    test_csr_solve_matrix(5, 0.9999, Op::Trans, Uplo::Lower, 1, 0x219B);
+
+    test_csr_solve_matrix(1, 1.0,    Op::Trans, Uplo::Lower, 3, 0x364A);
+    test_csr_solve_matrix(2, 0.5,    Op::Trans, Uplo::Lower, 3, 0x3643);
+    test_csr_solve_matrix(5, 0.9999, Op::Trans, Uplo::Lower, 3, 0x219B);
+}
+
+TEST_F(TestSptrsm, upper_csr_trans_solve_matrix) {
+    test_csr_solve_matrix(1, 1.0,    Op::Trans, Uplo::Upper, 1, 0x364A);
+    test_csr_solve_matrix(2, 0.5,    Op::Trans, Uplo::Upper, 1, 0x3643);
+    test_csr_solve_matrix(5, 0.9999, Op::Trans, Uplo::Upper, 1, 0x219B);
+
+    test_csr_solve_matrix(1, 1.0,    Op::Trans, Uplo::Upper, 3, 0x364A);
+    test_csr_solve_matrix(2, 0.5,    Op::Trans, Uplo::Upper, 3, 0x3643);
+    test_csr_solve_matrix(5, 0.9999, Op::Trans, Uplo::Upper, 3, 0x219B);
 }

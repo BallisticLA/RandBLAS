@@ -44,9 +44,10 @@
 
 namespace RandBLAS::sparse_data {
 
+// NOTE: we call this TRSM instead of "SPTRSM" because it's in the sparse_data namespace.
 template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
 void left_trsm(
-    blas::Op opA, T alpha, const SpMat &A, blas::Uplo uplo, blas::Diag diag, blas::Layout layout, int64_t n, T *B, int64_t ldb
+    blas::Layout layout, blas::Op opA, T alpha, const SpMat &A, blas::Uplo uplo, blas::Diag diag, int64_t n, T *B, int64_t ldb
 ) {
     using blas::Op;
     using blas::Uplo;
@@ -58,10 +59,10 @@ void left_trsm(
         auto trans_uplo = (uplo == Uplo::Lower) ? Uplo::Upper : Uplo::Lower;
         if constexpr (is_csc) {
             auto At = RandBLAS::sparse_data::conversions::transpose_as_csr(A);
-            left_trsm(Op::NoTrans, alpha, At, trans_uplo, diag, layout, n, B, ldb);
+            left_trsm(layout, Op::NoTrans, alpha, At, trans_uplo, diag, n, B, ldb);
         } else if constexpr (is_csr) {
             auto At = RandBLAS::sparse_data::conversions::transpose_as_csc(A);
-            left_trsm(Op::NoTrans, alpha, At, trans_uplo, diag, layout, n, B, ldb);
+            left_trsm(layout, Op::NoTrans, alpha, At, trans_uplo, diag, n, B, ldb);
         } else {
             randblas_require(false);
         }
