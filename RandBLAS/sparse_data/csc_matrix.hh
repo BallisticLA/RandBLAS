@@ -58,7 +58,7 @@ struct CSCMatrix {
     using scalar_t = T;
 
     // ------------------------------------------------------------------------
-    /// Signed integer type used in the rowptr and colidxs array members.
+    /// Signed integer type used in the rowidxs and colptr array members.
     using index_t = sint_t; 
 
     // ------------------------------------------------------------------------
@@ -84,7 +84,7 @@ struct CSCMatrix {
     int64_t nnz;
     
     // ------------------------------------------------------------------------
-    ///  A flag to indicate whether colidxs is interpreted
+    ///  A flag to indicate whether rowidxs is interpreted
     ///  with zero-based or one-based indexing.
     ///
     IndexBase index_base;
@@ -200,10 +200,8 @@ void reserve_csc(int64_t nnz, CSCMatrix<T,sint_t> &M) {
     if (M.colptr == nullptr)
         M.colptr = new sint_t[M.n_cols + 1]{0};
     M.nnz = nnz;
-    if (nnz > 0) {
-        M.rowidxs = new sint_t[nnz]{0};
-        M.vals    = new T[nnz]{0.0};
-    }
+    M.rowidxs = new sint_t[nnz]{0};
+    M.vals    = new T[nnz]{0.0};
     return;
 }
 
