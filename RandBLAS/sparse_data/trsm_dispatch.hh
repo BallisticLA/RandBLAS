@@ -44,10 +44,43 @@
 
 namespace RandBLAS::sparse_data {
 
+
+template <SparseMatrix SpMat>
+inline void trsm_matrix_validation( const SpMat &A, blas::Uplo uplo ) {
+    /***
+    The current implementation requires strong sorting.
+    */
+    using T = typename SpMat::scalar_t;
+    using sint_t = typename SpMat::index_t;
+    constexpr bool is_csr = std::is_same_v<SpMat, CSRMatrix<T, sint_t>>;
+    int64_t p, ell;
+    
+    const T* vals = A.vals;
+    if constexpr (is_csr) {
+        const sint_t* ptrs = A.rowptr;
+        const sint_t* idxs = A.colidxs;
+        for (ell = 0; ell < A.n_rows; ++ell) {
+            p = (uplo == blas::Uplo::Lower) ? ptrs[ell+1] - 1 : ptrs[ell];
+            randblas_require(idxs[p] == ell);
+            randblas_require(vals[p] != 0.0);
+        }
+    } else {
+        const sint_t* ptrs = A.colptr;
+        const sint_t* idxs = A.rowidxs;
+        for (ell = 0; ell < A.n_rows; ++ell) {
+            p = (uplo == blas::Uplo::Lower) ? ptrs[ell] : ptrs[ell+1] - 1;
+            randblas_require(idxs[p] == ell);
+            randblas_require(vals[p] != 0.0);
+        }
+    }
+    return;
+}
+
 // NOTE: we call this TRSM instead of "SPTRSM" because it's in the sparse_data namespace.
 template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
 void left_trsm(
-    blas::Layout layout, blas::Op opA, T alpha, const SpMat &A, blas::Uplo uplo, blas::Diag diag, int64_t n, T *B, int64_t ldb
+    blas::Layout layout, blas::Op opA, T alpha, const SpMat &A, blas::Uplo uplo, blas::Diag diag, int64_t n, T *B, int64_t ldb,
+    int arg_validation_mode = 1
 ) {
     using blas::Op;
     using blas::Uplo;
@@ -77,6 +110,8 @@ void left_trsm(
     constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
     randblas_require(is_csr || is_csc);
 
+    if (arg_validation_mode > 0) trsm_matrix_validation( A, uplo );
+
     int64_t m = A.n_rows;
     if (layout == blas::Layout::ColMajor) {
         randblas_require(ldb >= m);
@@ -91,26 +126,9 @@ void left_trsm(
     if (alpha == static_cast<T>(0))
         return;
 
-    int64_t p, ell;
     if constexpr (is_csr) {
-        const sint_t* ptrs = A.rowptr;
-        const sint_t* idxs = A.colidxs;
-        const T*      vals = A.vals;
-        for (ell = 0; ell < m; ++ell) {
-            p = (uplo == blas::Uplo::Lower) ? ptrs[ell+1] - 1 : ptrs[ell];
-            randblas_require(idxs[p] == ell);
-            randblas_require(vals[p] != 0.0);
-        }
         sparse_data::csr::trsm_jki_p11(layout, uplo, diag, n, A, B, ldb);
     } else {
-        const sint_t* ptrs = A.colptr;
-        const sint_t* idxs = A.rowidxs;
-        const T*      vals = A.vals;
-        for (ell = 0; ell < m; ++ell) {
-            p = (uplo == blas::Uplo::Lower) ? ptrs[ell] : ptrs[ell+1] - 1;
-            randblas_require(idxs[p] == ell);
-            randblas_require(vals[p] != 0.0);
-        }
         sparse_data::csc::trsm_jki_p11(layout, uplo, diag, n, A, B, ldb);
     }
     return;
