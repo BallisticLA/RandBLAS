@@ -118,7 +118,7 @@ class TestSptrsm : public ::testing::Test
         for (int64_t i=0; i < k * n; i++) {
             rhs_ptr[i] = i;
         }
-        RandBLAS::sparse_data::left_trsm(Layout::RowMajor, op, (T)1.0, A, uplo, Diag::NonUnit, k, rhs_ptr, k);
+        RandBLAS::sparse_data::trsm(Layout::RowMajor, op, (T)1.0, A, uplo, Diag::NonUnit, k, rhs_ptr, k);
 
         std::vector<T> reference(k * n);
         T* ref_ptr = reference.data();
@@ -141,7 +141,7 @@ class TestSptrsm : public ::testing::Test
         for (int64_t i=0; i < k * n; i++) {
             rhs_ptr[i] = i;
         }
-        RandBLAS::sparse_data::left_trsm(Layout::RowMajor, op, (T)1.0, A, uplo, Diag::NonUnit, k, rhs_ptr, k);
+        RandBLAS::sparse_data::trsm(Layout::RowMajor, op, (T)1.0, A, uplo, Diag::NonUnit, k, rhs_ptr, k);
 
         std::vector<T> reference(k * n);
         T* ref_ptr = reference.data();

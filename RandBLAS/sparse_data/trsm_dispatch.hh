@@ -97,7 +97,7 @@ inline void trsm_matrix_validation( const SpMat &A, blas::Uplo uplo, blas::Diag 
 
 
 // =============================================================================
-/// \fn left_trsm(
+/// \fn trsm(
 ///     blas::Layout layout, blas::Op opA, T alpha, const SpMat &A, blas::Uplo uplo, blas::Diag diag, int64_t n, T *B, int64_t ldb, int validation_mode = 1
 /// )
 /// @verbatim embed:rst:leading-slashes
@@ -128,9 +128,13 @@ inline void trsm_matrix_validation( const SpMat &A, blas::Uplo uplo, blas::Diag 
 ///       * Considered along with :math:`\texttt{diag}` to define :math:`\mtxA.`
 ///
 ///      uplo - [in]
-///       * Either Uplo::Upper or Uplo::Lower; promising that :math:`A` is structurally upper or lower triangular.
-///       * If the sparsity structure of :math:`A` is inconsistent with :math:`\texttt{uplo}` and
-///         :math:`\texttt{validation_mode} \geq 1` then an error will be raised.
+///       * Promises that :math:`A` is structurally upper triangular (if :math:`\texttt{uplo = Uplo::Upper}`) or
+///         structurally lower triangular (if :math:`\texttt{uplo = Uplo::Lower}`). Violating this promise will 
+///         result in an error if :math:`\texttt{validation_mode} \geq 1` or undefined behavior if 
+///         :math:`\texttt{validation_mode} \leq 0.`
+///       * Future RandBLAS versions may change behavior so that :math:`\mtxA` is defined as a view of the
+///         :math:`\texttt{uplo}` part of :math:`A,` with its diagonal possibly redefined as the vector of 
+///         all ones according to :math:`\texttt{diag}.`
 ///
 ///      diag - [in]
 ///       * Diag::Unit or Diag::NonUnit.
@@ -149,14 +153,16 @@ inline void trsm_matrix_validation( const SpMat &A, blas::Uplo uplo, blas::Diag 
 ///       * The leading dimension of :math:`\mat(B)` when reading from :math:`B.`
 ///
 ///      validation_mode - [in]
-///       * An integer used to indicate what checks should be made for validity of :math:`(A,\texttt{diag},\texttt{uplo}).`
-///       * If positive, then all checks will be made to ensure that we can apply :math:`\op(\mtxA)^{-1}` to vectors.
+///       * A flag used to indicate what checks should be made for validity of :math:`(A,\texttt{diag},\texttt{uplo}).`
+///       * If positive, then all checks will be made to ensure that we can correctly apply :math:`\op(\mtxA)^{-1}` to vectors;
+///         these checks take :math:`O(A\texttt{.nnz})` time.
 ///       * If zero, then only checks of cost :math:`O(A\texttt{.n_rows})` are performed.
 ///       * If negative, then only checks of cost :math:`O(1)` are performed.
+///       * The specific default value of this optional argument may change in future releases of RandBLAS.
 ///
 /// @endverbatim
 template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
-void left_trsm(
+void trsm(
     blas::Layout layout, blas::Op opA, T alpha, const SpMat &A, blas::Uplo uplo, blas::Diag diag, int64_t n, T *B, int64_t ldb,
     int validation_mode = 1
 ) {
@@ -170,10 +176,10 @@ void left_trsm(
         auto trans_uplo = (uplo == Uplo::Lower) ? Uplo::Upper : Uplo::Lower;
         if constexpr (is_csc) {
             auto At = RandBLAS::sparse_data::conversions::transpose_as_csr(A);
-            left_trsm(layout, Op::NoTrans, alpha, At, trans_uplo, diag, n, B, ldb);
+            trsm(layout, Op::NoTrans, alpha, At, trans_uplo, diag, n, B, ldb);
         } else if constexpr (is_csr) {
             auto At = RandBLAS::sparse_data::conversions::transpose_as_csc(A);
-            left_trsm(layout, Op::NoTrans, alpha, At, trans_uplo, diag, n, B, ldb);
+            trsm(layout, Op::NoTrans, alpha, At, trans_uplo, diag, n, B, ldb);
         } else {
             randblas_require(false);
         }
@@ -212,4 +218,4 @@ void left_trsm(
     return;
 }
 
-}
+} // end namespace RandBLAS::sparse_data

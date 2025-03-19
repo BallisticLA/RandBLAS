@@ -111,5 +111,5 @@ Deterministic operations
     :animate: fade-in-slide-down
     :color: light
 
-    .. doxygenfunction:: RandBLAS::sparse_data::left_trsm(blas::Layout layout, blas::Op opA, T alpha, const SpMat &A, blas::Uplo uplo, blas::Diag diag, int64_t n, T *B, int64_t ldb, int validation_mode = 1)
+    .. doxygenfunction:: RandBLAS::sparse_data::trsm(blas::Layout layout, blas::Op opA, T alpha, const SpMat &A, blas::Uplo uplo, blas::Diag diag, int64_t n, T *B, int64_t ldb, int validation_mode = 1)
       :project: RandBLAS
