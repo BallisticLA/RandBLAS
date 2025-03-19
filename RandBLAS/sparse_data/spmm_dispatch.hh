@@ -208,13 +208,13 @@ namespace RandBLAS {
 ///     int64_t n, int64_t k, T alpha, SpMat &A, const T *B, int64_t ldb, T beta, T *C, int64_t ldc
 /// ) 
 /// @verbatim embed:rst:leading-slashes
-/// Perform an SPMM-like operation, multiplying a dense matrix on the left with a sparse matrix:
+/// Multiply a dense matrix on the left with a sparse matrix:
 ///
 /// .. math::
 ///     \mat(C) = \alpha \cdot \underbrace{\op(\mtxA)}_{m \times k} \cdot \underbrace{\op(\mat(B))}_{k \times n} + \beta \cdot \underbrace{\mat(C)}_{m \times n},    \tag{$\star$}
 ///
 /// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(\mtxX)` either returns a matrix :math:`\mtxX`
-/// or its transpose, and :math:`\mtxA` is a sparse matrix.
+/// or its transpose, and :math:`\mtxA` is sparse.
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down
@@ -287,13 +287,13 @@ inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int
 ///     int64_t n, int64_t k, T alpha, const T* A, int64_t lda, SpMat &B, T beta, T *C, int64_t ldc
 /// ) 
 /// @verbatim embed:rst:leading-slashes
-/// Perform an SPMM-like operation, multiplying a dense matrix on the right with a (submatrix of a) sparse matrix:
+/// Multiply a dense matrix on the right with a sparse matrix:
 ///
 /// .. math::
 ///     \mat(C) = \alpha \cdot \underbrace{\op(\mat(A))}_{m \times k} \cdot \underbrace{\op(\mtxB)}_{k \times n} + \beta \cdot \underbrace{\mat(C)}_{m \times n},    \tag{$\star$}
 ///
 /// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(\mtxX)` either returns a matrix :math:`\mtxX`
-/// or its transpose, and :math:`\mtxB` is a sparse matrix.
+/// or its transpose, and :math:`\mtxB` is sparse.
 ///
 /// .. dropdown:: Full parameter descriptions
 ///     :animate: fade-in-slide-down

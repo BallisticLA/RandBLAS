@@ -106,3 +106,10 @@ Deterministic operations
 
     .. doxygenfunction:: RandBLAS::spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T* A, int64_t lda, SpMat &B, T beta, T *C, int64_t ldc) 
       :project: RandBLAS
+
+.. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)^{-1} \cdot \mtxB,` with sparse triangular :math:`\mtxA`
+    :animate: fade-in-slide-down
+    :color: light
+
+    .. doxygenfunction:: RandBLAS::sparse_data::trsm(blas::Layout layout, blas::Op opA, T alpha, const SpMat &A, blas::Uplo uplo, blas::Diag diag, int64_t n, T *B, int64_t ldb, int validation_mode = 1)
+      :project: RandBLAS

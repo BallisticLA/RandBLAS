@@ -48,8 +48,8 @@ template <typename T, SignedInteger sint_t = int64_t>
 static void apply_csr_to_vector_from_left_ik(
     // CSR-format data
     const T *vals,
-    sint_t *rowptr,
-    sint_t *colidxs,
+    const sint_t *rowptr,
+    const sint_t *colidxs,
     // input-output vector data
     const T *v,
     int64_t incv,   // stride between elements of v
@@ -76,7 +76,7 @@ static void apply_csr_left_jik_p11(
     int64_t d,
     int64_t n,
     int64_t m,
-    CSRMatrix<T, sint_t> &A,
+    const CSRMatrix<T, sint_t> &A,
     const T *B,
     int64_t ldb,
     T *C,
@@ -127,7 +127,7 @@ static void apply_csr_left_ikb_rowmajor(
     int64_t d,
     int64_t n,
     int64_t m,
-    CSRMatrix<T, sint_t> &A,
+    const CSRMatrix<T, sint_t> &A,
     const T *B,
     int64_t ldb,
     T *C,

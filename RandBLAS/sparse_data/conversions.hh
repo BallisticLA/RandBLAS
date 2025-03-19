@@ -62,7 +62,7 @@ void coo_to_csc(COOMatrix<T, sint_t1> &coo, CSCMatrix<T, sint_t2> &csc) {
 }
 
 template <typename T, SignedInteger sint_t1 = int64_t, SignedInteger sint_t2 = int64_t>
-void csc_to_coo(CSCMatrix<T, sint_t1> &csc, COOMatrix<T, sint_t2> &coo) {
+void csc_to_coo(const CSCMatrix<T, sint_t1> &csc, COOMatrix<T, sint_t2> &coo) {
     randblas_require(csc.n_rows == coo.n_rows);
     randblas_require(csc.n_cols == coo.n_cols);
     randblas_require(csc.index_base == IndexBase::Zero);
@@ -103,7 +103,7 @@ void coo_to_csr(COOMatrix<T, sint_t1> &coo, CSRMatrix<T, sint_t2> &csr) {
 }
 
 template <typename T, SignedInteger sint_t1 = int64_t, SignedInteger sint_t2 = int64_t>
-void csr_to_coo(CSRMatrix<T, sint_t1> &csr, COOMatrix<T, sint_t2> &coo) {
+void csr_to_coo(const CSRMatrix<T, sint_t1> &csr, COOMatrix<T, sint_t2> &coo) {
     randblas_require(csr.n_rows == coo.n_rows);
     randblas_require(csr.n_cols == coo.n_cols);
     randblas_require(csr.index_base == IndexBase::Zero);
@@ -123,7 +123,7 @@ void csr_to_coo(CSRMatrix<T, sint_t1> &csr, COOMatrix<T, sint_t2> &coo) {
 }
 
 template <typename T, SignedInteger sint_t>
-CSRMatrix<T, sint_t> transpose_as_csr(CSCMatrix<T, sint_t> &A, bool share_memory = true) {
+CSRMatrix<T, sint_t> transpose_as_csr(const CSCMatrix<T, sint_t> &A, bool share_memory = true) {
     if (share_memory) {
         CSRMatrix<T, sint_t> At(A.n_cols, A.n_rows, A.nnz, A.vals, A.colptr, A.rowidxs, A.index_base);
         return At;
@@ -142,7 +142,7 @@ CSRMatrix<T, sint_t> transpose_as_csr(CSCMatrix<T, sint_t> &A, bool share_memory
 }
 
 template <typename T, SignedInteger sint_t>
-CSCMatrix<T, sint_t> transpose_as_csc(CSRMatrix<T, sint_t> &A, bool share_memory = true) {
+CSCMatrix<T, sint_t> transpose_as_csc(const CSRMatrix<T, sint_t> &A, bool share_memory = true) {
     if (share_memory) {
         CSCMatrix<T, sint_t> At(A.n_cols, A.n_rows, A.nnz, A.vals, A.colidxs, A.rowptr, A.index_base);
         return At;

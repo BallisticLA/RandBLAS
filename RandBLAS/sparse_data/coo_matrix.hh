@@ -282,11 +282,9 @@ void reserve_coo(int64_t nnz, COOMatrix<T,sint_t> &M) {
     randblas_require(M.rows == nullptr);
     randblas_require(M.cols == nullptr);
     M.nnz = nnz;
-    if (M.nnz > 0) {
-        M.vals = new T[nnz];
-        M.rows = new sint_t[nnz];
-        M.cols = new sint_t[nnz];
-    }
+    M.vals = new T[nnz];
+    M.rows = new sint_t[nnz];
+    M.cols = new sint_t[nnz];
     return;
 }
 
