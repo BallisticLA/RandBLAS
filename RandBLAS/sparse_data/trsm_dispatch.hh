@@ -46,7 +46,7 @@ namespace RandBLAS::sparse_data {
 
 
 template <SparseMatrix SpMat>
-inline void trsm_matrix_validation( const SpMat &A, blas::Uplo uplo ) {
+inline void trsm_matrix_validation( const SpMat &A, blas::Uplo uplo, int expensive_checks ) {
     /***
     The current implementation requires strong sorting.
     */
@@ -56,10 +56,20 @@ inline void trsm_matrix_validation( const SpMat &A, blas::Uplo uplo ) {
     int64_t p, ell;
     
     const T* vals = A.vals;
+    int64_t m = A.n_rows;
+    int64_t flag = -1;
     if constexpr (is_csr) {
         const sint_t* ptrs = A.rowptr;
         const sint_t* idxs = A.colidxs;
-        for (ell = 0; ell < A.n_rows; ++ell) {
+        if (expensive_checks > 0) {
+            bool ordered_indices = compressed_indices_are_increasing(m, ptrs, idxs, &flag);
+            if (!ordered_indices) {
+                std::stringstream ss;
+                ss << "Ill-formed CSR matrix; indices in row " << flag << " are not sorted.";
+                throw RandBLAS::Error(ss.str());
+            }
+        }
+        for (ell = 0; ell < m; ++ell) {
             p = (uplo == blas::Uplo::Lower) ? ptrs[ell+1] - 1 : ptrs[ell];
             randblas_require(idxs[p] == ell);
             randblas_require(vals[p] != 0.0);
@@ -67,7 +77,15 @@ inline void trsm_matrix_validation( const SpMat &A, blas::Uplo uplo ) {
     } else {
         const sint_t* ptrs = A.colptr;
         const sint_t* idxs = A.rowidxs;
-        for (ell = 0; ell < A.n_rows; ++ell) {
+        if (expensive_checks > 0) {
+            bool ordered_indices = compressed_indices_are_increasing(m, ptrs, idxs, &flag);
+            if (!ordered_indices) {
+                std::stringstream ss;
+                ss << "Ill-formed CSC matrix; indices in column " << flag << " are not sorted.";
+                throw RandBLAS::Error(ss.str());
+            }
+        }
+        for (ell = 0; ell < m; ++ell) {
             p = (uplo == blas::Uplo::Lower) ? ptrs[ell] : ptrs[ell+1] - 1;
             randblas_require(idxs[p] == ell);
             randblas_require(vals[p] != 0.0);
@@ -110,7 +128,7 @@ void left_trsm(
     constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
     randblas_require(is_csr || is_csc);
 
-    if (arg_validation_mode > 0) trsm_matrix_validation( A, uplo );
+    if (arg_validation_mode >= 0) trsm_matrix_validation( A, uplo, arg_validation_mode );
 
     int64_t m = A.n_rows;
     if (layout == blas::Layout::ColMajor) {
@@ -134,4 +152,4 @@ void left_trsm(
     return;
 }
 
-}    
+}
