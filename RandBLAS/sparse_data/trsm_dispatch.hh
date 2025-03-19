@@ -45,11 +45,11 @@
 namespace RandBLAS::sparse_data {
 
 
+// We call these functions "TRSM" instead of "SPTRSM" because they're in the sparse_data namespace.
+
+
 template <SparseMatrix SpMat>
-inline void trsm_matrix_validation( const SpMat &A, blas::Uplo uplo, int expensive_checks ) {
-    /***
-    The current implementation requires strong sorting.
-    */
+inline void trsm_matrix_validation( const SpMat &A, blas::Uplo uplo, blas::Diag diag, int mode ) {
     using T = typename SpMat::scalar_t;
     using sint_t = typename SpMat::index_t;
     constexpr bool is_csr = std::is_same_v<SpMat, CSRMatrix<T, sint_t>>;
@@ -58,10 +58,11 @@ inline void trsm_matrix_validation( const SpMat &A, blas::Uplo uplo, int expensi
     const T* vals = A.vals;
     int64_t m = A.n_rows;
     int64_t flag = -1;
+    const bool unitdiag = diag == blas::Diag::Unit;
     if constexpr (is_csr) {
         const sint_t* ptrs = A.rowptr;
         const sint_t* idxs = A.colidxs;
-        if (expensive_checks > 0) {
+        if (mode >= 0) {
             bool ordered_indices = compressed_indices_are_increasing(m, ptrs, idxs, &flag);
             if (!ordered_indices) {
                 std::stringstream ss;
@@ -72,12 +73,12 @@ inline void trsm_matrix_validation( const SpMat &A, blas::Uplo uplo, int expensi
         for (ell = 0; ell < m; ++ell) {
             p = (uplo == blas::Uplo::Lower) ? ptrs[ell+1] - 1 : ptrs[ell];
             randblas_require(idxs[p] == ell);
-            randblas_require(vals[p] != 0.0);
+            randblas_require(unitdiag || vals[p] != 0.0);
         }
     } else {
         const sint_t* ptrs = A.colptr;
         const sint_t* idxs = A.rowidxs;
-        if (expensive_checks > 0) {
+        if (mode >= 0) {
             bool ordered_indices = compressed_indices_are_increasing(m, ptrs, idxs, &flag);
             if (!ordered_indices) {
                 std::stringstream ss;
@@ -88,17 +89,76 @@ inline void trsm_matrix_validation( const SpMat &A, blas::Uplo uplo, int expensi
         for (ell = 0; ell < m; ++ell) {
             p = (uplo == blas::Uplo::Lower) ? ptrs[ell] : ptrs[ell+1] - 1;
             randblas_require(idxs[p] == ell);
-            randblas_require(vals[p] != 0.0);
+            randblas_require(unitdiag || vals[p] != 0.0);
         }
     }
     return;
 }
 
-// NOTE: we call this TRSM instead of "SPTRSM" because it's in the sparse_data namespace.
+
+// =============================================================================
+/// \fn left_trsm(
+///     blas::Layout layout, blas::Op opA, T alpha, const SpMat &A, blas::Uplo uplo, blas::Diag diag, int64_t n, T *B, int64_t ldb, int validation_mode = 1
+/// )
+/// @verbatim embed:rst:leading-slashes
+/// Overwrite :math:`n` columns of a matrix :math:`\mat(B)` with the results of a scaled triangular solve
+///
+/// .. math::
+///     \mat(B) = \alpha \cdot \underbrace{\op(\mtxA)^{-1}}_{m \times m} \cdot \underbrace{\mat(B)}_{m \times n},   \tag{$\star$}
+///
+/// where :math:`\mtxA` is either the sparse matrix :math:`A` or a view of :math:`A` that replaces
+/// its diagonal with the vector of all ones, and :math:`\op(\mtxA)` returns either :math:`\mtxA` or :math:`\mtxA^T.`
+///
+/// .. dropdown:: Full parameter descriptions
+///     :animate: fade-in-slide-down
+///
+///      layout - [in]
+///       * Layout::ColMajor or Layout::RowMajor.
+///       * Matrix storage for :math:`\mat(B).`
+///
+///      opA - [in]
+///       * If :math:`\opA` = NoTrans, then :math:`\op(\mtxA) = \mtxA.`
+///       * If :math:`\opA` = Trans, then :math:`\op(\mtxA) = \mtxA^T.`
+///
+///      alpha - [in]
+///       * A real scalar.
+///
+///      A - [in]
+///       * A RandBLAS CSCMatrix or CSRMatrix.
+///       * Considered along with :math:`\texttt{diag}` to define :math:`\mtxA.`
+///
+///      uplo - [in]
+///       * Either Uplo::Upper or Uplo::Lower; promising that :math:`A` is structurally upper or lower triangular.
+///       * If the sparsity structure of :math:`A` is inconsistent with :math:`\texttt{uplo}` and
+///         :math:`\texttt{validation_mode} \geq 1` then an error will be raised.
+///
+///      diag - [in]
+///       * Diag::Unit or Diag::NonUnit.
+///       * If NonUnit, then :math:`\mtxA = A` and the triangular solve is performed as usual.
+///       * If Unit, then :math:`\mtxA` is an implicit copy of :math:`A` with its diagonal overwritten to contain all ones.
+///
+///      n - [in]
+///       * A nonnegative integer.
+///       * The number of columns in :math:`\mat(B).`
+///
+///      B - [in, out]
+///       * Pointer to 1D array of real scalars that define :math:`\mat(B).`
+///
+///      ldb - [in]
+///       * A nonnegative integer.
+///       * The leading dimension of :math:`\mat(B)` when reading from :math:`B.`
+///
+///      validation_mode - [in]
+///       * An integer used to indicate what checks should be made for validity of :math:`(A,\texttt{diag},\texttt{uplo}).`
+///       * If positive, then all checks will be made to ensure that we can apply :math:`\op(\mtxA)^{-1}` to vectors.
+///       * If zero, then only checks of cost :math:`O(A\texttt{.n_rows})` are performed.
+///       * If negative, then only checks of cost :math:`O(1)` are performed.
+///
+/// @endverbatim
 template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
 void left_trsm(
     blas::Layout layout, blas::Op opA, T alpha, const SpMat &A, blas::Uplo uplo, blas::Diag diag, int64_t n, T *B, int64_t ldb,
-    int arg_validation_mode = 1
+    int validation_mode = 1
 ) {
     using blas::Op;
     using blas::Uplo;
@@ -128,7 +188,7 @@ void left_trsm(
     constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
     randblas_require(is_csr || is_csc);
 
-    if (arg_validation_mode >= 0) trsm_matrix_validation( A, uplo, arg_validation_mode );
+    if (validation_mode >= 0) trsm_matrix_validation( A, uplo, diag, validation_mode - 1 );
 
     int64_t m = A.n_rows;
     if (layout == blas::Layout::ColMajor) {
