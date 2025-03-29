@@ -276,4 +276,67 @@ inline T uniform_syminterval_cdf(T x, T radius) {
     return (x + radius) / (2*radius);
 }
 
+class KolmogorovSmirnovTester
+{
+private:
+    int n;               // Sample size
+    double significance; // Significance level
+
+public:
+    // Constructor
+    KolmogorovSmirnovTester(int n, double significance)
+        : n(n), significance(significance) {}
+
+    // Sublasses should implement these functions
+    //
+    // observed_pdf, true_pdf, observed_cdf, true_cdf
+    //
+    // We decide not to implement even virtual functions here, because
+    // they could have different different input arguments, for different 
+    // distributions, meaning that we would have to force override the
+    // functions in the subclasses if we wanted to define them here.
+
+    // Function to check the critical value
+    std::tuple<bool, double> check_critval(const std::vector<double> &cdf1, const std::vector<double> &cdf2, double critical_value) const
+    {
+        assert(cdf1.size() == cdf2.size());
+
+        for (size_t i = 0; i < cdf1.size(); ++i)
+        {
+            double diff = std::abs(cdf1[i] - cdf2[i]);
+            if (diff > critical_value)
+            {
+                return {false, diff};  //Test fails
+            }
+        }
+        return {true, 0.0}; // Test passes
+    }
+
+    // Function to run the test given the number of samples, significance level, observed_cdf, and true_cdf
+    static void test(int n, double significance, std::vector<double> &cdf1, const std::vector<double> &cdf2)
+    {
+        KolmogorovSmirnovTester tester(n, significance);
+        double critical_value = KolmogorovSmirnovConstants::critical_value_rep(n, significance);
+        auto [result, diff] = tester.check_critval(cdf1, cdf2, critical_value);
+        if (!result)
+        {
+            std::cout::endl;
+            std::cout << "KS test failed with difference " << diff << " and critical value " << critical_value << std::endl;
+            std::cout << "Test parameters: " << "n=" << n << " " << "significance=" << significance << std::endl;
+        }
+    }
+
+    """
+    Problem:
+    --- C++ seems not to have the same level of flexibility with inheritance of python.
+    --- I want to be able to simply call 'observed_pdf', 'true_pdf' for any function in the same way.
+        This would standardize the test function process and really leave all the differences for the
+        generation of the pdfs. However, different pdf generation require different input arguments, 
+        and I don't believe there is a notion of kwargs in C++.
+    """
+
+    // Virtual destructor
+    virtual ~KolmogorovSmirnovTester() = default;
+};
+
 } // end namespace RandBLAS_StatTests
