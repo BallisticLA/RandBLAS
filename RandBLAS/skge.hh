@@ -78,9 +78,11 @@ using RandBLAS::fill_dense;
 /// @param[in] opS
 ///      - If \math{\opS} = NoTrans, then \math{ \op(\submat(\mtxS)) = \submat(\mtxS)}.
 ///      - If \math{\opS} = Trans, then \math{\op(\submat(\mtxS)) = \submat(\mtxS)^T }.
+///
 /// @param[in] opA
 ///      - If \math{\opA} == NoTrans, then \math{\op(\mat(A)) = \mat(A)}.
 ///      - If \math{\opA} == Trans, then \math{\op(\mat(A)) = \mat(A)^T}.
+///
 /// @param[in] d
 ///     A nonnegative integer.
 ///     - The number of rows in \math{\mat(B)}
