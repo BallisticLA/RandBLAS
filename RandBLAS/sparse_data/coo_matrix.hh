@@ -280,16 +280,15 @@ static_assert(SparseMatrix<COOMatrix<double>>);
 ///
 template <typename T, SignedInteger sint_t>
 void reserve_coo(int64_t nnz, COOMatrix<T,sint_t> &M) {
+    randblas_require(nnz > 0);
     randblas_require(M.own_memory);
     randblas_require(M.vals == nullptr);
     randblas_require(M.rows == nullptr);
     randblas_require(M.cols == nullptr);
     M.nnz = nnz;
-    if (M.nnz > 0) {
-        M.vals = new T[nnz];
-        M.rows = new sint_t[nnz];
-        M.cols = new sint_t[nnz];
-    }
+    M.vals = new T[nnz];
+    M.rows = new sint_t[nnz];
+    M.cols = new sint_t[nnz];
     return;
 }
 

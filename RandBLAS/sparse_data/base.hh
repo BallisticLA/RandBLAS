@@ -92,6 +92,21 @@ static inline void sorted_nonzero_locations_to_pointer_array(
     return;
 }
 
+
+template <SignedInteger sint_t>
+static bool compressed_indices_are_increasing(int64_t num_vecs, sint_t *ptrs, sint_t *idxs, int64_t *failed_ind = nullptr) {
+    for (int64_t i = 0; i < num_vecs; ++i) {
+        for (int64_t j = ptrs[i]; j < ptrs[i+1]-1; ++j) {
+            if (idxs[j+1] <= idxs[j]) {
+                if (failed_ind != nullptr) *failed_ind = j;
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+
 // Idea: change all "const" attributes to for SpMatrix to return values from inlined functions. 
 // Looks like there'd be no collision with function/property names for sparse matrix
 // types in Eigen, SuiteSparse, OneMKL, etc.. These inlined functions could return

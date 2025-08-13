@@ -158,10 +158,16 @@ struct RNGState {
     };
 
     bool operator!=(const RNGState<RNG> &s) const {
-        return !(this == s);
+        return !(*this == s);
     };
 
 };
+
+template <typename RNG>
+const int RandBLAS::RNGState<RNG>::len_c;
+
+template <typename RNG>
+const int RandBLAS::RNGState<RNG>::len_k;
 
 template <typename RNG>
 std::ostream &operator<<(

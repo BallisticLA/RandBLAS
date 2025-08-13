@@ -204,16 +204,15 @@ static_assert(SparseMatrix<CSRMatrix<double>>);
 ///
 template <typename T, SignedInteger sint_t>
 void reserve_csr(int64_t nnz, CSRMatrix<T, sint_t> &M) {
+    randblas_require(nnz > 0);
     randblas_require(M.own_memory);
     randblas_require(M.colidxs == nullptr);
     randblas_require(M.vals    == nullptr);
     if (M.rowptr == nullptr) 
         M.rowptr = new sint_t[M.n_rows + 1]{0};
     M.nnz = nnz;
-    if (nnz > 0) {
-        M.colidxs = new sint_t[nnz]{0};
-        M.vals    = new T[nnz]{0.0};
-    }
+    M.colidxs = new sint_t[nnz]{0};
+    M.vals    = new T[nnz]{0.0};
    return;
 }
 
