@@ -36,7 +36,12 @@
 
 namespace RandBLAS::sparse_data {
 
+#ifdef __cpp_concepts
 using RandBLAS::SignedInteger;
+#else
+#define SignedInteger typename
+#endif
+
 // ^ only used once, but I don't want the RandBLAS prefix
 // in the doxygen.
 

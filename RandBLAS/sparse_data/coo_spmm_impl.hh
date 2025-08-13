@@ -42,7 +42,11 @@
 
 namespace RandBLAS::sparse_data::coo {
 
+#ifdef __cpp_concepts
 using RandBLAS::SignedInteger;
+#else
+#define SignedInteger typename
+#endif
 
 template <typename T, SignedInteger sint_t = int64_t>
 static int64_t set_filtered_coo(

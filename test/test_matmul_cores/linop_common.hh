@@ -49,7 +49,12 @@ using blas::Op;
 using RandBLAS::sparse_data::COOMatrix;
 using RandBLAS::sparse_data::CSRMatrix;
 using RandBLAS::sparse_data::CSCMatrix;
+
+#ifdef __cpp_concepts
 using RandBLAS::SparseMatrix;
+#else
+#define SparseMatrix typename
+#endif
 using RandBLAS::SparseSkOp;
 using RandBLAS::DenseSkOp;
 using RandBLAS::RNGState;

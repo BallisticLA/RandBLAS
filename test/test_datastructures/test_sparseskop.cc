@@ -36,7 +36,13 @@
 
 using std::vector;
 using RandBLAS::RNGState;
+
+#ifdef __cpp_concepts
 using RandBLAS::SignedInteger;
+#else
+#define SignedInteger typename
+#endif
+
 using RandBLAS::SparseDist;
 using RandBLAS::SparseSkOp;
 using RandBLAS::Axis;

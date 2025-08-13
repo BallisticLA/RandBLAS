@@ -38,7 +38,12 @@
 namespace RandBLAS::sparse_data::conversions {
 
 using namespace RandBLAS::sparse_data;
+
+#ifdef __cpp_concepts
 using RandBLAS::SignedInteger;
+#else
+#define SignedInteger typename
+#endif
 
 template <typename T, SignedInteger sint_t1 = int64_t, SignedInteger sint_t2 = int64_t>
 void coo_to_csc(COOMatrix<T, sint_t1> &coo, CSCMatrix<T, sint_t2> &csc) {
