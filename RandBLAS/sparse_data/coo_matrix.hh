@@ -39,7 +39,11 @@
 
 namespace RandBLAS::sparse_data {
 
+#ifdef __cpp_concepts
 using RandBLAS::SignedInteger;
+#else
+#define SignedInteger typename
+#endif
 
 // =============================================================================
 /// Indicates whether the (vals, rows, cols) 

@@ -42,7 +42,11 @@
 
 namespace RandBLAS::sparse_data::csr {
 
+#ifdef __cpp_concepts
 using RandBLAS::SignedInteger;
+#else
+#define SignedInteger typename
+#endif
 
 template <typename T, SignedInteger sint_t = int64_t>
 static void apply_csr_to_vector_from_left_ik(

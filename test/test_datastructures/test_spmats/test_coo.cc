@@ -40,8 +40,14 @@ using namespace test::test_datastructures::test_spmats;
 using namespace RandBLAS::sparse_data::conversions;
 using blas::Layout;
 
+#ifdef __cpp_concepts
+using RandBLAS::SignedInteger
+#else
+#define SignedInteger typename
+#endif
 
-template <typename T, typename RNG, RandBLAS::SignedInteger sint_t>
+
+template <typename T, typename RNG, SignedInteger sint_t>
 void sparseskop_to_dense(
     RandBLAS::SparseSkOp<T, RNG, sint_t> &S0,
     T *mat,
