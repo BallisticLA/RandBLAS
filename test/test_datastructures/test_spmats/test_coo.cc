@@ -41,7 +41,7 @@ using namespace RandBLAS::sparse_data::conversions;
 using blas::Layout;
 
 #ifdef __cpp_concepts
-using RandBLAS::SignedInteger
+using RandBLAS::SignedInteger;
 #else
 #define SignedInteger typename
 #endif
