@@ -148,8 +148,8 @@ void left_spmm(
         }
     } else {
         if  (layout_opB == Layout::RowMajor && layout_C == Layout::RowMajor) {
-             using RandBLAS::sparse_data::csr::apply_csr_left_ikb_rowmajor;
-             apply_csr_left_ikb_rowmajor(alpha, d, n, m, A, B, ldb, C, ldc);
+             using RandBLAS::sparse_data::csr::apply_csr_left_ikb_p1b_rowmajor;
+             apply_csr_left_ikb_p1b_rowmajor(alpha, d, n, m, A, B, ldb, C, ldc);
         } else {
             using RandBLAS::sparse_data::csr::apply_csr_left_jik_p11;
             apply_csr_left_jik_p11(alpha, layout_opB, layout_C, d, n, m, A, B, ldb, C, ldc);
