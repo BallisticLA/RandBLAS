@@ -302,9 +302,9 @@ void sort_coo_data(NonzeroSort s, int64_t nnz, T *vals, sint_t *rows, sint_t *co
     using tuple_type = std::tuple<sint_t, sint_t, T>;
     std::vector<tuple_type> nonzeros;
     nonzeros.reserve(nnz);
-    for (int64_t ell = 0; ell < nnz; ++ell)
-        nonzeros.emplace_back(rows[ell], cols[ell], vals[ell]);
-
+    for (int64_t ell = 0; ell < nnz; ++ell) {
+        nonzeros.push_back({rows[ell], cols[ell], vals[ell]});
+    }
     // sort the vector-of-triples representation
     auto sort_func = [s](tuple_type const &t1, tuple_type const &t2) {
         if (s == NonzeroSort::CSR) {

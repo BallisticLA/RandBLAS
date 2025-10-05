@@ -122,7 +122,7 @@ static void apply_coo_left_jki_p11(
     sorted_nonzero_locations_to_pointer_array(A_nnz, A_colptr.data(), m);
     bool fixed_nnz_per_col = true;
     for (int64_t ell = 2; (ell < m + 1) && fixed_nnz_per_col; ++ell)
-        fixed_nnz_per_col = (A_colptr[1] == A_colptr[ell]);
+         fixed_nnz_per_col = (A_colptr[1] + A_colptr[ell-1]) == A_colptr[ell];
 
     // Step 3: Apply "A" to the left of B to get C += A*B.
     //      3.1: set stride information (we can't use structured bindings because of an OpenMP bug)
