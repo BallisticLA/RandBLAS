@@ -44,38 +44,6 @@ namespace RandBLAS::sparse_data::coo {
 
 using RandBLAS::SignedInteger;
 
-template <typename T, SignedInteger sint_t = int64_t>
-static int64_t set_filtered_coo(
-    // COO-format matrix data
-    const T       *vals,
-    const sint_t *rowidxs,
-    const sint_t *colidxs,
-    int64_t nnz,
-    // submatrix bounds
-    int64_t col_start,
-    int64_t col_end,
-    int64_t row_start,
-    int64_t row_end,
-    // COO-format submatrix data
-    T       *new_vals,
-    sint_t *new_rowidxs,
-    sint_t *new_colidxs
-) {
-    int64_t new_nnz = 0;
-    for (int64_t ell = 0; ell < nnz; ++ell) {
-        if (
-            row_start <= rowidxs[ell] && rowidxs[ell] < row_end &&
-            col_start <= colidxs[ell] && colidxs[ell] < col_end
-        ) {
-            new_vals[new_nnz] = vals[ell];
-            new_rowidxs[new_nnz] = rowidxs[ell] - row_start;
-            new_colidxs[new_nnz] = colidxs[ell] - col_start;
-            new_nnz += 1;
-        }
-    }
-    return new_nnz;
-}
-
 
 template <typename T, SignedInteger sint_t>
 static void apply_coo_left_jki_p11(
@@ -95,36 +63,47 @@ static void apply_coo_left_jki_p11(
 ) {
     randblas_require(A0.index_base == IndexBase::Zero);
 
-    // Step 1: reduce to the case of CSC sort order.
-    if (A0.sort != NonzeroSort::CSC) {
-        auto orig_sort = A0.sort;
-        sort_coo_data(NonzeroSort::CSC, A0);
-        apply_coo_left_jki_p11(alpha, layout_B, layout_C, d, n, m, A0, ro_a, co_a, B, ldb, C, ldc);
-        sort_coo_data(orig_sort, A0);
+    bool submatrix = (A0.n_rows != d) || (A0.n_cols != m);
+    if (submatrix || A0.sort != NonzeroSort::CSC) {
+        auto A1 = A0;
+        auto new_nnz = A1.nnz;
+        if (submatrix) {
+            int64_t write = 0;
+            for (int64_t i = 0; i < A1.nnz; ++i) {
+                auto r = A1.rows[i] - ro_a;
+                auto c = A1.cols[i] - co_a;
+                if (0 <= r && r < d && 0 <= c && c < m) {
+                    A1.rows [write] = r;
+                    A1.cols [write] = c;
+                    A1.vals [write] = A1.vals[i];
+                    write += 1;
+                }
+            }
+            new_nnz = write;
+        }
+        COOMatrix<T,sint_t> A2(d, m,   new_nnz, A1.vals, A1.rows, A1.cols, false);
+        print_sparse(A2);
+        sort_coo_data(NonzeroSort::CSC, A2.nnz, A2.vals, A2.rows, A2.cols);
+        A2.sort = NonzeroSort::CSC;
+        print_sparse(A2);
+        apply_coo_left_jki_p11(alpha, layout_B, layout_C, d, n, m, A2, 0, 0, B, ldb, C, ldc);
         return;
     }
-
-    // Step 2: make a CSC-sort-order COOMatrix that represents the desired submatrix of A.
-    //      While we're at it, reduce to the case when alpha = 1.0 by scaling the values
-    //      of the matrix we just created.
-    int64_t A_nnz;
-    int64_t A0_nnz = A0.nnz;
-    std::vector<sint_t> A_rows(A0_nnz, 0);
-    std::vector<sint_t> A_colptr(std::max(A0_nnz, m + 1), 0);
-    std::vector<T> A_vals(A0_nnz, 0.0);
-    A_nnz = set_filtered_coo(
-        A0.vals, A0.rows, A0.cols, A0.nnz,
-        co_a, co_a + m,
-        ro_a, ro_a + d,
-        A_vals.data(), A_rows.data(), A_colptr.data()
-    );
-    sorted_nonzero_locations_to_pointer_array(A_nnz, A_colptr.data(), m);
-
-    CSCMatrix<T, sint_t> A_csc(d, m, A_nnz, A_vals.data(), A_rows.data(), A_colptr.data());
-
+    sint_t* colptr = A0.cols;
+    if (A0.nnz < m + 1) {
+        colptr = new sint_t[m+1];
+        for (int64_t i = 0; i < A0.nnz; ++i) {
+            colptr[i] = A0.cols[i];
+        }
+    }
+    sorted_nonzero_locations_to_pointer_array(A0.nnz, colptr, m);
+    CSCMatrix<T, sint_t> A_csc(d, m, A0.nnz, A0.vals, A0.rows, colptr);
     RandBLAS::sparse_data::csc::apply_csc_left_jki_p11(
         alpha, layout_B, layout_C, n, A_csc, B, ldb, C, ldc
     );
+    if (A0.nnz < m + 1) {
+        delete [] colptr;
+    }
     return;
 }
 

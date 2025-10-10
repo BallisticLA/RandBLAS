@@ -257,12 +257,61 @@ struct COOMatrix {
         other.sort = NonzeroSort::None;
     }
 
+    // copy constructor
+    COOMatrix(const COOMatrix<T, sint_t> &other)
+    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(true), nnz(other.nnz), index_base(other.index_base),
+      vals(nullptr), rows(nullptr), cols(nullptr), sort(other.sort) {
+        if (nnz > 0) {
+            reserve_coo(nnz, *this);
+            for (int64_t i = 0; i < nnz; ++i) {
+                rows[i] = other.rows[i];
+                cols[i] = other.cols[i];
+                vals[i] = other.vals[i];
+            }
+        }
+    }
 };
 
 #ifdef __cpp_concepts
 static_assert(SparseMatrix<COOMatrix<float>>);
 static_assert(SparseMatrix<COOMatrix<double>>);
 #endif
+
+template <typename COOMatrix>
+void print_sparse(COOMatrix const &A) {
+    std::cout << "COOMatrix information" << std::endl;
+    int64_t nnz = A.nnz;
+    std::cout << "\tn_rows = " << A.n_rows << std::endl;
+    std::cout << "\tn_cols = " << A.n_cols << std::endl;
+    if (A.rows != nullptr) {
+        std::cout << "\tvector of row indices\n\t\t";
+        for (int64_t i = 0; i < nnz; ++i) {
+            std::cout << A.rows[i] << ", ";
+        }
+    } else {
+        std::cout << "\trows is the null pointer.\n\t\t";
+    }
+    std::cout << std::endl;
+    if (A.cols != nullptr) {
+        std::cout << "\tvector of column indices\n\t\t";
+        for (int64_t i = 0; i < nnz; ++i) {
+            std::cout << A.cols[i] << ", ";
+        }
+    } else {
+        std::cout << "\tcols is the null pointer.\n\t\t";
+    }
+    std::cout << std::endl;
+    if (A.vals != nullptr) {
+        std::cout << "\tvector of values\n\t\t";
+        for (int64_t i = 0; i < nnz; ++i) {
+            std::cout << A.vals[i] << ", ";
+        }
+    } else {
+        std::cout << "\tvals is the null pointer.\n\t\t";
+    }
+    std::cout << std::endl;
+    return;
+}
 
 // -----------------------------------------------------
 ///
