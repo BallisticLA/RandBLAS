@@ -43,7 +43,8 @@ namespace RandBLAS::sparse_data::csc {
 using RandBLAS::SignedInteger;
 
 template <typename T, SignedInteger sint_t = int64_t>
-static void apply_csc_to_vector_from_left_ki(
+static void apply_csc_to_vector_ki(
+    T alpha,
     // CSC-format data
     const T *vals,
     const sint_t *rowidxs,
@@ -57,7 +58,7 @@ static void apply_csc_to_vector_from_left_ki(
 ) {
     int64_t i = 0;
     for (int64_t c = 0; c < len_v; ++c) {
-        T scale = v[c * incv];
+        T scale = alpha * v[c * incv];
         while (i < colptr[c+1]) {
             int64_t row = rowidxs[i];
             Av[row * incAv] += (vals[i] * scale);
@@ -67,7 +68,8 @@ static void apply_csc_to_vector_from_left_ki(
 }
 
 template <typename T, SignedInteger sint_t = int64_t>
-static void apply_regular_csc_to_vector_from_left_ki(
+static void apply_regular_csc_to_vector_ki(
+    T alpha,
     // data for "regular CSC": CSC with fixed nnz per col,
     // which obviates the requirement for colptr.
     const T *vals,
@@ -81,7 +83,7 @@ static void apply_regular_csc_to_vector_from_left_ki(
     int64_t incAv   // stride between elements of Av
 ) {
     for (int64_t c = 0; c < len_v; ++c) {
-        T scale = v[c * incv];
+        T scale = alpha * v[c * incv];
         for (int64_t j = c * col_nnz; j < (c + 1) * col_nnz; ++j) {
             int64_t row = rowidxs[j];
             Av[row * incAv] += (vals[j] * scale);
@@ -94,9 +96,7 @@ static void apply_csc_left_jki_p11(
     T alpha,
     blas::Layout layout_B,
     blas::Layout layout_C,
-    int64_t d,
     int64_t n,
-    int64_t m,
     const CSCMatrix<T, sint_t> &A,
     const T *B,
     int64_t ldb,
@@ -104,18 +104,12 @@ static void apply_csc_left_jki_p11(
     int64_t ldc
 ) {
     randblas_require(A.index_base == IndexBase::Zero);
-    T *vals = A.vals;
-    if (alpha != (T) 1.0) {
-        vals = new T[A.nnz]{};
-        blas::axpy(A.nnz, alpha, A.vals, 1, vals, 1);
-    }
 
-    randblas_require(d == A.n_rows);
-    randblas_require(m == A.n_cols);
+    auto m = A.n_cols;
 
     bool fixed_nnz_per_col = true;
     for (int64_t ell = 2; (ell < m + 1) && fixed_nnz_per_col; ++ell)
-        fixed_nnz_per_col = (A.colptr[1] == A.colptr[ell]);
+        fixed_nnz_per_col = (A.colptr[1] + A.colptr[ell-1]) == A.colptr[ell];
 
     auto s = layout_to_strides(layout_B, ldb);
     auto B_inter_col_stride = s.inter_col_stride;
@@ -134,22 +128,21 @@ static void apply_csc_left_jki_p11(
             B_col = &B[B_inter_col_stride * j];
             C_col = &C[C_inter_col_stride * j];
             if (fixed_nnz_per_col) {
-                apply_regular_csc_to_vector_from_left_ki<T>(
-                    vals, A.rowidxs, A.colptr[1],
+                apply_regular_csc_to_vector_ki<T>(
+                    alpha,
+                    A.vals, A.rowidxs, A.colptr[1],
                     m, B_col, B_inter_row_stride,
                     C_col, C_inter_row_stride
                 );
             } else {
-                apply_csc_to_vector_from_left_ki<T>(
-                    vals, A.rowidxs, A.colptr,
+                apply_csc_to_vector_ki<T>(
+                    alpha,
+                    A.vals, A.rowidxs, A.colptr,
                     m, B_col, B_inter_row_stride,
                     C_col, C_inter_row_stride
                 ); 
             }
         }
-    }
-    if (alpha != (T) 1.0) {
-        delete [] vals;
     }
     return;
 }
@@ -157,9 +150,7 @@ static void apply_csc_left_jki_p11(
 template <typename T, SignedInteger sint_t>
 static void apply_csc_left_kib_rowmajor_1p1(
     T alpha,
-    int64_t d,
     int64_t n,
-    int64_t m,
     const CSCMatrix<T, sint_t> &A,
     const T *B,
     int64_t ldb,
@@ -168,9 +159,8 @@ static void apply_csc_left_kib_rowmajor_1p1(
 ) {
     randblas_require(A.index_base == IndexBase::Zero);
 
-    randblas_require(d == A.n_rows);
-    randblas_require(m == A.n_cols);
-
+    auto d = A.n_rows;
+    auto m = A.n_cols;
 
     int num_threads = 1;
     #if defined(RandBLAS_HAS_OpenMP)

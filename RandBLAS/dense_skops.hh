@@ -322,19 +322,26 @@ struct DenseDist {
 
     // A convenience constructor designed to gracefully handle the common case when someone specifies
     // the short-axis-vector length as a floating point multiple of some other integer. We cast both
-    // dimensions to int64_t and raise a warning.
+    // dimensions to int64_t and raise a warning if that cast is lossy.
     //
     // This function is not part of the public API.
+    template <typename ordinal_t1, typename ordinal_t2>
     DenseDist(
-        double n_rows,
-        double n_cols,
+        ordinal_t1 arg_n_rows,
+        ordinal_t2 arg_n_cols,
         ScalarDist family = ScalarDist::Gaussian,
         Axis major_axis = Axis::Long
-    ) : DenseDist(static_cast<int64_t>(n_rows), static_cast<int64_t>(n_cols), family, major_axis) {
-        std::cerr << std::endl;
-        std::cerr << "You've passed a floating point number as a dimensional parameter to DenseDist."<< std::endl;
-        std::cerr << "Dimensions will be rounded down as needed. Avoid this warning by providing integer" << std::endl;
-        std::cerr << "arguments." << std::endl << std::endl;
+    ) : DenseDist(static_cast<int64_t>(arg_n_rows), static_cast<int64_t>(arg_n_cols), family, major_axis) {
+        // Check for rounding by casting to double. This lets us detect lossy rounding
+        // up to arg_n_rows <= 2^53.
+        bool lossy_cast_rows = (double)n_rows != (double)arg_n_rows;
+        bool lossy_cast_cols = (double)n_cols != (double)arg_n_cols;
+        if (lossy_cast_rows || lossy_cast_cols) {
+            std::cerr << std::endl;
+            std::cerr << "You've passed a floating point number as a dimensional parameter to DenseDist."<< std::endl;
+            std::cerr << "Dimensions will be rounded down as needed. Avoid this warning by providing" << std::endl;
+            std::cerr << "integer arguments." << std::endl << std::endl;
+        }
     }
 
 };

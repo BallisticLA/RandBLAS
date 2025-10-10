@@ -141,10 +141,10 @@ void left_spmm(
     } else if constexpr (is_csc) {
         if (layout_opB == Layout::RowMajor && layout_C == Layout::RowMajor) {
             using RandBLAS::sparse_data::csc::apply_csc_left_kib_rowmajor_1p1;
-            apply_csc_left_kib_rowmajor_1p1(alpha, d, n, m, A, B, ldb, C, ldc);
+            apply_csc_left_kib_rowmajor_1p1(alpha, n, A, B, ldb, C, ldc);
         } else {
             using RandBLAS::sparse_data::csc::apply_csc_left_jki_p11;
-            apply_csc_left_jki_p11(alpha, layout_opB, layout_C, d, n, m, A, B, ldb, C, ldc);
+            apply_csc_left_jki_p11(alpha, layout_opB, layout_C, n, A, B, ldb, C, ldc);
         }
     } else {
         if  (layout_opB == Layout::RowMajor && layout_C == Layout::RowMajor) {

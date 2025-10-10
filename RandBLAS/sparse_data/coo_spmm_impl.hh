@@ -118,7 +118,6 @@ static void apply_coo_left_jki_p11(
         ro_a, ro_a + d,
         A_vals.data(), A_rows.data(), A_colptr.data()
     );
-    blas::scal<T>(A_nnz, alpha, A_vals.data(), 1);
     sorted_nonzero_locations_to_pointer_array(A_nnz, A_colptr.data(), m);
     bool fixed_nnz_per_col = true;
     for (int64_t ell = 2; (ell < m + 1) && fixed_nnz_per_col; ++ell)
@@ -145,13 +144,15 @@ static void apply_coo_left_jki_p11(
             B_col = &B[B_inter_col_stride * j];
             C_col = &C[C_inter_col_stride * j];
             if (fixed_nnz_per_col) {
-                RandBLAS::sparse_data::csc::apply_regular_csc_to_vector_from_left_ki<T>(
+                RandBLAS::sparse_data::csc::apply_regular_csc_to_vector_ki<T>(
+                    alpha,
                     A_vals.data(), A_rows.data(), A_colptr[1],
                     m, B_col, B_inter_row_stride,
                     C_col, C_inter_row_stride
                 );
             } else {
-                RandBLAS::sparse_data::csc::apply_csc_to_vector_from_left_ki<T>(
+                RandBLAS::sparse_data::csc::apply_csc_to_vector_ki<T>(
+                    alpha,
                     A_vals.data(), A_rows.data(), A_colptr.data(),
                     m, B_col, B_inter_row_stride,
                     C_col, C_inter_row_stride
