@@ -119,47 +119,12 @@ static void apply_coo_left_jki_p11(
         A_vals.data(), A_rows.data(), A_colptr.data()
     );
     sorted_nonzero_locations_to_pointer_array(A_nnz, A_colptr.data(), m);
-    bool fixed_nnz_per_col = true;
-    for (int64_t ell = 2; (ell < m + 1) && fixed_nnz_per_col; ++ell)
-         fixed_nnz_per_col = (A_colptr[1] + A_colptr[ell-1]) == A_colptr[ell];
 
-    // Step 3: Apply "A" to the left of B to get C += A*B.
-    //      3.1: set stride information (we can't use structured bindings because of an OpenMP bug)
-    //      3.2: iterate over the columns of the matrix B.
-    //      3.3: compute the matrix-vector products
-    auto s = layout_to_strides(layout_B, ldb);
-    auto B_inter_col_stride = s.inter_col_stride;
-    auto B_inter_row_stride = s.inter_row_stride;
+    CSCMatrix<T, sint_t> A_csc(d, m, A_nnz, A_vals.data(), A_rows.data(), A_colptr.data());
 
-    s = layout_to_strides(layout_C, ldc);
-    auto C_inter_col_stride = s.inter_col_stride;
-    auto C_inter_row_stride = s.inter_row_stride;
-
-    #pragma omp parallel default(shared)
-    {
-        const T *B_col = nullptr;
-        T *C_col = nullptr;
-        #pragma omp for schedule(static)
-        for (int64_t j = 0; j < n; j++) {
-            B_col = &B[B_inter_col_stride * j];
-            C_col = &C[C_inter_col_stride * j];
-            if (fixed_nnz_per_col) {
-                RandBLAS::sparse_data::csc::apply_regular_csc_to_vector_ki<T>(
-                    alpha,
-                    A_vals.data(), A_rows.data(), A_colptr[1],
-                    m, B_col, B_inter_row_stride,
-                    C_col, C_inter_row_stride
-                );
-            } else {
-                RandBLAS::sparse_data::csc::apply_csc_to_vector_ki<T>(
-                    alpha,
-                    A_vals.data(), A_rows.data(), A_colptr.data(),
-                    m, B_col, B_inter_row_stride,
-                    C_col, C_inter_row_stride
-                ); 
-            }
-        }
-    }
+    RandBLAS::sparse_data::csc::apply_csc_left_jki_p11(
+        alpha, layout_B, layout_C, n, A_csc, B, ldb, C, ldc
+    );
     return;
 }
 
