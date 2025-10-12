@@ -35,6 +35,7 @@
 #include <vector>
 #include <tuple>
 #include <algorithm>
+#include <numeric>
 
 
 namespace RandBLAS::sparse_data {
@@ -337,56 +338,53 @@ void reserve_coo(int64_t nnz, COOMatrix<T,sint_t> &M) {
 
 template <typename T, SignedInteger sint_t>
 void sort_coo_data(NonzeroSort s, int64_t nnz, T *vals, sint_t *rows, sint_t *cols) {
-    if (s == NonzeroSort::None)
-        return;
+    // no‐op if no sorting or already sorted
+    if (s == NonzeroSort::None) return;
     auto curr_s = coo_sort_type(nnz, rows, cols);
-    if (curr_s == s)
-        return;
-    // TODO: fix this implementation so that it's in-place.
-    //  (right now we make expensive copies)
+    if (s == curr_s) return;
 
-    // get a vector-of-triples representation of the matrix
-    using tuple_type = std::tuple<sint_t, sint_t, T>;
-    std::vector<tuple_type> nonzeros;
-    nonzeros.reserve(nnz);
-    for (int64_t ell = 0; ell < nnz; ++ell) {
-        nonzeros.push_back({rows[ell], cols[ell], vals[ell]});
-    }
-    // sort the vector-of-triples representation
-    auto sort_func = [s](tuple_type const &t1, tuple_type const &t2) {
+    // 1) computing the sorting permutation
+    std::vector<int64_t> perm(nnz);
+    std::iota(perm.begin(), perm.end(), 0);
+    auto cmp_idx = [&](int64_t a, int64_t b) {
         if (s == NonzeroSort::CSR) {
-            if (std::get<0>(t1) < std::get<0>(t2)) {
-                return true;
-            } else if (std::get<0>(t1) > std::get<0>(t2)) {
-                return false;
-            } else if (std::get<1>(t1) < std::get<1>(t2)) {
-                return true;
-            } else {
-                return false;
-            }
+            return increasing_by_csr(rows[a], cols[a], rows[b], cols[b]);
         } else {
-            if (std::get<1>(t1) < std::get<1>(t2)) {
-                return true;
-            } else if (std::get<1>(t1) > std::get<1>(t2)) {
-                return false;
-            } else if (std::get<0>(t1) < std::get<0>(t2)) {
-                return true;
-            } else {
-                return false;
-            }
+            return increasing_by_csc(rows[a], cols[a], rows[b], cols[b]);
         }
     };
-    std::sort(nonzeros.begin(), nonzeros.end(), sort_func);
+    std::sort(perm.begin(), perm.end(), cmp_idx);
 
-    // unpack the vector-of-triples rep into the triple-of-vectors rep
-    for (int64_t ell = 0; ell < nnz; ++ell) {
-        tuple_type tup = nonzeros[ell];
-        vals[ell] = std::get<2>(tup);
-        rows[ell] = std::get<0>(tup);
-        cols[ell] = std::get<1>(tup);
+    // 2) apply the permutation in‐place by walking each cycle
+    //    we need a small visited array to mark which positions are done
+    std::vector<char> visited(nnz, 0);
+
+    for (int64_t i = 0; i < nnz; ++i) {
+        // skip already‐fixed points or trivial cycles
+        if (visited[i] || perm[i] == i) continue;
+
+        // walk the cycle starting at i
+        auto cur = i;
+        auto saved_val = vals[i];
+        auto saved_row = rows[i];
+        auto saved_col = cols[i];
+        while (!visited[cur]) {
+            visited[cur] = 1;
+            auto nxt = perm[cur];
+            if (nxt == i) { // close the cycle: put saved_* into position cur
+                vals[cur] = saved_val;
+                rows[cur] = saved_row;
+                cols[cur] = saved_col;
+            } else {        // move element from nxt → cur
+                vals[cur] = vals[nxt];
+                rows[cur] = rows[nxt];
+                cols[cur] = cols[nxt];
+            }
+            cur = nxt;
+        }
     }
-    return;
 }
+
 
 template <typename T>
 void sort_coo_data(NonzeroSort s, COOMatrix<T> &spmat) {
