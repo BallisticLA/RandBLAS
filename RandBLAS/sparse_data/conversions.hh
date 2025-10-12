@@ -131,12 +131,9 @@ CSRMatrix<T, sint_t> transpose_as_csr(const CSCMatrix<T, sint_t> &A, bool share_
         CSRMatrix<T, sint_t> At(A.n_cols, A.n_rows);
         At.index_base = A.index_base;
         reserve_csr(A.nnz, At);
-        for (int64_t i = 0; i < A.nnz; ++i) {
-            At.colidxs[i] = A.rowidxs[i];
-            At.vals[i] = A.vals[i];
-        }
-        for (int64_t i = 0; i < A.n_cols + 1; ++i)
-            At.rowptr[i] = A.colptr[i];
+        std::copy( A.rowidxs, A.rowidxs + A.nnz,        At.colidxs );
+        std::copy( A.vals,    A.vals    + A.nnz,        At.vals    );
+        std::copy( A.colptr,  A.colptr  + A.n_cols + 1, At.rowptr  );
         return At;
     }
 }
@@ -150,12 +147,9 @@ CSCMatrix<T, sint_t> transpose_as_csc(const CSRMatrix<T, sint_t> &A, bool share_
         CSCMatrix<T, sint_t> At(A.n_cols, A.n_rows);
         At.index_base = A.index_base;
         reserve_csc(A.nnz, At);
-        for (int64_t i = 0; i < A.nnz; ++i) {
-            At.rowidxs[i] = A.colidxs[i];
-            At.vals[i] = A.vals[i];
-        }
-        for (int64_t i = 0; i < A.n_rows + 1; ++i)
-            At.colptr[i] = A.rowptr[i];
+        std::copy( A.colidxs, A.colidxs + A.nnz,        At.rowidxs );
+        std::copy( A.vals,    A.vals    + A.nnz,        At.vals    );
+        std::copy( A.rowptr,  A.rowptr  + A.n_rows + 1, At.colptr  );
         return At;
     }
 }

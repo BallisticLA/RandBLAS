@@ -263,11 +263,9 @@ struct COOMatrix {
       vals(nullptr), rows(nullptr), cols(nullptr), sort(other.sort) {
         if (nnz > 0) {
             reserve_coo(nnz, *this);
-            for (int64_t i = 0; i < nnz; ++i) {
-                rows[i] = other.rows[i];
-                cols[i] = other.cols[i];
-                vals[i] = other.vals[i];
-            }
+            std::copy(other.rows, other.rows + nnz, rows);
+            std::copy(other.cols, other.cols + nnz, cols);
+            std::copy(other.vals, other.vals + nnz, vals);
         }
     }
 };

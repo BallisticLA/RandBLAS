@@ -92,9 +92,7 @@ static void apply_coo_left_jki_p11(
     sint_t* colptr = A0.cols;
     if (A0.nnz < m + 1) {
         colptr = new sint_t[m+1];
-        for (int64_t i = 0; i < A0.nnz; ++i) {
-            colptr[i] = A0.cols[i];
-        }
+        std::copy(A0.cols, A0.cols + A0.nnz, colptr);
     }
     sorted_nonzero_locations_to_pointer_array(A0.nnz, colptr, m);
     CSCMatrix<T, sint_t> A_csc(d, m, A0.nnz, A0.vals, A0.rows, colptr);
