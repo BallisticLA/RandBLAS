@@ -82,10 +82,8 @@ static void apply_coo_left_jki_p11(
             new_nnz = write;
         }
         COOMatrix<T,sint_t> A2(d, m,   new_nnz, A1.vals, A1.rows, A1.cols, false);
-        print_sparse(A2);
-        sort_coo_data(NonzeroSort::CSC, A2.nnz, A2.vals, A2.rows, A2.cols);
+        sort_coo_arrays(NonzeroSort::CSC, A2.nnz, A2.vals, A2.rows, A2.cols);
         A2.sort = NonzeroSort::CSC;
-        print_sparse(A2);
         apply_coo_left_jki_p11(alpha, layout_B, layout_C, d, n, m, A2, 0, 0, B, ldb, C, ldc);
         return;
     }

@@ -26,12 +26,10 @@ SpMat eye(int64_t m) {
     using      T = SpMat::scalar_t;
     using sint_t = SpMat::index_t;
     COOMatrix<T,sint_t> coo(m, m);
-    reserve_coo(m, coo);
-    for (int i = 0; i < m; ++i) {
-        coo.rows[i] = i;
-        coo.cols[i] = i;
-        coo.vals[i] = (T) 1.0;
-    }
+    coo.reserve(m);
+    std::iota(coo.rows, coo.rows + m, (int64_t)0);
+    std::iota(coo.cols, coo.cols + m, (int64_t)0);
+    std::fill(coo.vals, coo.vals + m, (T) 1.0);
     constexpr bool is_coo = std::is_same_v<SpMat, COOMatrix<T, sint_t>>;
     constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
     constexpr bool is_csr = std::is_same_v<SpMat, CSRMatrix<T, sint_t>>;

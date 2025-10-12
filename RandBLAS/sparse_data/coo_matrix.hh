@@ -108,6 +108,77 @@ static inline NonzeroSort coo_sort_type(int64_t nnz, sint_t *rows, sint_t *cols)
     }
 }
 
+template <typename T, SignedInteger sint_t>
+void alloc_coo_arrays(int64_t nnz, sint_t* &rows, sint_t* &cols, T* &vals) {
+    randblas_require(nnz > 0);
+    randblas_require(vals == nullptr);
+    randblas_require(rows == nullptr);
+    randblas_require(cols == nullptr);
+    vals = new T[nnz];
+    rows = new sint_t[nnz];
+    cols = new sint_t[nnz];
+    return;
+}
+
+template <typename T, SignedInteger sint_t>
+void free_coo_arrays(T* &vals, sint_t* &rows, sint_t* &cols) {
+    if (vals != nullptr) delete [] vals;
+    if (rows != nullptr) delete [] rows;
+    if (cols != nullptr) delete [] cols;
+    vals = nullptr;
+    rows = nullptr;
+    cols = nullptr;
+}
+
+template <typename T, SignedInteger sint_t>
+void sort_coo_arrays(NonzeroSort s, int64_t nnz, T *vals, sint_t *rows, sint_t *cols) {
+    // no‐op if no sorting or already sorted
+    if (s == NonzeroSort::None) return;
+    auto curr_s = coo_sort_type(nnz, rows, cols);
+    if (s == curr_s) return;
+
+    // 1) computing the sorting permutation
+    std::vector<int64_t> perm(nnz);
+    std::iota(perm.begin(), perm.end(), 0);
+    auto cmp_idx = [&](int64_t a, int64_t b) {
+        if (s == NonzeroSort::CSR) {
+            return increasing_by_csr(rows[a], cols[a], rows[b], cols[b]);
+        } else {
+            return increasing_by_csc(rows[a], cols[a], rows[b], cols[b]);
+        }
+    };
+    std::sort(perm.begin(), perm.end(), cmp_idx);
+
+    // 2) apply the permutation in‐place by walking each cycle
+    //    we need a small visited array to mark which positions are done
+    std::vector<char> visited(nnz, 0);
+
+    for (int64_t i = 0; i < nnz; ++i) {
+        // skip already‐fixed points or trivial cycles
+        if (visited[i] || perm[i] == i) continue;
+
+        // walk the cycle starting at i
+        auto cur = i;
+        auto saved_val = vals[i];
+        auto saved_row = rows[i];
+        auto saved_col = cols[i];
+        while (!visited[cur]) {
+            visited[cur] = 1;
+            auto nxt = perm[cur];
+            if (nxt == i) { // close the cycle: put saved_* into position cur
+                vals[cur] = saved_val;
+                rows[cur] = saved_row;
+                cols[cur] = saved_col;
+            } else {        // move element from nxt → cur
+                vals[cur] = vals[nxt];
+                rows[cur] = rows[nxt];
+                cols[cur] = cols[nxt];
+            }
+            cur = nxt;
+        }
+    }
+}
+
 // =============================================================================
 /// Let \math{\mtxA} denote a sparse matrix with \math{\ttt{nnz}} structural nonzeros.
 /// Its COO representation consists of declared dimensions, \math{\ttt{n_rows}}
@@ -164,7 +235,7 @@ struct COOMatrix {
     ///  If non-null, this must have length at least nnz.
     ///  \internal
     ///  **Memory management note.** Because this length requirement is not a function of
-    ///  only const variables, calling reserve_coo(nnz, A) on a COOMatrix "A" will raise an error
+    ///  only const variables, calling A.reserve(nnz) on a COOMatrix "A" will raise an error
     ///  if A.vals is non-null.
     T *vals;
     
@@ -174,7 +245,7 @@ struct COOMatrix {
     ///  If non-null, this must have length at least nnz.
     ///  \internal
     ///  **Memory management note.** Because this length requirement is not a function of
-    ///  only const variables, calling reserve_coo(nnz, A) on a COOMatrix "A" will raise an error
+    ///  only const variables, calling A.reserve(nnz) on a COOMatrix "A" will raise an error
     ///  if A.rows is non-null.
     ///  \endinternal
     sint_t *rows;
@@ -185,7 +256,7 @@ struct COOMatrix {
     ///  If non-null, this must have length at least nnz.
     ///  \internal
     ///  **Memory management note.** Because this length requirement is not a function of
-    ///  only const variables, calling reserve_coo(nnz, A) on a COOMatrix "A" will raise an error
+    ///  only const variables, calling A.reserve(nnz) on a COOMatrix "A" will raise an error
     ///  if A.cols is non-null.
     ///  \endinternal
     sint_t *cols;
@@ -201,7 +272,7 @@ struct COOMatrix {
     ///  nnz is set to Zero, index_base is set to
     ///  zero, and COOMatrix::own_memory is set to true.
     ///  
-    ///  This constructor is intended for use with reserve_coo(int64_t nnz, COOMatrix &A).
+    ///  This constructor is intended for use with COOMatrix::reserve(int64_t nnz).
     ///
     COOMatrix(
         int64_t n_rows,
@@ -234,11 +305,20 @@ struct COOMatrix {
     };
 
     ~COOMatrix() {
-        if (own_memory) {
-            if (vals != nullptr) delete [] vals;
-            if (rows != nullptr) delete [] rows;
-            if (cols != nullptr) delete [] cols;
-        }
+        if (own_memory) free_coo_arrays(vals, rows, cols);
+    };
+
+    void reserve(int64_t arg_nnz) {
+        randblas_require(arg_nnz > 0);
+        randblas_require(own_memory);
+        nnz = arg_nnz;
+        alloc_coo_arrays(nnz, rows, cols, vals);
+        return;
+    };
+
+    void sort_arrays(NonzeroSort s) {
+        sort_coo_arrays(s, nnz, vals, rows, cols);
+        sort = s;
     };
 
     /////////////////////////////////////////////////////////////////////
@@ -263,7 +343,7 @@ struct COOMatrix {
     : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(true), nnz(other.nnz), index_base(other.index_base),
       vals(nullptr), rows(nullptr), cols(nullptr), sort(other.sort) {
         if (nnz > 0) {
-            reserve_coo(nnz, *this);
+            reserve(nnz);
             std::copy(other.rows, other.rows + nnz, rows);
             std::copy(other.cols, other.cols + nnz, cols);
             std::copy(other.vals, other.vals + nnz, vals);
@@ -312,83 +392,19 @@ void print_sparse(COOMatrix const &A) {
     return;
 }
 
-// -----------------------------------------------------
-///
-/// This function requires that M.own_memory is true and that
-/// M.vals, M.rows, and M.cols are all null. If any of these
-/// conditions aren't satisfied then RandBLAS will raise an error.
-///
-/// If no error is raised, then M.nnz is overwritten by nnz,
-/// M.vals is redirected to a new length-nnz array of type T,
-/// and (M.rows, M.cols) are redirected to new length-nnz arrays of type sint_t.
-///
+/// This function is deprecated; call M.reserve(nnz) instead.
 template <typename T, SignedInteger sint_t>
-void reserve_coo(int64_t nnz, COOMatrix<T,sint_t> &M) {
-    randblas_require(nnz > 0);
+inline void reserve_coo(int64_t nnz, COOMatrix<T,sint_t> &M) {
     randblas_require(M.own_memory);
-    randblas_require(M.vals == nullptr);
-    randblas_require(M.rows == nullptr);
-    randblas_require(M.cols == nullptr);
     M.nnz = nnz;
-    M.vals = new T[nnz];
-    M.rows = new sint_t[nnz];
-    M.cols = new sint_t[nnz];
+    alloc_coo_arrays(M.nnz, M.rows, M.cols, M.vals);
     return;
 }
 
-template <typename T, SignedInteger sint_t>
-void sort_coo_data(NonzeroSort s, int64_t nnz, T *vals, sint_t *rows, sint_t *cols) {
-    // no‐op if no sorting or already sorted
-    if (s == NonzeroSort::None) return;
-    auto curr_s = coo_sort_type(nnz, rows, cols);
-    if (s == curr_s) return;
-
-    // 1) computing the sorting permutation
-    std::vector<int64_t> perm(nnz);
-    std::iota(perm.begin(), perm.end(), 0);
-    auto cmp_idx = [&](int64_t a, int64_t b) {
-        if (s == NonzeroSort::CSR) {
-            return increasing_by_csr(rows[a], cols[a], rows[b], cols[b]);
-        } else {
-            return increasing_by_csc(rows[a], cols[a], rows[b], cols[b]);
-        }
-    };
-    std::sort(perm.begin(), perm.end(), cmp_idx);
-
-    // 2) apply the permutation in‐place by walking each cycle
-    //    we need a small visited array to mark which positions are done
-    std::vector<char> visited(nnz, 0);
-
-    for (int64_t i = 0; i < nnz; ++i) {
-        // skip already‐fixed points or trivial cycles
-        if (visited[i] || perm[i] == i) continue;
-
-        // walk the cycle starting at i
-        auto cur = i;
-        auto saved_val = vals[i];
-        auto saved_row = rows[i];
-        auto saved_col = cols[i];
-        while (!visited[cur]) {
-            visited[cur] = 1;
-            auto nxt = perm[cur];
-            if (nxt == i) { // close the cycle: put saved_* into position cur
-                vals[cur] = saved_val;
-                rows[cur] = saved_row;
-                cols[cur] = saved_col;
-            } else {        // move element from nxt → cur
-                vals[cur] = vals[nxt];
-                rows[cur] = rows[nxt];
-                cols[cur] = cols[nxt];
-            }
-            cur = nxt;
-        }
-    }
-}
-
-
+/// TODO: mark as deprecated. Figure out if we need to keep it (public vs private API and all...)
 template <typename T>
 void sort_coo_data(NonzeroSort s, COOMatrix<T> &spmat) {
-    sort_coo_data(s, spmat.nnz, spmat.vals, spmat.rows, spmat.cols);
+    sort_coo_arrays(s, spmat.nnz, spmat.vals, spmat.rows, spmat.cols);
     spmat.sort = s;
     return;
 }
@@ -420,7 +436,7 @@ void dense_to_coo(int64_t stride_row, int64_t stride_col, T *mat, T abs_tol, COO
     int64_t n_rows = spmat.n_rows;
     int64_t n_cols = spmat.n_cols;
     int64_t nnz = nnz_in_dense(n_rows, n_cols, stride_row, stride_col, mat, abs_tol);
-    reserve_coo(nnz, spmat);
+    spmat.reserve(nnz);
     nnz = 0;
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
     for (int64_t i = 0; i < n_rows; ++i) {

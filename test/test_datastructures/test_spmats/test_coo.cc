@@ -97,17 +97,17 @@ class TestCOO : public ::testing::Test {
         iid_sparsify_random_dense(n, n, Layout::ColMajor, mat.data(), 0.25, s);
         dense_to_coo(1, n, mat.data(), 0.0, A);
 
-        sort_coo_data(NonzeroSort::CSC, A);
+        A.sort_arrays(NonzeroSort::CSC);
         EXPECT_EQ(A.sort, NonzeroSort::CSC);
         auto sort = coo_sort_type(A.nnz, A.rows, A.cols);
         EXPECT_EQ(sort, NonzeroSort::CSC);
 
-        sort_coo_data(NonzeroSort::CSR, A);
+        A.sort_arrays(NonzeroSort::CSR);
         EXPECT_EQ(A.sort, NonzeroSort::CSR);
         sort = coo_sort_type(A.nnz, A.rows, A.cols);
         EXPECT_EQ(sort, NonzeroSort::CSR);
 
-        sort_coo_data(NonzeroSort::CSC, A);
+        A.sort_arrays(NonzeroSort::CSC);
         EXPECT_EQ(A.sort, NonzeroSort::CSC);
         sort = coo_sort_type(A.nnz, A.rows, A.cols);
         EXPECT_EQ(sort, NonzeroSort::CSC);

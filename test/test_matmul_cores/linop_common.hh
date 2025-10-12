@@ -40,6 +40,8 @@
 #include <functional>
 #include <vector>
 #include <tuple>
+#include <numeric>
+#include <algorithm>
 
 
 namespace test::linop_common {

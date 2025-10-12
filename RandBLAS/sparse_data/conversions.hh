@@ -46,7 +46,7 @@ void coo_to_csc(COOMatrix<T, sint_t1> &coo, CSCMatrix<T, sint_t2> &csc) {
     randblas_require(csc.n_cols == csc.n_cols);
     randblas_require(csc.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
-    sort_coo_data(NonzeroSort::CSC, coo);
+    coo.sort_arrays(NonzeroSort::CSC);
     reserve_csc(coo.nnz, csc);
     csc.colptr[0] = 0;
     int64_t ell = 0;
@@ -67,7 +67,7 @@ void csc_to_coo(const CSCMatrix<T, sint_t1> &csc, COOMatrix<T, sint_t2> &coo) {
     randblas_require(csc.n_cols == coo.n_cols);
     randblas_require(csc.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
-    reserve_coo(csc.nnz, coo);
+    coo.reserve(csc.nnz);
     int64_t ell = 0;
     for (int64_t j = 0; j < csc.n_cols; ++j) {
         for (int64_t i = csc.colptr[j]; i < csc.colptr[j+1]; ++i) {
@@ -87,7 +87,7 @@ void coo_to_csr(COOMatrix<T, sint_t1> &coo, CSRMatrix<T, sint_t2> &csr) {
     randblas_require(csr.n_cols == coo.n_cols);
     randblas_require(csr.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
-    sort_coo_data(NonzeroSort::CSR, coo);
+    coo.sort_arrays(NonzeroSort::CSR);
     reserve_csr(coo.nnz, csr);
     csr.rowptr[0] = (sint_t2) 0;
     int64_t ell = 0;
@@ -108,7 +108,7 @@ void csr_to_coo(const CSRMatrix<T, sint_t1> &csr, COOMatrix<T, sint_t2> &coo) {
     randblas_require(csr.n_cols == coo.n_cols);
     randblas_require(csr.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
-    reserve_coo(csr.nnz, coo);
+    coo.reserve(csr.nnz);
     int64_t ell = 0;
     for (int64_t i = 0; i < csr.n_rows; ++i) {
         for (int64_t j = csr.rowptr[i]; j < csr.rowptr[i+1]; ++j) {
