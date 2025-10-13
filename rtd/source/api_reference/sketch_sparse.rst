@@ -40,9 +40,6 @@ Sparse matrix data structures
         :project: RandBLAS
         :members:
 
-    .. doxygenfunction:: RandBLAS::sparse_data::reserve_coo
-        :project: RandBLAS
-
     .. doxygenenum:: RandBLAS::sparse_data::NonzeroSort
         :project: RandBLAS
 
@@ -54,9 +51,6 @@ Sparse matrix data structures
         :project: RandBLAS
         :members:
 
-    .. doxygenfunction:: RandBLAS::sparse_data::reserve_csr
-        :project: RandBLAS
-
 .. dropdown:: CSCMatrix
     :animate: fade-in-slide-down
     :color: light
@@ -64,9 +58,6 @@ Sparse matrix data structures
     .. doxygenstruct:: RandBLAS::sparse_data::CSCMatrix
         :project: RandBLAS
         :members:
-
-    .. doxygenfunction:: RandBLAS::sparse_data::reserve_csc
-        :project: RandBLAS
 
 
 Operations with sparse matrices

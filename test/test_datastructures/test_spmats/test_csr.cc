@@ -52,7 +52,7 @@ class TestCSR_Conversions : public ::testing::Test
     template <typename T = double>
     static void test_csr_to_dense_diagonal(int64_t n) {
         CSRMatrix<T> A(n, n);
-        reserve_csr(n, A);
+        A.reserve(n);
         for (int i = 0; i < n; ++i) {
             A.vals[i] = 1.0 + (T) i;
             A.rowptr[i] = i;

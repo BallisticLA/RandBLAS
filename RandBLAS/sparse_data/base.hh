@@ -91,6 +91,29 @@ static inline void sorted_nonzero_locations_to_pointer_array(
     return;
 }
 
+template <typename T, SignedInteger sint_t>
+void alloc_compressed_sparse_arrays(int64_t n_comp, int64_t nnz, T* &vals, sint_t* &idxs, sint_t* &ptr) {
+    randblas_require(nnz > 0);
+    randblas_require(idxs == nullptr);
+    randblas_require(vals == nullptr);
+    idxs = new sint_t[nnz]{0};
+    vals = new T[nnz]{0.0};
+    // Do the ptr check last. This function is called within CSRMatrix.reserve() and
+    // CSCMatrix.reserve(), and if we raise an exception for ptr then these contexts
+    // will still want vals and idxs to be handled correctly.
+    randblas_require(ptr == nullptr);
+    ptr  = new sint_t[n_comp + 1]{0};
+    return;
+}
+
+template <typename T, SignedInteger sint_t>
+void free_compressed_sparse_arrays(T* &vals, sint_t* &idxs, sint_t* &ptr) {
+    if (idxs != nullptr) {delete [] idxs; idxs = nullptr; }
+    if (vals != nullptr) {delete [] vals; vals = nullptr; }
+    if (ptr  != nullptr) {delete [] ptr;  ptr  = nullptr; }
+    return;
+}
+
 
 template <SignedInteger sint_t>
 static bool compressed_indices_are_increasing(int64_t num_vecs, sint_t *ptrs, sint_t *idxs, int64_t *failed_ind = nullptr) {

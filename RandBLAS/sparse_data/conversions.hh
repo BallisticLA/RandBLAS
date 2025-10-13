@@ -47,7 +47,7 @@ void coo_to_csc(COOMatrix<T, sint_t1> &coo, CSCMatrix<T, sint_t2> &csc) {
     randblas_require(csc.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
     coo.sort_arrays(NonzeroSort::CSC);
-    reserve_csc(coo.nnz, csc);
+    csc.reserve(coo.nnz);
     csc.colptr[0] = 0;
     int64_t ell = 0;
     for (int64_t j = 0; j < coo.n_cols; ++j) {
@@ -88,7 +88,7 @@ void coo_to_csr(COOMatrix<T, sint_t1> &coo, CSRMatrix<T, sint_t2> &csr) {
     randblas_require(csr.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
     coo.sort_arrays(NonzeroSort::CSR);
-    reserve_csr(coo.nnz, csr);
+    csr.reserve(coo.nnz);
     csr.rowptr[0] = (sint_t2) 0;
     int64_t ell = 0;
     for (int64_t i = 0; i < coo.n_rows; ++i) {
@@ -130,7 +130,7 @@ CSRMatrix<T, sint_t> transpose_as_csr(const CSCMatrix<T, sint_t> &A, bool share_
     } else {
         CSRMatrix<T, sint_t> At(A.n_cols, A.n_rows);
         At.index_base = A.index_base;
-        reserve_csr(A.nnz, At);
+        At.reserve(A.nnz);
         std::copy( A.rowidxs, A.rowidxs + A.nnz,        At.colidxs );
         std::copy( A.vals,    A.vals    + A.nnz,        At.vals    );
         std::copy( A.colptr,  A.colptr  + A.n_cols + 1, At.rowptr  );
@@ -146,7 +146,7 @@ CSCMatrix<T, sint_t> transpose_as_csc(const CSRMatrix<T, sint_t> &A, bool share_
     } else {
         CSCMatrix<T, sint_t> At(A.n_cols, A.n_rows);
         At.index_base = A.index_base;
-        reserve_csc(A.nnz, At);
+        At.reserve(A.nnz);
         std::copy( A.colidxs, A.colidxs + A.nnz,        At.rowidxs );
         std::copy( A.vals,    A.vals    + A.nnz,        At.vals    );
         std::copy( A.rowptr,  A.rowptr  + A.n_rows + 1, At.colptr  );

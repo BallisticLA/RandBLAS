@@ -109,14 +109,14 @@ static inline NonzeroSort coo_sort_type(int64_t nnz, sint_t *rows, sint_t *cols)
 }
 
 template <typename T, SignedInteger sint_t>
-void alloc_coo_arrays(int64_t nnz, sint_t* &rows, sint_t* &cols, T* &vals) {
+void alloc_coo_arrays(int64_t nnz, T* &vals, sint_t* &rows, sint_t* &cols) {
     randblas_require(nnz > 0);
     randblas_require(vals == nullptr);
     randblas_require(rows == nullptr);
     randblas_require(cols == nullptr);
-    vals = new T[nnz];
-    rows = new sint_t[nnz];
-    cols = new sint_t[nnz];
+    vals = new T[nnz]{0};
+    rows = new sint_t[nnz]{0};
+    cols = new sint_t[nnz]{0};
     return;
 }
 
@@ -308,11 +308,19 @@ struct COOMatrix {
         if (own_memory) free_coo_arrays(vals, rows, cols);
     };
 
+    // -----------------------------------------------------
+    /// This function requires that own_memory is true, and
+    /// that vals, rows, and cols are null. If any of these conditions
+    /// are not met then this function will raise an error.
+    /// 
+    /// If no error is raised then this function redirects
+    /// vals, rows, and cols to new arrays of length arg_nnz,
+    /// and nnz is set to arg_nnz.
     void reserve(int64_t arg_nnz) {
         randblas_require(arg_nnz > 0);
         randblas_require(own_memory);
+        alloc_coo_arrays(arg_nnz, vals, rows, cols);
         nnz = arg_nnz;
-        alloc_coo_arrays(nnz, rows, cols, vals);
         return;
     };
 
@@ -395,9 +403,7 @@ void print_sparse(COOMatrix const &A) {
 /// This function is deprecated; call M.reserve(nnz) instead.
 template <typename T, SignedInteger sint_t>
 inline void reserve_coo(int64_t nnz, COOMatrix<T,sint_t> &M) {
-    randblas_require(M.own_memory);
-    M.nnz = nnz;
-    alloc_coo_arrays(M.nnz, M.rows, M.cols, M.vals);
+    M.reserve(nnz);
     return;
 }
 
