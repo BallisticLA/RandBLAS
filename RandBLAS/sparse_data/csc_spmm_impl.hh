@@ -40,7 +40,11 @@
 
 namespace RandBLAS::sparse_data::csc {
 
+#ifdef __cpp_concepts
 using RandBLAS::SignedInteger;
+#else
+#define SignedInteger typename
+#endif
 
 template <typename T, SignedInteger sint_t = int64_t>
 static void apply_csc_to_vector_ki(
