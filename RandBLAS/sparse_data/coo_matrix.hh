@@ -427,7 +427,7 @@ using blas::Layout;
 //      1. Adding optional share_memory flag that defaults to true.
 //      2. renaming to transpose_as_coo.
 template <typename T>
-COOMatrix<T> transpose(COOMatrix<T> &S) {
+COOMatrix<T> transpose(const COOMatrix<T> &S) {
     COOMatrix<T> St(S.n_cols, S.n_rows, S.nnz, S.vals, S.cols, S.rows, false, S.index_base);
     if (S.sort == NonzeroSort::CSC) {
         St.sort = NonzeroSort::CSR;

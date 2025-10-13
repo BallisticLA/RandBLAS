@@ -53,7 +53,7 @@ static void apply_coo_left_jki_p11(
     int64_t d,
     int64_t n,
     int64_t m,
-    COOMatrix<T, sint_t> &A0,
+    const COOMatrix<T, sint_t> &A0,
     int64_t ro_a,
     int64_t co_a,
     const T *B,
@@ -82,24 +82,17 @@ static void apply_coo_left_jki_p11(
             new_nnz = write;
         }
         COOMatrix<T,sint_t> A2(d, m,   new_nnz, A1.vals, A1.rows, A1.cols, false);
-        sort_coo_arrays(NonzeroSort::CSC, A2.nnz, A2.vals, A2.rows, A2.cols);
-        A2.sort = NonzeroSort::CSC;
+        A2.sort_arrays(NonzeroSort::CSC);
         apply_coo_left_jki_p11(alpha, layout_B, layout_C, d, n, m, A2, 0, 0, B, ldb, C, ldc);
         return;
     }
-    sint_t* colptr = A0.cols;
-    if (A0.nnz < m + 1) {
-        colptr = new sint_t[m+1];
-        std::copy(A0.cols, A0.cols + A0.nnz, colptr);
-    }
-    sorted_nonzero_locations_to_pointer_array(A0.nnz, colptr, m);
-    CSCMatrix<T, sint_t> A_csc(d, m, A0.nnz, A0.vals, A0.rows, colptr);
+    auto colptr = new sint_t[m+1];
+    compressed_ptr_from_sorted_idxs(  A0.nnz, A0.cols, m, colptr );
+    CSCMatrix<T, sint_t> A_csc( d, m, A0.nnz, A0.vals, A0.rows, colptr );
     RandBLAS::sparse_data::csc::apply_csc_left_jki_p11(
         alpha, layout_B, layout_C, n, A_csc, B, ldb, C, ldc
     );
-    if (A0.nnz < m + 1) {
-        delete [] colptr;
-    }
+    delete [] colptr;
     return;
 }
 

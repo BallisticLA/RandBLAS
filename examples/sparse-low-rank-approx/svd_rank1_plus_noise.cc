@@ -100,7 +100,7 @@ void iid_sparsify_random_dense(
 }
 
 template <typename SpMat>
-SpMat sum_of_coo_matrices(SpMat &A, SpMat &B) {
+SpMat sum_of_coo_matrices(SpMat &A, const SpMat &B) {
     randblas_require(A.n_rows == B.n_rows);
     randblas_require(A.n_cols == B.n_cols);
 

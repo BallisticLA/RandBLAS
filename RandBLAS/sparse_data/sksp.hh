@@ -185,7 +185,7 @@ void lsksp3(
 
 // =============================================================================
 /// \fn rsksp3(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m,
-///     int64_t d, int64_t n, T alpha, SpMat &A, int64_t ro_a, int64_t co_a,
+///     int64_t d, int64_t n, T alpha, const SpMat &A, int64_t ro_a, int64_t co_a,
 ///     DenseSkOp<T,RNG> &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
@@ -337,7 +337,7 @@ using namespace RandBLAS::sparse_data;
 
 // =============================================================================
 /// \fn sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,  int64_t n, int64_t m,
-///     T alpha, DenseSkOp &S, int64_t ro_s, int64_t co_s, SpMat &A, T beta, T *B, int64_t ldb
+///     T alpha, DenseSkOp &S, int64_t ro_s, int64_t co_s, const SpMat &A, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
 /// Sketch from the left in an SpMM-like operation
@@ -439,7 +439,7 @@ inline void sketch_sparse(
 
 // =============================================================================
 /// \fn sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
-///     int64_t n, int64_t m, T alpha, SpMat &A, DenseSkOp &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb
+///     int64_t n, int64_t m, T alpha, const SpMat &A, DenseSkOp &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
 /// Sketch from the right in an SpMM-like operation

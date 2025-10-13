@@ -54,7 +54,7 @@ void left_spmm(
     int64_t n, // \op(B) is m-by-n
     int64_t m, // \op(A) is d-by-m
     T alpha,
-    SpMat &A,
+    const SpMat &A,
     int64_t ro_a,
     int64_t co_a,
     const T *B,
@@ -170,7 +170,7 @@ inline void right_spmm(
     T alpha,
     const T *A,
     int64_t lda,
-    SpMat &B,
+    const SpMat &B,
     int64_t i_off,
     int64_t j_off,
     T beta,
@@ -205,7 +205,7 @@ namespace RandBLAS {
 
 // =============================================================================
 /// \fn spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m,
-///     int64_t n, int64_t k, T alpha, SpMat &A, const T *B, int64_t ldb, T beta, T *C, int64_t ldc
+///     int64_t n, int64_t k, T alpha, const SpMat &A, const T *B, int64_t ldb, T beta, T *C, int64_t ldc
 /// ) 
 /// @verbatim embed:rst:leading-slashes
 /// Multiply a dense matrix on the left with a sparse matrix:
@@ -277,14 +277,14 @@ namespace RandBLAS {
 ///
 /// @endverbatim
 template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
-inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, SpMat &A, const T *B, int64_t ldb, T beta, T *C, int64_t ldc) {
+inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const SpMat &A, const T *B, int64_t ldb, T beta, T *C, int64_t ldc) {
     RandBLAS::sparse_data::left_spmm(layout, opA, opB, m, n, k, alpha, A, 0, 0, B, ldb, beta, C, ldc);
     return;
 };
 
 // =============================================================================
 /// \fn spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m,
-///     int64_t n, int64_t k, T alpha, const T* A, int64_t lda, SpMat &B, T beta, T *C, int64_t ldc
+///     int64_t n, int64_t k, T alpha, const T* A, int64_t lda, const SpMat &B, T beta, T *C, int64_t ldc
 /// ) 
 /// @verbatim embed:rst:leading-slashes
 /// Multiply a dense matrix on the right with a sparse matrix:
@@ -355,7 +355,7 @@ inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int
 ///
 /// @endverbatim
 template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
-inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T *A, int64_t lda, SpMat &B, T beta, T *C, int64_t ldc) {
+inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T *A, int64_t lda, const SpMat &B, T beta, T *C, int64_t ldc) {
     RandBLAS::sparse_data::right_spmm(layout, opA, opB, m, n, k, alpha, A, lda, B, 0, 0, B, beta, C, ldc);
     return;
 }

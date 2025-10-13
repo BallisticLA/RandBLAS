@@ -160,7 +160,7 @@ void lskge3(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(S) is d-by-m
     T alpha,
-    DenseSkOp &S,
+    const DenseSkOp &S,
     int64_t ro_s,
     int64_t co_s,
     const T *A,
@@ -315,7 +315,7 @@ void rskge3(
     T alpha,
     const T *A,
     int64_t lda,
-    DenseSkOp &S,
+    const DenseSkOp &S,
     int64_t ro_s,
     int64_t co_s,
     T beta,
@@ -471,7 +471,7 @@ void lskges(
     int64_t n, // \op(A) is m-by-n
     int64_t m, // \op(\mtxS) is d-by-m
     T alpha,
-    SparseSkOp<T,RNG,sint_t> &S,
+    const SparseSkOp<T,RNG,sint_t> &S,
     int64_t ro_s,
     int64_t co_s,
     const T *A,
@@ -606,7 +606,7 @@ inline void rskges(
     T alpha,
     const T *A,
     int64_t lda,
-    SparseSkOp<T,RNG,sint_t> &S,
+    const SparseSkOp<T,RNG,sint_t> &S,
     int64_t ro_s,
     int64_t co_s,
     T beta,
@@ -762,7 +762,7 @@ inline void sketch_general(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(submat(\mtxS)) is d-by-m
     T alpha,
-    SKOP &S,
+    const SKOP &S,
     int64_t ro_s,
     int64_t co_s,
     const T *A,
@@ -781,7 +781,7 @@ inline void sketch_general(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(submat(\mtxS)) is d-by-m
     T alpha,
-    SparseSkOp<T, RNG> &S,
+    const SparseSkOp<T, RNG> &S,
     int64_t ro_s,
     int64_t co_s,
     const T *A,
@@ -805,7 +805,7 @@ inline void sketch_general(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(submat(\mtxS)) is d-by-m
     T alpha,
-    DenseSkOp<T, RNG> &S,
+    const DenseSkOp<T, RNG> &S,
     int64_t ro_s,
     int64_t co_s,
     const T *A,
@@ -823,7 +823,7 @@ inline void sketch_general(
 
 // =============================================================================
 /// \fn sketch_general(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n,
-///    T alpha, const T *A, int64_t lda, SKOP &S,
+///    T alpha, const T *A, int64_t lda, const SKOP &S,
 ///    int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb
 /// )
 /// @verbatim embed:rst:leading-slashes
@@ -936,7 +936,7 @@ inline void sketch_general(
     T alpha,
     const T *A,
     int64_t lda,
-    SKOP &S,
+    const SKOP &S,
     int64_t ro_s,
     int64_t co_s,
     T beta,
@@ -955,7 +955,7 @@ inline void sketch_general(
     T alpha,
     const T *A,
     int64_t lda,
-    DenseSkOp<T, RNG> &S,
+    const DenseSkOp<T, RNG> &S,
     int64_t ro_s,
     int64_t co_s,
     T beta,
@@ -979,7 +979,7 @@ inline void sketch_general(
     T alpha,
     const T *A,
     int64_t lda,
-    SparseSkOp<T, RNG> &S,
+    const SparseSkOp<T, RNG> &S,
     int64_t ro_s,
     int64_t co_s,
     T beta,
@@ -1079,7 +1079,7 @@ inline void sketch_general(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(S) is d-by-m
     T alpha,
-    SKOP &S,
+    const SKOP &S,
     const T *A,
     int64_t lda,
     T beta,
@@ -1099,7 +1099,7 @@ inline void sketch_general(
 
 // =============================================================================
 /// \fn sketch_general(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n,
-///    T alpha, const T *A, int64_t lda, SKOP &S, T beta, T *B, int64_t ldb
+///    T alpha, const T *A, int64_t lda, const SKOP &S, T beta, T *B, int64_t ldb
 /// )
 /// @verbatim embed:rst:leading-slashes
 /// Sketch from the right in a GEMM-like operation
@@ -1183,7 +1183,7 @@ inline void sketch_general(
     T alpha,
     const T *A,
     int64_t lda,
-    SKOP &S,
+    const SKOP &S,
     T beta,
     T *B,
     int64_t ldb

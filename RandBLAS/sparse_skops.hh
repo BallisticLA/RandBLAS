@@ -637,9 +637,8 @@ using RandBLAS::Axis;
 using RandBLAS::sparse_data::COOMatrix;
 
 template <typename SparseSkOp, typename T = SparseSkOp::scalar_t, typename sint_t = SparseSkOp::index_t>
-COOMatrix<T, sint_t> coo_view_of_skop(SparseSkOp &S) {
-    if (S.nnz <= 0)
-        fill_sparse(S);
+COOMatrix<T, sint_t> coo_view_of_skop(const SparseSkOp &S) {
+    randblas_require(S.nnz > 0);
     COOMatrix<T, sint_t> A(S.n_rows, S.n_cols, S.nnz, S.vals, S.rows, S.cols);
     return A;
 }

@@ -67,27 +67,18 @@ int64_t nnz_in_dense(
 }
 
 template <SignedInteger sint_t = int64_t>
-static inline void sorted_nonzero_locations_to_pointer_array(
-    int64_t nnz,
-    sint_t *sorted, // length at least max(nnz, last_ptr_index + 1)
-    int64_t last_ptr_index
+static inline void compressed_ptr_from_sorted_idxs(
+    int64_t len_idxs, const sint_t *idxs, int64_t num_comp, sint_t *ptr
 ) {
-    int64_t i;
-    for (i = 1; i < nnz; ++i)
-        randblas_require(sorted[i - 1] <= sorted[i]);
-    
-    auto temp = new sint_t[last_ptr_index + 1];
-    temp[0] = 0;
+    for (int64_t i = 1; i < len_idxs; ++i)
+        randblas_require(idxs[i - 1] <= idxs[i]);
+    ptr[0] = 0;
     int64_t ell = 0;
-    for (i = 0; i < last_ptr_index; ++i) {
-        while (ell < nnz && sorted[ell] == i)
+    for (int64_t i = 0; i < num_comp; ++i) {
+        while (ell < len_idxs && idxs[ell] == i)
             ++ell;
-        temp[i+1] = ell;
+        ptr[i+1] = ell;
     }
-    sorted[0] = 0;
-    for (i = 0; i < last_ptr_index; ++i)
-        sorted[i+1] = temp[i+1];
-    delete [] temp;
     return;
 }
 
@@ -132,7 +123,7 @@ static bool compressed_indices_are_increasing(int64_t num_vecs, sint_t *ptrs, si
 // Idea: change all "const" attributes to for SpMatrix to return values from inlined functions. 
 // Looks like there'd be no collision with function/property names for sparse matrix
 // types in Eigen, SuiteSparse, OneMKL, etc.. These inlined functions could return
-// nomincally public members like A._n_rows and A._n_cols, which the user will only change
+// nominally public members like A._n_rows and A._n_cols, which the user will only change
 // at their own peril.
 
 #ifdef __cpp_concepts
