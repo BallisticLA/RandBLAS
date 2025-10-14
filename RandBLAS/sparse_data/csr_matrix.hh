@@ -196,27 +196,6 @@ struct CSRMatrix {
         nnz = arg_nnz;
         return;
     }
-
-    void symperm_inplace(sint_t* perm) {
-        randblas_require(n_rows == n_cols);
-        fast_permutation_check(n_rows, perm);
-        int64_t n = n_rows;
-        // symperm_csr_arrays(n_rows, perm, nnz, vals, rowptr, colidxs);
-        T* coo_vals = nullptr; sint_t* coo_rows = nullptr; sint_t* coo_cols = nullptr;
-        allocate_coo_arrays(nnz, coo_vals, coo_rows, coo_cols);
-        std::copy(colidxs, colidxs + nnz, coo_cols);
-        std::copy(vals,    vals    + nnz, coo_vals);
-        sorted_idxs_from_compressed_ptr(n, rowptr, nnz, coo_rows);
-        // Transform the COO representation
-        symperm_coo_arrays(n, perm, nnz, coo_rows, coo_cols);
-        sort_coo_arrays(NonzeroSort::CSR, nnz, coo_vals, coo_rows, coo_cols);
-        // Convert the transed COO representation back to this CSRMatrix.
-        std::copy( coo_vals, coo_vals + nnz, vals );
-        std::copy( coo_cols, coo_cols + nnz, colidxs );
-        compressed_ptr_from_sorted_idxs(nnz, coo_rows, n, rowptr);
-        free_coo_arrays(coo_vals, coo_rows, coo_cols);
-        return;
-    }
 };
 
 #ifdef __cpp_concepts
