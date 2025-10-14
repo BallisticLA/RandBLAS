@@ -40,26 +40,7 @@ namespace RandBLAS::sparse_data::conversions {
 using namespace RandBLAS::sparse_data;
 using RandBLAS::SignedInteger;
 
-template <typename T, SignedInteger sint_t1 = int64_t, SignedInteger sint_t2 = int64_t>
-void coo_to_csc(COOMatrix<T, sint_t1> &coo, CSCMatrix<T, sint_t2> &csc) {
-    randblas_require(csc.n_rows == coo.n_rows);
-    randblas_require(csc.n_cols == csc.n_cols);
-    randblas_require(csc.index_base == IndexBase::Zero);
-    randblas_require(coo.index_base == IndexBase::Zero);
-    coo.sort_arrays(NonzeroSort::CSC);
-    csc.reserve(coo.nnz);
-    csc.colptr[0] = 0;
-    int64_t ell = 0;
-    for (int64_t j = 0; j < coo.n_cols; ++j) {
-        while (ell < coo.nnz && coo.cols[ell] == j) {
-            csc.rowidxs[ell] = (sint_t2) coo.rows[ell];
-            csc.vals[ell] = coo.vals[ell];
-            ++ell;
-        }
-        csc.colptr[j+1] = (sint_t2) ell;
-    }
-    return;
-}
+// MARK: to coo
 
 template <typename T, SignedInteger sint_t1 = int64_t, SignedInteger sint_t2 = int64_t>
 void csc_to_coo(const CSCMatrix<T, sint_t1> &csc, COOMatrix<T, sint_t2> &coo) {
@@ -68,37 +49,10 @@ void csc_to_coo(const CSCMatrix<T, sint_t1> &csc, COOMatrix<T, sint_t2> &coo) {
     randblas_require(csc.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
     coo.reserve(csc.nnz);
-    int64_t ell = 0;
-    for (int64_t j = 0; j < csc.n_cols; ++j) {
-        for (int64_t i = csc.colptr[j]; i < csc.colptr[j+1]; ++i) {
-            coo.vals[ell] = csc.vals[ell];
-            coo.rows[ell] = (sint_t2) csc.rowidxs[i];
-            coo.cols[ell] = (sint_t2) j;
-            ++ell;
-        }
-    }
+    std::copy( csc.vals,    csc.vals    + csc.nnz, coo.vals );
+    std::copy( csc.rowidxs, csc.rowidxs + csc.nnz, coo.rows );
+    sorted_idxs_from_compressed_ptr(csc.n_cols, csc.colptr, csc.nnz, coo.cols);
     coo.sort = NonzeroSort::CSC;
-    return;
-}
-
-template <typename T, SignedInteger sint_t1 = int64_t, SignedInteger sint_t2 = int64_t>
-void coo_to_csr(COOMatrix<T, sint_t1> &coo, CSRMatrix<T, sint_t2> &csr) {
-    randblas_require(csr.n_rows == coo.n_rows);
-    randblas_require(csr.n_cols == coo.n_cols);
-    randblas_require(csr.index_base == IndexBase::Zero);
-    randblas_require(coo.index_base == IndexBase::Zero);
-    coo.sort_arrays(NonzeroSort::CSR);
-    csr.reserve(coo.nnz);
-    csr.rowptr[0] = (sint_t2) 0;
-    int64_t ell = 0;
-    for (int64_t i = 0; i < coo.n_rows; ++i) {
-        while (ell < coo.nnz && coo.rows[ell] == i) {
-            csr.colidxs[ell] = (sint_t2) coo.cols[ell];
-            csr.vals[ell] = coo.vals[ell];
-            ++ell;
-        }
-        csr.rowptr[i+1] = (sint_t2) ell;
-    }
     return;
 }
 
@@ -109,18 +63,60 @@ void csr_to_coo(const CSRMatrix<T, sint_t1> &csr, COOMatrix<T, sint_t2> &coo) {
     randblas_require(csr.index_base == IndexBase::Zero);
     randblas_require(coo.index_base == IndexBase::Zero);
     coo.reserve(csr.nnz);
-    int64_t ell = 0;
-    for (int64_t i = 0; i < csr.n_rows; ++i) {
-        for (int64_t j = csr.rowptr[i]; j < csr.rowptr[i+1]; ++j) {
-            coo.vals[ell] = csr.vals[ell];
-            coo.rows[ell] = (sint_t2) i;
-            coo.cols[ell] = (sint_t2) csr.colidxs[j];
-            ++ell;
-        }
-    }
+    std::copy( csr.vals,    csr.vals    + csr.nnz, coo.vals );
+    std::copy( csr.colidxs, csr.colidxs + csr.nnz, coo.cols );
+    sorted_idxs_from_compressed_ptr(csr.n_rows, csr.rowptr, csr.nnz, coo.rows);
     coo.sort = NonzeroSort::CSR;
     return;
 }
+
+// MARK: to compressed
+
+template <typename T, SignedInteger sint_t1, SignedInteger sint_t2>
+auto coo_to_csc( const COOMatrix<T, sint_t1> &coo, CSCMatrix<T,sint_t2> &csc ) {
+    randblas_require( csc.n_rows     == coo.n_rows      );
+    randblas_require( csc.n_cols     == coo.n_cols      );
+    randblas_require( csc.index_base == IndexBase::Zero );
+    randblas_require( csc.index_base == IndexBase::Zero );
+    if (coo.nnz == 0) {
+        return;
+    } else if (coo.sort == NonzeroSort::CSC) {
+        csc.reserve(coo.nnz);
+        compressed_ptr_from_sorted_idxs(coo.nnz, coo.cols, coo.n_cols, csc.colptr);
+        std::copy( coo.vals, coo.vals + coo.nnz, csc.vals    );
+        std::copy( coo.rows, coo.rows + coo.nnz, csc.rowidxs );
+        return;
+    } else {
+        auto coo_copy = coo;
+        coo_copy.sort_arrays(NonzeroSort::CSC);
+        coo_to_csc(coo_copy, csc);
+        return;
+    }
+}
+
+template <typename T, SignedInteger sint_t1, SignedInteger sint_t2>
+void coo_to_csr( const COOMatrix<T, sint_t1> &coo, CSRMatrix<T,sint_t2> &csr ) {
+    randblas_require( csr.n_rows     == coo.n_rows      );
+    randblas_require( csr.n_cols     == coo.n_cols      );
+    randblas_require( csr.index_base == IndexBase::Zero );
+    randblas_require( csr.index_base == IndexBase::Zero );
+    if (coo.nnz == 0) {
+        return;
+    } else if (coo.sort == NonzeroSort::CSR) {
+        csr.reserve(coo.nnz);
+        compressed_ptr_from_sorted_idxs(coo.nnz, coo.rows, coo.n_rows, csr.rowptr);
+        std::copy( coo.vals, coo.vals + coo.nnz, csr.vals    );
+        std::copy( coo.cols, coo.cols + coo.nnz, csr.colidxs );
+        return;
+    } else {
+        auto coo_copy = coo;
+        coo_copy.sort_arrays(NonzeroSort::CSR);
+        coo_to_csr(coo_copy, csr);
+        return;
+    }
+}
+
+// MARK: transposes
 
 template <typename T, SignedInteger sint_t>
 CSRMatrix<T, sint_t> transpose_as_csr(const CSCMatrix<T, sint_t> &A, bool share_memory = true) {
@@ -153,6 +149,8 @@ CSCMatrix<T, sint_t> transpose_as_csc(const CSRMatrix<T, sint_t> &A, bool share_
         return At;
     }
 }
+
+// MARK: reindexing
 
 /// -----------------------------------------------------------------------
 /// Given a RandBLAS SparseMatrix "A" (CSCMatrix, CSRMatrix, or COOMatrix),

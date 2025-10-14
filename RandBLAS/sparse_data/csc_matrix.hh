@@ -183,13 +183,34 @@ struct CSCMatrix {
         randblas_require(arg_nnz > 0);
         randblas_require(own_memory);
         try {
-            alloc_compressed_sparse_arrays(n_cols, arg_nnz, vals, rowidxs, colptr);
+            allocate_compressed_sparse_arrays(n_cols, arg_nnz, vals, rowidxs, colptr);
         } catch (RandBLAS::Error &e) {
             std::string message{e.what()};
             bool acceptable_error = message.find("ptr == nullptr") != std::string::npos;
             if (!acceptable_error) { throw e; }
         }
         nnz = arg_nnz;
+        return;
+    }
+
+    void symperm_inplace(sint_t* perm) {
+        randblas_require(n_rows == n_cols);
+        int64_t n = n_rows;
+        fast_permutation_check(n_rows, perm);
+        // symperm_csc_arrays(n_rows, nnz, vals, rowidxs, colptr);
+        T* coo_vals = nullptr; sint_t* coo_rows = nullptr; sint_t* coo_cols = nullptr;
+        allocate_coo_arrays(nnz, coo_vals, coo_rows, coo_cols);
+        std::copy(rowidxs, rowidxs + nnz, coo_rows);
+        std::copy(vals,    vals    + nnz, coo_vals);
+        sorted_idxs_from_compressed_ptr(n, colptr, nnz, coo_cols);
+        // Transform the COO representation
+        symperm_coo_arrays(n, perm, nnz, coo_rows, coo_cols);
+        sort_coo_arrays( NonzeroSort::CSC, nnz, coo_vals, coo_rows, coo_cols );
+        // Convert the transed COO representation back to this CSCMatrix.
+        std::copy( coo_vals, coo_vals + nnz, vals    );
+        std::copy( coo_rows, coo_rows + nnz, rowidxs );
+        compressed_ptr_from_sorted_idxs( nnz, coo_cols, n, colptr );
+        free_coo_arrays( coo_vals, coo_rows, coo_cols );
         return;
     }
 };

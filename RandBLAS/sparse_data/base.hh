@@ -35,7 +35,14 @@
 #include <iostream>
 
 
+
 namespace RandBLAS::sparse_data {
+
+// Files that include base.hh need these forward declarations 
+// for functions like COOMatrix::as_csr().
+template<typename T, SignedInteger sint_t> struct CSRMatrix;
+template<typename T, SignedInteger sint_t> struct CSCMatrix;
+template<typename T, SignedInteger sint_t> struct COOMatrix;
 
 enum class IndexBase : int {
     // ---------------------------------------------------------------
@@ -66,10 +73,183 @@ int64_t nnz_in_dense(
     return nnz;
 }
 
-template <SignedInteger sint_t = int64_t>
-static inline void compressed_ptr_from_sorted_idxs(
-    int64_t len_idxs, const sint_t *idxs, int64_t num_comp, sint_t *ptr
-) {
+
+// =============================================================================
+/// Indicates whether the (vals, rows, cols) 
+/// data of a COO-format sparse matrix
+/// are known to be sorted in CSC order, CSR order, or neither of those orders.
+///
+enum class NonzeroSort : char {
+    // ---------------------------------------------------
+    /// 
+    CSC = 'C',
+    // ---------------------------------------------------
+    /// 
+    CSR = 'R',
+    // ---------------------------------------------------
+    /// 
+    None = 'N'
+};
+
+template <SignedInteger sint_t>
+static inline bool increasing_by_csr(sint_t i0, sint_t j0, sint_t i1, sint_t j1) {
+    if (i0 > i1) {
+        return false;
+    } else if (i0 == i1) {
+        return j0 <= j1;
+    } else {
+        return true;
+    }
+}
+
+template <SignedInteger sint_t>
+static inline bool increasing_by_csc(sint_t i0, sint_t j0, sint_t i1, sint_t j1) {
+    if (j0 > j1) {
+        return false;
+    } else if (j0 == j1) {
+        return i0 <= i1;
+    } else {
+        return true;
+    }
+}
+
+template <SignedInteger sint_t>
+static inline NonzeroSort coo_sort_type(int64_t nnz, sint_t *rows, sint_t *cols) {
+    bool csc_okay = true;
+    bool csr_okay = true;
+    for (int64_t ell = 1; ell < nnz; ++ell) {
+        auto i0 = rows[ell-1];
+        auto j0 = cols[ell-1];
+        auto i1 = rows[ell];
+        auto j1 = cols[ell];
+        if (csc_okay) {
+            csc_okay = increasing_by_csc(i0, j0, i1, j1);
+        }
+        if (csr_okay) {
+            csr_okay = increasing_by_csr(i0, j0, i1, j1);
+        }
+        if (!csc_okay && !csr_okay)
+            break;
+    }
+    if (csc_okay) {
+        return NonzeroSort::CSC;
+    } else if (csr_okay) {
+        return NonzeroSort::CSR;
+    } else {
+        return NonzeroSort::None;
+    }
+}
+
+template <typename T, SignedInteger sint_t>
+void allocate_coo_arrays(int64_t nnz, T* &vals, sint_t* &rows, sint_t* &cols) {
+    randblas_require(nnz > 0);
+    randblas_require(vals == nullptr);
+    randblas_require(rows == nullptr);
+    randblas_require(cols == nullptr);
+    vals = new T[nnz]{0};
+    rows = new sint_t[nnz]{0};
+    cols = new sint_t[nnz]{0};
+    return;
+}
+
+template <typename T, SignedInteger sint_t>
+void free_coo_arrays(T* &vals, sint_t* &rows, sint_t* &cols) {
+    if (vals != nullptr) delete [] vals;
+    if (rows != nullptr) delete [] rows;
+    if (cols != nullptr) delete [] cols;
+    vals = nullptr;
+    rows = nullptr;
+    cols = nullptr;
+}
+
+template <typename T, SignedInteger sint_t>
+void sort_coo_arrays(NonzeroSort s, int64_t nnz, T *vals, sint_t *rows, sint_t *cols) {
+    // no‐op if no sorting or already sorted
+    if (s == NonzeroSort::None) return;
+    auto curr_s = coo_sort_type(nnz, rows, cols);
+    if (s == curr_s) return;
+
+    // 1) computing the sorting permutation
+    std::vector<int64_t> perm(nnz);
+    std::iota(perm.begin(), perm.end(), 0);
+    auto cmp_idx = [&](int64_t a, int64_t b) {
+        if (s == NonzeroSort::CSR) {
+            return increasing_by_csr(rows[a], cols[a], rows[b], cols[b]);
+        } else {
+            return increasing_by_csc(rows[a], cols[a], rows[b], cols[b]);
+        }
+    };
+    std::sort(perm.begin(), perm.end(), cmp_idx);
+
+    // 2) apply the permutation in‐place by walking each cycle
+    //    we need a small visited array to mark which positions are done
+    std::vector<char> visited(nnz, 0);
+
+    for (int64_t i = 0; i < nnz; ++i) {
+        // skip already‐fixed points or trivial cycles
+        if (visited[i] || perm[i] == i) continue;
+
+        // walk the cycle starting at i
+        auto cur = i;
+        auto saved_val = vals[i];
+        auto saved_row = rows[i];
+        auto saved_col = cols[i];
+        while (!visited[cur]) {
+            visited[cur] = 1;
+            auto nxt = perm[cur];
+            if (nxt == i) { // close the cycle: put saved_* into position cur
+                vals[cur] = saved_val;
+                rows[cur] = saved_row;
+                cols[cur] = saved_col;
+            } else {        // move element from nxt → cur
+                vals[cur] = vals[nxt];
+                rows[cur] = rows[nxt];
+                cols[cur] = cols[nxt];
+            }
+            cur = nxt;
+        }
+    }
+}
+
+template <SignedInteger sint_t>
+void fast_permutation_check(int64_t n, sint_t* perm) {
+    sint_t min_p = n; sint_t max_p = 0;
+    for (sint_t ell = 0; ell < n; ++ell) {
+        auto p = perm[ell];
+        randblas_require(0 <= p && p < n);
+        min_p = MIN(min_p, p);
+        max_p = MAX(max_p, p);
+    }
+    randblas_require(min_p == 0);
+    randblas_require(max_p == n - 1);
+    return;
+}
+
+template <SignedInteger sint_t1, SignedInteger sint_t2>
+inline void apply_index_mapper(int64_t len_mapper, const sint_t1* mapper, int64_t len_indices, sint_t2* indices) {
+    if (mapper == nullptr) { 
+        return;
+    }
+    for (int64_t i = 0; i < len_indices; ++i) {
+        sint_t2 j = indices[i];
+        randblas_require(j < len_mapper);
+        indices[i] = static_cast<sint_t2>(mapper[j]);
+    }
+    return;
+}
+
+template <SignedInteger sint_t>
+void symperm_coo_arrays(int64_t n, const sint_t* perm, int64_t nnz, sint_t* rows, sint_t* cols) {
+    std::vector<sint_t> invperm(n);
+    for (sint_t k = 0; k < n; ++k) { invperm[perm[k]] = k; }
+    sint_t* iperm = invperm.data();
+    apply_index_mapper(n,  perm, nnz, rows);
+    apply_index_mapper(n, iperm, nnz, cols);
+    return;
+}
+
+template <SignedInteger sint_t1, SignedInteger sint_t2>
+void compressed_ptr_from_sorted_idxs(int64_t len_idxs, const sint_t1 *idxs, int64_t num_comp, sint_t2 *ptr) {
     for (int64_t i = 1; i < len_idxs; ++i)
         randblas_require(idxs[i - 1] <= idxs[i]);
     ptr[0] = 0;
@@ -77,13 +257,24 @@ static inline void compressed_ptr_from_sorted_idxs(
     for (int64_t i = 0; i < num_comp; ++i) {
         while (ell < len_idxs && idxs[ell] == i)
             ++ell;
-        ptr[i+1] = ell;
+        ptr[i+1] = static_cast<sint_t2>(ell);
     }
     return;
 }
 
+template <SignedInteger sint_t1, SignedInteger sint_t2>
+void sorted_idxs_from_compressed_ptr(int64_t num_comp, sint_t1* ptr, int64_t len_idxs, sint_t2* idxs) {
+    randblas_require(len_idxs >= ptr[num_comp]);
+    for (int64_t j = 0; j < num_comp; ++j) {
+        auto col_nnz = ptr[j+1] - ptr[j];
+        randblas_require(col_nnz >= 0);
+        std::fill(idxs, idxs + col_nnz, j);
+        idxs = idxs + col_nnz;
+    }
+}
+
 template <typename T, SignedInteger sint_t>
-void alloc_compressed_sparse_arrays(int64_t n_comp, int64_t nnz, T* &vals, sint_t* &idxs, sint_t* &ptr) {
+void allocate_compressed_sparse_arrays(int64_t n_comp, int64_t nnz, T* &vals, sint_t* &idxs, sint_t* &ptr) {
     randblas_require(nnz > 0);
     randblas_require(idxs == nullptr);
     randblas_require(vals == nullptr);
@@ -105,9 +296,10 @@ void free_compressed_sparse_arrays(T* &vals, sint_t* &idxs, sint_t* &ptr) {
     return;
 }
 
-
 template <SignedInteger sint_t>
 static bool compressed_indices_are_increasing(int64_t num_vecs, sint_t *ptrs, sint_t *idxs, int64_t *failed_ind = nullptr) {
+    // This function uses a pointer for the flag instead of passing an integer
+    // by value because the flag is an optional argument (so it needs a default value).
     for (int64_t i = 0; i < num_vecs; ++i) {
         for (int64_t j = ptrs[i]; j < ptrs[i+1]-1; ++j) {
             if (idxs[j+1] <= idxs[j]) {

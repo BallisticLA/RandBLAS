@@ -32,6 +32,9 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
+#include "RandBLAS/sparse_data/conversions.hh"
+
+
 #include <vector>
 #include <tuple>
 #include <algorithm>
@@ -42,142 +45,6 @@ namespace RandBLAS::sparse_data {
 
 using RandBLAS::SignedInteger;
 
-// =============================================================================
-/// Indicates whether the (vals, rows, cols) 
-/// data of a COO-format sparse matrix
-/// are known to be sorted in CSC order, CSR order, or neither of those orders.
-///
-enum class NonzeroSort : char {
-    // ---------------------------------------------------
-    /// 
-    CSC = 'C',
-    // ---------------------------------------------------
-    /// 
-    CSR = 'R',
-    // ---------------------------------------------------
-    /// 
-    None = 'N'
-};
-
-template <SignedInteger sint_t>
-static inline bool increasing_by_csr(sint_t i0, sint_t j0, sint_t i1, sint_t j1) {
-    if (i0 > i1) {
-        return false;
-    } else if (i0 == i1) {
-        return j0 <= j1;
-    } else {
-        return true;
-    }
-}
-
-template <SignedInteger sint_t>
-static inline bool increasing_by_csc(sint_t i0, sint_t j0, sint_t i1, sint_t j1) {
-    if (j0 > j1) {
-        return false;
-    } else if (j0 == j1) {
-        return i0 <= i1;
-    } else {
-        return true;
-    }
-}
-
-template <SignedInteger sint_t>
-static inline NonzeroSort coo_sort_type(int64_t nnz, sint_t *rows, sint_t *cols) {
-    bool csc_okay = true;
-    bool csr_okay = true;
-    for (int64_t ell = 1; ell < nnz; ++ell) {
-        auto i0 = rows[ell-1];
-        auto j0 = cols[ell-1];
-        auto i1 = rows[ell];
-        auto j1 = cols[ell];
-        if (csc_okay) {
-            csc_okay = increasing_by_csc(i0, j0, i1, j1);
-        }
-        if (csr_okay) {
-            csr_okay = increasing_by_csr(i0, j0, i1, j1);
-        }
-        if (!csc_okay && !csr_okay)
-            break;
-    }
-    if (csc_okay) {
-        return NonzeroSort::CSC;
-    } else if (csr_okay) {
-        return NonzeroSort::CSR;
-    } else {
-        return NonzeroSort::None;
-    }
-}
-
-template <typename T, SignedInteger sint_t>
-void alloc_coo_arrays(int64_t nnz, T* &vals, sint_t* &rows, sint_t* &cols) {
-    randblas_require(nnz > 0);
-    randblas_require(vals == nullptr);
-    randblas_require(rows == nullptr);
-    randblas_require(cols == nullptr);
-    vals = new T[nnz]{0};
-    rows = new sint_t[nnz]{0};
-    cols = new sint_t[nnz]{0};
-    return;
-}
-
-template <typename T, SignedInteger sint_t>
-void free_coo_arrays(T* &vals, sint_t* &rows, sint_t* &cols) {
-    if (vals != nullptr) delete [] vals;
-    if (rows != nullptr) delete [] rows;
-    if (cols != nullptr) delete [] cols;
-    vals = nullptr;
-    rows = nullptr;
-    cols = nullptr;
-}
-
-template <typename T, SignedInteger sint_t>
-void sort_coo_arrays(NonzeroSort s, int64_t nnz, T *vals, sint_t *rows, sint_t *cols) {
-    // no‐op if no sorting or already sorted
-    if (s == NonzeroSort::None) return;
-    auto curr_s = coo_sort_type(nnz, rows, cols);
-    if (s == curr_s) return;
-
-    // 1) computing the sorting permutation
-    std::vector<int64_t> perm(nnz);
-    std::iota(perm.begin(), perm.end(), 0);
-    auto cmp_idx = [&](int64_t a, int64_t b) {
-        if (s == NonzeroSort::CSR) {
-            return increasing_by_csr(rows[a], cols[a], rows[b], cols[b]);
-        } else {
-            return increasing_by_csc(rows[a], cols[a], rows[b], cols[b]);
-        }
-    };
-    std::sort(perm.begin(), perm.end(), cmp_idx);
-
-    // 2) apply the permutation in‐place by walking each cycle
-    //    we need a small visited array to mark which positions are done
-    std::vector<char> visited(nnz, 0);
-
-    for (int64_t i = 0; i < nnz; ++i) {
-        // skip already‐fixed points or trivial cycles
-        if (visited[i] || perm[i] == i) continue;
-
-        // walk the cycle starting at i
-        auto cur = i;
-        auto saved_val = vals[i];
-        auto saved_row = rows[i];
-        auto saved_col = cols[i];
-        while (!visited[cur]) {
-            visited[cur] = 1;
-            auto nxt = perm[cur];
-            if (nxt == i) { // close the cycle: put saved_* into position cur
-                vals[cur] = saved_val;
-                rows[cur] = saved_row;
-                cols[cur] = saved_col;
-            } else {        // move element from nxt → cur
-                vals[cur] = vals[nxt];
-                rows[cur] = rows[nxt];
-                cols[cur] = cols[nxt];
-            }
-            cur = nxt;
-        }
-    }
-}
 
 // =============================================================================
 /// Let \math{\mtxA} denote a sparse matrix with \math{\ttt{nnz}} structural nonzeros.
@@ -319,15 +186,53 @@ struct COOMatrix {
     void reserve(int64_t arg_nnz) {
         randblas_require(arg_nnz > 0);
         randblas_require(own_memory);
-        alloc_coo_arrays(arg_nnz, vals, rows, cols);
+        allocate_coo_arrays(arg_nnz, vals, rows, cols);
         nnz = arg_nnz;
         return;
     };
 
+    // -----------------------------------------------------
+    /// Sort the (vals, rows, cols) underlying this COOMatrix for
+    /// fast conversion to CSR format (if s == NonzeroSort::CSR)
+    /// or CSC format (if s == NonzeroSort::CSC). 
+    ///
+    /// This function has no effect if `sort == s` or `s == NonzeroSort::None`.
+    /// 
     void sort_arrays(NonzeroSort s) {
         sort_coo_arrays(s, nnz, vals, rows, cols);
-        sort = s;
+        if (s != NonzeroSort::None)
+            sort = s;
     };
+
+    // ---------------------------------------------------------
+    /// This function requires that n_rows == n_cols and index_base == Zero.
+    ///
+    /// perm is a permutation of {0, 1, ..., n_rows - 1}. It defines a 
+    /// permutation matrix P = I(perm,:) of order n_rows.
+    ///
+    /// Let A denote the abstract mathematical object represented by this
+    /// COOMatrix. This function overwrites A by
+    ///
+    ///     A := P * A * P'.
+    ///
+    void symperm_inplace(const sint_t* perm) {
+        randblas_require(n_rows == n_cols);
+        randblas_require(index_base == IndexBase::Zero);
+        symperm_coo_arrays(n_rows, perm, nnz, rows, cols);
+        return;
+    }
+
+    CSRMatrix<T, sint_t> as_owning_csr() const {
+        CSRMatrix<T, sint_t> csr(n_rows, n_cols);
+        conversions::coo_to_csr(*this, csr);
+        return csr;
+    }
+
+    CSCMatrix<T, sint_t> as_owning_csc() const {
+        CSCMatrix<T, sint_t> csc(n_rows, n_cols);
+        conversions::coo_to_csc(*this, csc);
+        return csc;
+    }
 
     /////////////////////////////////////////////////////////////////////
     //
@@ -400,14 +305,14 @@ void print_sparse(COOMatrix const &A) {
     return;
 }
 
-/// This function is deprecated; call M.reserve(nnz) instead.
+/// This function is deprecated as of RandBLAS 1.1; call M.reserve(nnz) instead.
 template <typename T, SignedInteger sint_t>
 inline void reserve_coo(int64_t nnz, COOMatrix<T,sint_t> &M) {
     M.reserve(nnz);
     return;
 }
 
-/// TODO: mark as deprecated. Figure out if we need to keep it (public vs private API and all...)
+/// This function is deprecated as of RandBLAS 1.1; call M.sort_arrays(s) instead.
 template <typename T>
 void sort_coo_data(NonzeroSort s, COOMatrix<T> &spmat) {
     sort_coo_arrays(s, spmat.nnz, spmat.vals, spmat.rows, spmat.cols);
