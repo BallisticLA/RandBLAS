@@ -136,8 +136,8 @@ void left_spmm(
     
     // compute the matrix-matrix product
     if constexpr (is_coo) {
-        using RandBLAS::sparse_data::coo::apply_coo_left_jki_p11;
-        apply_coo_left_jki_p11(alpha, layout_opB, layout_C, d, n, m, A, ro_a, co_a, B, ldb, C, ldc);
+        using RandBLAS::sparse_data::coo::apply_coo_left_via_csc;
+        apply_coo_left_via_csc(alpha, layout_opB, layout_C, d, n, m, A, ro_a, co_a, B, ldb, C, ldc);
     } else if constexpr (is_csc) {
         if (layout_opB == Layout::RowMajor && layout_C == Layout::RowMajor) {
             using RandBLAS::sparse_data::csc::apply_csc_left_kib_rowmajor_1p1;

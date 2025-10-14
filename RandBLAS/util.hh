@@ -45,6 +45,7 @@
 #endif
 #include <memory>
 #include <string>
+#include <numeric>
 #include <cstdlib>
 
 
@@ -53,8 +54,12 @@ namespace RandBLAS::util {
 template <typename T>
 void safe_scal(int64_t n, T a, T* x, int64_t inc_x) {
     if (a == 0.0) {
-        for (int64_t i = 0; i < n; ++i)
-            x[i*inc_x] = 0.0;
+        if (inc_x == 1) {
+            std::fill(x, x + n, (T)0.0);
+        } else {
+            for (int64_t i = 0; i < n; ++i)
+                x[i*inc_x] = 0.0;
+        }
     } else {
         blas::scal(n, a, x, inc_x);
     }

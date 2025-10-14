@@ -46,7 +46,7 @@ using RandBLAS::SignedInteger;
 
 
 template <typename T, SignedInteger sint_t>
-static void apply_coo_left_jki_p11(
+static void apply_coo_left_via_csc(
     T alpha,
     blas::Layout layout_B,
     blas::Layout layout_C,
@@ -83,18 +83,21 @@ static void apply_coo_left_jki_p11(
         }
         COOMatrix<T,sint_t> A2(d, m,   new_nnz, A1.vals, A1.rows, A1.cols, false);
         A2.sort_arrays(NonzeroSort::CSC);
-        apply_coo_left_jki_p11(alpha, layout_B, layout_C, d, n, m, A2, 0, 0, B, ldb, C, ldc);
+        apply_coo_left_via_csc(alpha, layout_B, layout_C, d, n, m, A2, 0, 0, B, ldb, C, ldc);
         return;
     }
     auto colptr = new sint_t[m+1];
     compressed_ptr_from_sorted_idxs(  A0.nnz, A0.cols, m, colptr );
     CSCMatrix<T, sint_t> A_csc( d, m, A0.nnz, A0.vals, A0.rows, colptr );
-    RandBLAS::sparse_data::csc::apply_csc_left_jki_p11(
-        alpha, layout_B, layout_C, n, A_csc, B, ldb, C, ldc
-    );
+    if (layout_B == layout_C && layout_B == blas::Layout::RowMajor) {
+        using RandBLAS::sparse_data::csc::apply_csc_left_kib_rowmajor_1p1;
+        apply_csc_left_kib_rowmajor_1p1(alpha, n, A_csc, B, ldb, C, ldc);
+    } else {
+        using RandBLAS::sparse_data::csc::apply_csc_left_jki_p11;
+        apply_csc_left_jki_p11(alpha, layout_B, layout_C, n, A_csc, B, ldb, C, ldc);
+    }
     delete [] colptr;
     return;
 }
-
 
 } // end namespace
