@@ -43,7 +43,11 @@
 
 namespace RandBLAS::sparse_data {
 
+#ifdef __cpp_concepts
 using RandBLAS::SignedInteger;
+#else
+#define SignedInteger typename
+#endif
 
 
 // =============================================================================

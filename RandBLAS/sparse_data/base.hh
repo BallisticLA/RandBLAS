@@ -31,9 +31,10 @@
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include <blas.hh>
-#include <concepts>
-#include <iostream>
 
+#ifdef __cpp_concepts
+#include <concepts>
+#endif
 
 
 namespace RandBLAS::sparse_data {
@@ -409,5 +410,7 @@ concept SparseMatrix = requires(SpMat A) {
 
 namespace RandBLAS {
     using RandBLAS::sparse_data::IndexBase;
+#ifdef __cpp_concepts
     using RandBLAS::sparse_data::SparseMatrix;
+#endif
 }
