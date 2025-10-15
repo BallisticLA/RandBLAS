@@ -69,7 +69,7 @@ static void apply_coo_left_via_csc(
 
     bool submatrix = (A0.n_rows != d) || (A0.n_cols != m);
     if (submatrix || A0.sort != NonzeroSort::CSC) {
-        auto A1 = A0;
+        auto A1 = A0.deepcopy();
         auto new_nnz = A1.nnz;
         if (submatrix) {
             int64_t write = 0;
@@ -91,7 +91,7 @@ static void apply_coo_left_via_csc(
         return;
     }
     auto colptr = new sint_t[m+1];
-    compressed_ptr_from_sorted_idxs(  A0.nnz, A0.cols, m, colptr );
+    compressed_ptr_from_sorted_idxs(  A0.nnz, A0.cols, m,       colptr );
     CSCMatrix<T, sint_t> A_csc( d, m, A0.nnz, A0.vals, A0.rows, colptr );
     if (layout_B == layout_C && layout_B == blas::Layout::RowMajor) {
         using RandBLAS::sparse_data::csc::apply_csc_left_kib_rowmajor_1p1;

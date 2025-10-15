@@ -50,6 +50,21 @@ using RandBLAS::SignedInteger;
 #endif
 
 
+template <typename T, SignedInteger sint_t>
+COOMatrix<T, sint_t> deepcopy_coo(const COOMatrix<T, sint_t> &A) {
+    COOMatrix<T, sint_t> other(A.n_rows, A.n_cols);
+    if (A.nnz > 0) {
+        other.reserve(A.nnz);
+        std::copy(A.rows, A.rows + A.nnz, other.rows);
+        std::copy(A.cols, A.cols + A.nnz, other.cols);
+        std::copy(A.vals, A.vals + A.nnz, other.vals);
+        other.sort = A.sort;
+    }
+    other.index_base = A.index_base;
+    return other;
+}
+
+
 // =============================================================================
 /// Let \math{\mtxA} denote a sparse matrix with \math{\ttt{nnz}} structural nonzeros.
 /// Its COO representation consists of declared dimensions, \math{\ttt{n_rows}}
@@ -255,16 +270,13 @@ struct COOMatrix {
         other.sort = NonzeroSort::None;
     }
 
-    // copy constructor
-    COOMatrix(const COOMatrix<T, sint_t> &other)
-    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(true), nnz(other.nnz), index_base(other.index_base),
-      vals(nullptr), rows(nullptr), cols(nullptr), sort(other.sort) {
-        if (nnz > 0) {
-            reserve(nnz);
-            std::copy(other.rows, other.rows + nnz, rows);
-            std::copy(other.cols, other.cols + nnz, cols);
-            std::copy(other.vals, other.vals + nnz, vals);
-        }
+    COOMatrix<T, sint_t> deepcopy() const {
+        return deepcopy_coo(*this);
+    }
+
+    COOMatrix<T, sint_t> transpose() const {
+        // using namespace conversions;
+        return transpose_as_coo(*this);
     }
 };
 
@@ -331,20 +343,6 @@ namespace RandBLAS::sparse_data::coo {
 
 using namespace RandBLAS::sparse_data;
 using blas::Layout;
-
-// consider:
-//      1. Adding optional share_memory flag that defaults to true.
-//      2. renaming to transpose_as_coo.
-template <typename T>
-COOMatrix<T> transpose(const COOMatrix<T> &S) {
-    COOMatrix<T> St(S.n_cols, S.n_rows, S.nnz, S.vals, S.cols, S.rows, false, S.index_base);
-    if (S.sort == NonzeroSort::CSC) {
-        St.sort = NonzeroSort::CSR;
-    } else if (S.sort == NonzeroSort::CSR) {
-        St.sort = NonzeroSort::CSC;
-    }
-    return St;
-}
 
 template <typename T>
 void dense_to_coo(int64_t stride_row, int64_t stride_col, T *mat, T abs_tol, COOMatrix<T> &spmat) {

@@ -67,22 +67,8 @@ void left_spmm(
     using blas::Op;
     // handle applying a transposed sparse matrix.
     if (opA == Op::Trans) {
-        using sint_t = typename SpMat::index_t;
-        constexpr bool is_coo = std::is_same_v<SpMat, COOMatrix<T, sint_t>>;
-        constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
-        constexpr bool is_csr = std::is_same_v<SpMat, CSRMatrix<T, sint_t>>;
-        if constexpr (is_coo) {
-            auto At = RandBLAS::sparse_data::coo::transpose(A);
-            left_spmm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
-        } else if constexpr (is_csc) {
-            auto At = RandBLAS::sparse_data::conversions::transpose_as_csr(A);
-            left_spmm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
-        } else if constexpr (is_csr) {
-            auto At = RandBLAS::sparse_data::conversions::transpose_as_csc(A);
-            left_spmm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
-        } else {
-            randblas_require(false);
-        }
+        auto At = A.transpose();
+        left_spmm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
         return; 
     }
     // Below this point, we can assume A is not transposed.

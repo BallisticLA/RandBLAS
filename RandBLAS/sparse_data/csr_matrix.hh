@@ -32,6 +32,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
+#include "RandBLAS/sparse_data/conversions.hh"
 #include <algorithm>
 
 namespace RandBLAS::sparse_data {
@@ -42,8 +43,18 @@ using RandBLAS::SignedInteger;
 #define SignedInteger typename
 #endif
 
-// ^ only used once, but I don't want the RandBLAS prefix
-// in the doxygen.
+
+template <typename T, SignedInteger sint_t>
+CSRMatrix<T, sint_t> deepcopy_csr(const CSRMatrix<T, sint_t> &csr) {
+    CSRMatrix<T, sint_t> copy(csr.n_rows, csr.n_cols);
+    if (csr.nnz > 0) {
+        copy.reserve(csr.nnz);
+        std::copy( csr.rowptr,  csr.rowptr  + csr.n_rows + 1, copy.rowptr  );
+        std::copy( csr.colidxs, csr.colidxs + csr.nnz,        copy.colidxs );
+        std::copy( csr.vals,    csr.vals    + csr.nnz,        copy.vals    );
+    }
+    return copy;
+}
 
 
 // =============================================================================
@@ -200,6 +211,15 @@ struct CSRMatrix {
         }
         nnz = arg_nnz;
         return;
+    }
+
+    CSRMatrix<T, sint_t> deepcopy() const {
+        return deepcopy_csr(*this);
+    }
+
+    CSCMatrix<T, sint_t> transpose() const {
+        // using namespace conversions;
+        return transpose_as_csc(*this);
     }
 };
 

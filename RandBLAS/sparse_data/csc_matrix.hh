@@ -32,6 +32,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
+#include "RandBLAS/sparse_data/conversions.hh"
 #include <algorithm>
 
 namespace RandBLAS::sparse_data {
@@ -41,6 +42,19 @@ using RandBLAS::SignedInteger;
 #else
 #define SignedInteger typename
 #endif
+
+
+template <typename T, SignedInteger sint_t>
+CSCMatrix<T, sint_t> deepcopy_csc(const CSCMatrix<T, sint_t> &csc) {
+    CSCMatrix<T, sint_t> copy(csc.n_rows, csc.n_cols);
+    if (csc.nnz > 0) {
+        copy.reserve(csc.nnz);
+        std::copy( csc.rowidxs, csc.rowidxs + csc.nnz,        copy.rowidxs );
+        std::copy( csc.colptr,  csc.colptr  + csc.n_cols + 1, copy.colptr  );
+        std::copy( csc.vals,    csc.vals    + csc.nnz,        copy.vals    );
+    }
+    return copy;
+}
 
 
 // =============================================================================
@@ -196,6 +210,16 @@ struct CSCMatrix {
         nnz = arg_nnz;
         return;
     }
+
+    CSCMatrix<T, sint_t> deepcopy() const {
+        return deepcopy_csc(*this);
+    }
+
+    CSRMatrix<T, sint_t> transpose() const {
+        // using namespace conversions;
+        return transpose_as_csr(*this);
+    }
+
 };
 
 #ifdef __cpp_concepts
