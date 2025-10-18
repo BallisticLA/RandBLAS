@@ -171,16 +171,6 @@ struct CSRMatrix {
         if (own_memory) compressed_sparse_arrays_free(vals, colidxs, rowptr);
     };
 
-    // move constructor
-    CSRMatrix(CSRMatrix<T, sint_t> &&other)
-    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), nnz(other.nnz), index_base(other.index_base),
-      vals(nullptr), rowptr(nullptr), colidxs(nullptr) {
-        std::swap(colidxs, other.colidxs);
-        std::swap(rowptr , other.rowptr );
-        std::swap(vals   , other.vals   );
-        other.nnz = 0;
-    };
-
     // -----------------------------------------------------
     /// This function requires that arg_nnz > 0, that own_memory
     /// is true, that colidxs and vals are null. If any of these
@@ -213,14 +203,45 @@ struct CSRMatrix {
         return;
     }
 
+    // ---------------------------------------------------------
+    /// Return a memory-owning copy of this CSRMatrix.
+    ///
     CSRMatrix<T, sint_t> deepcopy() const {
         return deepcopy_csr(*this);
     }
 
-    CSCMatrix<T, sint_t> transpose() const {
-        // using namespace conversions;
+    // ---------------------------------------------------------
+    /// Return a memory-owning COOMatrix representation of this CSRMatrix.
+    ///
+    COOMatrix<T, sint_t> as_owning_coo() const {
+        COOMatrix<T, sint_t> coo(n_rows, n_cols);
+        csr_to_coo(*this, coo);
+        return coo;
+    }
+
+    // ---------------------------------------------------------
+    /// Return a const CSCMatrix view of the transpose of this CSRMatrix.
+    ///
+    const CSCMatrix<T, sint_t> transpose() const {
         return transpose_as_csc(*this);
     }
+
+    /////////////////////////////////////////////////////////////////////
+    //
+    //      Undocumented functions (don't appear in doxygen)
+    //
+    /////////////////////////////////////////////////////////////////////
+
+    // move constructor
+    CSRMatrix(CSRMatrix<T, sint_t> &&other)
+    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), nnz(other.nnz), index_base(other.index_base),
+      vals(nullptr), rowptr(nullptr), colidxs(nullptr) {
+        std::swap(colidxs, other.colidxs);
+        std::swap(rowptr , other.rowptr );
+        std::swap(vals   , other.vals   );
+        other.nnz = 0;
+    };
+
 };
 
 #ifdef __cpp_concepts

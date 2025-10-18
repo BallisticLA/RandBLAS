@@ -170,15 +170,6 @@ struct CSCMatrix {
         if (own_memory) compressed_sparse_arrays_free(vals, rowidxs, colptr);
     };
 
-    CSCMatrix(CSCMatrix<T, sint_t> &&other) 
-    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), nnz(other.nnz), index_base(other.index_base),
-      vals(nullptr), rowidxs(nullptr), colptr(nullptr) {
-        std::swap(rowidxs, other.rowidxs);
-        std::swap(colptr , other.colptr );
-        std::swap(vals   , other.vals   );
-        other.nnz = 0;
-    };
-
     // -----------------------------------------------------
     /// This function requires that arg_nnz > 0, that own_memory
     /// is true, that rowidxs and vals are null. If any of these
@@ -211,14 +202,44 @@ struct CSCMatrix {
         return;
     }
 
+    // ---------------------------------------------------------
+    /// Return a memory-owning copy of this CSCMatrix.
+    ///
     CSCMatrix<T, sint_t> deepcopy() const {
         return deepcopy_csc(*this);
     }
 
-    CSRMatrix<T, sint_t> transpose() const {
-        // using namespace conversions;
+    // ---------------------------------------------------------
+    /// Return a memory-owning COOMatrix representation of this CSCMatrix.
+    ///
+    COOMatrix<T, sint_t> as_owning_coo() const {
+        COOMatrix<T, sint_t> coo(n_rows, n_cols);
+        csc_to_coo(*this, coo);
+        return coo;
+    }
+
+    // ---------------------------------------------------------
+    /// Return a const CSRMatrix view of the transpose of this CSCMatrix.
+    ///
+    const CSRMatrix<T, sint_t> transpose() const {
         return transpose_as_csr(*this);
     }
+
+    /////////////////////////////////////////////////////////////////////
+    //
+    //      Undocumented functions (don't appear in doxygen)
+    //
+    /////////////////////////////////////////////////////////////////////
+
+    // Move constructor
+    CSCMatrix(CSCMatrix<T, sint_t> &&other) 
+    : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), nnz(other.nnz), index_base(other.index_base),
+      vals(nullptr), rowidxs(nullptr), colptr(nullptr) {
+        std::swap(rowidxs, other.rowidxs);
+        std::swap(colptr , other.colptr );
+        std::swap(vals   , other.vals   );
+        other.nnz = 0;
+    };
 
 };
 

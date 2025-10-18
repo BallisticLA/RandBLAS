@@ -235,6 +235,9 @@ inline void apply_index_mapper(int64_t len_mapper, const sint_t1* mapper, int64_
 
 template <typename T, SignedInteger sint_t>
 void compressed_sparse_arrays_allocate(int64_t n_comp, int64_t nnz, T* &vals, sint_t* &idxs, sint_t* &ptr) {
+    // The variable name "ptr" can appear in an error message that's inspected
+    // in CSRMatrix::reserve and CSCMatrix::reserve. Do not rename ptr without 
+    // changing these ::reserve functions.
     randblas_require(nnz > 0);
     randblas_require(idxs == nullptr);
     randblas_require(vals == nullptr);

@@ -121,6 +121,9 @@ void coo_to_csr( const COOMatrix<T, sint_t1> &coo, CSRMatrix<T,sint_t2> &csr ) {
 }
 
 // MARK: transposes
+//
+// These functions' return values should be treated as const if share_memory = true.
+//
 
 template <typename T, SignedInteger sint_t>
 CSRMatrix<T, sint_t> transpose_as_csr(const CSCMatrix<T, sint_t> &A, bool share_memory = true) {

@@ -251,6 +251,13 @@ struct COOMatrix {
     }
 
     // ---------------------------------------------------------
+    /// Return a memory-owning copy of this COOMatrix.
+    ///
+    COOMatrix<T, sint_t> deepcopy() const {
+        return deepcopy_coo(*this);
+    }
+
+    // ---------------------------------------------------------
     /// Return a memory-owning CSRMatrix representation of this COOMatrix.
     ///
     /// If sort != NonzeroSort::CSR, then this function internally creates
@@ -272,13 +279,6 @@ struct COOMatrix {
         CSCMatrix<T, sint_t> csc(n_rows, n_cols);
         coo_to_csc(*this, csc);
         return csc;
-    }
-
-    // ---------------------------------------------------------
-    /// Return a memory-owning copy of this COOMatrix.
-    ///
-    COOMatrix<T, sint_t> deepcopy() const {
-        return deepcopy_coo(*this);
     }
 
     // ---------------------------------------------------------
