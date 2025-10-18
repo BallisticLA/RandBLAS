@@ -250,16 +250,41 @@ struct COOMatrix {
         return;
     }
 
+    // ---------------------------------------------------------
+    /// Return a memory-owning CSRMatrix representation of this COOMatrix.
+    ///
+    /// If sort != NonzeroSort::CSR, then this function internally creates
+    /// a tempoary deep copy of this COOMatrix.
+    ///
     CSRMatrix<T, sint_t> as_owning_csr() const {
         CSRMatrix<T, sint_t> csr(n_rows, n_cols);
         coo_to_csr(*this, csr);
         return csr;
     }
 
+    // ---------------------------------------------------------
+    /// Return a memory-owning CSCMatrix representation of this COOMatrix.
+    ///
+    /// If sort != NonzeroSort::CSC, then this function internally creates
+    /// a tempoary deep copy of this COOMatrix.
+    ///
     CSCMatrix<T, sint_t> as_owning_csc() const {
         CSCMatrix<T, sint_t> csc(n_rows, n_cols);
         coo_to_csc(*this, csc);
         return csc;
+    }
+
+    // ---------------------------------------------------------
+    /// Return a memory-owning copy of this COOMatrix.
+    COOMatrix<T, sint_t> deepcopy() const {
+        return deepcopy_coo(*this);
+    }
+
+    // ---------------------------------------------------------
+    /// Return a (non-memory-owning!) view of the transpose of this
+    /// COOMatrix.
+    COOMatrix<T, sint_t> transpose() const {
+        return transpose_as_coo(*this);
     }
 
     /////////////////////////////////////////////////////////////////////
@@ -277,14 +302,6 @@ struct COOMatrix {
         std::swap(vals, other.vals);
         other.nnz = 0;
         other.sort = NonzeroSort::None;
-    }
-
-    COOMatrix<T, sint_t> deepcopy() const {
-        return deepcopy_coo(*this);
-    }
-
-    COOMatrix<T, sint_t> transpose() const {
-        return transpose_as_coo(*this);
     }
 };
 
