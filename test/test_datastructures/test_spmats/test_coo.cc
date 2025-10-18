@@ -105,17 +105,17 @@ class TestCOO : public ::testing::Test {
 
         A.sort_arrays(NonzeroSort::CSC);
         EXPECT_EQ(A.sort, NonzeroSort::CSC);
-        auto sort = coo_sort_type(A.nnz, A.rows, A.cols);
+        auto sort = coo_arrays_determine_sort(A.nnz, A.rows, A.cols);
         EXPECT_EQ(sort, NonzeroSort::CSC);
 
         A.sort_arrays(NonzeroSort::CSR);
         EXPECT_EQ(A.sort, NonzeroSort::CSR);
-        sort = coo_sort_type(A.nnz, A.rows, A.cols);
+        sort = coo_arrays_determine_sort(A.nnz, A.rows, A.cols);
         EXPECT_EQ(sort, NonzeroSort::CSR);
 
         A.sort_arrays(NonzeroSort::CSC);
         EXPECT_EQ(A.sort, NonzeroSort::CSC);
-        sort = coo_sort_type(A.nnz, A.rows, A.cols);
+        sort = coo_arrays_determine_sort(A.nnz, A.rows, A.cols);
         EXPECT_EQ(sort, NonzeroSort::CSC);
         return;
     }

@@ -184,14 +184,14 @@ struct COOMatrix {
     ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), nnz(nnz), index_base(index_base),
         vals(vals), rows(rows), cols(cols) {
         if (compute_sort_type) {
-            sort = coo_sort_type(nnz, rows, cols);
+            sort = coo_arrays_determine_sort(nnz, rows, cols);
         } else {
             sort = NonzeroSort::None;
         }
     };
 
     ~COOMatrix() {
-        if (own_memory) free_coo_arrays(vals, rows, cols);
+        if (own_memory) coo_arrays_free(vals, rows, cols);
     };
 
     // -----------------------------------------------------
@@ -205,7 +205,7 @@ struct COOMatrix {
     void reserve(int64_t arg_nnz) {
         randblas_require(arg_nnz > 0);
         randblas_require(own_memory);
-        allocate_coo_arrays(arg_nnz, vals, rows, cols);
+        coo_arrays_allocate(arg_nnz, vals, rows, cols);
         nnz = arg_nnz;
         return;
     };
@@ -218,7 +218,7 @@ struct COOMatrix {
     /// This function has no effect if `sort == s` or `s == NonzeroSort::None`.
     /// 
     void sort_arrays(NonzeroSort s) {
-        sort_coo_arrays(s, nnz, vals, rows, cols);
+        coo_arrays_apply_sort(s, nnz, vals, rows, cols);
         if (s != NonzeroSort::None)
             sort = s;
     };
@@ -339,7 +339,7 @@ inline void reserve_coo(int64_t nnz, COOMatrix<T,sint_t> &M) {
 /// This function is deprecated as of RandBLAS 1.1; call M.sort_arrays(s) instead.
 template <typename T>
 void sort_coo_data(NonzeroSort s, COOMatrix<T> &spmat) {
-    sort_coo_arrays(s, spmat.nnz, spmat.vals, spmat.rows, spmat.cols);
+    coo_arrays_apply_sort(s, spmat.nnz, spmat.vals, spmat.rows, spmat.cols);
     spmat.sort = s;
     return;
 }

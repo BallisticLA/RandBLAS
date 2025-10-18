@@ -55,7 +55,7 @@ void csc_to_coo(const CSCMatrix<T, sint_t1> &csc, COOMatrix<T, sint_t2> &coo) {
     coo.reserve(csc.nnz);
     std::copy( csc.vals,    csc.vals    + csc.nnz, coo.vals );
     std::copy( csc.rowidxs, csc.rowidxs + csc.nnz, coo.rows );
-    sorted_idxs_from_compressed_ptr(csc.n_cols, csc.colptr, csc.nnz, coo.cols);
+    compressed_ptr_to_sorted_idxs(csc.n_cols, csc.colptr, csc.nnz, coo.cols);
     coo.sort = NonzeroSort::CSC;
     return;
 }
@@ -69,7 +69,7 @@ void csr_to_coo(const CSRMatrix<T, sint_t1> &csr, COOMatrix<T, sint_t2> &coo) {
     coo.reserve(csr.nnz);
     std::copy( csr.vals,    csr.vals    + csr.nnz, coo.vals );
     std::copy( csr.colidxs, csr.colidxs + csr.nnz, coo.cols );
-    sorted_idxs_from_compressed_ptr(csr.n_rows, csr.rowptr, csr.nnz, coo.rows);
+    compressed_ptr_to_sorted_idxs(csr.n_rows, csr.rowptr, csr.nnz, coo.rows);
     coo.sort = NonzeroSort::CSR;
     return;
 }
@@ -86,7 +86,7 @@ auto coo_to_csc( const COOMatrix<T, sint_t1> &coo, CSCMatrix<T,sint_t2> &csc ) {
         return;
     } else if (coo.sort == NonzeroSort::CSC) {
         csc.reserve(coo.nnz);
-        compressed_ptr_from_sorted_idxs(coo.nnz, coo.cols, coo.n_cols, csc.colptr);
+        sorted_idxs_to_compressed_ptr(coo.nnz, coo.cols, coo.n_cols, csc.colptr);
         std::copy( coo.vals, coo.vals + coo.nnz, csc.vals    );
         std::copy( coo.rows, coo.rows + coo.nnz, csc.rowidxs );
         return;
@@ -108,7 +108,7 @@ void coo_to_csr( const COOMatrix<T, sint_t1> &coo, CSRMatrix<T,sint_t2> &csr ) {
         return;
     } else if (coo.sort == NonzeroSort::CSR) {
         csr.reserve(coo.nnz);
-        compressed_ptr_from_sorted_idxs(coo.nnz, coo.rows, coo.n_rows, csr.rowptr);
+        sorted_idxs_to_compressed_ptr(coo.nnz, coo.rows, coo.n_rows, csr.rowptr);
         std::copy( coo.vals, coo.vals + coo.nnz, csr.vals    );
         std::copy( coo.cols, coo.cols + coo.nnz, csr.colidxs );
         return;

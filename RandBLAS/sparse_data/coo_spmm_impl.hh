@@ -91,7 +91,7 @@ static void apply_coo_left_via_csc(
         return;
     }
     auto colptr = new sint_t[m+1];
-    compressed_ptr_from_sorted_idxs(  A0.nnz, A0.cols, m,       colptr );
+    sorted_idxs_to_compressed_ptr(  A0.nnz, A0.cols, m,       colptr );
     CSCMatrix<T, sint_t> A_csc( d, m, A0.nnz, A0.vals, A0.rows, colptr );
     if (layout_B == layout_C && layout_B == blas::Layout::RowMajor) {
         using RandBLAS::sparse_data::csc::apply_csc_left_kib_rowmajor_1p1;

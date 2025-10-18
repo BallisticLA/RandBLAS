@@ -167,7 +167,7 @@ struct CSCMatrix {
         vals(vals), rowidxs(rowidxs), colptr(colptr) { };
 
     ~CSCMatrix() {
-        if (own_memory) free_compressed_sparse_arrays(vals, rowidxs, colptr);
+        if (own_memory) compressed_sparse_arrays_free(vals, rowidxs, colptr);
     };
 
     CSCMatrix(CSCMatrix<T, sint_t> &&other) 
@@ -201,7 +201,7 @@ struct CSCMatrix {
         randblas_require(arg_nnz > 0);
         randblas_require(own_memory);
         try {
-            allocate_compressed_sparse_arrays(n_cols, arg_nnz, vals, rowidxs, colptr);
+            compressed_sparse_arrays_allocate(n_cols, arg_nnz, vals, rowidxs, colptr);
         } catch (RandBLAS::Error &e) {
             std::string message{e.what()};
             bool acceptable_error = message.find("ptr == nullptr") != std::string::npos;

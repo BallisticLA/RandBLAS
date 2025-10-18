@@ -168,7 +168,7 @@ struct CSRMatrix {
         vals(vals), rowptr(rowptr), colidxs(colidxs) { };
 
     ~CSRMatrix() {
-        if (own_memory) free_compressed_sparse_arrays(vals, colidxs, rowptr);
+        if (own_memory) compressed_sparse_arrays_free(vals, colidxs, rowptr);
     };
 
     // move constructor
@@ -203,7 +203,7 @@ struct CSRMatrix {
         randblas_require(arg_nnz > 0);
         randblas_require(own_memory);
         try {
-            allocate_compressed_sparse_arrays(n_rows, arg_nnz, vals, colidxs, rowptr);
+            compressed_sparse_arrays_allocate(n_rows, arg_nnz, vals, colidxs, rowptr);
         } catch (RandBLAS::Error &e) {
             std::string message{e.what()};
             bool acceptable_error = message.find("ptr == nullptr") != std::string::npos;

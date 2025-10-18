@@ -75,6 +75,28 @@ int64_t nnz_in_dense(
 }
 
 
+template <typename T, SignedInteger sint_t>
+void coo_arrays_allocate(int64_t nnz, T* &vals, sint_t* &rows, sint_t* &cols) {
+    randblas_require(nnz > 0);
+    randblas_require(vals == nullptr);
+    randblas_require(rows == nullptr);
+    randblas_require(cols == nullptr);
+    vals = new T[nnz]{0};
+    rows = new sint_t[nnz]{0};
+    cols = new sint_t[nnz]{0};
+    return;
+}
+
+template <typename T, SignedInteger sint_t>
+void coo_arrays_free(T* &vals, sint_t* &rows, sint_t* &cols) {
+    if (vals != nullptr) delete [] vals;
+    if (rows != nullptr) delete [] rows;
+    if (cols != nullptr) delete [] cols;
+    vals = nullptr;
+    rows = nullptr;
+    cols = nullptr;
+}
+
 // =============================================================================
 /// Indicates whether the (vals, rows, cols) 
 /// data of a COO-format sparse matrix
@@ -115,7 +137,7 @@ static inline bool increasing_by_csc(sint_t i0, sint_t j0, sint_t i1, sint_t j1)
 }
 
 template <SignedInteger sint_t>
-static inline NonzeroSort coo_sort_type(int64_t nnz, sint_t *rows, sint_t *cols) {
+static inline NonzeroSort coo_arrays_determine_sort(int64_t nnz, sint_t *rows, sint_t *cols) {
     bool csc_okay = true;
     bool csr_okay = true;
     for (int64_t ell = 1; ell < nnz; ++ell) {
@@ -142,32 +164,10 @@ static inline NonzeroSort coo_sort_type(int64_t nnz, sint_t *rows, sint_t *cols)
 }
 
 template <typename T, SignedInteger sint_t>
-void allocate_coo_arrays(int64_t nnz, T* &vals, sint_t* &rows, sint_t* &cols) {
-    randblas_require(nnz > 0);
-    randblas_require(vals == nullptr);
-    randblas_require(rows == nullptr);
-    randblas_require(cols == nullptr);
-    vals = new T[nnz]{0};
-    rows = new sint_t[nnz]{0};
-    cols = new sint_t[nnz]{0};
-    return;
-}
-
-template <typename T, SignedInteger sint_t>
-void free_coo_arrays(T* &vals, sint_t* &rows, sint_t* &cols) {
-    if (vals != nullptr) delete [] vals;
-    if (rows != nullptr) delete [] rows;
-    if (cols != nullptr) delete [] cols;
-    vals = nullptr;
-    rows = nullptr;
-    cols = nullptr;
-}
-
-template <typename T, SignedInteger sint_t>
-void sort_coo_arrays(NonzeroSort s, int64_t nnz, T *vals, sint_t* rows, sint_t* cols) {
+void coo_arrays_apply_sort(NonzeroSort s, int64_t nnz, T *vals, sint_t* rows, sint_t* cols) {
     // no‐op if no sorting or already sorted
     if (s == NonzeroSort::None) return;
-    auto curr_s = coo_sort_type(nnz, rows, cols);
+    auto curr_s = coo_arrays_determine_sort(nnz, rows, cols);
     if (s == curr_s) return;
 
     // 1) computing the sorting permutation
@@ -224,20 +224,6 @@ void coo_arrays_extract_diagonal(int64_t n_rows, int64_t n_cols, int64_t nnz, co
     return;
 }
 
-template <SignedInteger sint_t>
-void fast_permutation_check(int64_t n, sint_t* perm) {
-    sint_t min_p = n; sint_t max_p = 0;
-    for (sint_t ell = 0; ell < n; ++ell) {
-        auto p = perm[ell];
-        randblas_require(0 <= p && p < n);
-        min_p = MIN(min_p, p);
-        max_p = MAX(max_p, p);
-    }
-    randblas_require(min_p == 0);
-    randblas_require(max_p == n - 1);
-    return;
-}
-
 template <SignedInteger sint_t1, SignedInteger sint_t2>
 inline void apply_index_mapper(int64_t len_mapper, const sint_t1* mapper, int64_t len_indices, sint_t2* indices) {
     if (mapper == nullptr) { 
@@ -251,33 +237,8 @@ inline void apply_index_mapper(int64_t len_mapper, const sint_t1* mapper, int64_
     return;
 }
 
-template <SignedInteger sint_t1, SignedInteger sint_t2>
-void compressed_ptr_from_sorted_idxs(int64_t len_idxs, const sint_t1 *idxs, int64_t num_comp, sint_t2 *ptr) {
-    for (int64_t i = 1; i < len_idxs; ++i)
-        randblas_require(idxs[i - 1] <= idxs[i]);
-    ptr[0] = 0;
-    int64_t ell = 0;
-    for (int64_t i = 0; i < num_comp; ++i) {
-        while (ell < len_idxs && idxs[ell] == i)
-            ++ell;
-        ptr[i+1] = static_cast<sint_t2>(ell);
-    }
-    return;
-}
-
-template <SignedInteger sint_t1, SignedInteger sint_t2>
-void sorted_idxs_from_compressed_ptr(int64_t num_comp, sint_t1* ptr, int64_t len_idxs, sint_t2* idxs) {
-    randblas_require(len_idxs >= ptr[num_comp]);
-    for (int64_t j = 0; j < num_comp; ++j) {
-        auto col_nnz = ptr[j+1] - ptr[j];
-        randblas_require(col_nnz >= 0);
-        std::fill(idxs, idxs + col_nnz, j);
-        idxs = idxs + col_nnz;
-    }
-}
-
 template <typename T, SignedInteger sint_t>
-void allocate_compressed_sparse_arrays(int64_t n_comp, int64_t nnz, T* &vals, sint_t* &idxs, sint_t* &ptr) {
+void compressed_sparse_arrays_allocate(int64_t n_comp, int64_t nnz, T* &vals, sint_t* &idxs, sint_t* &ptr) {
     randblas_require(nnz > 0);
     randblas_require(idxs == nullptr);
     randblas_require(vals == nullptr);
@@ -292,7 +253,7 @@ void allocate_compressed_sparse_arrays(int64_t n_comp, int64_t nnz, T* &vals, si
 }
 
 template <typename T, SignedInteger sint_t>
-void free_compressed_sparse_arrays(T* &vals, sint_t* &idxs, sint_t* &ptr) {
+void compressed_sparse_arrays_free(T* &vals, sint_t* &idxs, sint_t* &ptr) {
     if (idxs != nullptr) {delete [] idxs; idxs = nullptr; }
     if (vals != nullptr) {delete [] vals; vals = nullptr; }
     if (ptr  != nullptr) {delete [] ptr;  ptr  = nullptr; }
@@ -314,12 +275,31 @@ static bool compressed_indices_are_increasing(int64_t num_vecs, sint_t *ptrs, si
     return true;
 }
 
+template <SignedInteger sint_t1, SignedInteger sint_t2>
+void sorted_idxs_to_compressed_ptr(int64_t len_idxs, const sint_t1 *idxs, int64_t num_comp, sint_t2 *ptr) {
+    for (int64_t i = 1; i < len_idxs; ++i)
+        randblas_require(idxs[i - 1] <= idxs[i]);
+    ptr[0] = 0;
+    int64_t ell = 0;
+    for (int64_t i = 0; i < num_comp; ++i) {
+        while (ell < len_idxs && idxs[ell] == i)
+            ++ell;
+        ptr[i+1] = static_cast<sint_t2>(ell);
+    }
+    return;
+}
 
-// Idea: change all "const" attributes to for SpMatrix to return values from inlined functions. 
-// Looks like there'd be no collision with function/property names for sparse matrix
-// types in Eigen, SuiteSparse, OneMKL, etc.. These inlined functions could return
-// nominally public members like A._n_rows and A._n_cols, which the user will only change
-// at their own peril.
+template <SignedInteger sint_t1, SignedInteger sint_t2>
+void compressed_ptr_to_sorted_idxs(int64_t num_comp, sint_t1* ptr, int64_t len_idxs, sint_t2* idxs) {
+    randblas_require(len_idxs >= ptr[num_comp]);
+    for (int64_t j = 0; j < num_comp; ++j) {
+        auto col_nnz = ptr[j+1] - ptr[j];
+        randblas_require(col_nnz >= 0);
+        std::fill(idxs, idxs + col_nnz, j);
+        idxs = idxs + col_nnz;
+    }
+}
+
 
 #ifdef __cpp_concepts
 // =============================================================================
