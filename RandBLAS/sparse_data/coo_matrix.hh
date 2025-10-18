@@ -276,14 +276,15 @@ struct COOMatrix {
 
     // ---------------------------------------------------------
     /// Return a memory-owning copy of this COOMatrix.
+    ///
     COOMatrix<T, sint_t> deepcopy() const {
         return deepcopy_coo(*this);
     }
 
     // ---------------------------------------------------------
-    /// Return a (non-memory-owning!) view of the transpose of this
-    /// COOMatrix.
-    COOMatrix<T, sint_t> transpose() const {
+    /// Return a const view of the transpose of this COOMatrix.
+    ///
+    const COOMatrix<T, sint_t> transpose() const {
         return transpose_as_coo(*this);
     }
 
