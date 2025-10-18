@@ -162,6 +162,10 @@ class TestCSC_Conversions : public ::testing::Test {
     
 };
 
+TEST_F(TestCSC_Conversions, deepcopy) {
+    test_deepcopy();
+}
+
 TEST_F(TestCSC_Conversions, band) {
     test_csc_to_coo_band_diag();
 }
