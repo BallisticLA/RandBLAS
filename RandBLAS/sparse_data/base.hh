@@ -55,14 +55,7 @@ enum class IndexBase : int {
 };
 
 template <typename T>
-int64_t nnz_in_dense(
-    int64_t n_rows,
-    int64_t n_cols,
-    int64_t stride_row,
-    int64_t stride_col,
-    T* mat,
-    T abs_tol
-) {
+int64_t nnz_in_dense(int64_t n_rows, int64_t n_cols, int64_t stride_row, int64_t stride_col, T* mat, T abs_tol) {
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
     int64_t nnz = 0;
     for (int64_t i = 0; i < n_rows; ++i) {
@@ -74,6 +67,7 @@ int64_t nnz_in_dense(
     return nnz;
 }
 
+// MARK: coordinate arrays
 
 template <typename T, SignedInteger sint_t>
 void coo_arrays_allocate(int64_t nnz, T* &vals, sint_t* &rows, sint_t* &cols) {
@@ -95,6 +89,18 @@ void coo_arrays_free(T* &vals, sint_t* &rows, sint_t* &cols) {
     vals = nullptr;
     rows = nullptr;
     cols = nullptr;
+}
+
+template <typename T, SignedInteger sint_t>
+void coo_arrays_extract_diagonal(int64_t n_rows, int64_t n_cols, int64_t nnz, const T* vals, const sint_t* rows, const sint_t* cols, T* diag) {
+    int64_t n = std::min(n_rows, n_cols);
+    std::fill(diag, diag + n, (T)0.0);
+    for (int64_t i = 0; i < nnz; ++i) {
+        if (rows[i] == cols[i]) {
+            diag[rows[i]] += vals[i];
+        }
+    }
+    return;
 }
 
 // =============================================================================
@@ -212,18 +218,6 @@ void coo_arrays_apply_sort(NonzeroSort s, int64_t nnz, T *vals, sint_t* rows, si
     }
 }
 
-template <typename T, SignedInteger sint_t>
-void coo_arrays_extract_diagonal(int64_t n_rows, int64_t n_cols, int64_t nnz, const T* vals, const sint_t* rows, const sint_t* cols, T* diag) {
-    int64_t n = std::min(n_rows, n_cols);
-    std::fill(diag, diag + n, (T)0.0);
-    for (int64_t i = 0; i < nnz; ++i) {
-        if (rows[i] == cols[i]) {
-            diag[rows[i]] += vals[i];
-        }
-    }
-    return;
-}
-
 template <SignedInteger sint_t1, SignedInteger sint_t2>
 inline void apply_index_mapper(int64_t len_mapper, const sint_t1* mapper, int64_t len_indices, sint_t2* indices) {
     if (mapper == nullptr) { 
@@ -236,6 +230,8 @@ inline void apply_index_mapper(int64_t len_mapper, const sint_t1* mapper, int64_
     }
     return;
 }
+
+// MARK: compressed arrays
 
 template <typename T, SignedInteger sint_t>
 void compressed_sparse_arrays_allocate(int64_t n_comp, int64_t nnz, T* &vals, sint_t* &idxs, sint_t* &ptr) {
@@ -300,6 +296,7 @@ void compressed_ptr_to_sorted_idxs(int64_t num_comp, sint_t1* ptr, int64_t len_i
     }
 }
 
+// MARK: SparseMatrix
 
 #ifdef __cpp_concepts
 // =============================================================================
