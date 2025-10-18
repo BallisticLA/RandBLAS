@@ -243,13 +243,13 @@ struct COOMatrix {
 
     CSRMatrix<T, sint_t> as_owning_csr() const {
         CSRMatrix<T, sint_t> csr(n_rows, n_cols);
-        conversions::coo_to_csr(*this, csr);
+        coo_to_csr(*this, csr);
         return csr;
     }
 
     CSCMatrix<T, sint_t> as_owning_csc() const {
         CSCMatrix<T, sint_t> csc(n_rows, n_cols);
-        conversions::coo_to_csc(*this, csc);
+        coo_to_csc(*this, csc);
         return csc;
     }
 
@@ -275,7 +275,6 @@ struct COOMatrix {
     }
 
     COOMatrix<T, sint_t> transpose() const {
-        // using namespace conversions;
         return transpose_as_coo(*this);
     }
 };
