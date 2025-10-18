@@ -127,6 +127,38 @@ class TestCSC_Conversions : public ::testing::Test {
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
     }
+
+    template <typename T = double>
+    static void test_deepcopy() {
+        // Use essentially the same test data as test_csc_to_coo_band_diag (just truncate one column)
+        int64_t n_cols = 7;
+        int64_t n_rows = 8;
+        int64_t nnz = 28;
+        std::vector<T> vals{6, -1, -2, -3, -1, 6, -1, -1, -1, 6, -1, -1, -1, -1, 6, -1, -1, 6, -1, -1, -1, -1, 6, -1, -1, -1, 6, -1};
+        std::vector<int64_t> colptr{0, 4, 8, 12, 16, 20, 24, 28};
+        std::vector<int64_t> rowidxs{0, 1, 2, 4, 0, 1, 3, 5, 0, 2, 3, 6, 1, 2, 3, 7, 0, 4, 5, 6, 1, 4, 5, 7, 2, 4, 6, 7};
+        CSCMatrix<T> A(n_rows, n_cols, nnz, vals.data(), rowidxs.data(), colptr.data());
+        auto A_copy = A.deepcopy();
+        for (int64_t j = 0; j < n_cols; j++) {
+            for (int64_t p = A.colptr[j]; p < A.colptr[j+1]; ++p) {
+                EXPECT_EQ( A.vals[p],    A_copy.vals[p]    );
+                EXPECT_EQ( A.rowidxs[p], A_copy.rowidxs[p] );
+            }
+        }
+        auto vals_copy    = vals;
+        auto colptr_copy  = colptr;
+        auto rowidxs_copy = rowidxs;
+        std::fill(A_copy.colptr, A_copy.colptr + n_cols + 1, 0);
+        std::fill(A_copy.rowidxs, A_copy.rowidxs + nnz, 0);
+        std::fill(A_copy.vals, A_copy.vals + nnz, 0);
+
+        for (int64_t j = 0; j < n_cols; j++) {
+            for (int64_t p = colptr_copy[j]; p < colptr_copy[j+1]; ++p) {
+                EXPECT_EQ( vals_copy[p]   , A.vals[p]    );
+                EXPECT_EQ( rowidxs_copy[p], A.rowidxs[p] );
+            }
+        }
+    }
     
 };
 
