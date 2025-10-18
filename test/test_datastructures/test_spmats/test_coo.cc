@@ -119,6 +119,49 @@ class TestCOO : public ::testing::Test {
         EXPECT_EQ(sort, NonzeroSort::CSC);
         return;
     }
+
+    template <typename T = double>
+    void test_symperm_inplace(int64_t n, T prob_zero) {
+        int64_t i = 0;
+        
+        // arrange
+        RandBLAS::DenseDist D(n, n);
+        std::vector<T> buff(n*n);
+        fill_dense(D, buff.data(), {0});
+        iid_sparsify_random_dense(n, n, Layout::ColMajor, buff.data(), prob_zero, {94});
+        std::vector<int64_t> perm(n);
+        for (i = 0; i < n; ++i) {
+            buff[i + i*n] = 2*(i+1); // diagonal is      2,   4, ..., 2*n
+            perm[i] = n - (i+1);     // permutation is n-1, n-2, ..., 0.
+        }
+        COOMatrix<T> A(n, n);
+        dense_to_coo(Layout::ColMajor, buff.data(), (T)0.0, A);
+        std::vector<T> diagA(n);
+        coo_arrays_extract_diagonal(n, n, A.nnz, A.vals, A.rows, A.cols, diagA.data());
+        for (i = 0; i < n; ++i) {
+            EXPECT_EQ(diagA[i], 2*(i+1)); // < check that we setup the problem correctly.
+        }
+        A.sort_arrays(NonzeroSort::CSC);
+        
+        // Test 1 of 2
+        auto Ap = A.deepcopy();
+        Ap.symperm_inplace(perm.data());
+        std::vector<T> diagAp(n);
+        coo_arrays_extract_diagonal(n, n, Ap.nnz, Ap.vals, Ap.rows, Ap.cols, diagAp.data());
+        for (i = 0; i < n; ++i) {
+            EXPECT_EQ( diagAp[i], 2*(n-i) );
+        }
+
+        // Test 2 of 2
+        Ap.symperm_inplace(perm.data()); // < perm is self-inverse, so applying again should get us A.
+        EXPECT_EQ(Ap.sort, A.sort);
+        for (i = 0; i < A.nnz; ++i) {
+            EXPECT_EQ(Ap.rows[i], A.rows[i]);
+            EXPECT_EQ(Ap.cols[i], A.cols[i]);
+            EXPECT_EQ(Ap.vals[i], A.vals[i]);
+        }
+        return;
+    }
 };
 
 
@@ -132,6 +175,12 @@ TEST_F(TestCOO, sort_order) {
     test_sort_order(3);
     test_sort_order(7);
     test_sort_order(10);
+}
+
+TEST_F(TestCOO, symperm_inplace) {
+    test_symperm_inplace( 5,   (float) 0.0  );
+    test_symperm_inplace( 20,  (float) 0.8  );
+    test_symperm_inplace( 100, (float) 0.99 );
 }
 
 

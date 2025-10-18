@@ -164,7 +164,7 @@ void free_coo_arrays(T* &vals, sint_t* &rows, sint_t* &cols) {
 }
 
 template <typename T, SignedInteger sint_t>
-void sort_coo_arrays(NonzeroSort s, int64_t nnz, T *vals, sint_t *rows, sint_t *cols) {
+void sort_coo_arrays(NonzeroSort s, int64_t nnz, T *vals, sint_t* rows, sint_t* cols) {
     // no‐op if no sorting or already sorted
     if (s == NonzeroSort::None) return;
     auto curr_s = coo_sort_type(nnz, rows, cols);
@@ -212,6 +212,18 @@ void sort_coo_arrays(NonzeroSort s, int64_t nnz, T *vals, sint_t *rows, sint_t *
     }
 }
 
+template <typename T, SignedInteger sint_t>
+void coo_arrays_extract_diagonal(int64_t n_rows, int64_t n_cols, int64_t nnz, const T* vals, const sint_t* rows, const sint_t* cols, T* diag) {
+    int64_t n = std::min(n_rows, n_cols);
+    std::fill(diag, diag + n, (T)0.0);
+    for (int64_t i = 0; i < nnz; ++i) {
+        if (rows[i] == cols[i]) {
+            diag[rows[i]] += vals[i];
+        }
+    }
+    return;
+}
+
 template <SignedInteger sint_t>
 void fast_permutation_check(int64_t n, sint_t* perm) {
     sint_t min_p = n; sint_t max_p = 0;
@@ -236,16 +248,6 @@ inline void apply_index_mapper(int64_t len_mapper, const sint_t1* mapper, int64_
         randblas_require(j < len_mapper);
         indices[i] = static_cast<sint_t2>(mapper[j]);
     }
-    return;
-}
-
-template <SignedInteger sint_t>
-void symperm_coo_arrays(int64_t n, const sint_t* perm, int64_t nnz, sint_t* rows, sint_t* cols) {
-    std::vector<sint_t> invperm(n);
-    for (sint_t k = 0; k < n; ++k) { invperm[perm[k]] = k; }
-    sint_t* iperm = invperm.data();
-    apply_index_mapper(n,  perm, nnz, rows);
-    apply_index_mapper(n, iperm, nnz, cols);
     return;
 }
 

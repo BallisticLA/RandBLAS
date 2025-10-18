@@ -234,10 +234,19 @@ struct COOMatrix {
     ///
     ///     A := P * A * P'.
     ///
-    void symperm_inplace(const sint_t* perm) {
+    /// In MATLAB notation, this is equivalent to A := A(perm, perm).
+    ///
+    template <SignedInteger index_t>
+    void symperm_inplace(const index_t* perm, bool preserve_sort = true) {
         randblas_require(n_rows == n_cols);
         randblas_require(index_base == IndexBase::Zero);
-        symperm_coo_arrays(n_rows, perm, nnz, rows, cols);
+        apply_index_mapper(n_rows, perm, nnz, rows);
+        apply_index_mapper(n_rows, perm, nnz, cols);
+        if (preserve_sort) { 
+            sort_arrays(sort);
+        } else {
+            sort = NonzeroSort::None;
+        }
         return;
     }
 
