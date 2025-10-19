@@ -162,6 +162,18 @@ class TestCOO : public ::testing::Test {
         }
         return;
     }
+
+    template <typename T = double>
+    void smoketest_print() {
+        int n = 10;
+        int m = 11;
+        COOMatrix<T> A(m, n);
+        std::vector<T> mat(m * n);
+        RandBLAS::RNGState s(0);
+        iid_sparsify_random_dense(m, n, Layout::ColMajor, mat.data(), 0.25, s);
+        dense_to_coo(1, m, mat.data(), 0.0, A);
+        print_sparse(A); // no correctness check
+    }
 };
 
 
