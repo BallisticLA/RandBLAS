@@ -195,13 +195,14 @@ struct COOMatrix {
     };
 
     // -----------------------------------------------------
-    /// This function requires that own_memory is true, and
-    /// that vals, rows, and cols are null. If any of these conditions
+    /// This function requires that own_memory is true, that arg_nnz > 0, 
+    //  and that vals, rows, and cols are null. If any of these conditions
     /// are not met then this function will raise an error.
     /// 
     /// If no error is raised then this function redirects
     /// vals, rows, and cols to new arrays of length arg_nnz,
     /// and nnz is set to arg_nnz.
+    ///
     void reserve(int64_t arg_nnz) {
         randblas_require(arg_nnz > 0);
         randblas_require(own_memory);

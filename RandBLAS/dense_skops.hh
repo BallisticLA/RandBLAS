@@ -216,6 +216,7 @@ enum class ScalarDist : char {
     Uniform = 'U'
 };
 
+
 // =============================================================================
 ///  A distribution over matrices whose entries are iid mean-zero variance-one
 ///  random variables.
@@ -343,12 +344,7 @@ struct DenseDist {
             std::cerr << "integer arguments." << std::endl << std::endl;
         }
     }
-
 };
-
-#ifdef __cpp_concepts
-static_assert(SketchingDistribution<DenseDist>);
-#endif
 
 
 // =============================================================================
@@ -478,7 +474,9 @@ struct DenseSkOp {
     }
 };
 
+
 #ifdef __cpp_concepts
+static_assert(SketchingDistribution<DenseDist>);
 static_assert(SketchingOperator<DenseSkOp<float>>);
 static_assert(SketchingOperator<DenseSkOp<double>>);
 #endif
