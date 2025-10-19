@@ -114,10 +114,9 @@ class TestCSR_Conversions : public ::testing::Test
                 MAT_EXPECT(ell - offset, ell) = diag[ell];
         }
 
-        CSRMatrix<T> csr(m, n);
         COOMatrix<T> coo(m, n);
         coo_from_diag(diag, len, offset, coo);
-        coo_to_csr(coo, csr);
+        auto csr = coo.as_owning_csr();
         T *mat_actual = new T[m * n]{0.0};
         csr_to_dense(csr, Layout::ColMajor, mat_actual);
 
@@ -140,8 +139,7 @@ class TestCSR_Conversions : public ::testing::Test
         std::vector<int64_t> rowptr{0, 4, 8, 12, 16, 20, 24, 28, 32};
         std::vector<int64_t> colidxs{0, 1, 2, 4, 0, 1, 3, 5, 0, 2, 3, 6, 1, 2, 3, 7, 0, 4, 5, 6, 1, 4, 5, 7, 2, 4, 6, 7, 3, 5, 6, 7};
         CSRMatrix<T> A_csr(n,n,nnz,vals.data(),rowptr.data(),colidxs.data());
-        COOMatrix<T> A_coo(n,n);
-        csr_to_coo(A_csr, A_coo);
+        auto A_coo = A_csr.as_owning_coo();
         std::vector<T> A_dense_coo(n*n);
         std::vector<T> A_dense_csr(n*n);
         coo_to_dense(A_coo, Layout::ColMajor, A_dense_coo.data());

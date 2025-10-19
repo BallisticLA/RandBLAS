@@ -89,10 +89,9 @@ class TestCSC_Conversions : public ::testing::Test {
                 MAT_EXPECT(ell - offset, ell) = diag[ell];
         }
 
-        CSCMatrix<T> csc(m, n);
         COOMatrix<T> coo(m, n);
         coo_from_diag(diag, len, offset, coo);
-        coo_to_csc(coo, csc);
+        auto csc = coo.as_owning_csc();
         T *mat_actual = new T[m * n]{0.0};
         csc_to_dense(csc, Layout::ColMajor, mat_actual);
 
@@ -115,8 +114,7 @@ class TestCSC_Conversions : public ::testing::Test {
         std::vector<int64_t> colptr{0, 4, 8, 12, 16, 20, 24, 28, 32};
         std::vector<int64_t> rowidxs{0, 1, 2, 4, 0, 1, 3, 5, 0, 2, 3, 6, 1, 2, 3, 7, 0, 4, 5, 6, 1, 4, 5, 7, 2, 4, 6, 7, 3, 5, 6, 7};
         CSCMatrix<T> A_csc(n,n,nnz,vals.data(),rowidxs.data(),colptr.data());
-        COOMatrix<T> A_coo(n,n);
-        csc_to_coo(A_csc, A_coo);
+        auto A_coo = A_csc.as_owning_coo();
         std::vector<T> A_dense_coo(n*n);
         std::vector<T> A_dense_csc(n*n);
         coo_to_dense(A_coo, Layout::ColMajor, A_dense_coo.data());
