@@ -45,14 +45,11 @@ template<typename T, SignedInteger sint_t> struct CSRMatrix;
 template<typename T, SignedInteger sint_t> struct CSCMatrix;
 template<typename T, SignedInteger sint_t> struct COOMatrix;
 
-enum class IndexBase : int {
-    // ---------------------------------------------------------------
-    // zero-based indexing
-    Zero = 0,
-    // ---------------------------------------------------------------
-    // one-based indexing
-    One = 1
-};
+// =============================================================================
+/// Indicates whether the rows and/or columns of a sparse matrix are enumerated
+/// (that is, *indexed*) starting from zero or starting from one. The majority of
+/// RandBLAS' sparse matrix functionality requires zero-based indexing.
+enum class IndexBase : int { Zero = 0, One = 1 };
 
 template <typename T>
 int64_t nnz_in_dense(int64_t n_rows, int64_t n_cols, int64_t stride_row, int64_t stride_col, T* mat, T abs_tol) {
@@ -330,7 +327,6 @@ void compressed_ptr_to_sorted_idxs(int64_t num_comp, sint_t1* ptr, int64_t len_i
 ///      - :math:`\ttt{bool}`
 ///      - A flag indicating if memory attached to :math:`\ttt{M}` should be deallocated when :math:`\ttt{M}` is deleted.
 ///        This flag is set automatically based on the type of constructor used for :math:`\ttt{M}.` 
-/// 
 ///
 /// **Memory-owning constructors**
 /// 
@@ -368,22 +364,54 @@ void compressed_ptr_to_sorted_idxs(int64_t num_comp, sint_t1* ptr, int64_t len_i
 ///             }
 ///         }        
 ///
+/// **Instance methods**
+///
+///     In addition to :math:`\ttt{SpMat::reserve}`, this concept requires two more instance methods.
+///     Let :math:`\ttt{A}` denote an :math:`\ttt{SpMat}.`
+///
+///     Calling :math:`\ttt{A.deepcopy()}` returns an :math:`\ttt{SpMat}` that's mathematically
+///     equivalent to :math:`\ttt{A}` and that owns its attached memory.
+///
+///     Calling :math:`\ttt{A.transpose()}` returns an instance of a (const) type that conforms to the
+///     SparseMatrix concept and that is mathematically equivalent to the transpose of :math:`\ttt{A}.`
+///
 /// **View constructors**
 ///
 ///     This concept doesn't place requirements on constructors for sparse matrix views of existing data. 
 ///     However, all of RandBLAS' sparse matrix classes offer such constructors. See individual classes'
 ///     documentation for details.
 ///
+/// **Passing to and returning from functions**
+///
+///     As a consequence of our requirements on :math:`\ttt{SpMat::deepcopy}`, :math:`\ttt{SpMat}` must
+///     have a C++ move constructor. The move constructors for RandBLAS' SparseMatrix types do not appear
+///     in our web documentation since move constructors should not be called by user code.
+///
+///     :math:`\ttt{SpMat}` does not necessarily have a C++ copy constructor. In fact, none of RandBLAS'
+///     SparseMatrix classes have a C++ copy constructor. If :math:`\ttt{SpMat}` has no copy constructor
+///     then instances of that type can only be passed by reference.
+///
 /// @endverbatim
 template<typename SpMat>
-concept SparseMatrix = requires(SpMat A) {
-    { A.n_rows }     -> std::same_as<const int64_t&>;
-    { A.n_cols }     -> std::same_as<const int64_t&>;
-    { A.nnz }        -> std::same_as<int64_t&>;
-    { *(A.vals) }    -> std::same_as<typename SpMat::scalar_t&>;
-    { A.own_memory } -> std::same_as<bool&>;
-    { SpMat(A.n_rows, A.n_cols) };
-};
+concept SparseMatrix =
+  // must be movable so that SpMat can be returned from functions
+  std::move_constructible<SpMat> &&
+  // must have the memory-owning ctor: SpMat(int64_t n_rows, int64_t n_cols)
+  std::constructible_from<SpMat, std::int64_t, std::int64_t> &&
+  // all of the following expressions must compile and have exactly the indicated types
+  requires(SpMat A, std::int64_t N) {
+    // the five data members
+    { A.n_rows     } -> std::same_as<const std::int64_t&>;
+    { A.n_cols     } -> std::same_as<const std::int64_t&>;
+    { A.nnz        } -> std::same_as<      std::int64_t&>;
+    { *A.vals      } -> std::same_as<typename SpMat::scalar_t&>;
+    { A.own_memory } -> std::same_as<      bool&>;
+    // memory-reservation
+    { A.reserve(N) } -> std::same_as<void>;
+    // must be able to deep-copy
+    { A.deepcopy()  } -> std::same_as<SpMat>;
+  } && 
+  requires { &SpMat::transpose; };
 #else
 #define SparseMatrix typename
 #endif

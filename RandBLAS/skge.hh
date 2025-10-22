@@ -637,7 +637,7 @@ using namespace RandBLAS::sparse;
 
 // =============================================================================
 /// \fn sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
-///     int64_t n, int64_t m, T alpha, SKOP &S, int64_t ro_s, int64_t co_s,
+///     int64_t n, int64_t m, T alpha, const SKOP &S, int64_t ro_s, int64_t co_s,
 ///     const T *A, int64_t lda, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
@@ -996,7 +996,7 @@ inline void sketch_general(
 
 // =============================================================================
 /// \fn sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
-///     int64_t n, int64_t m, T alpha, SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb
+///     int64_t n, int64_t m, T alpha, const SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb
 /// ) 
 /// @verbatim embed:rst:leading-slashes
 /// Sketch from the left in a GEMM-like operation

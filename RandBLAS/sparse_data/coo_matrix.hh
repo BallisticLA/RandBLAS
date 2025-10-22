@@ -170,8 +170,9 @@ struct COOMatrix {
     // ---------------------------------------------------------------------------
     /// **Expert constructor.** Arguments passed to this function are used to initialize members of the same names;
     /// COOMatrix::own_memory is set to false.
-    /// If compute_sort_type is true, then the sort member will be computed by inspecting
-    /// the contents of (rows, cols). If compute_sort_type is false, then the sort member is set to None.
+    ///
+    /// If compute_sort_type is true, then COOMatrix::sort will be computed by inspecting
+    /// the contents of (rows, cols). Otherwise, COOMatrix::sort is set to None.
     /// 
     COOMatrix(
         int64_t n_rows,
@@ -197,7 +198,7 @@ struct COOMatrix {
 
     // -----------------------------------------------------
     /// This function requires that own_memory is true, that arg_nnz > 0, 
-    //  and that vals, rows, and cols are null. If any of these conditions
+    /// and that vals, rows, and cols are null. If any of these conditions
     /// are not met then this function will raise an error.
     /// 
     /// If no error is raised then this function redirects
@@ -213,11 +214,10 @@ struct COOMatrix {
     };
 
     // -----------------------------------------------------
-    /// Sort the (vals, rows, cols) underlying this COOMatrix for
-    /// fast conversion to CSR format (if s == NonzeroSort::CSR)
-    /// or CSC format (if s == NonzeroSort::CSC). 
+    /// Sort the (vals, rows, cols) underlying this matrix to facilitate
+    /// fast conversion to CSR or CSC formats.
     ///
-    /// This function has no effect if `sort == s` or `s == NonzeroSort::None`.
+    /// This function has no effect if `s == COOMatrix::sort` or `s == NonzeroSort::None`.
     /// 
     void sort_arrays(NonzeroSort s) {
         coo_arrays_apply_sort(s, nnz, vals, rows, cols);
@@ -226,17 +226,16 @@ struct COOMatrix {
     };
 
     // ---------------------------------------------------------
-    /// This function requires that n_rows == n_cols and index_base == Zero.
+    /// This function requires that n_rows = n_cols and 
+    /// and that \math{\ttt{index_base}} is Zero.
     ///
-    /// perm is a permutation of {0, 1, ..., n_rows - 1}. It defines a 
-    /// permutation matrix P = I(perm,:) of order n_rows.
-    ///
-    /// Let A denote the abstract mathematical object represented by this
-    /// COOMatrix. This function overwrites A by
-    ///
-    ///     A := P * A * P'.
-    ///
-    /// In MATLAB notation, this is equivalent to A := A(perm, perm).
+    /// Define \math{n} := n_rows. The buffer \math{\ttt{perm}} is a permutation of
+    /// \math{\\{0, 1,\ldots, n - 1\\}} that defines an \math{n \times n} permutation
+    /// matrix \math{\mtxP = \mtxI_n(\ttt{perm},:).} This function overwrites the 
+    /// current sparse matrix \math{\mtxA} by \math{\mtxA := \mtxP \mtxA \mtxP^T.}
+    /// If \math{\ttt{preserve_sort}} is true then we ensure that \math{\mtxA.\ttt{sort}}
+    /// has the same value on exit as it had on entry. Otherwise, we overwrite
+    /// \math{\mtxA.\ttt{sort}} with None.
     ///
     template <SignedInteger index_t>
     void symperm_inplace(const index_t* perm, bool preserve_sort = true) {
@@ -260,10 +259,10 @@ struct COOMatrix {
     }
 
     // ---------------------------------------------------------
-    /// Return a memory-owning CSRMatrix representation of this COOMatrix.
+    /// Return a memory-owning CSRMatrix repesentation of this COOMatrix.
     ///
-    /// If sort != NonzeroSort::CSR, then this function internally creates
-    /// a tempoary deep copy of this COOMatrix.
+    /// If sort != NonzeroSort::CSR, then we create a temporary deep copy
+    /// of this matrix on the way to constructing the CSR representation.
     ///
     CSRMatrix<T, sint_t> as_owning_csr() const {
         CSRMatrix<T, sint_t> csr(n_rows, n_cols);
@@ -274,8 +273,8 @@ struct COOMatrix {
     // ---------------------------------------------------------
     /// Return a memory-owning CSCMatrix representation of this COOMatrix.
     ///
-    /// If sort != NonzeroSort::CSC, then this function internally creates
-    /// a tempoary deep copy of this COOMatrix.
+    /// If sort != NonzeroSort::CSC, then we create a temporary deep copy
+    /// of this matrix on the way to constructing the CSC representation.
     ///
     CSCMatrix<T, sint_t> as_owning_csc() const {
         CSCMatrix<T, sint_t> csc(n_rows, n_cols);

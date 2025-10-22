@@ -133,9 +133,9 @@ struct boxmul
      *
      * @tparam RNG a random123 CBRNG type
      *
-     * @param[in] a random123 CBRNG instance used to generate the sequence
-     * @param[in] the CBRNG counter
-     * @param[in] the CBRNG key
+     * @param[in] rng: a random123 CBRNG instance used to generate the sequence
+     * @param[in] c: the CBRNG counter
+     * @param[in] k: the CBRNG key
      *
      * @returns a std::array<N,T> where N is the CBRNG's ctr_type::static_size
      *          and T is deduced from the RNG's counter element type : float

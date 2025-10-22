@@ -625,14 +625,14 @@ RNGState<RNG> fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed)
 // =============================================================================
 /// If \math{\ttt{S.own_memory}} is true then we enter an allocation stage. If
 /// \math{\ttt{S.buff}} is equal to \math{\ttt{nullptr}} then it is redirected to the
-/// start of an new array (allocated with ``new []``)
-/// of length \math{\ttt{S.n_rows * S.n_cols}.} 
+/// start of an new array (allocated with \math{\textcolor{red}{\ttt{new []}}}) of length 
+/// \math{\ttt{S.n_rows * S.n_cols}.}
 ///
 /// After the allocation stage, we check \math{\ttt{S.buff}} and we raise
 /// an error if it's null.
 ///
 /// If \math{\ttt{S.buff}} is are non-null, then we'll assume it has length at least
-///  \math{\ttt{S.n_rows * S.n_cols}.} We'll proceed to populate \math{\ttt{S.buff}} 
+/// \math{\ttt{S.n_rows * S.n_cols}.} We'll proceed to populate \math{\ttt{S.buff}} 
 /// with the data for the explicit representation of \math{\ttt{S}.}
 /// On exit, one can encode a BLAS-style representation of \math{\ttt{S}} with the tuple
 /// @verbatim embed:rst:leading-slashes
