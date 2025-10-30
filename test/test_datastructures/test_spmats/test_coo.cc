@@ -165,8 +165,13 @@ class TestCOO : public ::testing::Test {
 
     template <typename T = double>
     void smoketest_print() {
+        /***
+        * TODO: Have a check for correctness. Right now we have to inspect visually by running
+        * 
+        *       ctest -R TestCOO::print --verbose
+        */
         int n = 10;
-        int m = 11;
+        int m = 23;
         COOMatrix<T> A(m, n);
         std::vector<T> mat(m * n);
         RandBLAS::RNGState s(0);
@@ -175,6 +180,10 @@ class TestCOO : public ::testing::Test {
         print_sparse(A); // no correctness check
     }
 };
+
+TEST_F(TestCOO, print) {
+    smoketest_print();
+}
 
 
 TEST_F(TestCOO, to_from_dense) {

@@ -315,29 +315,13 @@ static_assert(SparseMatrix<COOMatrix<double>>);
 template <typename COOMatrix>
 void print_sparse(COOMatrix const &A, int decimals=8, ArrayStyle style = ArrayStyle::MATLAB) {
     std::cout << "COOMatrix information" << std::endl;
-    int64_t nnz = A.nnz;
-    std::cout << "\tn_rows = " << A.n_rows << std::endl;
-    std::cout << "\tn_cols = " << A.n_cols << std::endl;
-    if (A.rows != nullptr) {
-        std::cout << "\tvector of row indices\n\t\t";
-        print_buff_to_stream(std::cout, 1, nnz, A.rows, 1, 1, "rows", 1, style);
-    } else {
-        std::cout << "\trows is the null pointer.\n\t\t";
-    }
-    std::cout << std::endl;
-    if (A.cols != nullptr) {
-        std::cout << "\tvector of column indices\n\t\t";
-        print_buff_to_stream(std::cout, 1, nnz, A.cols, 1, 1, "cols", 1, style);
-    } else {
-        std::cout << "\tcols is the null pointer.\n\t\t";
-    }
-    std::cout << std::endl;
-    if (A.vals != nullptr) {
-        std::cout << "\tvector of values\n\t\t";
-        print_buff_to_stream(std::cout, 1, nnz, A.rows, 1, 1, "vals", decimals, style);
-    } else {
-        std::cout << "\tvals is the null pointer.\n\t\t";
-    }
+    std::cout << "n_rows = " << A.n_rows << std::endl;
+    std::cout << "n_cols = " << A.n_cols << std::endl;
+    std::cout << "nnz    = " << A.nnz    << std::endl;
+    if (A.nnz == 0) { return; }
+    print_buff_to_stream(std::cout, 1, A.nnz, A.vals, 1, 1, "vals  ", decimals, style);
+    print_buff_to_stream(std::cout, 1, A.nnz, A.rows, 1, 1, "rows  ", 1,        style);
+    print_buff_to_stream(std::cout, 1, A.nnz, A.cols, 1, 1, "cols  ", 1,        style);
     std::cout << std::endl;
     return;
 }
