@@ -160,7 +160,7 @@ class TestCSR_Conversions : public ::testing::Test
         std::vector<T> vals{6, -1, -2, -3, -1, 6, -1, -1, -1, 6, -1, -1, -1, -1, 6, -1, -1, 6, -1, -1, -1, -1, 6, -1, -1, -1, 6, -1};
         std::vector<int64_t> rowptr{0, 4, 8, 12, 16, 20, 24, 28};
         std::vector<int64_t> colidxs{0, 1, 2, 4, 0, 1, 3, 5, 0, 2, 3, 6, 1, 2, 3, 7, 0, 4, 5, 6, 1, 4, 5, 7, 2, 4, 6, 7};
-        CSRMatrix<T> A(n_cols, n_rows, nnz, vals.data(), rowptr.data(), colidxs.data());
+        CSRMatrix<T> A(n_rows, n_cols, nnz, vals.data(), rowptr.data(), colidxs.data());
         auto A_copy = A.deepcopy();
         for (int64_t j = 0; j < n_rows; j++) {
             for (int64_t p = A.rowptr[j]; p < A.rowptr[j+1]; ++p) {
