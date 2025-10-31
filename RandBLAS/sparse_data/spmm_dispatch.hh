@@ -54,7 +54,7 @@ void left_spmm(
     int64_t n, // \op(B) is m-by-n
     int64_t m, // \op(A) is d-by-m
     T alpha,
-    SpMat &A,
+    const SpMat &A,
     int64_t ro_a,
     int64_t co_a,
     const T *B,
@@ -67,22 +67,8 @@ void left_spmm(
     using blas::Op;
     // handle applying a transposed sparse matrix.
     if (opA == Op::Trans) {
-        using sint_t = typename SpMat::index_t;
-        constexpr bool is_coo = std::is_same_v<SpMat, COOMatrix<T, sint_t>>;
-        constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
-        constexpr bool is_csr = std::is_same_v<SpMat, CSRMatrix<T, sint_t>>;
-        if constexpr (is_coo) {
-            auto At = RandBLAS::sparse_data::coo::transpose(A);
-            left_spmm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
-        } else if constexpr (is_csc) {
-            auto At = RandBLAS::sparse_data::conversions::transpose_as_csr(A);
-            left_spmm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
-        } else if constexpr (is_csr) {
-            auto At = RandBLAS::sparse_data::conversions::transpose_as_csc(A);
-            left_spmm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
-        } else {
-            randblas_require(false);
-        }
+        auto At = A.transpose();
+        left_spmm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
         return; 
     }
     // Below this point, we can assume A is not transposed.
@@ -136,15 +122,15 @@ void left_spmm(
     
     // compute the matrix-matrix product
     if constexpr (is_coo) {
-        using RandBLAS::sparse_data::coo::apply_coo_left_jki_p11;
-        apply_coo_left_jki_p11(alpha, layout_opB, layout_C, d, n, m, A, ro_a, co_a, B, ldb, C, ldc);
+        using RandBLAS::sparse_data::coo::apply_coo_left_via_csc;
+        apply_coo_left_via_csc(alpha, layout_opB, layout_C, d, n, m, A, ro_a, co_a, B, ldb, C, ldc);
     } else if constexpr (is_csc) {
         if (layout_opB == Layout::RowMajor && layout_C == Layout::RowMajor) {
             using RandBLAS::sparse_data::csc::apply_csc_left_kib_rowmajor_1p1;
-            apply_csc_left_kib_rowmajor_1p1(alpha, d, n, m, A, B, ldb, C, ldc);
+            apply_csc_left_kib_rowmajor_1p1(alpha, n, A, B, ldb, C, ldc);
         } else {
             using RandBLAS::sparse_data::csc::apply_csc_left_jki_p11;
-            apply_csc_left_jki_p11(alpha, layout_opB, layout_C, d, n, m, A, B, ldb, C, ldc);
+            apply_csc_left_jki_p11(alpha, layout_opB, layout_C, n, A, B, ldb, C, ldc);
         }
     } else {
         if  (layout_opB == Layout::RowMajor && layout_C == Layout::RowMajor) {
@@ -170,7 +156,7 @@ inline void right_spmm(
     T alpha,
     const T *A,
     int64_t lda,
-    SpMat &B,
+    const SpMat &B,
     int64_t i_off,
     int64_t j_off,
     T beta,
@@ -205,7 +191,7 @@ namespace RandBLAS {
 
 // =============================================================================
 /// \fn spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m,
-///     int64_t n, int64_t k, T alpha, SpMat &A, const T *B, int64_t ldb, T beta, T *C, int64_t ldc
+///     int64_t n, int64_t k, T alpha, const SpMat &A, const T *B, int64_t ldb, T beta, T *C, int64_t ldc
 /// ) 
 /// @verbatim embed:rst:leading-slashes
 /// Multiply a dense matrix on the left with a sparse matrix:
@@ -277,14 +263,14 @@ namespace RandBLAS {
 ///
 /// @endverbatim
 template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
-inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, SpMat &A, const T *B, int64_t ldb, T beta, T *C, int64_t ldc) {
+inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const SpMat &A, const T *B, int64_t ldb, T beta, T *C, int64_t ldc) {
     RandBLAS::sparse_data::left_spmm(layout, opA, opB, m, n, k, alpha, A, 0, 0, B, ldb, beta, C, ldc);
     return;
 };
 
 // =============================================================================
 /// \fn spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m,
-///     int64_t n, int64_t k, T alpha, const T* A, int64_t lda, SpMat &B, T beta, T *C, int64_t ldc
+///     int64_t n, int64_t k, T alpha, const T* A, int64_t lda, const SpMat &B, T beta, T *C, int64_t ldc
 /// ) 
 /// @verbatim embed:rst:leading-slashes
 /// Multiply a dense matrix on the right with a sparse matrix:
@@ -355,7 +341,7 @@ inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int
 ///
 /// @endverbatim
 template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
-inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T *A, int64_t lda, SpMat &B, T beta, T *C, int64_t ldc) {
+inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T *A, int64_t lda, const SpMat &B, T beta, T *C, int64_t ldc) {
     RandBLAS::sparse_data::right_spmm(layout, opA, opB, m, n, k, alpha, A, lda, B, 0, 0, B, beta, C, ldc);
     return;
 }

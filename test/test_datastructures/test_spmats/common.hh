@@ -108,7 +108,7 @@ void coo_from_diag(
     int64_t offset,
     RandBLAS::sparse_data::COOMatrix<T> &spmat
 ) {
-    reserve_coo(nnz, spmat);
+    spmat.reserve(nnz);
     int64_t ell = 0;
     if (offset >= 0) {
         randblas_require(nnz <= spmat.n_rows);
@@ -147,7 +147,7 @@ int64_t trianglize_coo(
 	}
 	++ell;
     }
-    reserve_coo(new_nnz, spmat_out);
+    spmat_out.reserve(new_nnz);
     ell = 0;
     int64_t ell_new = 0;
     while (ell < spmat.nnz) {

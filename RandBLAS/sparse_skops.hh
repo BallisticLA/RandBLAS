@@ -116,6 +116,12 @@ inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t dim_major
 }
 
 namespace RandBLAS {
+
+// Forward declaration of SparseSkOp. It's returnable by
+// SparseDist.sample(), but its definition involves DenseDist.
+template<typename T, typename RNG, SignedInteger sint_t>
+struct SparseSkOp;
+
 // =============================================================================
 /// A distribution over matrices with structured sparsity. Depending on parameter
 /// choices, one can obtain distributions described in the literature as 
@@ -216,11 +222,28 @@ struct SparseDist {
         randblas_require(vec_nnz > 0);
         randblas_require(vec_nnz <= dim_major);
     }
-};
 
-#ifdef __cpp_concepts
-static_assert(SketchingDistribution<SparseDist>);
-#endif
+    // -------------------------------------------------------------------------------------
+    ///  Construct a SparseSkOp with this distribution and the provided seed_state.
+    template <typename T, typename RNG = DefaultRNG, SignedInteger sint_t = int64_t>
+    SparseSkOp<T,RNG,sint_t> sample(RNGState<RNG> &seed_state) {
+        return {*this, seed_state};
+    }
+
+
+    // A convenience constructor designed to gracefully handle the common case when someone specifies
+    // the short-axis-vector length as a floating point multiple of some other integer. We cast both
+    // dimensions to int64_t and raise a warning if that cast is lossy.
+    //
+    // This function is not part of the public API.
+    template <typename ordinal_t1, typename ordinal_t2>
+    SparseDist(
+        ordinal_t1 n_rows,
+        ordinal_t2 n_cols,
+        int64_t vec_nnz = 4,
+        Axis major_axis = Axis::Short
+    ) : SparseDist(cast_int64t(n_rows), cast_int64t(n_cols), vec_nnz, major_axis) { }
+};
 
 
 // =============================================================================
@@ -580,6 +603,7 @@ void fill_sparse(SparseSkOp &S) {
 }
 
 #ifdef __cpp_concepts
+static_assert(SketchingDistribution<SparseDist>);
 static_assert(SketchingOperator<SparseSkOp<float>>);
 static_assert(SketchingOperator<SparseSkOp<double>>);
 #endif
@@ -637,9 +661,8 @@ using RandBLAS::Axis;
 using RandBLAS::sparse_data::COOMatrix;
 
 template <typename SparseSkOp, typename T = SparseSkOp::scalar_t, typename sint_t = SparseSkOp::index_t>
-COOMatrix<T, sint_t> coo_view_of_skop(SparseSkOp &S) {
-    if (S.nnz <= 0)
-        fill_sparse(S);
+COOMatrix<T, sint_t> coo_view_of_skop(const SparseSkOp &S) {
+    randblas_require(S.nnz > 0);
     COOMatrix<T, sint_t> A(S.n_rows, S.n_cols, S.nnz, S.vals, S.rows, S.cols);
     return A;
 }

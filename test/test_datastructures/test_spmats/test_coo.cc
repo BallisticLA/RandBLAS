@@ -103,23 +103,87 @@ class TestCOO : public ::testing::Test {
         iid_sparsify_random_dense(n, n, Layout::ColMajor, mat.data(), 0.25, s);
         dense_to_coo(1, n, mat.data(), 0.0, A);
 
-        sort_coo_data(NonzeroSort::CSC, A);
+        A.sort_arrays(NonzeroSort::CSC);
         EXPECT_EQ(A.sort, NonzeroSort::CSC);
-        auto sort = coo_sort_type(A.nnz, A.rows, A.cols);
+        auto sort = coo_arrays_determine_sort(A.nnz, A.rows, A.cols);
         EXPECT_EQ(sort, NonzeroSort::CSC);
 
-        sort_coo_data(NonzeroSort::CSR, A);
+        A.sort_arrays(NonzeroSort::CSR);
         EXPECT_EQ(A.sort, NonzeroSort::CSR);
-        sort = coo_sort_type(A.nnz, A.rows, A.cols);
+        sort = coo_arrays_determine_sort(A.nnz, A.rows, A.cols);
         EXPECT_EQ(sort, NonzeroSort::CSR);
 
-        sort_coo_data(NonzeroSort::CSC, A);
+        A.sort_arrays(NonzeroSort::CSC);
         EXPECT_EQ(A.sort, NonzeroSort::CSC);
-        sort = coo_sort_type(A.nnz, A.rows, A.cols);
+        sort = coo_arrays_determine_sort(A.nnz, A.rows, A.cols);
         EXPECT_EQ(sort, NonzeroSort::CSC);
         return;
     }
+
+    template <typename T = double>
+    void test_symperm_inplace(int64_t n, T prob_zero) {
+        int64_t i = 0;
+        
+        // arrange
+        RandBLAS::DenseDist D(n, n);
+        std::vector<T> buff(n*n);
+        fill_dense(D, buff.data(), {0});
+        iid_sparsify_random_dense(n, n, Layout::ColMajor, buff.data(), prob_zero, {94});
+        std::vector<int64_t> perm(n);
+        for (i = 0; i < n; ++i) {
+            buff[i + i*n] = 2*(i+1); // diagonal is      2,   4, ..., 2*n
+            perm[i] = n - (i+1);     // permutation is n-1, n-2, ..., 0.
+        }
+        COOMatrix<T> A(n, n);
+        dense_to_coo(Layout::ColMajor, buff.data(), (T)0.0, A);
+        std::vector<T> diagA(n);
+        coo_arrays_extract_diagonal(n, n, A.nnz, A.vals, A.rows, A.cols, diagA.data());
+        for (i = 0; i < n; ++i) {
+            EXPECT_EQ(diagA[i], 2*(i+1)); // < check that we setup the problem correctly.
+        }
+        A.sort_arrays(NonzeroSort::CSC);
+        
+        // Test 1 of 2
+        auto Ap = A.deepcopy();
+        Ap.symperm_inplace(perm.data());
+        std::vector<T> diagAp(n);
+        coo_arrays_extract_diagonal(n, n, Ap.nnz, Ap.vals, Ap.rows, Ap.cols, diagAp.data());
+        for (i = 0; i < n; ++i) {
+            EXPECT_EQ( diagAp[i], 2*(n-i) );
+        }
+
+        // Test 2 of 2
+        Ap.symperm_inplace(perm.data()); // < perm is self-inverse, so applying again should get us A.
+        EXPECT_EQ(Ap.sort, A.sort);
+        for (i = 0; i < A.nnz; ++i) {
+            EXPECT_EQ(Ap.rows[i], A.rows[i]);
+            EXPECT_EQ(Ap.cols[i], A.cols[i]);
+            EXPECT_EQ(Ap.vals[i], A.vals[i]);
+        }
+        return;
+    }
+
+    template <typename T = double>
+    void smoketest_print() {
+        /***
+        * TODO: Have a check for correctness. Right now we have to inspect visually by running
+        * 
+        *       ctest -R TestCOO::print --verbose
+        */
+        int n = 10;
+        int m = 23;
+        COOMatrix<T> A(m, n);
+        std::vector<T> mat(m * n);
+        RandBLAS::RNGState s(0);
+        iid_sparsify_random_dense(m, n, Layout::ColMajor, mat.data(), 0.25, s);
+        dense_to_coo(1, m, mat.data(), 0.0, A);
+        print_sparse(A); // no correctness check
+    }
 };
+
+TEST_F(TestCOO, print) {
+    smoketest_print();
+}
 
 
 TEST_F(TestCOO, to_from_dense) {
@@ -132,6 +196,12 @@ TEST_F(TestCOO, sort_order) {
     test_sort_order(3);
     test_sort_order(7);
     test_sort_order(10);
+}
+
+TEST_F(TestCOO, symperm_inplace) {
+    test_symperm_inplace( 5,   (float) 0.0  );
+    test_symperm_inplace( 20,  (float) 0.8  );
+    test_symperm_inplace( 100, (float) 0.99 );
 }
 
 
@@ -148,6 +218,7 @@ class Test_SkOp_to_COO : public ::testing::Test {
     void sparse_skop_to_coo(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index, Axis major_axis) {
         RandBLAS::SparseDist D(d, m, vec_nnzs[nnz_index], major_axis);
         RandBLAS::SparseSkOp<T> S(D, keys[key_index]);
+        fill_sparse(S);
         auto A = RandBLAS::sparse::coo_view_of_skop(S);
 
         EXPECT_EQ(S.dist.n_rows,   A.n_rows);

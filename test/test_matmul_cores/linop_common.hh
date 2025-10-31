@@ -40,6 +40,8 @@
 #include <functional>
 #include <vector>
 #include <tuple>
+#include <numeric>
+#include <algorithm>
 
 
 namespace test::linop_common {
@@ -86,7 +88,7 @@ template <typename LINOP>
 dims64_t dimensions(LINOP &S) {return {S.n_rows, S.n_cols};}
 
 template <typename T, SparseMatrix SpMat>
-void to_explicit_buffer(SpMat &a, T *mat_a, Layout layout) {
+void to_explicit_buffer(const SpMat &a, T *mat_a, Layout layout) {
     using sint_t = typename SpMat::index_t;
     constexpr bool is_coo = std::is_same_v<SpMat, COOMatrix<T, sint_t>>;
     constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
@@ -104,14 +106,21 @@ void to_explicit_buffer(SpMat &a, T *mat_a, Layout layout) {
 }
 
 template <typename T>
-void to_explicit_buffer(SparseSkOp<T> &a, T *mat_a, Layout layout) {
-    auto a_coo = RandBLAS::sparse::coo_view_of_skop(a);
-    to_explicit_buffer(a_coo, mat_a, layout);
+void to_explicit_buffer(const SparseSkOp<T> &a, T *mat_a, Layout layout) {
+    if (a.nnz < 0) {
+        SparseSkOp<T> a_shallowcopy(a.dist, a.seed_state);
+        fill_sparse(a_shallowcopy);
+        auto a_coo = RandBLAS::sparse::coo_view_of_skop(a_shallowcopy);
+        to_explicit_buffer(a_coo, mat_a, layout);
+    } else {
+        auto a_coo = RandBLAS::sparse::coo_view_of_skop(a);
+        to_explicit_buffer(a_coo, mat_a, layout); 
+    }
     return;
 }
 
 template <typename T>
-void to_explicit_buffer(DenseSkOp<T> &s, T *mat_s, Layout layout) {
+void to_explicit_buffer(const DenseSkOp<T> &s, T *mat_s, Layout layout) {
     auto n_rows = s.dist.n_rows;
     auto n_cols = s.dist.n_cols;
     auto [stride_row, stride_col] = layout_to_strides(layout, n_rows, n_cols);
@@ -170,7 +179,7 @@ void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, 
 }
 
 template <typename T, SparseMatrix SpMat>
-void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, T alpha, SpMat &S, int64_t S_ro, int64_t S_co, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
+void left_apply(Layout layout, Op opS, Op opA, int64_t d, int64_t n, int64_t m, T alpha, const SpMat &S, int64_t S_ro, int64_t S_co, const T *A, int64_t lda, T beta, T *B, int64_t ldb, int threads = 0) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -464,7 +473,7 @@ void test_left_apply_to_transposed(
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SparseSkOp<T> &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb, int threads) {
+void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, const SparseSkOp<T> &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb, int threads) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -479,7 +488,7 @@ void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int6
 }
 
 template <typename T>
-void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, DenseSkOp<T> &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb, int threads) {
+void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, const DenseSkOp<T> &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb, int threads) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -494,7 +503,7 @@ void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int6
 }
 
 template <typename T, SparseMatrix SpMat>
-void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SpMat &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb, int threads) {
+void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, const SpMat &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb, int threads) {
     #if defined (RandBLAS_HAS_OpenMP)
         int orig_threads = omp_get_num_threads();
         if (threads > 0)
@@ -510,7 +519,7 @@ void right_apply(Layout layout, Op transA, Op transS, int64_t m, int64_t d, int6
 
 template <typename T, typename LinOp>
 void reference_right_apply(
-    Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, LinOp &S0, int64_t S_ro, int64_t S_co, T beta, T *B, T *E, int64_t ldb
+    Layout layout, Op transA, Op transS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, const LinOp &S0, int64_t S_ro, int64_t S_co, T beta, T *B, T *E, int64_t ldb
 ) { 
     // Check dimensions of submat(S).
     auto [submat_S_rows, submat_S_cols] = RandBLAS::dims_before_op(n, d, transS);

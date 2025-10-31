@@ -72,11 +72,9 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-import sphinx_rtd_theme
 
 table_styling_embed_css = False
-
-html_theme_path = [sphinx_rtd_theme.get_html_theme_path(), "../themes"]
+html_theme_path = ["../themes"]
 extensions += ['sphinx_rtd_theme','sphinx_design']
 html_theme = 'randblas_rtd'
 

@@ -81,12 +81,10 @@ COOMatrix<T> from_matrix_market(std::string fn) {
     );
 
     COOMatrix<T> out(n_rows, n_cols);
-    reserve_coo(vals.size(),out);
-    for (int i = 0; i < out.nnz; ++i) {
-        out.rows[i] = rows[i];
-        out.cols[i] = cols[i];
-        out.vals[i] = vals[i];
-    }
+    out.reserve(vals.size());
+    std::copy(vals.begin(), vals.end(), out.vals);
+    std::copy(rows.begin(), rows.end(), out.rows);
+    std::copy(cols.begin(), cols.end(), out.cols);
 
     return out;
 }

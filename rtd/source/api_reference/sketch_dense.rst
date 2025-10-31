@@ -43,24 +43,24 @@ Analogs to GEMM
     :animate: fade-in-slide-down
     :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb)
+    .. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, const SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb)
       :project: RandBLAS
 
 .. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)\cdot \op(\mtxS) + \beta \cdot \mtxB`
   :animate: fade-in-slide-down
   :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SKOP &S, T beta, T *B, int64_t ldb)
+    .. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, const SKOP &S, T beta, T *B, int64_t ldb)
       :project: RandBLAS
 
 .. dropdown:: Variants using :math:`\op(\submat(\mtxS))`
     :animate: fade-in-slide-down
     :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, SKOP &S, int64_t S_ro, int64_t S_co, const T *A, int64_t lda, T beta, T *B, int64_t ldb)
+    .. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, const SKOP &S, int64_t S_ro, int64_t S_co, const T *A, int64_t lda, T beta, T *B, int64_t ldb)
       :project: RandBLAS
 
-    .. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, SKOP &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb)
+    .. doxygenfunction:: RandBLAS::sketch_general(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const T *A, int64_t lda, const SKOP &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb)
       :project: RandBLAS
 
 
@@ -71,14 +71,14 @@ Analogs to SYMM
   :animate: fade-in-slide-down
   :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, T alpha, SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, T alpha, const SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
       :project: RandBLAS
 
 .. dropdown:: :math:`\mtxB = \alpha \cdot \mtxA \cdot \mtxS + \beta \cdot \mtxB`
   :animate: fade-in-slide-down
   :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, T alpha, const T *A, int64_t lda, SKOP &S, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, T alpha, const T *A, int64_t lda, const SKOP &S, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
       :project: RandBLAS
 
 
@@ -86,10 +86,10 @@ Analogs to SYMM
     :animate: fade-in-slide-down
     :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, int64_t d, int64_t n, T alpha, SKOP &S, int64_t ro_s, int64_t co_s, const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, int64_t d, int64_t n, T alpha, const SKOP &S, int64_t ro_s, int64_t co_s, const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
       :project: RandBLAS
 
-    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, int64_t n, int64_t d, T alpha, const T *A, int64_t lda, SKOP &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, int64_t n, int64_t d, T alpha, const T *A, int64_t lda, const SKOP &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
       :project: RandBLAS
 
 
@@ -101,14 +101,14 @@ Analogs to GEMV
     :animate: fade-in-slide-down
     :color: light
 
-    .. doxygenfunction:: sketch_vector(blas::Op opS, T alpha, SKOP &S, const T *x, int64_t incx, T beta, T *y, int64_t incy)
+    .. doxygenfunction:: sketch_vector(blas::Op opS, T alpha, const SKOP &S, const T *x, int64_t incx, T beta, T *y, int64_t incy)
       :project: RandBLAS
 
 .. dropdown:: Variants using :math:`\op(\submat(\mtxS))`
     :animate: fade-in-slide-down
     :color: light
 
-    .. doxygenfunction:: sketch_vector(blas::Op opS, int64_t d, int64_t m, T alpha, SKOP &S, int64_t ro_s, int64_t co_s, const T *x, int64_t incx, T beta, T *y, int64_t incy)
+    .. doxygenfunction:: sketch_vector(blas::Op opS, int64_t d, int64_t m, T alpha, const SKOP &S, int64_t ro_s, int64_t co_s, const T *x, int64_t incx, T beta, T *y, int64_t incy)
       :project: RandBLAS
 
 

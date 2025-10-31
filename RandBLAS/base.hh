@@ -274,6 +274,20 @@ inline TO safe_int_product(TI a, TI b) {
 }
 
 
+template <typename ordinal_t>
+int64_t cast_int64t(ordinal_t arg_n) {
+    auto n = static_cast<int64_t>(arg_n);
+    bool lossy_cast = (double)n != (double)arg_n;
+    if (lossy_cast) {
+        std::cerr << std::endl;
+        std::cerr << "A floating point number `arg_n` has been passed as a dimensional parameter,"<< std::endl;
+        std::cerr << "where floor(arg_n) < arg_n. We round dimensions down in these situations." << std::endl;
+        std::cerr << "Avoid this warning by providing integer arguments." << std::endl << std::endl;
+    }
+    return n;
+}
+
+
 // ---------------------------------------------------------------------------
 /// Sketching operators are only "useful" for dimension reduction if they're
 /// non-square.
@@ -370,6 +384,18 @@ inline int64_t get_dim_major(Axis major_axis, int64_t n_rows, int64_t n_cols) {
 /// These types have members called called "major_axis,"
 /// "dim_major," and "dim_minor." These members have similar semantic roles across
 /// the two classes, but their precise meanings differ significantly.
+/// 
+/// These types also have instance methods DenseDist::sample and SparseDist::sample,
+/// which take a scalar template parameter and an RNGState object and return 
+/// DenseSkOps and SparseSkOps, respectively. This makes it easy to sample a
+/// sketching operator from a distribution :math:`\ttt{D}` without knowing the
+/// distribution's type:
+///
+/// .. code:: c++
+///
+///    auto S = D.sample<double>(seed);
+/// 
+/// 
 /// @endverbatim
 template<typename SkDist>
 concept SketchingDistribution = requires(SkDist D) {

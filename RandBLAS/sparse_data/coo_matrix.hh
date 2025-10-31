@@ -32,9 +32,14 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
+#include "RandBLAS/sparse_data/conversions.hh"
+#include "RandBLAS/util.hh"
+
+
 #include <vector>
 #include <tuple>
 #include <algorithm>
+#include <numeric>
 
 
 namespace RandBLAS::sparse_data {
@@ -45,71 +50,21 @@ using RandBLAS::SignedInteger;
 #define SignedInteger typename
 #endif
 
-// =============================================================================
-/// Indicates whether the (vals, rows, cols) 
-/// data of a COO-format sparse matrix
-/// are known to be sorted in CSC order, CSR order, or neither of those orders.
-///
-enum class NonzeroSort : char {
-    // ---------------------------------------------------
-    /// 
-    CSC = 'C',
-    // ---------------------------------------------------
-    /// 
-    CSR = 'R',
-    // ---------------------------------------------------
-    /// 
-    None = 'N'
-};
 
-template <SignedInteger sint_t>
-static inline bool increasing_by_csr(sint_t i0, sint_t j0, sint_t i1, sint_t j1) {
-    if (i0 > i1) {
-        return false;
-    } else if (i0 == i1) {
-        return j0 <= j1;
-    } else {
-        return true;
+template <typename T, SignedInteger sint_t>
+COOMatrix<T, sint_t> deepcopy_coo(const COOMatrix<T, sint_t> &A) {
+    COOMatrix<T, sint_t> other(A.n_rows, A.n_cols);
+    if (A.nnz > 0) {
+        other.reserve(A.nnz);
+        std::copy(A.rows, A.rows + A.nnz, other.rows);
+        std::copy(A.cols, A.cols + A.nnz, other.cols);
+        std::copy(A.vals, A.vals + A.nnz, other.vals);
+        other.sort = A.sort;
     }
+    other.index_base = A.index_base;
+    return other;
 }
 
-template <SignedInteger sint_t>
-static inline bool increasing_by_csc(sint_t i0, sint_t j0, sint_t i1, sint_t j1) {
-    if (j0 > j1) {
-        return false;
-    } else if (j0 == j1) {
-        return i0 <= i1;
-    } else {
-        return true;
-    }
-}
-
-template <SignedInteger sint_t>
-static inline NonzeroSort coo_sort_type(int64_t nnz, sint_t *rows, sint_t *cols) {
-    bool csc_okay = true;
-    bool csr_okay = true;
-    for (int64_t ell = 1; ell < nnz; ++ell) {
-        auto i0 = rows[ell-1];
-        auto j0 = cols[ell-1];
-        auto i1 = rows[ell];
-        auto j1 = cols[ell];
-        if (csc_okay) {
-            csc_okay = increasing_by_csc(i0, j0, i1, j1);
-        }
-        if (csr_okay) {
-            csr_okay = increasing_by_csr(i0, j0, i1, j1);
-        }
-        if (!csc_okay && !csr_okay)
-            break;
-    }
-    if (csc_okay) {
-        return NonzeroSort::CSC;
-    } else if (csr_okay) {
-        return NonzeroSort::CSR;
-    } else {
-        return NonzeroSort::None;
-    }
-}
 
 // =============================================================================
 /// Let \math{\mtxA} denote a sparse matrix with \math{\ttt{nnz}} structural nonzeros.
@@ -167,7 +122,7 @@ struct COOMatrix {
     ///  If non-null, this must have length at least nnz.
     ///  \internal
     ///  **Memory management note.** Because this length requirement is not a function of
-    ///  only const variables, calling reserve_coo(nnz, A) on a COOMatrix "A" will raise an error
+    ///  only const variables, calling A.reserve(nnz) on a COOMatrix "A" will raise an error
     ///  if A.vals is non-null.
     T *vals;
     
@@ -177,7 +132,7 @@ struct COOMatrix {
     ///  If non-null, this must have length at least nnz.
     ///  \internal
     ///  **Memory management note.** Because this length requirement is not a function of
-    ///  only const variables, calling reserve_coo(nnz, A) on a COOMatrix "A" will raise an error
+    ///  only const variables, calling A.reserve(nnz) on a COOMatrix "A" will raise an error
     ///  if A.rows is non-null.
     ///  \endinternal
     sint_t *rows;
@@ -188,7 +143,7 @@ struct COOMatrix {
     ///  If non-null, this must have length at least nnz.
     ///  \internal
     ///  **Memory management note.** Because this length requirement is not a function of
-    ///  only const variables, calling reserve_coo(nnz, A) on a COOMatrix "A" will raise an error
+    ///  only const variables, calling A.reserve(nnz) on a COOMatrix "A" will raise an error
     ///  if A.cols is non-null.
     ///  \endinternal
     sint_t *cols;
@@ -204,7 +159,7 @@ struct COOMatrix {
     ///  nnz is set to Zero, index_base is set to
     ///  zero, and COOMatrix::own_memory is set to true.
     ///  
-    ///  This constructor is intended for use with reserve_coo(int64_t nnz, COOMatrix &A).
+    ///  This constructor is intended for use with COOMatrix::reserve(int64_t nnz).
     ///
     COOMatrix(
         int64_t n_rows,
@@ -215,8 +170,9 @@ struct COOMatrix {
     // ---------------------------------------------------------------------------
     /// **Expert constructor.** Arguments passed to this function are used to initialize members of the same names;
     /// COOMatrix::own_memory is set to false.
-    /// If compute_sort_type is true, then the sort member will be computed by inspecting
-    /// the contents of (rows, cols). If compute_sort_type is false, then the sort member is set to None.
+    ///
+    /// If compute_sort_type is true, then COOMatrix::sort will be computed by inspecting
+    /// the contents of (rows, cols). Otherwise, COOMatrix::sort is set to None.
     /// 
     COOMatrix(
         int64_t n_rows,
@@ -230,19 +186,108 @@ struct COOMatrix {
     ) : n_rows(n_rows), n_cols(n_cols), own_memory(false), nnz(nnz), index_base(index_base),
         vals(vals), rows(rows), cols(cols) {
         if (compute_sort_type) {
-            sort = coo_sort_type(nnz, rows, cols);
+            sort = coo_arrays_determine_sort(nnz, rows, cols);
         } else {
             sort = NonzeroSort::None;
         }
     };
 
     ~COOMatrix() {
-        if (own_memory) {
-            if (vals != nullptr) delete [] vals;
-            if (rows != nullptr) delete [] rows;
-            if (cols != nullptr) delete [] cols;
-        }
+        if (own_memory) coo_arrays_free(vals, rows, cols);
     };
+
+    // -----------------------------------------------------
+    /// This function requires that own_memory is true, that arg_nnz > 0, 
+    /// and that vals, rows, and cols are null. If any of these conditions
+    /// are not met then this function will raise an error.
+    /// 
+    /// If no error is raised then this function redirects
+    /// vals, rows, and cols to new arrays of length arg_nnz,
+    /// and nnz is set to arg_nnz.
+    ///
+    void reserve(int64_t arg_nnz) {
+        randblas_require(arg_nnz > 0);
+        randblas_require(own_memory);
+        coo_arrays_allocate(arg_nnz, vals, rows, cols);
+        nnz = arg_nnz;
+        return;
+    };
+
+    // -----------------------------------------------------
+    /// Sort the (vals, rows, cols) underlying this matrix to facilitate
+    /// fast conversion to CSR or CSC formats.
+    ///
+    /// This function has no effect if `s == COOMatrix::sort` or `s == NonzeroSort::None`.
+    /// 
+    void sort_arrays(NonzeroSort s) {
+        coo_arrays_apply_sort(s, nnz, vals, rows, cols);
+        if (s != NonzeroSort::None)
+            sort = s;
+    };
+
+    // ---------------------------------------------------------
+    /// This function requires that n_rows = n_cols and 
+    /// and that \math{\ttt{index_base}} is Zero.
+    ///
+    /// Define \math{n} := n_rows. The buffer \math{\ttt{perm}} is a permutation of
+    /// \math{\\{0, 1,\ldots, n - 1\\}} that defines an \math{n \times n} permutation
+    /// matrix \math{\mtxP = \mtxI_n(\ttt{perm},:).} This function overwrites the 
+    /// current sparse matrix \math{\mtxA} by \math{\mtxA := \mtxP \mtxA \mtxP^T.}
+    /// If \math{\ttt{preserve_sort}} is true then we ensure that \math{\mtxA.\ttt{sort}}
+    /// has the same value on exit as it had on entry. Otherwise, we overwrite
+    /// \math{\mtxA.\ttt{sort}} with None.
+    ///
+    template <SignedInteger index_t>
+    void symperm_inplace(const index_t* perm, bool preserve_sort = true) {
+        randblas_require(n_rows == n_cols);
+        randblas_require(index_base == IndexBase::Zero);
+        apply_index_mapper(n_rows, perm, nnz, rows);
+        apply_index_mapper(n_rows, perm, nnz, cols);
+        if (preserve_sort) { 
+            sort_arrays(sort);
+        } else {
+            sort = NonzeroSort::None;
+        }
+        return;
+    }
+
+    // ---------------------------------------------------------
+    /// Return a memory-owning copy of this COOMatrix.
+    ///
+    COOMatrix<T, sint_t> deepcopy() const {
+        return deepcopy_coo(*this);
+    }
+
+    // ---------------------------------------------------------
+    /// Return a memory-owning CSRMatrix repesentation of this COOMatrix.
+    ///
+    /// If sort != NonzeroSort::CSR, then we create a temporary deep copy
+    /// of this matrix on the way to constructing the CSR representation.
+    ///
+    CSRMatrix<T, sint_t> as_owning_csr() const {
+        CSRMatrix<T, sint_t> csr(n_rows, n_cols);
+        coo_to_csr(*this, csr);
+        return csr;
+    }
+
+    // ---------------------------------------------------------
+    /// Return a memory-owning CSCMatrix representation of this COOMatrix.
+    ///
+    /// If sort != NonzeroSort::CSC, then we create a temporary deep copy
+    /// of this matrix on the way to constructing the CSC representation.
+    ///
+    CSCMatrix<T, sint_t> as_owning_csc() const {
+        CSCMatrix<T, sint_t> csc(n_rows, n_cols);
+        coo_to_csc(*this, csc);
+        return csc;
+    }
+
+    // ---------------------------------------------------------
+    /// Return a const view of the transpose of this COOMatrix.
+    ///
+    const COOMatrix<T, sint_t> transpose() const {
+        return transpose_as_coo(*this);
+    }
 
     /////////////////////////////////////////////////////////////////////
     //
@@ -260,7 +305,6 @@ struct COOMatrix {
         other.nnz = 0;
         other.sort = NonzeroSort::None;
     }
-
 };
 
 #ifdef __cpp_concepts
@@ -268,86 +312,31 @@ static_assert(SparseMatrix<COOMatrix<float>>);
 static_assert(SparseMatrix<COOMatrix<double>>);
 #endif
 
-// -----------------------------------------------------
-///
-/// This function requires that M.own_memory is true and that
-/// M.vals, M.rows, and M.cols are all null. If any of these
-/// conditions aren't satisfied then RandBLAS will raise an error.
-///
-/// If no error is raised, then M.nnz is overwritten by nnz,
-/// M.vals is redirected to a new length-nnz array of type T,
-/// and (M.rows, M.cols) are redirected to new length-nnz arrays of type sint_t.
-///
-template <typename T, SignedInteger sint_t>
-void reserve_coo(int64_t nnz, COOMatrix<T,sint_t> &M) {
-    randblas_require(nnz > 0);
-    randblas_require(M.own_memory);
-    randblas_require(M.vals == nullptr);
-    randblas_require(M.rows == nullptr);
-    randblas_require(M.cols == nullptr);
-    M.nnz = nnz;
-    M.vals = new T[nnz];
-    M.rows = new sint_t[nnz];
-    M.cols = new sint_t[nnz];
+template <typename COOMatrix>
+void print_sparse(COOMatrix const &A, int decimals=8, ArrayStyle style = ArrayStyle::MATLAB) {
+    std::cout << "COOMatrix information" << std::endl;
+    std::cout << "n_rows = " << A.n_rows << std::endl;
+    std::cout << "n_cols = " << A.n_cols << std::endl;
+    std::cout << "nnz    = " << A.nnz    << std::endl;
+    if (A.nnz == 0) { return; }
+    print_buff_to_stream(std::cout, 1, A.nnz, A.vals, 1, 1, "vals  ", decimals, style);
+    print_buff_to_stream(std::cout, 1, A.nnz, A.rows, 1, 1, "rows  ", 1,        style);
+    print_buff_to_stream(std::cout, 1, A.nnz, A.cols, 1, 1, "cols  ", 1,        style);
+    std::cout << std::endl;
     return;
 }
 
+/// This function is deprecated as of RandBLAS 1.1; call M.reserve(nnz) instead.
 template <typename T, SignedInteger sint_t>
-void sort_coo_data(NonzeroSort s, int64_t nnz, T *vals, sint_t *rows, sint_t *cols) {
-    if (s == NonzeroSort::None)
-        return;
-    auto curr_s = coo_sort_type(nnz, rows, cols);
-    if (curr_s == s)
-        return;
-    // TODO: fix this implementation so that it's in-place.
-    //  (right now we make expensive copies)
-
-    // get a vector-of-triples representation of the matrix
-    using tuple_type = std::tuple<sint_t, sint_t, T>;
-    std::vector<tuple_type> nonzeros;
-    nonzeros.reserve(nnz);
-    for (int64_t ell = 0; ell < nnz; ++ell)
-        nonzeros.emplace_back(rows[ell], cols[ell], vals[ell]);
-
-    // sort the vector-of-triples representation
-    auto sort_func = [s](tuple_type const &t1, tuple_type const &t2) {
-        if (s == NonzeroSort::CSR) {
-            if (std::get<0>(t1) < std::get<0>(t2)) {
-                return true;
-            } else if (std::get<0>(t1) > std::get<0>(t2)) {
-                return false;
-            } else if (std::get<1>(t1) < std::get<1>(t2)) {
-                return true;
-            } else {
-                return false;
-            }
-        } else {
-            if (std::get<1>(t1) < std::get<1>(t2)) {
-                return true;
-            } else if (std::get<1>(t1) > std::get<1>(t2)) {
-                return false;
-            } else if (std::get<0>(t1) < std::get<0>(t2)) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-    };
-    std::sort(nonzeros.begin(), nonzeros.end(), sort_func);
-
-    // unpack the vector-of-triples rep into the triple-of-vectors rep
-    for (int64_t ell = 0; ell < nnz; ++ell) {
-        tuple_type tup = nonzeros[ell];
-        vals[ell] = std::get<2>(tup);
-        rows[ell] = std::get<0>(tup);
-        cols[ell] = std::get<1>(tup);
-    }
+inline void reserve_coo(int64_t nnz, COOMatrix<T,sint_t> &M) {
+    M.reserve(nnz);
     return;
 }
 
+/// This function is deprecated as of RandBLAS 1.1; call M.sort_arrays(s) instead.
 template <typename T>
 void sort_coo_data(NonzeroSort s, COOMatrix<T> &spmat) {
-    sort_coo_data(s, spmat.nnz, spmat.vals, spmat.rows, spmat.cols);
+    coo_arrays_apply_sort(s, spmat.nnz, spmat.vals, spmat.rows, spmat.cols);
     spmat.sort = s;
     return;
 }
@@ -360,26 +349,12 @@ namespace RandBLAS::sparse_data::coo {
 using namespace RandBLAS::sparse_data;
 using blas::Layout;
 
-// consider:
-//      1. Adding optional share_memory flag that defaults to true.
-//      2. renaming to transpose_as_coo.
-template <typename T>
-COOMatrix<T> transpose(COOMatrix<T> &S) {
-    COOMatrix<T> St(S.n_cols, S.n_rows, S.nnz, S.vals, S.cols, S.rows, false, S.index_base);
-    if (S.sort == NonzeroSort::CSC) {
-        St.sort = NonzeroSort::CSR;
-    } else if (S.sort == NonzeroSort::CSR) {
-        St.sort = NonzeroSort::CSC;
-    }
-    return St;
-}
-
 template <typename T>
 void dense_to_coo(int64_t stride_row, int64_t stride_col, T *mat, T abs_tol, COOMatrix<T> &spmat) {
     int64_t n_rows = spmat.n_rows;
     int64_t n_cols = spmat.n_cols;
     int64_t nnz = nnz_in_dense(n_rows, n_cols, stride_row, stride_col, mat, abs_tol);
-    reserve_coo(nnz, spmat);
+    spmat.reserve(nnz);
     nnz = 0;
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
     for (int64_t i = 0; i < n_rows; ++i) {

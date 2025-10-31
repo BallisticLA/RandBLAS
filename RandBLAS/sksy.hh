@@ -44,7 +44,7 @@ using namespace RandBLAS::sparse;
 // =============================================================================
 /// \fn sketch_symmetric(blas::Layout layout, int64_t n,
 ///     int64_t d, T alpha,  const T *A, int64_t lda,
-///     SKOP &S, int64_t ro_s, int64_t co_s,
+///     const SKOP &S, int64_t ro_s, int64_t co_s,
 ///     T beta, T *B, int64_t ldb, T sym_check_tol = 0
 /// ) 
 /// @verbatim embed:rst:leading-slashes
@@ -164,7 +164,7 @@ inline void sketch_symmetric(
     T alpha,
     const T* A,
     int64_t lda,
-    SKOP &S,
+    const SKOP &S,
     int64_t ro_s,
     int64_t co_s,
     T beta,
@@ -179,7 +179,7 @@ inline void sketch_symmetric(
 
 // =============================================================================
 /// \fn sketch_symmetric(blas::Layout layout, int64_t d,
-///     int64_t n, T alpha, SKOP &S, int64_t ro_s, int64_t co_s,
+///     int64_t n, T alpha, const SKOP &S, int64_t ro_s, int64_t co_s,
 ///     const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0
 /// ) 
 /// @verbatim embed:rst:leading-slashes
@@ -297,7 +297,7 @@ inline void sketch_symmetric(
     int64_t d, // number of rows in B
     int64_t n, // number of columns in B
     T alpha,
-    SKOP &S,
+    const SKOP &S,
     int64_t ro_s,
     int64_t co_s,
     const T* A,
@@ -315,7 +315,7 @@ inline void sketch_symmetric(
 
 // =============================================================================
 /// \fn sketch_symmetric(blas::Layout layout, T alpha, 
-///     const T *A, int64_t lda, SKOP &S,
+///     const T *A, int64_t lda, const SKOP &S,
 ///     T beta, T *B, int64_t ldb, T sym_check_tol = 0
 /// ) 
 /// @verbatim embed:rst:leading-slashes
@@ -410,7 +410,7 @@ inline void sketch_symmetric(
     T alpha,
     const T* A,
     int64_t lda,
-    SKOP &S,
+    const SKOP &S,
     T beta,
     T* B,
     int64_t ldb,
@@ -424,7 +424,7 @@ inline void sketch_symmetric(
 
 
 // =============================================================================
-/// \fn sketch_symmetric(blas::Layout layout, T alpha, SKOP &S,
+/// \fn sketch_symmetric(blas::Layout layout, T alpha, const SKOP &S,
 ///     const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0
 /// ) 
 /// @verbatim embed:rst:leading-slashes
@@ -515,7 +515,7 @@ inline void sketch_symmetric(
     // B = alpha*S*A + beta*B
     blas::Layout layout,
     T alpha,
-    SKOP &S,
+    const SKOP &S,
     const T* A,
     int64_t lda,
     T beta,

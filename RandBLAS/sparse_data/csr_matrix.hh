@@ -32,6 +32,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
+#include "RandBLAS/sparse_data/conversions.hh"
 #include <algorithm>
 
 namespace RandBLAS::sparse_data {
@@ -42,8 +43,18 @@ using RandBLAS::SignedInteger;
 #define SignedInteger typename
 #endif
 
-// ^ only used once, but I don't want the RandBLAS prefix
-// in the doxygen.
+
+template <typename T, SignedInteger sint_t>
+CSRMatrix<T, sint_t> deepcopy_csr(const CSRMatrix<T, sint_t> &csr) {
+    CSRMatrix<T, sint_t> copy(csr.n_rows, csr.n_cols);
+    if (csr.nnz > 0) {
+        copy.reserve(csr.nnz);
+        std::copy( csr.rowptr,  csr.rowptr  + csr.n_rows + 1, copy.rowptr  );
+        std::copy( csr.colidxs, csr.colidxs + csr.nnz,        copy.colidxs );
+        std::copy( csr.vals,    csr.vals    + csr.nnz,        copy.vals    );
+    }
+    return copy;
+}
 
 
 // =============================================================================
@@ -104,7 +115,7 @@ struct CSRMatrix {
     ///  If non-null, this must have length at least nnz.
     ///  \internal
     ///  **Memory management note.** Because this length requirement is not a function of
-    ///  only const variables, calling reserve_csr(nnz, A) on a CSRMatrix "A" will raise an error
+    ///  only const variables, calling A.reserve(nnz) on a CSRMatrix "A" will raise an error
     ///  if A.vals is non-null.
     ///  \endinternal
     T *vals;
@@ -122,7 +133,7 @@ struct CSRMatrix {
     ///  If non-null, then must have length at least nnz.
     ///  \internal
     ///  **Memory management note.** Because this length requirement is not a function of
-    ///  only const variables, calling reserve_csr(nnz, A) on a CSRMatrix "A" will raise an error
+    ///  only const variables, calling A.reserve(nnz) on a CSRMatrix "A" will raise an error
     ///  if A.colidxs is non-null.
     ///  \endinternal
     sint_t *colidxs;
@@ -133,7 +144,7 @@ struct CSRMatrix {
     ///  nnz is set to zero, index_base is set to
     ///  Zero, and CSRMatrix::own_memory is set to true.
     ///  
-    ///  This constructor is intended for use with reserve_csr(int64_t nnz, CSRMatrix &A).
+    ///  This constructor is intended for use with CSRMatrix::reserve(int64_t arg_nnz).
     ///
     CSRMatrix(
         int64_t n_rows,
@@ -157,12 +168,69 @@ struct CSRMatrix {
         vals(vals), rowptr(rowptr), colidxs(colidxs) { };
 
     ~CSRMatrix() {
-        if (own_memory) {
-            if (rowptr  != nullptr) delete [] rowptr;
-            if (colidxs != nullptr) delete [] colidxs;
-            if (vals    != nullptr) delete [] vals;
-        }
+        if (own_memory) compressed_sparse_arrays_free(vals, colidxs, rowptr);
     };
+
+    // -----------------------------------------------------
+    /// This function requires that arg_nnz > 0, that own_memory
+    /// is true, that colidxs and vals are null. If any of these
+    /// conditions are not met then this function will raise an error.
+    /// 
+    /// Special logic applies rowptr because its documented length
+    /// requirement is equal to the const expression (n_rows + 1).
+    ///
+    /// - If rowptr is non-null then it is left unchanged,
+    ///   and it is presumed to point to an array of length
+    ///   at least n_rows + 1.
+    ///
+    /// - If rowptr is null, then it will be redirected to
+    ///   a new array of type sint_t and length n_rows + 1.
+    ///
+    /// From there, the reference members colidxs and vals are
+    /// redirected to new arrays length arg_nnz, and nnz is
+    /// updated to arg_nnz.
+    void reserve(int64_t arg_nnz) {
+        randblas_require(arg_nnz > 0);
+        randblas_require(own_memory);
+        try {
+            compressed_sparse_arrays_allocate(n_rows, arg_nnz, vals, colidxs, rowptr);
+        } catch (RandBLAS::Error &e) {
+            std::string message{e.what()};
+            bool acceptable_error = message.find("ptr == nullptr") != std::string::npos;
+            if (!acceptable_error) { throw e; }
+        }
+        nnz = arg_nnz;
+        return;
+    }
+
+    // ---------------------------------------------------------
+    /// Return a memory-owning copy of this CSRMatrix.
+    ///
+    CSRMatrix<T, sint_t> deepcopy() const {
+        return deepcopy_csr(*this);
+    }
+
+    // ---------------------------------------------------------
+    /// Return a memory-owning COOMatrix representation of this CSRMatrix.
+    ///
+    COOMatrix<T, sint_t> as_owning_coo() const {
+        COOMatrix<T, sint_t> coo(n_rows, n_cols);
+        csr_to_coo(*this, coo);
+        return coo;
+    }
+
+    // ---------------------------------------------------------
+    /// Return a const CSCMatrix view of the transpose of this CSRMatrix.
+    ///
+    const CSCMatrix<T, sint_t> transpose() const {
+        return transpose_as_csc(*this);
+    }
+
+    /////////////////////////////////////////////////////////////////////
+    //
+    //      Undocumented functions (don't appear in doxygen)
+    //
+    /////////////////////////////////////////////////////////////////////
 
     // move constructor
     CSRMatrix(CSRMatrix<T, sint_t> &&other)
@@ -181,38 +249,10 @@ static_assert(SparseMatrix<CSRMatrix<float>>);
 static_assert(SparseMatrix<CSRMatrix<double>>);
 #endif
 
-// -----------------------------------------------------
-///
-/// This function requires that M.own_memory is true, that
-/// M.colidxs is null, and that M.vals is null. If any of
-/// these conditions are not met then this function will
-/// raise an error.
-/// 
-/// Special logic applies to M.rowptr because its documented length
-/// requirement is determined by the const variable M.n_rows.
-///
-/// - If M.rowptr is non-null then it is left unchanged,
-///   and it is presumed to point to an array of length
-///   at least M.n_rows + 1.
-///
-/// - If M.rowptr is null, then it will be redirected to
-///   a new array of type sint_t and length (M.n_rows + 1).
-///
-/// From there, M.nnz is overwritten by nnz, and the reference
-/// members M.colidxs and M.vals are redirected to new
-/// arrays of length nnz (of types sint_t and T, respectively).
-///
+// Deprecated. Use M.reserve(nnz) instead.
 template <typename T, SignedInteger sint_t>
 void reserve_csr(int64_t nnz, CSRMatrix<T, sint_t> &M) {
-    randblas_require(nnz > 0);
-    randblas_require(M.own_memory);
-    randblas_require(M.colidxs == nullptr);
-    randblas_require(M.vals    == nullptr);
-    if (M.rowptr == nullptr) 
-        M.rowptr = new sint_t[M.n_rows + 1]{0};
-    M.nnz = nnz;
-    M.colidxs = new sint_t[nnz]{0};
-    M.vals    = new T[nnz]{0.0};
+    M.reserve(nnz);
    return;
 }
 
@@ -264,7 +304,7 @@ void dense_to_csr(int64_t stride_row, int64_t stride_col, T *mat, T abs_tol, CSR
     // Step 1: count the number of entries with absolute value at least abstol
     int64_t nnz = nnz_in_dense(n_rows, n_cols, stride_row, stride_col, mat, abs_tol);
     // Step 2: allocate memory needed by the sparse matrix
-    reserve_csr(nnz, spmat);
+    spmat.reserve(nnz);
     // Step 3: traverse the dense matrix again, populating the sparse matrix as we go
     nnz = 0;
     spmat.rowptr[0] = 0;

@@ -203,6 +203,13 @@ inline blas::Layout natural_layout(Axis major_axis, int64_t n_rows, int64_t n_co
 
 namespace RandBLAS {
 
+
+// Forward declaration of DenseSkOp. It's returnable by
+// DenseDist.sample(), but its definition involves DenseDist.
+template<typename T, typename RNG>
+struct DenseSkOp;
+
+
 // =============================================================================
 /// Names for mean-zero variance-one distributions on the reals.
 enum class ScalarDist : char {
@@ -215,6 +222,7 @@ enum class ScalarDist : char {
     ///  \math{r := \sqrt{3}} provides for a variance of 1.
     Uniform = 'U'
 };
+
 
 // =============================================================================
 ///  A distribution over matrices whose entries are iid mean-zero variance-one
@@ -320,11 +328,26 @@ struct DenseDist {
         randblas_require(n_cols > 0);
     }
 
-};
+    // -------------------------------------------------------------------------------------
+    ///  Construct a DenseSkOp with this distribution and the provided seed_state.
+    template <typename T, typename RNG = DefaultRNG>
+    DenseSkOp<T,RNG> sample(RNGState<RNG> &seed_state) {
+        return {*this, seed_state};
+    }
 
-#ifdef __cpp_concepts
-static_assert(SketchingDistribution<DenseDist>);
-#endif
+    // A convenience constructor designed to gracefully handle the common case when someone specifies
+    // the short-axis-vector length as a floating point multiple of some other integer. We cast both
+    // dimensions to int64_t and raise a warning if that cast is lossy.
+    //
+    // This function is not part of the public API.
+    template <typename ordinal_t1, typename ordinal_t2>
+    DenseDist(
+        ordinal_t1 n_rows,
+        ordinal_t2 n_cols,
+        ScalarDist family = ScalarDist::Gaussian,
+        Axis major_axis = Axis::Long
+    ) : DenseDist(cast_int64t(n_rows), cast_int64t(n_cols), family, major_axis) { }
+};
 
 
 // =============================================================================
@@ -454,7 +477,9 @@ struct DenseSkOp {
     }
 };
 
+
 #ifdef __cpp_concepts
+static_assert(SketchingDistribution<DenseDist>);
 static_assert(SketchingOperator<DenseSkOp<float>>);
 static_assert(SketchingOperator<DenseSkOp<double>>);
 #endif
@@ -603,14 +628,14 @@ RNGState<RNG> fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed)
 // =============================================================================
 /// If \math{\ttt{S.own_memory}} is true then we enter an allocation stage. If
 /// \math{\ttt{S.buff}} is equal to \math{\ttt{nullptr}} then it is redirected to the
-/// start of an new array (allocated with ``new []``)
-/// of length \math{\ttt{S.n_rows * S.n_cols}.} 
+/// start of an new array (allocated with \math{\textcolor{red}{\ttt{new []}}}) of length 
+/// \math{\ttt{S.n_rows * S.n_cols}.}
 ///
 /// After the allocation stage, we check \math{\ttt{S.buff}} and we raise
 /// an error if it's null.
 ///
 /// If \math{\ttt{S.buff}} is are non-null, then we'll assume it has length at least
-///  \math{\ttt{S.n_rows * S.n_cols}.} We'll proceed to populate \math{\ttt{S.buff}} 
+/// \math{\ttt{S.n_rows * S.n_cols}.} We'll proceed to populate \math{\ttt{S.buff}} 
 /// with the data for the explicit representation of \math{\ttt{S}.}
 /// On exit, one can encode a BLAS-style representation of \math{\ttt{S}} with the tuple
 /// @verbatim embed:rst:leading-slashes

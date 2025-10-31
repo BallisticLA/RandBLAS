@@ -32,6 +32,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/sparse_data/base.hh"
+#include "RandBLAS/sparse_data/conversions.hh"
 #include <algorithm>
 
 namespace RandBLAS::sparse_data {
@@ -41,6 +42,20 @@ using RandBLAS::SignedInteger;
 #else
 #define SignedInteger typename
 #endif
+
+
+template <typename T, SignedInteger sint_t>
+CSCMatrix<T, sint_t> deepcopy_csc(const CSCMatrix<T, sint_t> &csc) {
+    CSCMatrix<T, sint_t> copy(csc.n_rows, csc.n_cols);
+    if (csc.nnz > 0) {
+        copy.reserve(csc.nnz);
+        std::copy( csc.rowidxs, csc.rowidxs + csc.nnz,        copy.rowidxs );
+        std::copy( csc.colptr,  csc.colptr  + csc.n_cols + 1, copy.colptr  );
+        std::copy( csc.vals,    csc.vals    + csc.nnz,        copy.vals    );
+    }
+    return copy;
+}
+
 
 // =============================================================================
 ///
@@ -99,7 +114,7 @@ struct CSCMatrix {
     ///  If non-null, this must have length at least nnz.
     ///  \internal
     ///  **Memory management note.** Because this length requirement is not a function of
-    ///  only const variables, calling reserve_csc(nnz, A) on a CSCMatrix "A" will raise an error
+    ///  only const variables, calling A.reserve(nnz) on a CSCMatrix "A" will raise an error
     ///  if A.vals is non-null.
     ///  \endinternal
     T *vals;
@@ -110,7 +125,7 @@ struct CSCMatrix {
     ///  If non-null, then must have length at least nnz.
     ///  \internal
     ///  **Memory management note.** Because this length requirement is not a function of
-    ///  only const variables, calling reserve_cs(nnz, A) on a CSCMatrix "A" will raise an error
+    ///  only const variables, calling A.reserve(nnz) on a CSCMatrix "A" will raise an error
     ///  if A.rowidxs is non-null.
     ///  \endinternal
     sint_t *rowidxs;
@@ -128,7 +143,7 @@ struct CSCMatrix {
     ///  \math{\ttt{nnz}} is set to zero, \math{\ttt{index_base}} is set to
     ///  Zero, and CSCMatrix::own_memory is set to true.
     ///  
-    ///  This constructor is intended for use with reserve_csc(int64_t nnz, CSCMatrix &A).
+    ///  This constructor is intended for use with COOMatrix::reserve(int64_t nnz).
     ///
     CSCMatrix( 
         int64_t n_rows,
@@ -152,13 +167,71 @@ struct CSCMatrix {
         vals(vals), rowidxs(rowidxs), colptr(colptr) { };
 
     ~CSCMatrix() {
-        if (own_memory) {
-            if (rowidxs != nullptr) delete [] rowidxs;
-            if (colptr  != nullptr) delete [] colptr;
-            if (vals    != nullptr) delete [] vals;
-        }
+        if (own_memory) compressed_sparse_arrays_free(vals, rowidxs, colptr);
     };
 
+    // -----------------------------------------------------
+    /// This function requires that arg_nnz > 0, that own_memory
+    /// is true, that rowidxs and vals are null. If any of these
+    /// conditions are not met then this function will raise an error.
+    /// 
+    /// Special logic applies colptr because its documented length
+    /// requirement is equal to the const expression (n_cols + 1).
+    ///
+    /// - If colptr is non-null then it is left unchanged,
+    ///   and it is presumed to point to an array of length
+    ///   at least n_cols + 1.
+    ///
+    /// - If colptr is null, then it will be redirected to
+    ///   a new array of type sint_t and length n_cols + 1.
+    ///
+    /// From there, the reference members rowidxs and vals are
+    /// redirected to new arrays length arg_nnz, and nnz is
+    /// updated to arg_nnz.
+    void reserve(int64_t arg_nnz) {
+        randblas_require(arg_nnz > 0);
+        randblas_require(own_memory);
+        try {
+            compressed_sparse_arrays_allocate(n_cols, arg_nnz, vals, rowidxs, colptr);
+        } catch (RandBLAS::Error &e) {
+            std::string message{e.what()};
+            bool acceptable_error = message.find("ptr == nullptr") != std::string::npos;
+            if (!acceptable_error) { throw e; }
+        }
+        nnz = arg_nnz;
+        return;
+    }
+
+    // ---------------------------------------------------------
+    /// Return a memory-owning copy of this CSCMatrix.
+    ///
+    CSCMatrix<T, sint_t> deepcopy() const {
+        return deepcopy_csc(*this);
+    }
+
+    // ---------------------------------------------------------
+    /// Return a memory-owning COOMatrix representation of this CSCMatrix.
+    ///
+    COOMatrix<T, sint_t> as_owning_coo() const {
+        COOMatrix<T, sint_t> coo(n_rows, n_cols);
+        csc_to_coo(*this, coo);
+        return coo;
+    }
+
+    // ---------------------------------------------------------
+    /// Return a const CSRMatrix view of the transpose of this CSCMatrix.
+    ///
+    const CSRMatrix<T, sint_t> transpose() const {
+        return transpose_as_csr(*this);
+    }
+
+    /////////////////////////////////////////////////////////////////////
+    //
+    //      Undocumented functions (don't appear in doxygen)
+    //
+    /////////////////////////////////////////////////////////////////////
+
+    // Move constructor
     CSCMatrix(CSCMatrix<T, sint_t> &&other) 
     : n_rows(other.n_rows), n_cols(other.n_cols), own_memory(other.own_memory), nnz(other.nnz), index_base(other.index_base),
       vals(nullptr), rowidxs(nullptr), colptr(nullptr) {
@@ -167,6 +240,7 @@ struct CSCMatrix {
         std::swap(vals   , other.vals   );
         other.nnz = 0;
     };
+
 };
 
 #ifdef __cpp_concepts
@@ -174,38 +248,10 @@ static_assert(SparseMatrix<CSCMatrix<float>>);
 static_assert(SparseMatrix<CSCMatrix<double>>);
 #endif
 
-// -----------------------------------------------------
-///
-/// This function requires that M.own_memory is true, that
-/// M.rowidxs is null, and that M.vals is null. If any of
-/// these conditions are not met then this function will
-/// raise an error.
-/// 
-/// Special logic applies to M.colptr because its documented length
-/// requirement is determined by the const variable M.n_cols.
-///
-/// - If M.colptr is non-null then it is left unchanged,
-///   and it is presumed to point to an array of length
-///   at least M.n_cols + 1.
-///
-/// - If M.colptr is null, then it will be redirected to
-///   a new array of type sint_t and length (M.n_cols + 1).
-///
-/// From there, M.nnz is overwritten by nnz, and the reference
-/// members M.rowidxs and M.vals are redirected to new
-/// arrays of length nnz (of types sint_t and T, respectively).
-///
+/// Deprecated. Call M.reserve(nnz) instead.
 template <typename T, SignedInteger sint_t>
-void reserve_csc(int64_t nnz, CSCMatrix<T,sint_t> &M) {
-    randblas_require(nnz > 0);
-    randblas_require(M.own_memory);
-    randblas_require(M.rowidxs == nullptr);
-    randblas_require(M.vals    == nullptr);
-    if (M.colptr == nullptr)
-        M.colptr = new sint_t[M.n_cols + 1]{0};
-    M.nnz = nnz;
-    M.rowidxs = new sint_t[nnz]{0};
-    M.vals    = new T[nnz]{0.0};
+inline void reserve_csc(int64_t nnz, CSCMatrix<T,sint_t> &M) {
+    M.reserve(nnz);
     return;
 }
 
@@ -254,7 +300,7 @@ void dense_to_csc(int64_t stride_row, int64_t stride_col, T *mat, T abs_tol, CSC
     // Step 1: count the number of entries with absolute value at least abstol
     int64_t nnz = nnz_in_dense(n_rows, n_cols, stride_row, stride_col, mat, abs_tol);
     // Step 2: allocate memory needed by the sparse matrix
-    reserve_csc(nnz, spmat);
+    spmat.reserve(nnz);
     // Step 3: traverse the dense matrix again, populating the sparse matrix as we go
     nnz = 0;
     spmat.colptr[0] = 0;

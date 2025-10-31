@@ -100,7 +100,7 @@ void iid_sparsify_random_dense(
 }
 
 template <typename SpMat>
-SpMat sum_of_coo_matrices(SpMat &A, SpMat &B) {
+SpMat sum_of_coo_matrices(SpMat &A, const SpMat &B) {
     randblas_require(A.n_rows == B.n_rows);
     randblas_require(A.n_cols == B.n_cols);
 
@@ -132,7 +132,7 @@ SpMat sum_of_coo_matrices(SpMat &A, SpMat &B) {
     }
 
     SpMat C(A.n_rows, A.n_cols);
-    reserve_coo(c_dict.size(), C);
+    C.reserve(c_dict.size());
     int64_t ell = 0;
     for (auto iter : c_dict) {
         Tuple t = iter.first;
@@ -148,7 +148,7 @@ SpMat sum_of_coo_matrices(SpMat &A, SpMat &B) {
 
 template <typename COOMatrix>
 void make_signal_matrix(double signal_scale, double* u, int64_t m, double* v, int64_t n, int64_t vec_nnz, double* signal_dense, COOMatrix &signal_sparse) {
-    reserve_coo(vec_nnz * vec_nnz, signal_sparse);
+    signal_sparse.reserve(vec_nnz * vec_nnz);
 
     // populate signal_dense and signal_sparse.
     RandBLAS::RNGState u_state(0);

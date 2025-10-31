@@ -3,4 +3,4 @@ sphinx
 sphinx_rtd_theme
 sphinxcontrib-bibtex
 sphinx-design
-breathe
+breathe==4.35

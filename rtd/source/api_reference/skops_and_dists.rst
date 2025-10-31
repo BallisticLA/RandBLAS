@@ -22,12 +22,6 @@
 Fundamentals
 ********************************************************************
 
-  ..  very similar effects can be achieved in C, Fortran, or Julia. While there are 
-  ..  certainly some popular programming languages that don't support this kind of API
-  ..  (e.g., MATLAB, Python, and R), accessing RandBLAS from these languages should
-  ..  be mediated operator-overloaded objects in a way that's analogous to how one 
-  ..  would access BLAS.
-
 RandBLAS has a polymorphic free-function API. We have spent a significant amount of 
 effort on minimizing the number of RandBLAS–specific datastructures needed in order
 to achieve that polymorphism.

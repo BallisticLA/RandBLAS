@@ -51,7 +51,7 @@ using namespace RandBLAS::sparse;
 // MARK: SUBMAT(S)
 
 // =============================================================================
-/// \fn sketch_vector(blas::Op opS, int64_t d, int64_t m, T alpha, SKOP &S,
+/// \fn sketch_vector(blas::Op opS, int64_t d, int64_t m, T alpha, const SKOP &S,
 ///    int64_t ro_s, int64_t co_s, const T *x, int64_t incx, T beta, T *y, int64_t incy
 /// )
 /// @verbatim embed:rst:leading-slashes
@@ -143,7 +143,7 @@ inline void sketch_vector(
     int64_t d, // rows in submat(\mtxS)
     int64_t m, // cols in submat(\mtxS)
     T alpha,
-    SKOP &S,
+    const SKOP &S,
     int64_t ro_s,
     int64_t co_s,
     const T *x,
@@ -166,7 +166,7 @@ inline void sketch_vector(
 // MARK: FULL(S)
 
 // =============================================================================
-/// \fn sketch_vector(blas::Op opS, T alpha, SKOP &S,
+/// \fn sketch_vector(blas::Op opS, T alpha, const SKOP &S,
 ///    const T *x, int64_t incx, T beta, T *y, int64_t incy
 /// )
 /// @verbatim embed:rst:leading-slashes
@@ -233,7 +233,7 @@ template <SketchingOperator SKOP, typename T = SKOP::scalar_t>
 inline void sketch_vector(
     blas::Op opS,
     T alpha,
-    SKOP &S,
+    const SKOP &S,
     const T *x,
     int64_t incx,
     T beta,
