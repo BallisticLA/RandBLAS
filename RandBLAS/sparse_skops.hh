@@ -116,6 +116,12 @@ inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t dim_major
 }
 
 namespace RandBLAS {
+
+// Forward declaration of SparseSkOp. It's returnable by
+// SparseDist.sample(), but its definition involves DenseDist.
+template<typename T, typename RNG, SignedInteger sint_t>
+struct SparseSkOp;
+
 // =============================================================================
 /// A distribution over matrices with structured sparsity. Depending on parameter
 /// choices, one can obtain distributions described in the literature as 
@@ -217,6 +223,14 @@ struct SparseDist {
         randblas_require(vec_nnz <= dim_major);
     }
 
+    // -------------------------------------------------------------------------------------
+    ///  Construct a SparseSkOp with this distribution and the provided seed_state.
+    template <typename T, typename RNG = DefaultRNG, SignedInteger sint_t = int64_t>
+    SparseSkOp<T,RNG,sint_t> sample(RNGState<RNG> &seed_state) {
+        return {*this, seed_state};
+    }
+
+
     // A convenience constructor designed to gracefully handle the common case when someone specifies
     // the short-axis-vector length as a floating point multiple of some other integer. We cast both
     // dimensions to int64_t and raise a warning if that cast is lossy.
@@ -224,22 +238,11 @@ struct SparseDist {
     // This function is not part of the public API.
     template <typename ordinal_t1, typename ordinal_t2>
     SparseDist(
-        ordinal_t1 arg_n_rows,
-        ordinal_t2 arg_n_cols,
+        ordinal_t1 n_rows,
+        ordinal_t2 n_cols,
         int64_t vec_nnz = 4,
         Axis major_axis = Axis::Short
-    ) : SparseDist(static_cast<int64_t>(arg_n_rows), static_cast<int64_t>(arg_n_cols), vec_nnz, major_axis) {
-        // Check for rounding by casting to double. This lets us detect lossy rounding
-        // up to arg_n_rows <= 2^53.
-        bool lossy_cast_rows = (double)n_rows != (double)arg_n_rows;
-        bool lossy_cast_cols = (double)n_cols != (double)arg_n_cols;
-        if (lossy_cast_rows || lossy_cast_cols) {
-            std::cerr << std::endl;
-            std::cerr << "You've passed a floating point number as a dimensional parameter to SparseDist."<< std::endl;
-            std::cerr << "Dimensions will be rounded down as needed. Avoid this warning by providing" << std::endl;
-            std::cerr << "integer arguments." << std::endl << std::endl;
-        }
-    }
+    ) : SparseDist(cast_int64t(n_rows), cast_int64t(n_cols), vec_nnz, major_axis) { }
 };
 
 

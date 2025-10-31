@@ -158,7 +158,7 @@ namespace RandBLAS {
 
 // =============================================================================
 /// Specifies whether string representations of matrices should use
-/// MATLAB-style or Python-style formatting. You should be cable to copy
+/// MATLAB-style or Python-style formatting. You should be able to copy
 /// the output of an array printed in a given style and paste it directly
 /// into the corresponding programming language's interpreter.
 /// 
