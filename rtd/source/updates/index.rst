@@ -1,8 +1,10 @@
 
+  .. |ttt| mathmacro:: \texttt
+
 Changes to RandBLAS
 ===================
 
-This page reviews changes made to RandBLAS over time, in reverse chronological order.
+This page reviews changes made to RandBLAS in reverse chronological order.
 We have a tentative policy of providing bugfix support for any release of 
 RandBLAS upon request, no matter how old. With any luck, this project will grow enough
 that we'll have to change this policy.
@@ -10,6 +12,136 @@ that we'll have to change this policy.
 RandBLAS follows `Semantic Versioning <https://semver.org>`_. Any function documented
 on this website is part of the public API. There are many functions which are not
 part of our public API, but could be added to it if there is user interest. 
+
+RandBLAS 1.1
+------------
+*Original release date: November 2, 2025. Release manager: Riley Murray.*
+
+This is RandBLAS' first new feature release. Functionality for working with
+sparse data matrices been significantly expanded.
+
+Overview of changes
+~~~~~~~~~~~~~~~~~~~
+
+**Sparse matrix kernels**
+
+The most important new addition is 
+sparse triangular solves for CSC and CSR matrices. These kernels are dispatched from :cpp:any:`RandBLAS::sparse_data::trsm`.
+Having sparse triangular solves in RandBLAS dramatically expands the algorithms that RandLAPACK can
+implement using only LAPACK and RandBLAS as dependencies.
+
+We resolved some inefficiencies in sparse matrix multplication kernels with
+COOMatrix objects. Performance should be significantly improved when left-sketching
+row-major data (or right-sketching column-major data) with a SparseSkOp.
+
+**Instance methods for all SparseMatrix types**
+
+We added several instance methods functions for manipulating sparse matrices.
+Implementations of these methods are deferred to free functions in
+RandBLAS/sparse_data/base.hh.
+
+For an object :math:`\ttt{M}` whose type conforms to RandBLAS' :cpp:any:`SparseMatrix concept<RandBLAS::sparse_data::SparseMatrix>` ...
+
+ * :math:`\ttt{M.reserve(nnz)}`
+   allocates internal storage for :math:`\ttt{M}` to hold :math:`\ttt{nnz}` structural nonzeros.
+ * :math:`\ttt{M.deepcopy()}`  
+   returns a memory-owning deep copy of :math:`\ttt{M}.`
+ * :math:`\ttt{M.transpose()}``  
+   returns a const view of :math:`\ttt{M}`'s transpose, possibly 
+   of a type different from that of :math:`\ttt{M}` (CSR↔CSC, COO↔COO).
+
+RandBLAS' SparseMatrix objects DO NOT have C++ copy constructors, but they DO have
+C++ move constructors. The lack of a copy constructor means they must be passed by
+reference:
+
+  .. code:: c++
+
+    template <SparseMatrix SpMat>
+    int64_t get_n_rows_broken(SpMat M) { return M.n_rows; } // compiler error!
+
+    template <SparseMatrix SpMat>
+    int64_t get_n_rows_works(SpMat &M) { return M.n_rows; } // works
+
+The presence of a move constructor means you can return SparseMatrix objects
+from functions. For example, here's a function that accepts a const matrix
+(passed by reference) and returns a memory-owning version of that matrix
+where all nonzeros have been replaced by 1:
+
+  .. code:: c++
+
+    template <SparseMatrix SpMat>
+    SpMat with_nonzeros_as_ones(const SpMat &M) {
+      auto M_out = M.deepcopy()
+      std::fill(M_out.vals, M_out.vals + M_out.nnz, 1);
+      return M_out;
+    }
+
+
+**Instance methods for specific SparseMatrix types**
+
+:cpp:any:`COOMatrix::symperm_inplace <RandBLAS::sparse_data::COOMatrix::symperm_inplace>`
+applies a permutation to the rows and columns of a square COOMatrix.
+This is useful when writing programs that compute a reordering with a third-party library
+(e.g., approximate minimum degree ordering from SuiteSparse) while using RandBLAS
+datastructures and sparse matrix kernels for all other computations.
+
+Sparse matrix types have instance methods to construct equivalent
+matrices in different representations. Objects returned from
+these functions own their attached memory.
+
+  * Use :cpp:any:`COOMatrix::as_owning_csr<RandBLAS::sparse_data::COOMatrix::as_owning_csr>`
+    or :cpp:any:`COOMatrix::as_owning_csc<RandBLAS::sparse_data::COOMatrix::as_owning_csc>`
+    to get a compressed sparse matrix from a COOMatrix.
+  
+  * Use
+    :cpp:any:`CSCMatrix::as_owning_coo <RandBLAS::sparse_data::CSCMatrix::as_owning_coo>`
+    or :cpp:any:`CSRMatrix::as_owning_coo <RandBLAS::sparse_data::CSRMatrix::as_owning_coo>`
+    to get a COOMatrix from a compressed sparse matrix.
+
+One compressed format can be converted to another by chaining two conversion
+calls. For example,
+
+  .. code:: c++
+
+    template <typename T, SignedInteger sint_t>
+    auto csc_as_csr( const CSCMatrix<T,sint_t> &M_csc ) {
+        return M_csc.as_owning_coo().as_owning_csr();
+    }
+
+constructs a memory-owning CSR representation of a CSCMatrix.
+
+
+**Sampling from sketching distributions**
+
+Sketching operators can be constructed with
+:cpp:any:`DenseSkOp::sample <RandBLAS::DenseSkOp::sample>` and
+:cpp:any:`SparseSkOp::sample <RandBLAS::SparsekOp::sample>`.
+This makes it possible to sample from a templated
+:cpp:any:`SketchingDistribution <RandBLAS::SketchingDistribution>` variable
+:math:`\ttt{D}` with code like
+
+  .. code:: c++
+     
+     RNGState seed_state(8675309);
+     auto S = D.sample<double>(seed_state); 
+
+In RandBLAS 1.0 it was necessary to construct a sketching operator by calling
+a DenseSkOp or SparseSkOp constructor.
+
+
+
+Contributors and Acknowledgements
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Parth Nobel (`PR 126 <https://github.com/BallisticLA/RandBLAS/pull/126>`_) was supported in part by the NSF
+Graduate Research Fellowship Program under Grant No. DGE-1656518.
+
+Contributions by Tanya Tafolla (`PR 133 <https://github.com/BallisticLA/RandBLAS/pull/133>`_) were made at UCLA's Institute for
+Pure and Applied Mathematics, with support from NSF Grant No. DMS-1925919.
+
+Contributions from Riley Murray (PRs `124 <https://github.com/BallisticLA/RandBLAS/pull/124>`_,
+`127 <https://github.com/BallisticLA/RandBLAS/pull/127>`_, and `137 <https://github.com/BallisticLA/RandBLAS/pull/137>`_) were made at 
+Sandia National Laboratories, with support from the US Army Engineer
+Research and Development Center.
 
 
 RandBLAS 1.0
