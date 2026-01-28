@@ -1,0 +1,73 @@
+name: openmp-macos-15
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: configure OS
+        run: |
+          set -euxo pipefail
+          brew update
+          brew install googletest llvm
+
+          LLVM_PREFIX="$(brew --prefix llvm)"
+
+          # Export compilers for subsequent steps
+          echo "CC=${LLVM_PREFIX}/bin/clang" >> "$GITHUB_ENV"
+          echo "CXX=${LLVM_PREFIX}/bin/clang++" >> "$GITHUB_ENV"
+
+          # Optional: ensure this clang/clang++ is what gets picked up by default
+          echo "${LLVM_PREFIX}/bin" >> "$GITHUB_PATH"
+
+          # Debug info (helpful if something breaks later)
+          which clang || true
+          which clang++ || true
+          clang --version || true
+          clang++ --version || true
+
+      - name: install BLAS++
+        run: |
+          set -euxo pipefail
+          cd ..
+          git clone https://github.com/icl-utk-edu/blaspp.git
+          mkdir blaspp-build
+          cd blaspp-build
+          cmake \
+            -DCMAKE_CXX_COMPILER="${CXX}" \
+            -DCMAKE_C_COMPILER="${CC}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$(pwd)/../blaspp-install" \
+            -Dbuild_tests=OFF \
+            ../blaspp
+          make -j2 install
+
+      - name: install Random123
+        run: |
+          set -euxo pipefail
+          cd ..
+          git clone https://github.com/DEShawResearch/Random123.git
+          cd Random123/
+          mkdir -p "$(pwd)/../Random123-install/include"
+          cp -rp include/Random123 "$(pwd)/../Random123-install/include/"
+
+      - name: build and test RandBLAS (release)
+        run: |
+          set -euxo pipefail
+          cd ..
+          mkdir RandBLAS-build
+          cd RandBLAS-build
+          cmake \
+            -DCMAKE_CXX_COMPILER="${CXX}" \
+            -DCMAKE_C_COMPILER="${CC}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -Dblaspp_DIR="$(pwd)/../blaspp-install/lib/cmake/blaspp/" \
+            -DRandom123_DIR="$(pwd)/../Random123-install/include/" \
+            -DCMAKE_INSTALL_PREFIX="$(pwd)/../RandBLAS-install" \
+            ../RandBLAS
+          make -j2 install
+          ctest --output-on-failure

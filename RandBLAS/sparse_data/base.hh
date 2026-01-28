@@ -176,11 +176,15 @@ void coo_arrays_apply_sort(NonzeroSort s, int64_t nnz, T *vals, sint_t* rows, si
     // 1) computing the sorting permutation
     std::vector<int64_t> perm(nnz);
     std::iota(perm.begin(), perm.end(), 0);
+    // Use strict comparators (< not <=) for std::sort's strict weak ordering requirement.
+    // The increasing_by_csr/csc functions use <= which violates irreflexivity (comp(a,a) must be false).
     auto cmp_idx = [&](int64_t a, int64_t b) {
         if (s == NonzeroSort::CSR) {
-            return increasing_by_csr(rows[a], cols[a], rows[b], cols[b]);
+            if (rows[a] != rows[b]) return rows[a] < rows[b];
+            return cols[a] < cols[b];
         } else {
-            return increasing_by_csc(rows[a], cols[a], rows[b], cols[b]);
+            if (cols[a] != cols[b]) return cols[a] < cols[b];
+            return rows[a] < rows[b];
         }
     };
     std::sort(perm.begin(), perm.end(), cmp_idx);
