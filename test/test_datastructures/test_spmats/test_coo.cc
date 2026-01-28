@@ -164,6 +164,62 @@ class TestCOO : public ::testing::Test {
     }
 
     template <typename T = double>
+    void test_sort_with_duplicate_entries(int64_t n) {
+        // Regression test for coo_arrays_apply_sort strict weak ordering bug.
+        // The old comparator used <= (via increasing_by_csc/csr), violating
+        // std::sort's strict weak ordering requirement. With duplicate (row, col)
+        // entries, comp(a,b) and comp(b,a) are both true for distinct indices
+        // a != b that map to the same position, violating antisymmetry.
+        // This caused undefined behavior (SEGFAULT).
+        //
+        // We use anti-diagonal entries (i, n-1-i) with duplicates. These have
+        // genuinely different CSC and CSR orderings (unlike diagonal entries).
+        randblas_require(n >= 3);
+        int64_t total_nnz = 2 * n;  // each anti-diagonal position duplicated
+
+        // Part 1: Test sort_arrays with duplicated anti-diagonal entries.
+        COOMatrix<T> A(n, n);
+        A.reserve(total_nnz);
+        for (int64_t i = 0; i < n; ++i) {
+            // First copy at (i, n-1-i)
+            A.rows[i]     = i;
+            A.cols[i]     = n - 1 - i;
+            A.vals[i]     = 1.0;
+            // Duplicate at same position
+            A.rows[n + i] = i;
+            A.cols[n + i] = n - 1 - i;
+            A.vals[n + i] = 2.0;
+        }
+
+        A.sort_arrays(NonzeroSort::CSC);
+        EXPECT_EQ(A.sort, NonzeroSort::CSC);
+        auto sort = coo_arrays_determine_sort(A.nnz, A.rows, A.cols);
+        EXPECT_EQ(sort, NonzeroSort::CSC);
+
+        A.sort_arrays(NonzeroSort::CSR);
+        EXPECT_EQ(A.sort, NonzeroSort::CSR);
+        sort = coo_arrays_determine_sort(A.nnz, A.rows, A.cols);
+        EXPECT_EQ(sort, NonzeroSort::CSR);
+
+        // Part 2: Test coo_to_csc with interleaved duplicates (original crash path).
+        COOMatrix<T> B(n, n);
+        B.reserve(total_nnz);
+        for (int64_t i = 0; i < n; ++i) {
+            B.rows[2*i]     = i;
+            B.cols[2*i]     = n - 1 - i;
+            B.vals[2*i]     = 1.0;
+            B.rows[2*i + 1] = i;
+            B.cols[2*i + 1] = n - 1 - i;
+            B.vals[2*i + 1] = 2.0;
+        }
+        CSCMatrix<T> B_csc(n, n);
+        coo_to_csc(B, B_csc);
+        EXPECT_EQ(B_csc.nnz, total_nnz);
+
+        return;
+    }
+
+    template <typename T = double>
     void smoketest_print() {
         /***
         * TODO: Have a check for correctness. Right now we have to inspect visually by running
@@ -196,6 +252,13 @@ TEST_F(TestCOO, sort_order) {
     test_sort_order(3);
     test_sort_order(7);
     test_sort_order(10);
+}
+
+TEST_F(TestCOO, sort_with_duplicate_entries) {
+    test_sort_with_duplicate_entries(3);
+    test_sort_with_duplicate_entries(5);
+    test_sort_with_duplicate_entries(20);
+    test_sort_with_duplicate_entries(100);
 }
 
 TEST_F(TestCOO, symperm_inplace) {
