@@ -1,11 +1,11 @@
-name: openmp-macos-13
+name: openmp-macos-15
 on:
   pull_request:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-13
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v2
 
