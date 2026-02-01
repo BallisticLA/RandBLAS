@@ -1,3 +1,4 @@
-sparse-data-matrices/*
-sparse-low-rank-approx/data-matrices/*
-sparse-low-rank-approx/fast-matrix-market/*
+# Commented out to allow tracking of example source files
+# sparse-data-matrices/*
+# sparse-low-rank-approx/data-matrices/*
+# sparse-low-rank-approx/fast-matrix-market/*
