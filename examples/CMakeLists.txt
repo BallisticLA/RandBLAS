@@ -93,3 +93,13 @@ target_link_libraries(
     slra_qrcp PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market
 )
 
+add_executable(
+    spmm_performance sparse-data-matrices/spmm_performance.cc
+)
+target_include_directories(
+    spmm_performance PUBLIC ${Random123_DIR}
+)
+target_link_libraries(
+    spmm_performance PUBLIC RandBLAS blaspp lapackpp
+)
+
