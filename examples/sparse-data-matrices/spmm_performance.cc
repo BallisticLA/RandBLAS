@@ -1,4 +1,4 @@
-// Copyright, 2024. See LICENSE for copyright holder information.
+// Copyright, 2026. See LICENSE for copyright holder information.
 //
 // ============================================================================
 // SPARSE-DENSE MATRIX MULTIPLICATION PERFORMANCE BENCHMARK
