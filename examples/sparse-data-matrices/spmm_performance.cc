@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-// Copyright, 2026. See LICENSE for copyright holder information.
-=======
 // Copyright, 2024. See LICENSE for copyright holder information.
->>>>>>> a03d3e9 (Example issue added)
 //
 // ============================================================================
 // SPARSE-DENSE MATRIX MULTIPLICATION PERFORMANCE BENCHMARK
@@ -16,7 +12,6 @@
 // 2. Densification followed by dense-dense BLAS multiplication
 //
 // OBSERVED BEHAVIOR:
-<<<<<<< HEAD
 // For high density (density ~0.1 = 10%), approach (2) is significantly faster
 // than approach (1), even though it includes the overhead of densification.
 // Note: 0.1 is very dense for sparse matrices. True sparse matrices typically
@@ -26,15 +21,6 @@
 //   - Small matrices (1000×100): 11× slower for right_spmm
 //   - Medium matrices (10000×1000): Performance gap varies with density
 //   - Large matrices (100000×5000): 1.5× slower for right_spmm
-=======
-// For moderate sparsity (density ~0.1), approach (2) is significantly faster
-// than approach (1), even though it includes the overhead of densification.
-//
-// Example results (with OMP_NUM_THREADS=8):
-//   - Small matrices (1000×100 @ 1000×100): 11× slower for right_spmm
-//   - Medium matrices (1000×100 @ 1000×200): Similar performance issues
-//   - Large matrices (5000×500 @ 5000×500): 1.5× slower for right_spmm
->>>>>>> a03d3e9 (Example issue added)
 //
 // USAGE:
 //   ./spmm_performance [m] [n] [d] [density] [num_trials]
@@ -43,20 +29,14 @@
 //   m          - Number of rows in sparse matrix A (default: 1000)
 //   n          - Number of columns in sparse matrix A (default: 100)
 //   d          - Number of columns in dense matrices B and C (default: 100)
-<<<<<<< HEAD
 //   density    - Sparsity density (0.0 to 1.0, default: 0.01 = 1%)
 //   num_trials - Number of benchmark trials (default: 50, reports minimum time)
-=======
-//   density    - Sparsity density (0.0 to 1.0, default: 0.1)
-//   num_trials - Number of benchmark trials (default: 5)
->>>>>>> a03d3e9 (Example issue added)
 //
 // OPERATION BENCHMARKED:
 //   C = B^T * A
 //   where A is sparse (m×n, CSR format), B is dense (m×d), C is result (n×d)
 //
 // EXAMPLE COMMANDS:
-<<<<<<< HEAD
 //   # Small matrix, realistic sparse density (1%)
 //   env OMP_NUM_THREADS=8 ./spmm_performance 1000 100 100 0.01
 //
@@ -77,31 +57,6 @@
 // to CSC left-spmm kernel apply_csc_left_jki_p11(). The bottleneck is in
 // apply_csc_to_vector_ki() which uses manual element-wise loops with indirect
 // indexing instead of optimized BLAS routines. See csc_spmm_impl.hh lines 50-72.
-=======
-//   # Default parameters (shows ~11× slowdown)
-//   OMP_NUM_THREADS=8 ./spmm_performance
-//
-//   # Medium problem (demonstrates issue)
-//   OMP_NUM_THREADS=8 ./spmm_performance 1000 100 200 0.1 3
-//
-//   # Larger problem (still shows ~1.5× slowdown)
-//   OMP_NUM_THREADS=8 ./spmm_performance 5000 500 500 0.1 5
-//
-//   # Dense case (density 0.5)
-//   OMP_NUM_THREADS=8 ./spmm_performance 1000 100 100 0.5 3
-//
-// PERFORMANCE ANALYSIS:
-// The current sparse-dense multiplication implementation needs optimization.
-// Potential improvements:
-// - Using vectorized operations for dense matrix access
-// - Leveraging BLAS routines (dgemv) for sparse row × dense column products
-// - Using vendor sparse BLAS libraries (Intel MKL mkl_sparse_d_mm, cuSPARSE)
-// - Improving cache utilization through blocking strategies
-//
-// ROOT CAUSE:
-// The bottleneck is in apply_csr_to_vector_from_left_ik() which uses manual
-// element-wise loops instead of optimized BLAS routines. See csr_spmm_impl.hh.
->>>>>>> a03d3e9 (Example issue added)
 //
 // ============================================================================
 
@@ -119,32 +74,7 @@ using namespace std::chrono;
 using blas::Layout;
 using blas::Op;
 
-<<<<<<< HEAD
 // Note: RandBLAS provides csr_to_dense() in sparse_data/csr_matrix.hh
-=======
-template <typename T>
-void sparse_to_dense(const RandBLAS::sparse_data::CSRMatrix<T, int64_t>& A_sp,
-                     blas::Layout layout, T* A_dense) {
-    int64_t m = A_sp.n_rows;
-    int64_t n = A_sp.n_cols;
-
-    // Initialize to zero
-    std::fill(A_dense, A_dense + m * n, (T)0.0);
-
-    // Fill from CSR format
-    for (int64_t i = 0; i < m; ++i) {
-        for (int64_t idx = A_sp.rowptr[i]; idx < A_sp.rowptr[i + 1]; ++idx) {
-            int64_t j = A_sp.colidxs[idx];
-            T val = A_sp.vals[idx];
-            if (layout == Layout::ColMajor) {
-                A_dense[j * m + i] = val;
-            } else {
-                A_dense[i * n + j] = val;
-            }
-        }
-    }
-}
->>>>>>> a03d3e9 (Example issue added)
 
 template <typename T>
 RandBLAS::sparse_data::CSRMatrix<T, int64_t> generate_sparse_gaussian(
@@ -180,32 +110,12 @@ RandBLAS::sparse_data::CSRMatrix<T, int64_t> generate_sparse_gaussian(
 
     int64_t actual_nnz = vals.size();
 
-<<<<<<< HEAD
     // Create CSR matrix using memory-owning constructor
     CSRMatrix<T, int64_t> A(m, n);
     A.reserve(actual_nnz);
     std::copy(vals.begin(), vals.end(), A.vals);
     std::copy(colidxs.begin(), colidxs.end(), A.colidxs);
     std::copy(rowptr.begin(), rowptr.end(), A.rowptr);
-=======
-    // Allocate arrays for CSR matrix
-    T* vals_arr = new T[actual_nnz];
-    int64_t* colidxs_arr = new int64_t[actual_nnz];
-    int64_t* rowptr_arr = new int64_t[m + 1];
-
-    std::copy(vals.begin(), vals.end(), vals_arr);
-    std::copy(colidxs.begin(), colidxs.end(), colidxs_arr);
-    std::copy(rowptr.begin(), rowptr.end(), rowptr_arr);
-
-    // Create CSR matrix using expert constructor
-    CSRMatrix<T, int64_t> A(
-        m, n, actual_nnz,
-        vals_arr, rowptr_arr, colidxs_arr,
-        RandBLAS::sparse_data::IndexBase::Zero
-    );
-    // Set own_memory to true so the matrix will clean up arrays on destruction
-    A.own_memory = true;
->>>>>>> a03d3e9 (Example issue added)
 
     return A;
 }
@@ -217,13 +127,8 @@ int main(int argc, char** argv) {
     int64_t m = (argc > 1) ? std::atoll(argv[1]) : 1000;
     int64_t n = (argc > 2) ? std::atoll(argv[2]) : 100;
     int64_t d = (argc > 3) ? std::atoll(argv[3]) : 100;
-<<<<<<< HEAD
     double density = (argc > 4) ? std::atof(argv[4]) : 0.01;  // 1% - realistic for sparse matrices
     int num_trials = (argc > 5) ? std::atoi(argv[5]) : 50;
-=======
-    double density = (argc > 4) ? std::atof(argv[4]) : 0.1;
-    int num_trials = (argc > 5) ? std::atoi(argv[5]) : 5;
->>>>>>> a03d3e9 (Example issue added)
 
     std::cout << "\n=== RandBLAS Sparse-Dense Multiplication Performance Benchmark ===\n\n";
     std::cout << "Matrix dimensions:\n";
@@ -288,17 +193,10 @@ int main(int argc, char** argv) {
         std::cout << "  Trial " << (trial + 1) << ": " << duration << " μs\n";
     }
 
-<<<<<<< HEAD
     // Compute minimum time (best performance, standard for CPU benchmarks)
     std::sort(times_spmm.begin(), times_spmm.end());
     long min_spmm = times_spmm[0];
     std::cout << "  Minimum time: " << min_spmm << " μs (best of " << num_trials << " trials)\n\n";
-=======
-    // Compute median time
-    std::sort(times_spmm.begin(), times_spmm.end());
-    long median_spmm = times_spmm[num_trials / 2];
-    std::cout << "  Median time: " << median_spmm << " μs\n\n";
->>>>>>> a03d3e9 (Example issue added)
 
     // =========================================================================
     // Benchmark 2: Densify + BLAS GEMM
@@ -316,11 +214,7 @@ int main(int argc, char** argv) {
 
         // Step 1: Densification
         auto start_densify = steady_clock::now();
-<<<<<<< HEAD
         RandBLAS::sparse_data::csr::csr_to_dense(A_sp, Layout::ColMajor, A_dense.data());
-=======
-        sparse_to_dense(A_sp, Layout::ColMajor, A_dense.data());
->>>>>>> a03d3e9 (Example issue added)
         auto end_densify = steady_clock::now();
         long duration_densify = duration_cast<microseconds>(end_densify - start_densify).count();
         times_densify.push_back(duration_densify);
@@ -349,7 +243,6 @@ int main(int argc, char** argv) {
                   << "total=" << total << " μs\n";
     }
 
-<<<<<<< HEAD
     // Compute minimum times (best performance)
     std::sort(times_densify.begin(), times_densify.end());
     std::sort(times_gemm.begin(), times_gemm.end());
@@ -361,35 +254,17 @@ int main(int argc, char** argv) {
               << "densify=" << min_densify << " μs, "
               << "gemm=" << min_gemm << " μs, "
               << "total=" << min_total << " μs (best of " << num_trials << " trials)\n\n";
-=======
-    // Compute medians
-    std::sort(times_densify.begin(), times_densify.end());
-    std::sort(times_gemm.begin(), times_gemm.end());
-    long median_densify = times_densify[num_trials / 2];
-    long median_gemm = times_gemm[num_trials / 2];
-    long median_total = median_densify + median_gemm;
-
-    std::cout << "  Median times: "
-              << "densify=" << median_densify << " μs, "
-              << "gemm=" << median_gemm << " μs, "
-              << "total=" << median_total << " μs\n\n";
->>>>>>> a03d3e9 (Example issue added)
 
     // =========================================================================
     // Results summary and comparison
     // =========================================================================
 
     std::cout << "====================================================================\n";
-<<<<<<< HEAD
     std::cout << "RESULTS SUMMARY (minimum times - best of " << num_trials << " trials):\n";
-=======
-    std::cout << "RESULTS SUMMARY (median times):\n";
->>>>>>> a03d3e9 (Example issue added)
     std::cout << "====================================================================\n\n";
 
     std::cout << std::fixed << std::setprecision(1);
     std::cout << "Approach 1 (sparse-dense right_spmm):  "
-<<<<<<< HEAD
               << std::setw(8) << min_spmm << " μs\n";
     std::cout << "Approach 2 (densify + gemm):           "
               << std::setw(8) << min_total << " μs\n";
@@ -414,38 +289,6 @@ int main(int argc, char** argv) {
         std::cout << "    vs. direct sparse-dense multiplication (" << min_spmm << " μs)\n";
     } else {
         double speedup = (double)min_total / min_spmm;
-=======
-              << std::setw(8) << median_spmm << " μs\n";
-    std::cout << "Approach 2 (densify + gemm):           "
-              << std::setw(8) << median_total << " μs\n";
-    std::cout << "  - Densification overhead:            "
-              << std::setw(8) << median_densify << " μs  ("
-              << (100.0 * median_densify / median_total) << "%)\n";
-    std::cout << "  - BLAS GEMM (dense × dense):         "
-              << std::setw(8) << median_gemm << " μs  ("
-              << (100.0 * median_gemm / median_total) << "%)\n\n";
-
-    if (median_spmm > median_total) {
-        double slowdown = (double)median_spmm / median_total;
-        std::cout << "⚠️  PERFORMANCE ISSUE DETECTED:\n";
-        std::cout << "    Sparse-dense multiplication is " << slowdown << "× SLOWER\n";
-        std::cout << "    than densify+gemm approach!\n\n";
-        std::cout << "    Even accounting for densification overhead (" << median_densify
-                  << " μs),\n";
-        std::cout << "    it is faster to:\n";
-        std::cout << "      1. Convert sparse matrix to dense (" << median_densify << " μs)\n";
-        std::cout << "      2. Use optimized BLAS gemm (" << median_gemm << " μs)\n";
-        std::cout << "      Total: " << median_total << " μs\n";
-        std::cout << "    vs. direct sparse-dense multiplication (" << median_spmm << " μs)\n\n";
-
-        std::cout << "RECOMMENDED FIXES:\n";
-        std::cout << "  1. Use vectorized operations for dense matrix access\n";
-        std::cout << "  2. Leverage BLAS routines (dgemv) per sparse row\n";
-        std::cout << "  3. Use vendor sparse BLAS (MKL mkl_sparse_d_mm, cuSPARSE)\n";
-        std::cout << "  4. Implement cache-efficient blocking strategies\n";
-    } else {
-        double speedup = (double)median_total / median_spmm;
->>>>>>> a03d3e9 (Example issue added)
         std::cout << "✓  Sparse-dense multiplication is " << speedup << "× faster\n";
         std::cout << "   than densify+gemm (as expected).\n";
     }
