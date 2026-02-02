@@ -1,4 +1,5 @@
-# Commented out to allow tracking of example source files
-# sparse-data-matrices/*
-# sparse-low-rank-approx/data-matrices/*
-# sparse-low-rank-approx/fast-matrix-market/*
+# It's wasteful to store these matrices in the repo. They
+# should be pulled down from the internet as needed.
+sparse-data-matrices/*
+sparse-low-rank-approx/data-matrices/*
+sparse-low-rank-approx/fast-matrix-market/*
