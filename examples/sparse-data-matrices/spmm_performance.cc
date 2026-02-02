@@ -1,4 +1,4 @@
-// Copyright, 2024. See LICENSE for copyright holder information.
+// Copyright, 2026. See LICENSE for copyright holder information.
 //
 // ============================================================================
 // SPARSE-DENSE MATRIX MULTIPLICATION PERFORMANCE BENCHMARK
@@ -60,11 +60,11 @@
 //   env OMP_NUM_THREADS=8 ./spmm_performance 1000 100 100 0.0001 # 0.01% (extremely sparse)
 //
 // ROOT CAUSE:
-// Both right_spmm (dense×sparse) and left_spmm (sparse×dense) can dispatch to
-// CSC kernels. right_spmm transposes the CSR matrix to CSC, then dispatches to
-// apply_csc_left_jki_p11(). The bottleneck is apply_csc_to_vector_ki() which
-// uses manual element-wise loops with indirect indexing instead of optimized
-// BLAS routines. See csc_spmm_impl.hh lines 50-72.
+// right_spmm (dense×sparse) transposes the CSR matrix to CSC, then dispatches to
+// CSC left-spmm kernel apply_csc_left_jki_p11(). left_spmm with CSR only dispatches
+// to CSC kernels if the CSR's transpose is being applied. The bottleneck is in
+// apply_csc_to_vector_ki() which uses manual element-wise loops with indirect
+// indexing instead of optimized BLAS routines. See csc_spmm_impl.hh lines 50-72.
 //
 // ============================================================================
 
