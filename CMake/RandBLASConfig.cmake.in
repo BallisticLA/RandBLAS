@@ -22,4 +22,8 @@ find_dependency(Random123)
 
 # OpenMP
 set(RandBLAS_HAS_OpenMP @RandBLAS_HAS_OpenMP@)
+
+# MKL sparse BLAS
+set(RandBLAS_HAS_MKL @RandBLAS_HAS_MKL@)
+
 include(RandBLAS)

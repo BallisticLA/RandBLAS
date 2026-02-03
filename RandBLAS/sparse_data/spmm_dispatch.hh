@@ -39,6 +39,10 @@
 #include "RandBLAS/sparse_data/csc_spmm_impl.hh"
 #include "RandBLAS/sparse_data/csr_spmm_impl.hh"
 #include "RandBLAS/sparse_data/coo_spmm_impl.hh"
+#include "RandBLAS/config.h"
+#if defined(RandBLAS_HAS_MKL)
+#include "RandBLAS/sparse_data/mkl_spmm_impl.hh"
+#endif
 #include <vector>
 #include <algorithm>
 
@@ -119,8 +123,24 @@ void left_spmm(
 
     if (alpha == (T) 0)
         return;
-    
-    // compute the matrix-matrix product
+
+    // Try MKL-accelerated path if available.
+    #if defined(RandBLAS_HAS_MKL)
+    if constexpr (sizeof(typename SpMat::index_t) == sizeof(MKL_INT)) {
+        // mkl_left_spmm returns false if it can't handle this case
+        // (e.g., COO with submatrix offsets, CSC format).
+        // Beta is already applied to C above, so pass beta=1 to MKL
+        // so it adds alpha*A*B to the existing (pre-scaled) C.
+        bool handled = RandBLAS::sparse_data::mkl::mkl_left_spmm(
+            layout, Op::NoTrans, opB, d, n, m, alpha,
+            A, ro_a, co_a, B, ldb, (T)1, C, ldc
+        );
+        if (handled)
+            return;
+    }
+    #endif
+
+    // Fallback: hand-rolled sparse kernels.
     if constexpr (is_coo) {
         using RandBLAS::sparse_data::coo::apply_coo_left_via_csc;
         apply_coo_left_via_csc(alpha, layout_opB, layout_C, d, n, m, A, ro_a, co_a, B, ldb, C, ldc);
@@ -344,6 +364,57 @@ template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
 inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T *A, int64_t lda, const SpMat &B, T beta, T *C, int64_t ldc) {
     RandBLAS::sparse_data::right_spmm(layout, opA, opB, m, n, k, alpha, A, lda, B, 0, 0, beta, C, ldc);
     return;
+}
+
+// =============================================================================
+/// \fn spgemm(blas::Layout layout, blas::Op opA,
+///     int64_t m, int64_t n, int64_t k,
+///     T alpha, const SpMat1 &A, const SpMat2 &B,
+///     T beta, T *C, int64_t ldc
+/// )
+/// @verbatim embed:rst:leading-slashes
+/// Multiply two sparse matrices, producing a dense result:
+///
+/// .. math::
+///     \mat(C) = \alpha \cdot \underbrace{\op(\mtxA)}_{m \times k} \cdot \underbrace{\mtxB}_{k \times n} + \beta \cdot \underbrace{\mat(C)}_{m \times n},    \tag{$\star$}
+///
+/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(\mtxA)` either returns
+/// :math:`\mtxA` or its transpose, and both :math:`\mtxA` and :math:`\mtxB` are sparse.
+/// The result :math:`\mat(C)` is dense.
+///
+/// .. note::
+///     This function requires Intel MKL. If MKL is not available at build time,
+///     calling this function will produce a compile-time error.
+///
+/// @endverbatim
+template <SparseMatrix SpMat1, SparseMatrix SpMat2, typename T = typename SpMat1::scalar_t>
+inline void spgemm(
+    blas::Layout layout,
+    blas::Op opA,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    T alpha,
+    const SpMat1 &A,
+    const SpMat2 &B,
+    T beta,
+    T *C,
+    int64_t ldc
+) {
+#if defined(RandBLAS_HAS_MKL)
+    static_assert(sizeof(typename SpMat1::index_t) == sizeof(MKL_INT),
+        "RandBLAS::spgemm: first sparse matrix index type must match MKL_INT size.");
+    static_assert(sizeof(typename SpMat2::index_t) == sizeof(MKL_INT),
+        "RandBLAS::spgemm: second sparse matrix index type must match MKL_INT size.");
+    RandBLAS::sparse_data::mkl::mkl_spgemm_to_dense(layout, opA, m, n, alpha, A, B, beta, C, ldc);
+#else
+    (void)layout; (void)opA; (void)m; (void)n; (void)k;
+    (void)alpha; (void)A; (void)B; (void)beta; (void)C; (void)ldc;
+    static_assert(!std::is_same_v<T, T>,
+        "RandBLAS::spgemm (sparse x sparse -> dense) requires Intel MKL. "
+        "Rebuild RandBLAS with MKL support to enable this feature. "
+        "Set MKLROOT or ensure BLAS++ was built with MKL.");
+#endif
 }
 
 }

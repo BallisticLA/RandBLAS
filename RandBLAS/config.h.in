@@ -52,3 +52,15 @@
 //
 //   if you are linking to OpenMP.
 //
+
+#cmakedefine RandBLAS_HAS_MKL
+// ^ CMake determines whether or not to #define RandBLAS_HAS_MKL
+//
+//   This is set when BLAS++ was built with Intel MKL and the MKL sparse
+//   BLAS header (mkl_spblas.h) is found. When defined, RandBLAS uses
+//   MKL's Inspector-Executor sparse BLAS for accelerated sparse matrix
+//   operations (sparse x dense and sparse x sparse multiplication).
+//
+//   If you don't want to use CMake, define this only if you are linking
+//   to Intel MKL and have mkl_spblas.h available.
+//
