@@ -1,4 +1,4 @@
-// Copyright, 2024. See LICENSE for copyright holder information.
+// Copyright, 2026. See LICENSE for copyright holder information.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
