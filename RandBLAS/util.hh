@@ -183,6 +183,8 @@ void print_buff_to_stream_impl(
     std::ostream &stream, int64_t n_rows, int64_t n_cols, T *A,
     int64_t irs, int64_t ics, const std::string &label, int decimals, ArrayStyle style
 ) {
+    randblas_require(irs > 0);
+    randblas_require(ics > 0);
     std::string abs_start, mid_start, mid_end, abs_end;
     if (style == ArrayStyle::MATLAB) {
         abs_start = " = [ ... \n";
