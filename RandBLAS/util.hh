@@ -45,6 +45,7 @@
 #endif
 #include <memory>
 #include <string>
+#include <sstream>
 #include <numeric>
 #include <cstdlib>
 
@@ -52,16 +53,11 @@
 namespace RandBLAS::util {
 
 template <typename T>
-void safe_scal(int64_t n, T a, T* x, int64_t inc_x) {
+void safe_scal(int64_t n, T a, T* x) {
     if (a == 0.0) {
-        if (inc_x == 1) {
-            std::fill(x, x + n, (T)0.0);
-        } else {
-            for (int64_t i = 0; i < n; ++i)
-                x[i*inc_x] = 0.0;
-        }
+        std::fill(x, x + n, static_cast<T>(0));
     } else {
-        blas::scal(n, a, x, inc_x);
+        blas::scal(n, a, x, static_cast<int64_t>(1));
     }
 }
 
@@ -167,30 +163,25 @@ enum ArrayStyle : char {
     Python = 'P'
 };
 
-RandBLAS_OPTIMIZE_OFF
-// ^ It would be extra bad if a compiler somehow messed up the following function.
 
-// =============================================================================
-/// \fn print_buff_to_stream(
-///     std::ostream &stream, int64_t n_rows, int64_t n_cols, T *A,
-///     int64_t irs, int64_t ics, cout_able &label, int decimals, ArrayStyle style
-/// ) 
-/// Writes a string representation of \math{\mat(A)} to the provided stream.
-/// The first line of the output will be \math{\ttt{label} + " = "} followed by a style-specific 
-/// representation of the matrix (MATLAB style or NumPy/Python style).
-///
-/// The matrix \math{\mat(A)} is defined by reading from \math{\ttt{A}} with
-/// inter-row stride \math{\ttt{irs}} and inter-column stride \math{\ttt{ics}.}
-/// That means \math{\mat(A)_{ij} = \ttt{A}[i*\ttt{irs} + j*\ttt{ics}],} using
-/// zero-indexing.
-///
-/// Note: \math{\ttt{std::cout}} is a good choice of stream in most situations.
-/// We don't set a default value since it's better to be explicit in this context.
-///
-template <typename T, typename cout_able = std::string>
-void print_buff_to_stream(
+namespace detail {
+RandBLAS_OPTIMIZE_OFF
+// ^ It would be extra bad if a compiler somehow messed up the functions in
+//   this `detail` namespace.
+
+// -----------------------------------------------------------------------------
+// RandBLAS 1.0 introduced a print_buff_to_stream function where `label`
+// was templated as `typename cout_able`. This meant that passing
+// string literals to `label` resulted in separate template instantiations 
+// of `const char[<string length here>]` for different string lengths.
+//
+// Using this print_buff_to_stream_impl function lets us keep the original
+// API while ensuring the compiler generates code for std::string.
+//
+template <typename T>
+void print_buff_to_stream_impl(
     std::ostream &stream, int64_t n_rows, int64_t n_cols, T *A,
-    int64_t irs, int64_t ics, cout_able &label, int decimals = 8, ArrayStyle style = ArrayStyle::MATLAB
+    int64_t irs, int64_t ics, const std::string &label, int decimals, ArrayStyle style
 ) {
     std::string abs_start, mid_start, mid_end, abs_end;
     if (style == ArrayStyle::MATLAB) {
@@ -211,7 +202,7 @@ void print_buff_to_stream(
         stream << mid_start;
         for (j = 0; j < n_cols - 1; ++j) {
             val = A[i*irs + j*ics];
-            stream << "  " << val << ","; 
+            stream << "  " << val << ",";
         }
         // j = n_cols - 1
         val = A[i*irs + j*ics];
@@ -225,21 +216,14 @@ void print_buff_to_stream(
     stream << std::endl;
     return;
 }
-RandBLAS_OPTIMIZE_ON
 
-// =============================================================================
-/// \fn print_buff_to_stream(
-///     std::ostream &stream, blas::Layout layout, int64_t n_rows, int64_t n_cols, T *A,
-///     int64_t lda, cout_able &label, int decimals, ArrayStyle style
-/// ) 
-/// Writes a string representation of \math{\mat(A)} to the provided stream.
-/// The first line of the output will be \math{\ttt{label},} followed by a style-specific 
-/// representation of the matrix (MATLAB style or NumPy/Python style).
-///
-template <typename T, typename cout_able = std::string>
-void print_buff_to_stream(
+// -----------------------------------------------------------------------------
+// We need this overload of print_buff_to_stream_impl to hold the branching that
+// occured in the print_buff_to_stream overload with the `layout` parameter.
+template <typename T>
+void print_buff_to_stream_impl(
     std::ostream &stream, blas::Layout layout, int64_t n_rows, int64_t n_cols, T *A,
-    int64_t lda, cout_able &label, int decimals = 8, ArrayStyle style = ArrayStyle::MATLAB
+    int64_t lda, const std::string &label, int decimals, ArrayStyle style
 ) {
     int64_t irs, ics;
     if (layout == blas::Layout::ColMajor) {
@@ -249,8 +233,57 @@ void print_buff_to_stream(
         randblas_require(lda >= n_cols);
         irs = lda; ics = 1;
     }
-    print_buff_to_stream(stream, n_rows, n_cols, A, irs, ics, label, decimals, style);
+    print_buff_to_stream_impl<T>(stream, n_rows, n_cols, A, irs, ics, label, decimals, style);
     return;
+}
+
+RandBLAS_OPTIMIZE_ON
+} // namespace detail
+
+// =============================================================================
+/// \fn print_buff_to_stream(
+///     std::ostream &stream, int64_t n_rows, int64_t n_cols, T *A,
+///     int64_t irs, int64_t ics, cout_able &label, int decimals, ArrayStyle style
+/// )
+/// Writes a string representation of \math{\mat(A)} to the provided stream.
+/// The first line of the output will be \math{\ttt{label} + " = "} followed by a style-specific
+/// representation of the matrix (MATLAB style or NumPy/Python style).
+///
+/// The matrix \math{\mat(A)} is defined by reading from \math{\ttt{A}} with
+/// inter-row stride \math{\ttt{irs}} and inter-column stride \math{\ttt{ics}.}
+/// That means \math{\mat(A)_{ij} = \ttt{A}[i*\ttt{irs} + j*\ttt{ics}],} using
+/// zero-indexing.
+///
+/// Note: \math{\ttt{std::cout}} is a good choice of stream in most situations.
+/// We don't set a default value since it's better to be explicit in this context.
+///
+template <typename T, typename cout_able = std::string>
+void print_buff_to_stream(
+    std::ostream &stream, int64_t n_rows, int64_t n_cols, T *A,
+    int64_t irs, int64_t ics, cout_able &label, int decimals = 8, ArrayStyle style = ArrayStyle::MATLAB
+) {
+    std::ostringstream ss;
+    ss << label;
+    detail::print_buff_to_stream_impl<T>(stream, n_rows, n_cols, A, irs, ics, ss.str(), decimals, style);
+}
+
+// =============================================================================
+/// \fn print_buff_to_stream(
+///     std::ostream &stream, blas::Layout layout, int64_t n_rows, int64_t n_cols, T *A,
+///     int64_t lda, cout_able &label, int decimals, ArrayStyle style
+/// )
+/// Writes a string representation of \math{\mat(A)} to the provided stream.
+/// The first line of the output will be \math{\ttt{label},} followed by a style-specific
+/// representation of the matrix (MATLAB style or NumPy/Python style).
+///
+template <typename T, typename cout_able = std::string>
+void print_buff_to_stream(
+    std::ostream &stream, blas::Layout layout, int64_t n_rows, int64_t n_cols, T *A,
+    int64_t lda, cout_able &label, int decimals = 8, ArrayStyle style = ArrayStyle::MATLAB
+) {
+    std::ostringstream ss;
+    ss << label;
+    detail::print_buff_to_stream_impl<T>(stream, layout, n_rows, n_cols, A, lda, ss.str(), decimals, style);
 }
 
 // This function is here for compatibility with existing RandLAPACK code.

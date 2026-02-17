@@ -241,7 +241,7 @@ class TestSubmatGeneration : public ::testing::Test
         int64_t n_scols = 1;
         int64_t n_srows = 1;
         for (int ptr = 0; ptr + n_scols + n_cols*n_srows < n_cols*n_rows; ptr += n_rows+1) { // Loop through the diagonal of the matrix
-            RandBLAS::util::safe_scal(n_srows * n_scols, (T) 0.0, smat, 1);
+            RandBLAS::util::safe_scal(n_srows * n_scols, (T) 0.0, smat);
             RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(n_cols, smat, n_srows, n_scols, ptr, seed);
             ind = 0;
             for (int i = 0; i<n_srows; i++) { // Loop through entries of the submatrix

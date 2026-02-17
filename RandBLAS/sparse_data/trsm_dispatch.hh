@@ -200,11 +200,11 @@ void trsm(
     if (layout == blas::Layout::ColMajor) {
         randblas_require(ldb >= m);
         for (int64_t i = 0; i < n; ++i)
-            RandBLAS::util::safe_scal(m, alpha, &B[i*ldb], 1);
+            RandBLAS::util::safe_scal(m, alpha, &B[i*ldb]);
     } else {
         randblas_require(ldb >= n);
         for (int64_t i = 0; i < m; ++i)
-            RandBLAS::util::safe_scal(n, alpha, &B[i*ldb], 1);
+            RandBLAS::util::safe_scal(n, alpha, &B[i*ldb]);
     }
 
     if (alpha == static_cast<T>(0))

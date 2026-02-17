@@ -109,12 +109,12 @@ void left_spmm(
         randblas_require(ldb >= rows_B);
         randblas_require(ldc >= d);
         for (int64_t i = 0; i < n; ++i)
-            RandBLAS::util::safe_scal(d, beta, &C[i*ldc], 1);
+            RandBLAS::util::safe_scal(d, beta, &C[i*ldc]);
     } else {
         randblas_require(ldc >= n);
         randblas_require(ldb >= cols_B);
         for (int64_t i = 0; i < d; ++i)
-            RandBLAS::util::safe_scal(n, beta, &C[i*ldc], 1);
+            RandBLAS::util::safe_scal(n, beta, &C[i*ldc]);
     }
 
     if (alpha == (T) 0)
@@ -342,7 +342,7 @@ inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int
 /// @endverbatim
 template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
 inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T *A, int64_t lda, const SpMat &B, T beta, T *C, int64_t ldc) {
-    RandBLAS::sparse_data::right_spmm(layout, opA, opB, m, n, k, alpha, A, lda, B, 0, 0, B, beta, C, ldc);
+    RandBLAS::sparse_data::right_spmm(layout, opA, opB, m, n, k, alpha, A, lda, B, 0, 0, beta, C, ldc);
     return;
 }
 
