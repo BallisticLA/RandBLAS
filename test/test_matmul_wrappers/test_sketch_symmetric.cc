@@ -153,6 +153,37 @@ class TestSketchSymmetric : public ::testing::Test {
         );
         return;
     }
+
+    template <typename T>
+    static void test_error_on_asymmetric() {
+        // Build a 3x3 non-symmetric matrix (A[0,1] != A[1,0]) and verify
+        // that sketch_symmetric raises RandBLAS::Error due to the symmetry check.
+        int64_t n = 3;
+        int64_t d = 2;
+        // Column-major 3x3 matrix: symmetric except A(0,1)=5 vs A(1,0)=0.
+        //   col0  col1  col2
+        //   1.0   5.0   0.0
+        //   0.0   2.0   0.0
+        //   0.0   0.0   3.0
+        std::vector<T> A = {
+            1.0, 0.0, 0.0,
+            5.0, 2.0, 0.0,
+            0.0, 0.0, 3.0
+        };
+        DenseDist D(d, n, ScalarDist::Uniform, Axis::Short);
+        DenseSkOp<T> S(D, 42);
+        RandBLAS::fill_dense(S);
+        std::vector<T> B(d * n, 0.0);
+        try {
+            RandBLAS::sketch_symmetric(Layout::ColMajor, d, n, (T)1.0, S, 0, 0, A.data(), n, (T)0.0, B.data(), d);
+            FAIL() << "Expected RandBLAS::Error for asymmetric matrix";
+        } catch (const RandBLAS::Error& e) {
+            std::string msg = e.what();
+            EXPECT_NE(msg.find("Symmetry check failed"), std::string::npos)
+                << "Error message did not mention symmetry check: " << msg;
+        }
+        return;
+    }
 };
 
 
@@ -274,6 +305,14 @@ TEST_F(TestSketchSymmetric, left_sketch_10_to_3_opposing_layouts) {
     test_opposing_layouts(0, 1,   Axis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Left);
     test_opposing_layouts(31, 33, Axis::Short, 0.5, 3, 10, 19, -1.0, blas::Side::Left);
     test_opposing_layouts(31, 33, Axis::Long,  0.5, 3, 10, 19, -1.0, blas::Side::Left);
+    // Finally, dispatch float template instantiations for full(er) test coverage.
+    //
+    //    The codepaths we're trying to hit don't differ if right-sketching,
+    //    or if "lifting" rather than sketching, so the lines below are unique to
+    //    this fixture.
+    //
+    test_opposing_layouts( 0,  1, Axis::Short, (float)0.5, 3, 10, 10, (float)0.0, blas::Side::Left);
+    test_opposing_layouts( 0,  1, Axis::Long,  (float)0.5, 3, 10, 10, (float)0.0, blas::Side::Left);
 }
 
 TEST_F(TestSketchSymmetric, left_lift_opposing_layouts) {
@@ -344,4 +383,11 @@ TEST_F(TestSketchSymmetric, right_lift_opposing_layouts) {
     test_opposing_layouts(0, 1,   Axis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Right);
     test_opposing_layouts(31, 33, Axis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Right);
     test_opposing_layouts(31, 33, Axis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Right);
+}
+
+// MARK: validation errors
+
+TEST_F(TestSketchSymmetric, symmetry_check_fails_for_asymmetric_matrix) {
+    test_error_on_asymmetric<double>();
+    test_error_on_asymmetric<float>();
 }
