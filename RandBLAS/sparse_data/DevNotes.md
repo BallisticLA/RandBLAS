@@ -22,7 +22,7 @@ values for ``opA, opB`` and ``layout``.
 Here's what happens if ``left_spmm`` is called with a sparse matrix ``A``, a dense input matrix ``B``, and a dense output matrix ``C``.
 
  1. If needed, transposition of ``A`` is resolved by creating a lightweight object for the transpose
-    called ``At``. This object is just a tool for us to change how we intrepret the buffers that underlie ``A``.
+    called ``At``. This object is just a tool for us to change how we interpret the buffers that underlie ``A``.
       * If ``A`` is COO, then ``At`` will also be COO.
       * If ``A`` is CSR, then ``At`` will be CSC.
       * If ``A`` is CSC, then ``At`` will be CSR.
@@ -35,10 +35,10 @@ Here's what happens if ``left_spmm`` is called with a sparse matrix ``A``, a den
       * If ``B`` is un-transposed then we'll use the same layout as ``C``.
       * If ``B`` is transposed then we'll swap its declared dimensions
         (i.e., we'll swap its reported numbers of rows and columns) and 
-        and we'll tell the kernel to read it in the opposite layout as ``C``.
+        we'll tell the kernel to read it in the opposite layout as ``C``.
 
  3. We dispatch a kernel from ``coo_spmm_impl.hh``, or ``csc_spmm_impl.hh``,
-    or ``csr_spmm_impl.h``. The precise kernel depends on the type of ``A``, and the inferred layout for ``B``, and the declared layout for ``C``.
+    or ``csr_spmm_impl.hh``. The precise kernel depends on the type of ``A``, and the inferred layout for ``B``, and the declared layout for ``C``.
 
 ## Sketching dense data with sparse operators.
 
