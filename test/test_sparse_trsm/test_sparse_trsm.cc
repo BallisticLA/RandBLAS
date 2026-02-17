@@ -371,3 +371,37 @@ TEST_F(TestSptrsm, upper_csr_trans_solve_matrix_comajor) {
     test_csr_solve_matrix(Layout::ColMajor, 2, 0.5,    Op::Trans, Uplo::Upper, 3, 0x3643);
     test_csr_solve_matrix(Layout::ColMajor, 5, 0.9999, Op::Trans, Uplo::Upper, 3, 0x219B);
 }
+
+// MARK: validation errors
+
+TEST_F(TestSptrsm, ill_formed_csr_unsorted_indices) {
+    // Build a 3x3 lower triangular CSR matrix with unsorted column indices in row 1.
+    //   Row 0: (0,0)=1.0
+    //   Row 1: (1,1)=1.0, (1,0)=2.0   <-- column indices [1, 0] are not sorted
+    //   Row 2: (2,0)=3.0, (2,1)=4.0, (2,2)=1.0
+    double  vals[]     = {1,  1,  2,  3,  4,  1};
+    int64_t colidxs[]  = {0,  1,  0,  0,  1,  2};
+    int64_t rowptr[]   = {0,  1,  3,  6};
+    CSRMatrix<double, int64_t> A(3, 3, 6, vals, rowptr, colidxs);
+    std::vector<double> B(3, 1.0);
+    ASSERT_THROW(
+        RandBLAS::sparse_data::trsm(Layout::ColMajor, Op::NoTrans, 1.0, A, Uplo::Lower, Diag::NonUnit, 1, B.data(), 3),
+        RandBLAS::Error
+    );
+}
+
+TEST_F(TestSptrsm, ill_formed_csc_unsorted_indices) {
+    // Build a 3x3 upper triangular CSC matrix with unsorted row indices in column 2.
+    //   Col 0: (0,0)=1.0
+    //   Col 1: (0,1)=2.0, (1,1)=1.0
+    //   Col 2: (2,2)=1.0, (0,2)=3.0   <-- row indices [2, 0] are not sorted
+    double  vals[]     = {1,  2,  1,  1,  3};
+    int64_t rowidxs[]  = {0,  0,  1,  2,  0};
+    int64_t colptr[]   = {0,  1,  3,  5};
+    CSCMatrix<double, int64_t> A(3, 3, 5, vals, rowidxs, colptr);
+    std::vector<double> B(3, 1.0);
+    ASSERT_THROW(
+        RandBLAS::sparse_data::trsm(Layout::ColMajor, Op::NoTrans, 1.0, A, Uplo::Upper, Diag::NonUnit, 1, B.data(), 3),
+        RandBLAS::Error
+    );
+}
