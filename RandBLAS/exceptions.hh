@@ -55,6 +55,8 @@ namespace RandBLAS {
 /// @endverbatim
 ///
 class Error: public std::exception {
+private:
+    std::string msg_;
 public:
     // Constructs RandBLAS error
     Error():
@@ -63,15 +65,11 @@ public:
 
     // ---------------------------------------
     /// Constructs error with message
-    Error( std::string const &msg ):
-        std::exception(),
-        msg_( msg )
-    {}
+    Error( std::string const &msg ): Error() { msg_ = msg; }
 
     // Constructs RandBLAS error with message: "msg, in function func"
     Error( const char* msg, const char* func ):
-        std::exception(),
-        msg_( std::string(msg) + ", in function " + func )
+        Error(std::string(msg) + ", in function " + func)
     {}
 
     // ---------------------------------------------------------------
@@ -94,9 +92,6 @@ public:
     /// @endverbatim
     virtual const char* what() const noexcept override
         { return msg_.c_str(); }
-
-private:
-    std::string msg_;
 }; 
 
 } // end namespace RandBLAS
@@ -146,58 +141,25 @@ inline void throw_if( bool cond, const char* condstr, const char* func, const ch
     }
 }
 
-
-// -----------------------------------------------------------------------------
-// internal helper function; aborts if cond is true
-// uses printf-style format for error message
-// called by blas_error_if_msg macro
-inline void abort_if( bool cond, const char* func,  const char* format, ... )
-    RandBLAS_ATTR_FORMAT(3, 4);
-
-inline void abort_if( bool cond, const char* func,  const char* format, ... ) {
-    if (cond) {
-        char buf[RandBLAS_ERROR_MESSAGE_SIZE];
-        va_list va;
-        va_start( va, format );
-        vsnprintf( buf, sizeof(buf), format, va );
-
-        fprintf( stderr, "Error: %s, in function %s\n", buf, func );
-        abort();
-    }
-}
-
 #undef RandBLAS_ATTR_FORMAT
 
 }  // namespace internal
 
-// -----------------------------------------------------------------------------
-// internal macros to handle error checks
-#if defined(RandBLAS_ERROR_ASSERT)
 
-    // RandBLAS aborts on error
-    #define randblas_error_if( cond ) abort_if( cond, __func__, "%s", #cond )
-    #define randblas_error_if_msg( cond, ... ) abort_if( cond, __func__, __VA_ARGS__ )
+// RandBLAS throws errors (default)
+// internal macro to get string #cond; throws Error if cond is true
+// ex: randblas_error_if( a < b );
+#define randblas_error_if( cond ) \
+    RandBLAS::exceptions::internal::throw_if( cond, #cond, __func__ )
 
-    #define randblas_require( cond ) \
-        abort_if( !(cond), __func__, "%s", "("#cond") was required, but did not hold")
+// internal macro takes cond and printf-style format for error message.
+// throws Error if cond is true.
+// ex: randblas_error_if_msg( a < b, "a %d < b %d", a, b );
+#define randblas_error_if_msg( cond, ... ) \
+    RandBLAS::exceptions::internal::throw_if( cond, #cond, __func__, __VA_ARGS__ )
 
-#else
+#define randblas_require( cond ) \
+    RandBLAS::exceptions::internal::throw_if( !(cond), "("#cond") was required, but did not hold", __func__ )
 
-    // RandBLAS throws errors (default)
-    // internal macro to get string #cond; throws Error if cond is true
-    // ex: randblas_error_if( a < b );
-    #define randblas_error_if( cond ) \
-        RandBLAS::exceptions::internal::throw_if( cond, #cond, __func__ )
-
-    // internal macro takes cond and printf-style format for error message.
-    // throws Error if cond is true.
-    // ex: randblas_error_if_msg( a < b, "a %d < b %d", a, b );
-    #define randblas_error_if_msg( cond, ... ) \
-        RandBLAS::exceptions::internal::throw_if( cond, #cond, __func__, __VA_ARGS__ )
-
-    #define randblas_require( cond ) \
-        RandBLAS::exceptions::internal::throw_if( !(cond), "("#cond") was required, but did not hold", __func__ )
-
-#endif
 
 } // namespace RandBLAS::exceptions
