@@ -17,7 +17,7 @@ for our user guide.
    sparse sketching operators.
 
  * [BLAS++ (aka blaspp)](https://github.com/icl-utk-edu/blaspp) is our portability layer for BLAS.
-   We actually use very few functions in BLAS at time of writing (GEMM, GEMV, SCAL, COPY, and
+   We actually use very few functions in BLAS at time of writing (GEMM, SCAL, COPY, and
    AXPY) but we use its enumerations _everywhere_. Fast GEMM is important for sketching dense
    data with dense operators.
 
