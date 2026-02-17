@@ -311,6 +311,18 @@ enum class Axis : char {
     Long = 'L'
 };
 
+// ---------------------------------------------------------------------------
+/// Returns max(n_rows, n_cols) if major_axis == Axis::Long, and returns 
+/// min(n_rows, n_cols) otherwise.
+///
+inline int64_t get_dim_major(Axis major_axis, int64_t n_rows, int64_t n_cols) {
+    if (major_axis == Axis::Long) {
+        return std::max(n_rows, n_cols);
+    } else {
+        return std::min(n_rows, n_cols);
+    }
+}
+
 
 #ifdef __cpp_concepts
 // =============================================================================
