@@ -49,7 +49,8 @@ using RandBLAS::SignedInteger;
 #endif
 
 template <typename T, SignedInteger sint_t = int64_t>
-static void apply_csr_to_vector_from_left_ik(
+static void apply_csr_to_vector_ik(
+    T alpha,
     // CSR-format data
     const T *vals,
     const sint_t *rowptr,
@@ -58,17 +59,17 @@ static void apply_csr_to_vector_from_left_ik(
     const T *v,
     int64_t incv,   // stride between elements of v
     int64_t len_Av,
-    T *Av,          // Av += A * v.
+    T *Av,          // Av += alpha * A * v.
     int64_t incAv   // stride between elements of Av
 ) {
     for (int64_t i = 0; i < len_Av; ++i) {
-        T Av_i = Av[i*incAv];
+        T Av_i_diff = 0.0;
         for (int64_t ell = rowptr[i]; ell < rowptr[i+1]; ++ell) {
             int j = colidxs[ell];
             T Aij = vals[ell];
-            Av_i += Aij * v[j*incv];
+            Av_i_diff += Aij * v[j*incv];
         }
-        Av[i*incAv] = Av_i;
+        Av[i*incAv] += alpha * Av_i_diff;
     }
 }
 
@@ -88,11 +89,6 @@ static void apply_csr_left_jik_p11(
 ) {
     randblas_require(A.index_base == IndexBase::Zero);
     T *vals = A.vals;
-    if (alpha != (T) 1.0) {
-        vals = new T[A.nnz]{};
-        blas::axpy(A.nnz, alpha, A.vals, 1, vals, 1);
-    }
-
     randblas_require(d == A.n_rows);
     randblas_require(m == A.n_cols);
 
@@ -112,15 +108,12 @@ static void apply_csr_left_jik_p11(
         for (int64_t j = 0; j < n; j++) {
             B_col = &B[B_inter_col_stride * j];
             C_col = &C[C_inter_col_stride * j];
-            apply_csr_to_vector_from_left_ik(
+            apply_csr_to_vector_ik(alpha,
                    vals, A.rowptr, A.colidxs,
                    B_col, B_inter_row_stride,
                 d, C_col, C_inter_row_stride
             );
         }
-    }
-    if (alpha != (T) 1.0) {
-        delete [] vals;
     }
     return;
 }
