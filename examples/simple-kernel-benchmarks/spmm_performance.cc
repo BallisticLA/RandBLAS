@@ -4,67 +4,56 @@
 // SPARSE-DENSE MATRIX MULTIPLICATION PERFORMANCE BENCHMARK
 // ============================================================================
 //
-// PURPOSE:
-// This benchmark demonstrates a performance issue with RandBLAS sparse-dense
-// matrix multiplication. It tests both multiplication directions:
+// This benchmark answers four questions about RandBLAS SpMM performance:
 //
-// DENSE × SPARSE (C = B^T * A):
-//   1a. Direct multiplication using right_spmm
-//   1b. Densification followed by BLAS GEMM
+//   1. Which sparse format is best for left SpMM (B = S*A)?
+//      -> CSR, CSC, and COO are compared; CSR and COO (via MKL) tend to win.
 //
-// SPARSE × DENSE (C = A * B):
-//   2a. Direct multiplication using left_spmm
-//   2b. Densification followed by BLAS GEMM
+//   2. Which sparse format is best for right SpMM (B = A*S)?
+//      -> CSC wins, because the dispatch transposes CSC to CSR and uses MKL
+//         with SPARSE_OPERATION_NON_TRANSPOSE — the fastest MKL path.
 //
-// OBSERVED BEHAVIOR:
-// For certain densities and matrix sizes, densification + GEMM can be faster
-// than direct sparse-dense multiplication, even with densification overhead.
-// Note: True sparse matrices typically have densities of 1e-2 (1%), 1e-3 (0.1%),
-// or 1e-4 (0.01%). Density of 0.1 (10%) is very dense for sparse matrices.
+//   3. How much does MKL accelerate SpMM over hand-rolled kernels?
+//      -> For left SpMM, the benchmark runs CSR through both MKL and the
+//         hand-rolled kernel on the same data, giving a direct speedup ratio.
 //
-// Example results (with OMP_NUM_THREADS=8, density=0.1):
-//   - Small matrices (1000×100): 11× slower for right_spmm
-//   - Medium matrices (10000×1000): Performance gap varies with density
-//   - Large matrices (100000×5000): 1.5× slower for right_spmm
+//   4. Are left and right SpMM comparable in performance?
+//      -> The "SQUARE PROBLEMS" section uses d = m = n so both directions
+//         have identical FLOP counts and output sizes. A summary line after
+//         each config reports the best-of-each comparison.
+//
+// NOTE: This benchmarks the SpMM kernel directly (left_spmm / right_spmm),
+// not sketch_general. Any overhead from SKOP generation or sketch_general's
+// internal dispatch is not captured here. In practice SpMM dominates the
+// cost, so these results are a good proxy for sketching performance.
+//
+// NOTATION:
+//   S  - Sparse matrix (m x n)
+//   A  - Dense input matrix
+//   B  - Dense result matrix
+//
+//   Left SpMM:  B(m x d) = S(m x n) * A(n x d)
+//   Right SpMM: B(d x n) = A(d x m) * S(m x n)
+//
+//   A "densify + GEMM" reference converts S to dense and calls BLAS GEMM,
+//   reporting the densify and GEMM times separately.
 //
 // USAGE:
-//   ./spmm_performance [m] [n] [d] [density] [num_trials]
+//   ./spmm_performance                             # default sweep
+//   ./spmm_performance m n d density [num_trials]  # single config
 //
-// PARAMETERS:
-//   m          - Number of rows in sparse matrix A (default: 1000)
-//   n          - Number of columns in sparse matrix A (default: 100)
-//   d          - Number of columns in dense matrices B and C (default: 100)
-//   density    - Sparsity density (0.0 to 1.0, default: 0.01 = 1%)
-//   num_trials - Number of benchmark trials (default: 50, reports minimum time)
+//   Default sweep (no arguments):
+//     Two sections, 10 trials each:
+//       1. SQUARE (d = m = n): sizes 100..2000, fair left-vs-right comparison
+//       2. RECTANGULAR: square S with small d, tall S, wide S
 //
-// OPERATIONS BENCHMARKED:
-//   1. Dense × Sparse: C = B^T * A
-//      where A is sparse (m×n, CSR), B is dense (m×d), C is result (d×n)
-//   2. Sparse × Dense: C = A * B2
-//      where A is sparse (m×n, CSR), B2 is dense (n×d), C is result (m×d)
+//   Single config (4+ arguments):
+//     One (m, n, d, density) configuration, default 20 trials.
 //
-// EXAMPLE COMMANDS:
-//   # Small matrix, realistic sparse density (1%)
-//   env OMP_NUM_THREADS=8 ./spmm_performance 1000 100 100 0.01
-//
-//   # Medium matrix, very sparse (0.1%)
-//   env OMP_NUM_THREADS=8 ./spmm_performance 10000 1000 1000 0.001
-//
-//   # Large matrix, extremely sparse (0.01%)
-//   env OMP_NUM_THREADS=8 ./spmm_performance 100000 5000 5000 0.0001
-//
-//   # Density sweep on small matrix (find crossover point)
-//   env OMP_NUM_THREADS=8 ./spmm_performance 1000 100 100 0.1    # 10% (very dense)
-//   env OMP_NUM_THREADS=8 ./spmm_performance 1000 100 100 0.01   # 1% (sparse)
-//   env OMP_NUM_THREADS=8 ./spmm_performance 1000 100 100 0.001  # 0.1% (very sparse)
-//   env OMP_NUM_THREADS=8 ./spmm_performance 1000 100 100 0.0001 # 0.01% (extremely sparse)
-//
-// ROOT CAUSE:
-// right_spmm (dense×sparse) transposes the CSR matrix to CSC, then dispatches to
-// CSC left-spmm kernel apply_csc_left_jki_p11(). left_spmm with CSR only dispatches
-// to CSC kernels if the CSR's transpose is being applied. The bottleneck is in
-// apply_csc_to_vector_ki() which uses manual element-wise loops with indirect
-// indexing instead of optimized BLAS routines. See csc_spmm_impl.hh lines 50-72.
+// EXAMPLES:
+//   env OMP_NUM_THREADS=8 ./spmm_performance
+//   env OMP_NUM_THREADS=8 ./spmm_performance 2000 2000 200 0.01
+//   env OMP_NUM_THREADS=8 ./spmm_performance 5000 500 200 0.01 10
 //
 // ============================================================================
 
@@ -77,50 +66,49 @@
 #include <cmath>
 #include <random>
 #include <algorithm>
+#include <numeric>
+
+// Internal headers for sparse dispatch and format conversions
+#include "RandBLAS/sparse_data/conversions.hh"
+#include "RandBLAS/sparse_data/spmm_dispatch.hh"
+
+#include "RandBLAS/config.h"
 
 using namespace std::chrono;
 using blas::Layout;
 using blas::Op;
 
-// Note: RandBLAS provides csr_to_dense() in sparse_data/csr_matrix.hh
+// Generate a random sparse matrix by sampling each entry independently.
+// Separate generators for each format so the benchmark isn't biased by
+// one particular nonzero pattern (nnz will differ slightly between formats).
 
 template <typename T>
-RandBLAS::sparse_data::CSRMatrix<T, int64_t> generate_sparse_gaussian(
-    int64_t m, int64_t n, double density, RandBLAS::RNGState<>& state
+RandBLAS::sparse_data::CSRMatrix<T, int64_t> generate_sparse_csr(
+    int64_t m, int64_t n, double density, uint64_t seed
 ) {
     using RandBLAS::sparse_data::CSRMatrix;
-
-    // Estimate number of nonzeros
-    int64_t nnz_estimate = (int64_t)(m * n * density * 1.2); // 20% buffer
 
     std::vector<T> vals;
     std::vector<int64_t> colidxs;
     std::vector<int64_t> rowptr(m + 1, 0);
 
-    vals.reserve(nnz_estimate);
-    colidxs.reserve(nnz_estimate);
-
-    // Generate sparse matrix row by row
-    std::mt19937 rng(static_cast<unsigned>(state.counter[0]));
+    std::mt19937 rng(seed);
     std::bernoulli_distribution coin(density);
-    std::normal_distribution<double> gauss_dist(0.0, 1.0);
+    std::normal_distribution<double> gauss(0.0, 1.0);
 
     for (int64_t i = 0; i < m; ++i) {
         rowptr[i] = vals.size();
         for (int64_t j = 0; j < n; ++j) {
             if (coin(rng)) {
-                vals.push_back(static_cast<T>(gauss_dist(rng)));
+                vals.push_back(static_cast<T>(gauss(rng)));
                 colidxs.push_back(j);
             }
         }
     }
     rowptr[m] = vals.size();
 
-    int64_t actual_nnz = vals.size();
-
-    // Create CSR matrix using memory-owning constructor
     CSRMatrix<T, int64_t> A(m, n);
-    A.reserve(actual_nnz);
+    A.reserve(vals.size());
     std::copy(vals.begin(), vals.end(), A.vals);
     std::copy(colidxs.begin(), colidxs.end(), A.colidxs);
     std::copy(rowptr.begin(), rowptr.end(), A.rowptr);
@@ -128,326 +116,473 @@ RandBLAS::sparse_data::CSRMatrix<T, int64_t> generate_sparse_gaussian(
     return A;
 }
 
-int main(int argc, char** argv) {
+template <typename T>
+RandBLAS::sparse_data::CSCMatrix<T, int64_t> generate_sparse_csc(
+    int64_t m, int64_t n, double density, uint64_t seed
+) {
+    using RandBLAS::sparse_data::CSCMatrix;
+
+    std::vector<T> vals;
+    std::vector<int64_t> rowidxs;
+    std::vector<int64_t> colptr(n + 1, 0);
+
+    std::mt19937 rng(seed);
+    std::bernoulli_distribution coin(density);
+    std::normal_distribution<double> gauss(0.0, 1.0);
+
+    for (int64_t j = 0; j < n; ++j) {
+        colptr[j] = vals.size();
+        for (int64_t i = 0; i < m; ++i) {
+            if (coin(rng)) {
+                vals.push_back(static_cast<T>(gauss(rng)));
+                rowidxs.push_back(i);
+            }
+        }
+    }
+    colptr[n] = vals.size();
+
+    CSCMatrix<T, int64_t> A(m, n);
+    A.reserve(vals.size());
+    std::copy(vals.begin(), vals.end(), A.vals);
+    std::copy(rowidxs.begin(), rowidxs.end(), A.rowidxs);
+    std::copy(colptr.begin(), colptr.end(), A.colptr);
+
+    return A;
+}
+
+template <typename T>
+RandBLAS::sparse_data::COOMatrix<T, int64_t> generate_sparse_coo(
+    int64_t m, int64_t n, double density, uint64_t seed
+) {
+    using RandBLAS::sparse_data::COOMatrix;
+
+    std::vector<T> vals;
+    std::vector<int64_t> rows;
+    std::vector<int64_t> cols;
+
+    std::mt19937 rng(seed);
+    std::bernoulli_distribution coin(density);
+    std::normal_distribution<double> gauss(0.0, 1.0);
+
+    for (int64_t i = 0; i < m; ++i) {
+        for (int64_t j = 0; j < n; ++j) {
+            if (coin(rng)) {
+                vals.push_back(static_cast<T>(gauss(rng)));
+                rows.push_back(i);
+                cols.push_back(j);
+            }
+        }
+    }
+
+    COOMatrix<T, int64_t> A(m, n);
+    A.reserve(vals.size());
+    std::copy(vals.begin(), vals.end(), A.vals);
+    std::copy(rows.begin(), rows.end(), A.rows);
+    std::copy(cols.begin(), cols.end(), A.cols);
+
+    return A;
+}
+
+// Calls the hand-rolled CSR left-multiply kernel directly, bypassing MKL.
+// Used to answer question 3 (MKL vs hand-rolled speedup). Replicates the
+// beta-scaling and kernel selection logic from spmm_dispatch.hh.
+template <typename T, typename sint_t>
+void handrolled_left_spmm_csr(
+    blas::Layout layout, int64_t d, int64_t n, int64_t m,
+    T alpha, const RandBLAS::sparse_data::CSRMatrix<T, sint_t> &A,
+    const T *B, int64_t ldb, T beta, T *C, int64_t ldc
+) {
+    // Apply beta to C (same as dispatch)
+    if (layout == Layout::ColMajor) {
+        for (int64_t i = 0; i < n; ++i)
+            RandBLAS::util::safe_scal(d, beta, &C[i*ldc]);
+    } else {
+        for (int64_t i = 0; i < d; ++i)
+            RandBLAS::util::safe_scal(n, beta, &C[i*ldc]);
+    }
+    if (alpha == (T)0) return;
+
+    // Call the hand-rolled CSR kernel directly (same as dispatch fallback)
+    Layout layout_opB = layout;  // opB == NoTrans
+    Layout layout_C = layout;
+    if (layout_opB == Layout::RowMajor && layout_C == Layout::RowMajor) {
+        RandBLAS::sparse_data::csr::apply_csr_left_ikb_p1b_rowmajor(
+            alpha, d, n, m, A, B, ldb, C, ldc);
+    } else {
+        RandBLAS::sparse_data::csr::apply_csr_left_jik_p11(
+            alpha, layout_opB, layout_C, d, n, m, A, B, ldb, C, ldc);
+    }
+}
+
+// Run num_trials repetitions, return {min, median} times in microseconds.
+template <typename Func>
+std::pair<long, long> run_trials(Func&& func, int num_trials) {
+    std::vector<long> times;
+    times.reserve(num_trials);
+
+    for (int t = 0; t < num_trials; ++t) {
+        auto start = steady_clock::now();
+        func();
+        auto end = steady_clock::now();
+        times.push_back(duration_cast<microseconds>(end - start).count());
+    }
+
+    std::sort(times.begin(), times.end());
+    return {times[0], times[num_trials / 2]};
+}
+
+// Like run_trials, but times densify and compute phases separately.
+// Returns {min_densify, min_compute}.
+template <typename DensifyFunc, typename ComputeFunc>
+std::pair<long, long> run_split_trials(
+    DensifyFunc&& densify, ComputeFunc&& compute, int num_trials
+) {
+    std::vector<long> t_dens, t_comp;
+    t_dens.reserve(num_trials);
+    t_comp.reserve(num_trials);
+
+    for (int t = 0; t < num_trials; ++t) {
+        auto s1 = steady_clock::now();
+        densify();
+        auto s2 = steady_clock::now();
+        compute();
+        auto s3 = steady_clock::now();
+        t_dens.push_back(duration_cast<microseconds>(s2 - s1).count());
+        t_comp.push_back(duration_cast<microseconds>(s3 - s2).count());
+    }
+
+    std::sort(t_dens.begin(), t_dens.end());
+    std::sort(t_comp.begin(), t_comp.end());
+    return {t_dens[0], t_comp[0]};
+}
+
+// Output formatting helpers.
+void print_row(const std::string& name, long min_us, long med_us, long baseline) {
+    double ratio = (double)min_us / baseline;
+    std::cout << "  " << std::setw(24) << std::left << name
+              << std::setw(10) << std::right << min_us
+              << std::setw(10) << med_us
+              << std::setw(10) << std::fixed << std::setprecision(2) << ratio << "x\n";
+}
+
+void print_densify_row(const std::string& name, long total, long dens, long gemm, long baseline) {
+    double ratio = (double)total / baseline;
+    std::cout << "  " << std::setw(24) << std::left << name
+              << std::setw(10) << std::right << total
+              << std::setw(10) << total
+              << std::setw(10) << std::fixed << std::setprecision(2) << ratio << "x"
+              << "  (densify " << dens << " + GEMM " << gemm << ")\n";
+}
+
+// Run one complete benchmark configuration: generate matrices, time all
+// format x direction combinations, verify correctness, and print results.
+void run_config(int64_t m, int64_t n, int64_t d, double density, int num_trials) {
     using T = double;
+    uint64_t seed = 12345;
 
-    // Parse command-line arguments or use defaults
-    int64_t m = (argc > 1) ? std::atoll(argv[1]) : 1000;
-    int64_t n = (argc > 2) ? std::atoll(argv[2]) : 100;
-    int64_t d = (argc > 3) ? std::atoll(argv[3]) : 100;
-    double density = (argc > 4) ? std::atof(argv[4]) : 0.01;  // 1% - realistic for sparse matrices
-    int num_trials = (argc > 5) ? std::atoi(argv[5]) : 50;
+    // Header
+    std::string shape;
+    if (m == n && d == m) shape = "all square";
+    else if (m == n) shape = "square S";
+    else if (m > n) shape = "tall";
+    else shape = "wide";
 
-    std::cout << "\n=== RandBLAS Sparse-Dense Multiplication Performance Benchmark ===\n\n";
-    std::cout << "Matrix dimensions:\n";
-    std::cout << "  Sparse matrix A: " << m << " × " << n << " (density " << density << ")\n";
-    std::cout << "  Number of trials: " << num_trials << "\n\n";
-    std::cout << "Testing both directions:\n";
-    std::cout << "  1. Dense × Sparse: C1 = B^T * A  (B is " << m << "×" << d << ", result is " << d << "×" << n << ")\n";
-    std::cout << "  2. Sparse × Dense: C2 = A * B2   (B2 is " << n << "×" << d << ", result is " << m << "×" << d << ")\n\n";
+    std::cout << "--- S(" << m << "x" << n << "), d=" << d
+              << ", density=" << std::setprecision(4) << density << " (" << shape << ") ---\n";
 
-    // Initialize RNG
-    auto state = RandBLAS::RNGState<>();
+    // Generate sparse matrices
+    auto S_csr = generate_sparse_csr<T>(m, n, density, seed);
+    auto S_csc = generate_sparse_csc<T>(m, n, density, seed + 1);
+    auto S_coo = generate_sparse_coo<T>(m, n, density, seed + 2);
 
-    // Generate sparse matrix A (m × n, CSR format)
-    std::cout << "Generating sparse matrix A ... " << std::flush;
-    auto A_sp = generate_sparse_gaussian<T>(m, n, density, state);
-    std::cout << "done (actual nnz: " << A_sp.nnz
-              << ", actual density: " << (double)A_sp.nnz / (m * n) << ")\n";
+    std::cout << "  nnz: CSR=" << S_csr.nnz << " CSC=" << S_csc.nnz
+              << " COO=" << S_coo.nnz << ", trials=" << num_trials << "\n\n";
 
-    // Generate dense matrix B (m × d) for dense × sparse (B^T * A)
-    std::cout << "Generating dense matrix B (m×d) for dense×sparse ... " << std::flush;
-    std::vector<T> B(m * d);
-    RandBLAS::DenseDist D(m, d);
-    state = RandBLAS::fill_dense(D, B.data(), state);
-    std::cout << "done\n";
+    // Generate dense matrices
+    auto state = RandBLAS::RNGState<>(seed + 100);
+    std::vector<T> A_left(n * d);
+    RandBLAS::DenseDist D_left(n, d);
+    state = RandBLAS::fill_dense(D_left, A_left.data(), state);
 
-    // Generate dense matrix B2 (n × d) for sparse × dense (A * B2)
-    std::cout << "Generating dense matrix B2 (n×d) for sparse×dense ... " << std::flush;
-    std::vector<T> B2(n * d);
-    RandBLAS::DenseDist D2(n, d);
-    state = RandBLAS::fill_dense(D2, B2.data(), state);
-    std::cout << "done\n\n";
+    std::vector<T> A_right(d * m);
+    RandBLAS::DenseDist D_right(d, m);
+    state = RandBLAS::fill_dense(D_right, A_right.data(), state);
 
-    // Allocate result matrices
-    std::vector<T> C_dense_sparse_spmm(d * n, 0.0);      // For dense×sparse via right_spmm
-    std::vector<T> C_dense_sparse_densify(d * n, 0.0);   // For dense×sparse via densify+gemm
-    std::vector<T> C_sparse_dense_spmm(m * d, 0.0);      // For sparse×dense via left_spmm
-    std::vector<T> C_sparse_dense_densify(m * d, 0.0);   // For sparse×dense via densify+gemm
-    std::vector<T> A_dense(m * n);                       // For densification approach
+    // Result and workspace buffers
+    std::vector<T> B_left(m * d);
+    std::vector<T> B_right(d * n);
+    std::vector<T> S_dense(m * n);
 
-    // =========================================================================
-    // Benchmark 1: Dense × Sparse (right_spmm)
-    // =========================================================================
+    // ---- Left SpMM: B = S * A ----
+    auto [min_l_csr, med_l_csr] = run_trials([&]() {
+        std::fill(B_left.begin(), B_left.end(), 0.0);
+        RandBLAS::sparse_data::left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+            m, d, n, 1.0, S_csr, 0, 0, A_left.data(), n, 0.0, B_left.data(), m);
+    }, num_trials);
 
-    std::cout << "=== DENSE × SPARSE BENCHMARKS ===\n\n";
-    std::cout << "Approach 1a: Direct dense×sparse multiplication (right_spmm)\n";
-    std::cout << "  Operation: C = B^T * A  (B is dense m×d, A is sparse m×n)\n";
-
-    std::vector<long> times_dense_sparse_spmm;
-    for (int trial = 0; trial < num_trials; ++trial) {
-        std::fill(C_dense_sparse_spmm.begin(), C_dense_sparse_spmm.end(), 0.0);
-
-        auto start = steady_clock::now();
-
-        // C = B^T * A  where B is m×d, A is m×n (sparse)
-        // Result C is d×n
-        RandBLAS::sparse_data::right_spmm(
-            Layout::ColMajor,  // Layout of B and C
-            Op::Trans,         // op(B) = B^T
-            Op::NoTrans,       // op(A) = A
-            d, n, m,           // C is d×n, op(B) is d×m, op(A) is m×n
-            1.0,               // alpha
-            B.data(), m,       // B is m×d stored col-major
-            A_sp, 0, 0,        // Sparse matrix A
-            0.0,               // beta
-            C_dense_sparse_spmm.data(), d  // C is d×n stored col-major
-        );
-
-        auto end = steady_clock::now();
-        long duration = duration_cast<microseconds>(end - start).count();
-        times_dense_sparse_spmm.push_back(duration);
-
-        std::cout << "  Trial " << (trial + 1) << ": " << duration << " μs\n";
+    // Hand-rolled CSR: same data as above, but bypasses MKL (question 3).
+    long min_l_csr_hr = 0, med_l_csr_hr = 0;
+    #if defined(RandBLAS_HAS_MKL)
+    {
+        auto [mn, md] = run_trials([&]() {
+            std::fill(B_left.begin(), B_left.end(), 0.0);
+            handrolled_left_spmm_csr(Layout::ColMajor, m, d, n, 1.0,
+                S_csr, A_left.data(), n, 0.0, B_left.data(), m);
+        }, num_trials);
+        min_l_csr_hr = mn;
+        med_l_csr_hr = md;
     }
+    #endif
 
-    // Compute minimum time (best performance, standard for CPU benchmarks)
-    std::sort(times_dense_sparse_spmm.begin(), times_dense_sparse_spmm.end());
-    long min_dense_sparse_spmm = times_dense_sparse_spmm[0];
-    std::cout << "  Minimum time: " << min_dense_sparse_spmm << " μs (best of " << num_trials << " trials)\n\n";
+    auto [min_l_csc, med_l_csc] = run_trials([&]() {
+        std::fill(B_left.begin(), B_left.end(), 0.0);
+        RandBLAS::sparse_data::left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+            m, d, n, 1.0, S_csc, 0, 0, A_left.data(), n, 0.0, B_left.data(), m);
+    }, num_trials);
 
-    // =========================================================================
-    // Benchmark 2: Dense × Sparse via Densify + BLAS GEMM
-    // =========================================================================
+    auto [min_l_coo, med_l_coo] = run_trials([&]() {
+        std::fill(B_left.begin(), B_left.end(), 0.0);
+        RandBLAS::sparse_data::left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+            m, d, n, 1.0, S_coo, 0, 0, A_left.data(), n, 0.0, B_left.data(), m);
+    }, num_trials);
 
-    std::cout << "Approach 1b: Densify sparse matrix + BLAS GEMM\n";
-    std::cout << "  Step 1: Convert sparse A to dense\n";
-    std::cout << "  Step 2: C = B^T * A_dense  (using BLAS gemm)\n";
+    // ---- Right SpMM: B = A * S ----
+    auto [min_r_csr, med_r_csr] = run_trials([&]() {
+        std::fill(B_right.begin(), B_right.end(), 0.0);
+        RandBLAS::sparse_data::right_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+            d, n, m, 1.0, A_right.data(), d, S_csr, 0, 0, 0.0, B_right.data(), d);
+    }, num_trials);
 
-    std::vector<long> times_dense_sparse_densify;
-    std::vector<long> times_dense_sparse_gemm;
+    auto [min_r_csc, med_r_csc] = run_trials([&]() {
+        std::fill(B_right.begin(), B_right.end(), 0.0);
+        RandBLAS::sparse_data::right_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+            d, n, m, 1.0, A_right.data(), d, S_csc, 0, 0, 0.0, B_right.data(), d);
+    }, num_trials);
 
-    for (int trial = 0; trial < num_trials; ++trial) {
-        std::fill(C_dense_sparse_densify.begin(), C_dense_sparse_densify.end(), 0.0);
+    auto [min_r_coo, med_r_coo] = run_trials([&]() {
+        std::fill(B_right.begin(), B_right.end(), 0.0);
+        RandBLAS::sparse_data::right_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+            d, n, m, 1.0, A_right.data(), d, S_coo, 0, 0, 0.0, B_right.data(), d);
+    }, num_trials);
 
-        // Step 1: Densification
-        auto start_densify = steady_clock::now();
-        RandBLAS::sparse_data::csr::csr_to_dense(A_sp, Layout::ColMajor, A_dense.data());
-        auto end_densify = steady_clock::now();
-        long duration_densify = duration_cast<microseconds>(end_densify - start_densify).count();
-        times_dense_sparse_densify.push_back(duration_densify);
+    // ---- Reference: densify + GEMM ----
+    auto [min_dens, min_gemm_left] = run_split_trials(
+        [&]() { RandBLAS::sparse_data::csr::csr_to_dense(S_csr, Layout::ColMajor, S_dense.data()); },
+        [&]() {
+            std::fill(B_left.begin(), B_left.end(), 0.0);
+            blas::gemm(Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+                       m, d, n, 1.0, S_dense.data(), m, A_left.data(), n, 0.0, B_left.data(), m);
+        }, num_trials);
+    long min_ref_left = min_dens + min_gemm_left;
 
-        // Step 2: Dense GEMM
-        auto start_gemm = steady_clock::now();
-        blas::gemm(
-            Layout::ColMajor,
-            Op::Trans,         // op(B) = B^T
-            Op::NoTrans,       // op(A) = A
-            d, n, m,           // C is d×n, B^T is d×m, A is m×n
-            1.0,               // alpha
-            B.data(), m,       // B is m×d
-            A_dense.data(), m, // A_dense is m×n
-            0.0,               // beta
-            C_dense_sparse_densify.data(), d  // C is d×n
-        );
-        auto end_gemm = steady_clock::now();
-        long duration_gemm = duration_cast<microseconds>(end_gemm - start_gemm).count();
-        times_dense_sparse_gemm.push_back(duration_gemm);
+    auto [min_dens2, min_gemm_right] = run_split_trials(
+        [&]() { RandBLAS::sparse_data::csr::csr_to_dense(S_csr, Layout::ColMajor, S_dense.data()); },
+        [&]() {
+            std::fill(B_right.begin(), B_right.end(), 0.0);
+            blas::gemm(Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+                       d, n, m, 1.0, A_right.data(), d, S_dense.data(), m, 0.0, B_right.data(), d);
+        }, num_trials);
+    long min_ref_right = min_dens + min_gemm_right;
 
-        long total = duration_densify + duration_gemm;
-        std::cout << "  Trial " << (trial + 1) << ": "
-                  << "densify=" << duration_densify << " μs, "
-                  << "gemm=" << duration_gemm << " μs, "
-                  << "total=" << total << " μs\n";
+    // ---- Correctness: compare each SpMM path against densify + GEMM ----
+    bool all_pass = true;
+    int num_checks = 0;
+
+    auto check = [&](const std::string& label, auto& sparse, auto& dense_in, auto& result,
+                     int64_t r, int64_t c, int64_t k, bool is_left) {
+        // Densify this sparse matrix and compute reference via GEMM
+        std::vector<T> S_dens(m * n);
+        if constexpr (std::is_same_v<std::decay_t<decltype(sparse)>,
+                      RandBLAS::sparse_data::CSRMatrix<T, int64_t>>) {
+            RandBLAS::sparse_data::csr::csr_to_dense(sparse, Layout::ColMajor, S_dens.data());
+        } else if constexpr (std::is_same_v<std::decay_t<decltype(sparse)>,
+                             RandBLAS::sparse_data::CSCMatrix<T, int64_t>>) {
+            RandBLAS::sparse_data::csc::csc_to_dense(sparse, Layout::ColMajor, S_dens.data());
+        } else {
+            RandBLAS::sparse_data::coo::coo_to_dense(sparse, Layout::ColMajor, S_dens.data());
+        }
+
+        std::vector<T> ref(r * c, 0.0);
+        if (is_left) {
+            blas::gemm(Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+                       r, c, k, 1.0, S_dens.data(), m, dense_in.data(), n, 0.0, ref.data(), m);
+        } else {
+            blas::gemm(Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+                       r, c, k, 1.0, dense_in.data(), d, S_dens.data(), m, 0.0, ref.data(), d);
+        }
+
+        // Compute via SpMM and compare
+        std::fill(result.begin(), result.end(), 0.0);
+        if (is_left) {
+            RandBLAS::sparse_data::left_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+                r, c, k, 1.0, sparse, 0, 0, dense_in.data(), n, 0.0, result.data(), m);
+        } else {
+            RandBLAS::sparse_data::right_spmm(Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+                r, c, k, 1.0, dense_in.data(), d, sparse, 0, 0, 0.0, result.data(), d);
+        }
+
+        double maxdiff = 0;
+        for (int64_t i = 0; i < r * c; ++i)
+            maxdiff = std::max(maxdiff, std::abs(result[i] - ref[i]));
+        num_checks++;
+        if (maxdiff > 1e-10) {
+            std::cout << "  FAIL: " << label << " max|diff|=" << std::scientific << maxdiff << "\n";
+            all_pass = false;
+        }
+    };
+
+    check("left+CSR",  S_csr, A_left,  B_left,  m, d, n, true);
+    check("left+CSC",  S_csc, A_left,  B_left,  m, d, n, true);
+    check("left+COO",  S_coo, A_left,  B_left,  m, d, n, true);
+    check("right+CSR", S_csr, A_right, B_right, d, n, m, false);
+    check("right+CSC", S_csc, A_right, B_right, d, n, m, false);
+    check("right+COO", S_coo, A_right, B_right, d, n, m, false);
+
+    // Also verify hand-rolled CSR correctness
+    #if defined(RandBLAS_HAS_MKL)
+    {
+        std::vector<T> S_dens(m * n);
+        RandBLAS::sparse_data::csr::csr_to_dense(S_csr, Layout::ColMajor, S_dens.data());
+        std::vector<T> ref(m * d, 0.0);
+        blas::gemm(Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+                   m, d, n, 1.0, S_dens.data(), m, A_left.data(), n, 0.0, ref.data(), m);
+
+        std::fill(B_left.begin(), B_left.end(), 0.0);
+        handrolled_left_spmm_csr(Layout::ColMajor, m, d, n, 1.0,
+            S_csr, A_left.data(), n, 0.0, B_left.data(), m);
+
+        double maxdiff = 0;
+        for (int64_t i = 0; i < m * d; ++i)
+            maxdiff = std::max(maxdiff, std::abs(B_left[i] - ref[i]));
+        num_checks++;
+        if (maxdiff > 1e-10) {
+            std::cout << "  FAIL: left+CSR(hand-rolled) max|diff|=" << std::scientific << maxdiff << "\n";
+            all_pass = false;
+        }
     }
+    #endif
 
-    // Compute minimum times (best performance)
-    std::sort(times_dense_sparse_densify.begin(), times_dense_sparse_densify.end());
-    std::sort(times_dense_sparse_gemm.begin(), times_dense_sparse_gemm.end());
-    long min_dense_sparse_densify = times_dense_sparse_densify[0];
-    long min_dense_sparse_gemm = times_dense_sparse_gemm[0];
-    long min_dense_sparse_total = min_dense_sparse_densify + min_dense_sparse_gemm;
+    if (all_pass)
+        std::cout << "  Correctness: all " << num_checks << " checks PASS\n";
+    std::cout << "\n";
 
-    std::cout << "  Minimum times: "
-              << "densify=" << min_dense_sparse_densify << " μs, "
-              << "gemm=" << min_dense_sparse_gemm << " μs, "
-              << "total=" << min_dense_sparse_total << " μs (best of " << num_trials << " trials)\n\n";
+    // ---- Results tables ----
+    std::cout << std::fixed << std::setprecision(2);
 
-    // =========================================================================
-    // Benchmark 3: Sparse × Dense (left_spmm)
-    // =========================================================================
+    // Left SpMM table
+    #if defined(RandBLAS_HAS_MKL)
+    long bl = std::min({min_l_csr, min_l_csr_hr, min_l_csc, min_l_coo});
+    #else
+    long bl = std::min({min_l_csr, min_l_csc, min_l_coo});
+    #endif
 
-    std::cout << "=== SPARSE × DENSE BENCHMARKS ===\n\n";
-    std::cout << "Approach 2a: Direct sparse×dense multiplication (left_spmm)\n";
-    std::cout << "  Operation: C = A * B2  (A is sparse m×n, B2 is dense n×d)\n";
+    std::cout << "  LEFT SPMM: B(" << m << "x" << d << ") = S * A\n";
+    std::cout << "  " << std::setw(24) << std::left << "Kernel"
+              << std::setw(10) << std::right << "Min (us)"
+              << std::setw(10) << "Med (us)"
+              << std::setw(11) << "vs best" << "\n";
+    std::cout << "  " << std::string(55, '-') << "\n";
 
-    std::vector<long> times_sparse_dense_spmm;
-    for (int trial = 0; trial < num_trials; ++trial) {
-        std::fill(C_sparse_dense_spmm.begin(), C_sparse_dense_spmm.end(), 0.0);
+    #if defined(RandBLAS_HAS_MKL)
+    print_row("CSR (MKL)",          min_l_csr,    med_l_csr,    bl);
+    print_row("CSR (hand-rolled)",  min_l_csr_hr, med_l_csr_hr, bl);
+    print_row("CSC (hand-rolled)",  min_l_csc,    med_l_csc,    bl);
+    print_row("COO (MKL)",          min_l_coo,    med_l_coo,    bl);
+    #else
+    print_row("CSR (hand-rolled)",  min_l_csr, med_l_csr, bl);
+    print_row("CSC (hand-rolled)",  min_l_csc, med_l_csc, bl);
+    print_row("COO (hand-rolled)",  min_l_coo, med_l_coo, bl);
+    #endif
+    print_densify_row("densify+GEMM", min_ref_left, min_dens, min_gemm_left, bl);
+    std::cout << "\n";
 
-        auto start = steady_clock::now();
+    // Right SpMM table
+    long br = std::min({min_r_csr, min_r_csc, min_r_coo});
 
-        // C = A * B2  where A is m×n (sparse), B2 is n×d
-        // Result C is m×d
-        RandBLAS::sparse_data::left_spmm(
-            Layout::ColMajor,  // Layout of B2 and C
-            Op::NoTrans,       // op(A) = A
-            Op::NoTrans,       // op(B2) = B2
-            m, d, n,           // C is m×d, op(A) is m×n, op(B2) is n×d
-            1.0,               // alpha
-            A_sp, 0, 0,        // Sparse matrix A
-            B2.data(), n,      // B2 is n×d stored col-major
-            0.0,               // beta
-            C_sparse_dense_spmm.data(), m  // C is m×d stored col-major
-        );
+    std::cout << "  RIGHT SPMM: B(" << d << "x" << n << ") = A * S\n";
+    std::cout << "  " << std::setw(24) << std::left << "Kernel"
+              << std::setw(10) << std::right << "Min (us)"
+              << std::setw(10) << "Med (us)"
+              << std::setw(11) << "vs best" << "\n";
+    std::cout << "  " << std::string(55, '-') << "\n";
 
-        auto end = steady_clock::now();
-        long duration = duration_cast<microseconds>(end - start).count();
-        times_sparse_dense_spmm.push_back(duration);
+    #if defined(RandBLAS_HAS_MKL)
+    print_row("CSR (MKL)",          min_r_csr, med_r_csr, br);
+    print_row("CSC (MKL via CSR)",  min_r_csc, med_r_csc, br);
+    print_row("COO (MKL)",          min_r_coo, med_r_coo, br);
+    #else
+    print_row("CSR (hand-rolled)",  min_r_csr, med_r_csr, br);
+    print_row("CSC (hand-rolled)",  min_r_csc, med_r_csc, br);
+    print_row("COO (hand-rolled)",  min_r_coo, med_r_coo, br);
+    #endif
+    print_densify_row("densify+GEMM", min_ref_right, min_dens, min_gemm_right, br);
+    std::cout << "\n";
 
-        std::cout << "  Trial " << (trial + 1) << ": " << duration << " μs\n";
-    }
+    // Summary: best left vs best right
+    std::cout << "  SUMMARY: best left " << bl << " us  |  best right " << br << " us  |  ";
+    if (bl <= br)
+        std::cout << "left " << std::fixed << std::setprecision(2) << (double)br / bl << "x faster\n";
+    else
+        std::cout << "right " << std::fixed << std::setprecision(2) << (double)bl / br << "x faster\n";
+    std::cout << "\n";
+}
 
-    // Compute minimum time
-    std::sort(times_sparse_dense_spmm.begin(), times_sparse_dense_spmm.end());
-    long min_sparse_dense_spmm = times_sparse_dense_spmm[0];
-    std::cout << "  Minimum time: " << min_sparse_dense_spmm << " μs (best of " << num_trials << " trials)\n\n";
+int main(int argc, char** argv) {
+    std::cout << "\n";
+    std::cout << "============================================================================\n";
+    std::cout << "SPMM PERFORMANCE BENCHMARK\n";
+    std::cout << "============================================================================\n";
+#if defined(RandBLAS_HAS_MKL)
+    std::cout << "MKL support: ENABLED\n";
+#else
+    std::cout << "MKL support: DISABLED\n";
+#endif
+    std::cout << "\n";
+    std::cout << "  S is m-by-n (sparse), A and B are dense.\n";
+    std::cout << "  Left SpMM:  B(m x d) = S(m x n) * A(n x d)\n";
+    std::cout << "  Right SpMM: B(d x n) = A(d x m) * S(m x n)\n\n";
 
-    // =========================================================================
-    // Benchmark 4: Sparse × Dense via Densify + BLAS GEMM
-    // =========================================================================
-
-    std::cout << "Approach 2b: Densify sparse matrix + BLAS GEMM\n";
-    std::cout << "  Step 1: Convert sparse A to dense (reuse from earlier)\n";
-    std::cout << "  Step 2: C = A_dense * B2  (using BLAS gemm)\n";
-
-    std::vector<long> times_sparse_dense_gemm;
-
-    for (int trial = 0; trial < num_trials; ++trial) {
-        std::fill(C_sparse_dense_densify.begin(), C_sparse_dense_densify.end(), 0.0);
-
-        // Note: We already timed densification in the dense×sparse benchmark
-        // For this comparison, we use the same densified matrix
-        // In practice, densification cost is the same regardless of multiplication direction
-
-        // Dense GEMM: C = A_dense * B2
-        auto start_gemm = steady_clock::now();
-        blas::gemm(
-            Layout::ColMajor,
-            Op::NoTrans,       // op(A) = A
-            Op::NoTrans,       // op(B2) = B2
-            m, d, n,           // C is m×d, A is m×n, B2 is n×d
-            1.0,               // alpha
-            A_dense.data(), m, // A_dense is m×n
-            B2.data(), n,      // B2 is n×d
-            0.0,               // beta
-            C_sparse_dense_densify.data(), m  // C is m×d
-        );
-        auto end_gemm = steady_clock::now();
-        long duration_gemm = duration_cast<microseconds>(end_gemm - start_gemm).count();
-        times_sparse_dense_gemm.push_back(duration_gemm);
-
-        long total = min_dense_sparse_densify + duration_gemm;  // Use minimum densify time from earlier
-        std::cout << "  Trial " << (trial + 1) << ": "
-                  << "densify=" << min_dense_sparse_densify << " μs (from earlier), "
-                  << "gemm=" << duration_gemm << " μs, "
-                  << "total=" << total << " μs\n";
-    }
-
-    // Compute minimum times
-    std::sort(times_sparse_dense_gemm.begin(), times_sparse_dense_gemm.end());
-    long min_sparse_dense_gemm = times_sparse_dense_gemm[0];
-    long min_sparse_dense_total = min_dense_sparse_densify + min_sparse_dense_gemm;
-
-    std::cout << "  Minimum times: "
-              << "densify=" << min_dense_sparse_densify << " μs (from earlier), "
-              << "gemm=" << min_sparse_dense_gemm << " μs, "
-              << "total=" << min_sparse_dense_total << " μs (best of " << num_trials << " trials)\n\n";
-
-    // =========================================================================
-    // Results summary and comparison
-    // =========================================================================
-
-    std::cout << "====================================================================\n";
-    std::cout << "RESULTS SUMMARY (minimum times - best of " << num_trials << " trials):\n";
-    std::cout << "====================================================================\n\n";
-
-    std::cout << std::fixed << std::setprecision(1);
-
-    std::cout << "DENSE × SPARSE (C = B^T * A):\n";
-    std::cout << "  Approach 1a (right_spmm):         " << std::setw(8) << min_dense_sparse_spmm << " μs\n";
-    std::cout << "  Approach 1b (densify + gemm):     " << std::setw(8) << min_dense_sparse_total << " μs\n";
-    std::cout << "    - Densification:                " << std::setw(8) << min_dense_sparse_densify << " μs  ("
-              << (100.0 * min_dense_sparse_densify / min_dense_sparse_total) << "%)\n";
-    std::cout << "    - BLAS GEMM:                    " << std::setw(8) << min_dense_sparse_gemm << " μs  ("
-              << (100.0 * min_dense_sparse_gemm / min_dense_sparse_total) << "%)\n\n";
-
-    std::cout << "SPARSE × DENSE (C = A * B2):\n";
-    std::cout << "  Approach 2a (left_spmm):          " << std::setw(8) << min_sparse_dense_spmm << " μs\n";
-    std::cout << "  Approach 2b (densify + gemm):     " << std::setw(8) << min_sparse_dense_total << " μs\n";
-    std::cout << "    - Densification:                " << std::setw(8) << min_dense_sparse_densify << " μs  ("
-              << (100.0 * min_dense_sparse_densify / min_sparse_dense_total) << "%)\n";
-    std::cout << "    - BLAS GEMM:                    " << std::setw(8) << min_sparse_dense_gemm << " μs  ("
-              << (100.0 * min_sparse_dense_gemm / min_sparse_dense_total) << "%)\n\n";
-
-    std::cout << "====================================================================\n";
-    std::cout << "PERFORMANCE ANALYSIS:\n";
-    std::cout << "====================================================================\n\n";
-
-    // Analyze dense × sparse
-    if (min_dense_sparse_spmm > min_dense_sparse_total) {
-        double slowdown = (double)min_dense_sparse_spmm / min_dense_sparse_total;
-        std::cout << "⚠️  DENSE × SPARSE PERFORMANCE ISSUE:\n";
-        std::cout << "    right_spmm is " << slowdown << "× SLOWER than densify+gemm\n";
-        std::cout << "    (" << min_dense_sparse_spmm << " μs vs " << min_dense_sparse_total << " μs)\n\n";
+    if (argc >= 5) {
+        // Single config mode
+        int64_t m = std::atoll(argv[1]);
+        int64_t n = std::atoll(argv[2]);
+        int64_t d = std::atoll(argv[3]);
+        double density = std::atof(argv[4]);
+        int num_trials = (argc > 5) ? std::atoi(argv[5]) : 20;
+        run_config(m, n, d, density, num_trials);
     } else {
-        double speedup = (double)min_dense_sparse_total / min_dense_sparse_spmm;
-        std::cout << "✓  Dense × sparse: right_spmm is " << speedup << "× faster than densify+gemm\n\n";
-    }
+        // Default sweep
+        struct Config { int64_t m, n, d; double density; };
+        int num_trials = 10;
 
-    // Analyze sparse × dense
-    if (min_sparse_dense_spmm > min_sparse_dense_total) {
-        double slowdown = (double)min_sparse_dense_spmm / min_sparse_dense_total;
-        std::cout << "⚠️  SPARSE × DENSE PERFORMANCE ISSUE:\n";
-        std::cout << "    left_spmm is " << slowdown << "× SLOWER than densify+gemm\n";
-        std::cout << "    (" << min_sparse_dense_spmm << " μs vs " << min_sparse_dense_total << " μs)\n\n";
-    } else {
-        double speedup = (double)min_sparse_dense_total / min_sparse_dense_spmm;
-        std::cout << "✓  Sparse × dense: left_spmm is " << speedup << "× faster than densify+gemm\n\n";
-    }
+        // Section 1: Square problems (d = m = n)
+        std::vector<Config> square_configs = {
+            {  100,   100,   100, 0.01},
+            {  200,   200,   200, 0.01},
+            {  500,   500,   500, 0.01},
+            { 1000,  1000,  1000, 0.01},
+            { 2000,  2000,  2000, 0.01},
+        };
 
-    std::cout << "====================================================================\n\n";
+        std::cout << "=== SQUARE PROBLEMS (d = m = n) ===\n";
+        std::cout << num_trials << " trials per config\n\n";
+        for (auto& c : square_configs) {
+            run_config(c.m, c.n, c.d, c.density, num_trials);
+        }
 
-    // Verify correctness
-    std::cout << "CORRECTNESS CHECKS:\n";
-    std::cout << "====================================================================\n\n";
+        // Section 2: Rectangular problems
+        std::vector<Config> rect_configs = {
+            { 2000,  2000,   200, 0.01},
+            { 5000,  5000,   500, 0.001},
+            { 5000,   500,   500, 0.01},
+            {  500,  5000,   500, 0.01},
+        };
 
-    // Check dense × sparse results match
-    double max_diff_dense_sparse = 0.0;
-    for (size_t i = 0; i < C_dense_sparse_spmm.size(); ++i) {
-        double diff = std::abs(C_dense_sparse_spmm[i] - C_dense_sparse_densify[i]);
-        max_diff_dense_sparse = std::max(max_diff_dense_sparse, diff);
-    }
-
-    std::cout << "Dense × Sparse: max|right_spmm - densify+gemm| = " << max_diff_dense_sparse << "\n";
-    if (max_diff_dense_sparse < 1e-10) {
-        std::cout << "✓  Results match (both approaches produce the same output)\n\n";
-    } else {
-        std::cout << "⚠️  Results differ! Check implementation.\n\n";
-    }
-
-    // Check sparse × dense results match
-    double max_diff_sparse_dense = 0.0;
-    for (size_t i = 0; i < C_sparse_dense_spmm.size(); ++i) {
-        double diff = std::abs(C_sparse_dense_spmm[i] - C_sparse_dense_densify[i]);
-        max_diff_sparse_dense = std::max(max_diff_sparse_dense, diff);
-    }
-
-    std::cout << "Sparse × Dense: max|left_spmm - densify+gemm| = " << max_diff_sparse_dense << "\n";
-    if (max_diff_sparse_dense < 1e-10) {
-        std::cout << "✓  Results match (both approaches produce the same output)\n\n";
-    } else {
-        std::cout << "⚠️  Results differ! Check implementation.\n\n";
+        std::cout << "=== RECTANGULAR PROBLEMS ===\n";
+        std::cout << num_trials << " trials per config\n\n";
+        for (auto& c : rect_configs) {
+            run_config(c.m, c.n, c.d, c.density, num_trials);
+        }
     }
 
     return 0;

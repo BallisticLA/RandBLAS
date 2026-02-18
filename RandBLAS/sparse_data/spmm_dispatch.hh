@@ -71,9 +71,22 @@ void left_spmm(
     using blas::Op;
     // handle applying a transposed sparse matrix.
     if (opA == Op::Trans) {
+        // Try MKL first: it supports SPARSE_OPERATION_TRANSPOSE on CSR natively.
+        // Without this, the transpose trick below converts CSR→CSC, which MKL
+        // can't handle, causing unnecessary fallback to slow hand-rolled kernels.
+        #if defined(RandBLAS_HAS_MKL)
+        if constexpr (sizeof(typename SpMat::index_t) == sizeof(MKL_INT)) {
+            bool handled = RandBLAS::sparse_data::mkl::mkl_left_spmm(
+                layout, opA, opB, d, n, m, alpha,
+                A, ro_a, co_a, B, ldb, beta, C, ldc
+            );
+            if (handled)
+                return;
+        }
+        #endif
         auto At = A.transpose();
         left_spmm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
-        return; 
+        return;
     }
     // Below this point, we can assume A is not transposed.
     randblas_require( A.index_base == IndexBase::Zero );

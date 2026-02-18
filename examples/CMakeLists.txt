@@ -103,13 +103,5 @@ target_link_libraries(
     spmm_performance PUBLIC RandBLAS blaspp lapackpp
 )
 
-add_executable(
-    spmm_mkl_comparison simple-kernel-benchmarks/spmm_mkl_comparison.cc
-)
-target_include_directories(
-    spmm_mkl_comparison PUBLIC ${Random123_DIR}
-)
-target_link_libraries(
-    spmm_mkl_comparison PUBLIC RandBLAS blaspp lapackpp
-)
+
 
