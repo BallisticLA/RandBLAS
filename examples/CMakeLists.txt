@@ -94,7 +94,7 @@ target_link_libraries(
 )
 
 add_executable(
-    spmm_performance sparse-data-matrices/spmm_performance.cc
+    spmm_performance simple-kernel-benchmarks/spmm_performance.cc
 )
 target_include_directories(
     spmm_performance PUBLIC ${Random123_DIR}
@@ -102,4 +102,6 @@ target_include_directories(
 target_link_libraries(
     spmm_performance PUBLIC RandBLAS blaspp lapackpp
 )
+
+
 
