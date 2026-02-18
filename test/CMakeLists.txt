@@ -42,7 +42,7 @@ if (GTest_FOUND)
         test_matmul_cores/test_spmm/test_spmm_csc.cc
         test_matmul_cores/test_spmm/test_spmm_csr.cc
         test_matmul_cores/test_spmm/test_spmm_coo.cc
-        test_matmul_cores/test_spmm/test_spgemm.cc
+        test_matmul_cores/test_spgemm/test_spgemm.cc
         test_sparse_trsm/test_sparse_trsm.cc
 
         test_matmul_wrappers/test_sketch_sparse.cc
