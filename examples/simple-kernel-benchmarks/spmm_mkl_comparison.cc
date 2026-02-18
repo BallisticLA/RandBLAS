@@ -58,9 +58,7 @@
 #include <algorithm>
 #include <numeric>
 
-// Include internal headers for direct kernel access
-#include "RandBLAS/sparse_data/csr_spmm_impl.hh"
-#include "RandBLAS/sparse_data/csc_spmm_impl.hh"
+// Internal headers for sparse dispatch and format conversions
 #include "RandBLAS/sparse_data/conversions.hh"
 #include "RandBLAS/sparse_data/spmm_dispatch.hh"
 

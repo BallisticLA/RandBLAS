@@ -94,7 +94,7 @@ target_link_libraries(
 )
 
 add_executable(
-    spmm_performance sparse-data-matrices/spmm_performance.cc
+    spmm_performance simple-kernel-benchmarks/spmm_performance.cc
 )
 target_include_directories(
     spmm_performance PUBLIC ${Random123_DIR}
@@ -104,7 +104,7 @@ target_link_libraries(
 )
 
 add_executable(
-    spmm_mkl_comparison sparse-data-matrices/spmm_mkl_comparison.cc
+    spmm_mkl_comparison simple-kernel-benchmarks/spmm_mkl_comparison.cc
 )
 target_include_directories(
     spmm_mkl_comparison PUBLIC ${Random123_DIR}
