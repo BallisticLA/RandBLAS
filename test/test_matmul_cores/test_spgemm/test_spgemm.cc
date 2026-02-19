@@ -115,7 +115,7 @@ class TestSpGEMM : public ::testing::Test {
             beta, C_ref.data(), ldc);
 
         // Actual: RandBLAS::spgemm
-        RandBLAS::spgemm(layout, opA, m, n, k,
+        RandBLAS::spgemm(layout, opA,
             alpha, A, B, beta, C_actual.data(), ldc);
 
         // Compare with componentwise error bounds.

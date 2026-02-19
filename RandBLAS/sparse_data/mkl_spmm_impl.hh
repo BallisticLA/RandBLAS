@@ -339,7 +339,6 @@ template <SparseMatrix SpMat1, SparseMatrix SpMat2,
 void mkl_spgemm_to_dense(
     blas::Layout layout,
     blas::Op opA,
-    int64_t m, int64_t n,
     T alpha,
     const SpMat1 &A,
     const SpMat2 &B,
@@ -349,6 +348,12 @@ void mkl_spgemm_to_dense(
 ) {
     static_assert(std::is_same_v<T, typename SpMat2::scalar_t>,
         "Both sparse matrices must have the same scalar type.");
+
+    // Infer dimensions from sparse matrices:
+    //   C = alpha * op(A) * B + beta * C, where C is m-by-n.
+    //   op(A) is m-by-k, B is k-by-n.
+    int64_t m = (opA == blas::Op::NoTrans) ? A.n_rows : A.n_cols;
+    int64_t n = B.n_cols;
 
     auto hA = make_mkl_handle(A);
     auto hB = make_mkl_handle(B);
