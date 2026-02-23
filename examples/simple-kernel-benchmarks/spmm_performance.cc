@@ -186,12 +186,9 @@ void run_config(int64_t m, int64_t n, int64_t d, double density, int num_trials)
               << ", density=" << std::setprecision(4) << density << " (" << shape << ") ---\n";
 
     // Generate sparse matrices (O(nnz) expected time via geometric skips)
-    RandBLAS::sparse_data::CSRMatrix<T> S_csr(m, n);
-    RandBLAS::sparse_data::CSCMatrix<T> S_csc(m, n);
-    RandBLAS::sparse_data::COOMatrix<T> S_coo(m, n);
-    RandBLAS::sparse_data::random_csr(density, S_csr, RandBLAS::RNGState<>(seed));
-    RandBLAS::sparse_data::random_csc(density, S_csc, RandBLAS::RNGState<>(seed + 1));
-    RandBLAS::sparse_data::random_coo(density, S_coo, RandBLAS::RNGState<>(seed + 2));
+    auto [S_csr, s1] = RandBLAS::sparse_data::random_csr<T>(m, n, density, RandBLAS::RNGState<>(seed));
+    auto [S_csc, s2] = RandBLAS::sparse_data::random_csc<T>(m, n, density, RandBLAS::RNGState<>(seed + 1));
+    auto [S_coo, s3] = RandBLAS::sparse_data::random_coo<T>(m, n, density, RandBLAS::RNGState<>(seed + 2));
 
     std::cout << "  nnz: CSR=" << S_csr.nnz << " CSC=" << S_csc.nnz
               << " COO=" << S_coo.nnz << ", trials=" << num_trials << "\n\n";

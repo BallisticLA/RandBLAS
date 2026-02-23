@@ -56,6 +56,11 @@ provides two benefits:
 
 No additional configuration is needed beyond ensuring BLAS++ was built with MKL.
 
+If you want to use MKL for dense BLAS (through BLAS++) but **disable** RandBLAS's
+MKL sparse features, pass ``-DRandBLAS_USE_MKL_SPARSE=OFF`` at configure time::
+
+    cmake -DRandBLAS_USE_MKL_SPARSE=OFF [other flags] ..
+
 Everyone else
 -------------
 Strictly speaking, we only need three things to use RandBLAS in other projects.

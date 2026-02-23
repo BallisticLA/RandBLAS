@@ -1,4 +1,4 @@
-// Copyright, 2024. See LICENSE for copyright holder information.
+// Copyright, 2026. See LICENSE for copyright holder information.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
@@ -30,6 +30,7 @@
 #pragma once
 
 #include <numeric>
+#include <utility>
 #include <vector>
 #include <cmath>
 #include <cstdint>
@@ -57,25 +58,27 @@ namespace detail {
 // Sequential wrapper around a Random123 CBRNG. Philox4x32 produces 4 uint32_t
 // values per counter increment; this helper dispenses them one at a time and
 // provides uniform, Gaussian, and geometric draws.
+//
+// Subclasses RNGState so that counter and key are inherited directly.
 template <typename RNG = RandBLAS::DefaultRNG>
-struct PhiloxStream {
-    using ctr_t = typename RNG::ctr_type;
-    using key_t = typename RNG::key_type;
-    static constexpr int ctr_size = ctr_t::static_size;
+struct PhiloxStream : public RandBLAS::RNGState<RNG> {
+    using state_t = RandBLAS::RNGState<RNG>;
+    using ctr_t   = typename state_t::ctr_type;
+    static constexpr int ctr_size = state_t::len_c;
 
     RNG rng;
-    ctr_t counter;
-    key_t key;
     ctr_t buffer;
     int pos;
+    double spare;
+    bool has_spare;
 
-    PhiloxStream(const RandBLAS::RNGState<RNG> &state)
-        : counter(state.counter), key(state.key), pos(ctr_size) {}
+    PhiloxStream(const state_t &state)
+        : state_t(state), pos(ctr_size), spare(0.0), has_spare(false) {}
 
     uint32_t next_u32() {
         if (pos >= ctr_size) {
-            buffer = rng(counter, key);
-            counter.incr();
+            buffer = rng(this->counter, this->key);
+            this->counter.incr();
             pos = 0;
         }
         return buffer.v[pos++];
@@ -86,13 +89,19 @@ struct PhiloxStream {
         return r123::u01<double>(next_u32());
     }
 
-    // Box-Muller Gaussian. Consumes 2 uint32_t, returns one value (discards the other).
+    // Box-Muller Gaussian. Each call to boxmuller produces two independent values;
+    // we cache the second and return it on the next invocation.
     template <typename T>
     T gaussian() {
+        if (has_spare) {
+            has_spare = false;
+            return static_cast<T>(spare);
+        }
         uint32_t u1 = next_u32();
         uint32_t u2 = next_u32();
         auto [g1, g2] = r123::boxmuller(u1, u2);
-        (void)g2;
+        spare = g2;
+        has_spare = true;
         return static_cast<T>(g1);
     }
 
@@ -106,8 +115,8 @@ struct PhiloxStream {
         return static_cast<int64_t>(std::floor(std::log(1.0 - u) / log_1_minus_p));
     }
 
-    RandBLAS::RNGState<RNG> get_state() const {
-        return RandBLAS::RNGState<RNG>{counter, key};
+    state_t get_state() const {
+        return state_t{this->counter, this->key};
     }
 };
 
@@ -120,26 +129,26 @@ struct PhiloxStream {
 // using geometric skips for O(nnz + m) expected time.
 // Nonzero values are iid standard Gaussian.
 //
-// The matrix A must be constructed with the desired (n_rows, n_cols) before
-// calling this function. It must not have been reserved or populated yet.
+// Returns {CSRMatrix, next_state}. Use with structured bindings:
+//     auto [A, next_state] = random_csr<double>(m, n, density, state);
 // ============================================================================
 template <typename T, SignedInteger sint_t = int64_t, typename RNG = RandBLAS::DefaultRNG>
-RandBLAS::RNGState<RNG> random_csr(
+std::pair<CSRMatrix<T, sint_t>, RandBLAS::RNGState<RNG>> random_csr(
+    int64_t m,
+    int64_t n,
     double density,
-    CSRMatrix<T, sint_t> &A,
     const RandBLAS::RNGState<RNG> &state
 ) {
-    int64_t m = A.n_rows;
-    int64_t n = A.n_cols;
     randblas_require(density >= 0.0 && density <= 1.0);
 
+    CSRMatrix<T, sint_t> A(m, n);
     detail::PhiloxStream<RNG> stream(state);
 
     if (density == 0.0 || m == 0 || n == 0) {
         if (m > 0) {
             A.rowptr = new sint_t[m + 1]{};
         }
-        return stream.get_state();
+        return {std::move(A), stream.get_state()};
     }
 
     if (density >= 1.0) {
@@ -149,13 +158,16 @@ RandBLAS::RNGState<RNG> random_csr(
         for (int64_t i = 0; i < m; ++i) {
             A.rowptr[i] = static_cast<sint_t>(idx);
             for (int64_t j = 0; j < n; ++j) {
+                // ".template" disambiguates gaussian<T> as a template member
+                // function call; without it the compiler may parse "<" as a
+                // comparison operator since stream's type depends on RNG.
                 A.vals[idx]    = stream.template gaussian<T>();
                 A.colidxs[idx] = static_cast<sint_t>(j);
                 ++idx;
             }
         }
         A.rowptr[m] = static_cast<sint_t>(idx);
-        return stream.get_state();
+        return {std::move(A), stream.get_state()};
     }
 
     // General case: geometric skips for O(nnz + m) expected time.
@@ -183,7 +195,7 @@ RandBLAS::RNGState<RNG> random_csr(
     int64_t nnz = static_cast<int64_t>(vals_vec.size());
     if (nnz == 0) {
         A.rowptr = new sint_t[m + 1]{};
-        return stream.get_state();
+        return {std::move(A), stream.get_state()};
     }
 
     A.reserve(nnz);
@@ -191,31 +203,34 @@ RandBLAS::RNGState<RNG> random_csr(
     std::copy(colidxs_vec.begin(), colidxs_vec.end(), A.colidxs);
     std::copy(rowptr_vec.begin(),  rowptr_vec.end(),  A.rowptr);
 
-    return stream.get_state();
+    return {std::move(A), stream.get_state()};
 }
 
 
 // ============================================================================
 // Generate a random m-by-n CSC matrix with approximately m*n*density nonzeros.
 // Uses geometric skips for O(nnz + n) expected time.
+//
+// Returns {CSCMatrix, next_state}. Use with structured bindings:
+//     auto [A, next_state] = random_csc<double>(m, n, density, state);
 // ============================================================================
 template <typename T, SignedInteger sint_t = int64_t, typename RNG = RandBLAS::DefaultRNG>
-RandBLAS::RNGState<RNG> random_csc(
+std::pair<CSCMatrix<T, sint_t>, RandBLAS::RNGState<RNG>> random_csc(
+    int64_t m,
+    int64_t n,
     double density,
-    CSCMatrix<T, sint_t> &A,
     const RandBLAS::RNGState<RNG> &state
 ) {
-    int64_t m = A.n_rows;
-    int64_t n = A.n_cols;
     randblas_require(density >= 0.0 && density <= 1.0);
 
+    CSCMatrix<T, sint_t> A(m, n);
     detail::PhiloxStream<RNG> stream(state);
 
     if (density == 0.0 || m == 0 || n == 0) {
         if (n > 0) {
             A.colptr = new sint_t[n + 1]{};
         }
-        return stream.get_state();
+        return {std::move(A), stream.get_state()};
     }
 
     if (density >= 1.0) {
@@ -231,7 +246,7 @@ RandBLAS::RNGState<RNG> random_csc(
             }
         }
         A.colptr[n] = static_cast<sint_t>(idx);
-        return stream.get_state();
+        return {std::move(A), stream.get_state()};
     }
 
     double log_1_minus_p = std::log(1.0 - density);
@@ -258,7 +273,7 @@ RandBLAS::RNGState<RNG> random_csc(
     int64_t nnz = static_cast<int64_t>(vals_vec.size());
     if (nnz == 0) {
         A.colptr = new sint_t[n + 1]{};
-        return stream.get_state();
+        return {std::move(A), stream.get_state()};
     }
 
     A.reserve(nnz);
@@ -266,7 +281,7 @@ RandBLAS::RNGState<RNG> random_csc(
     std::copy(rowidxs_vec.begin(), rowidxs_vec.end(), A.rowidxs);
     std::copy(colptr_vec.begin(),  colptr_vec.end(),  A.colptr);
 
-    return stream.get_state();
+    return {std::move(A), stream.get_state()};
 }
 
 
@@ -274,21 +289,24 @@ RandBLAS::RNGState<RNG> random_csc(
 // Generate a random m-by-n COO matrix with approximately m*n*density nonzeros.
 // Uses geometric skips on a linearized row-major index for O(nnz) expected time.
 // The resulting entries are in CSR sort order.
+//
+// Returns {COOMatrix, next_state}. Use with structured bindings:
+//     auto [A, next_state] = random_coo<double>(m, n, density, state);
 // ============================================================================
 template <typename T, SignedInteger sint_t = int64_t, typename RNG = RandBLAS::DefaultRNG>
-RandBLAS::RNGState<RNG> random_coo(
+std::pair<COOMatrix<T, sint_t>, RandBLAS::RNGState<RNG>> random_coo(
+    int64_t m,
+    int64_t n,
     double density,
-    COOMatrix<T, sint_t> &A,
     const RandBLAS::RNGState<RNG> &state
 ) {
-    int64_t m = A.n_rows;
-    int64_t n = A.n_cols;
     randblas_require(density >= 0.0 && density <= 1.0);
 
+    COOMatrix<T, sint_t> A(m, n);
     detail::PhiloxStream<RNG> stream(state);
 
     if (density == 0.0 || m == 0 || n == 0) {
-        return stream.get_state();
+        return {std::move(A), stream.get_state()};
     }
 
     int64_t total = m * n;
@@ -301,7 +319,7 @@ RandBLAS::RNGState<RNG> random_coo(
             A.vals[k] = stream.template gaussian<T>();
         }
         A.sort = NonzeroSort::CSR;
-        return stream.get_state();
+        return {std::move(A), stream.get_state()};
     }
 
     double log_1_minus_p = std::log(1.0 - density);
@@ -324,7 +342,7 @@ RandBLAS::RNGState<RNG> random_coo(
 
     int64_t nnz = static_cast<int64_t>(vals_vec.size());
     if (nnz == 0) {
-        return stream.get_state();
+        return {std::move(A), stream.get_state()};
     }
 
     A.reserve(nnz);
@@ -333,7 +351,7 @@ RandBLAS::RNGState<RNG> random_coo(
     std::copy(cols_vec.begin(), cols_vec.end(), A.cols);
     A.sort = NonzeroSort::CSR;
 
-    return stream.get_state();
+    return {std::move(A), stream.get_state()};
 }
 
 

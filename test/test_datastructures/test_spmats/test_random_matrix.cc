@@ -1,4 +1,4 @@
-// Copyright, 2024. See LICENSE for copyright holder information.
+// Copyright, 2026. See LICENSE for copyright holder information.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
@@ -47,9 +47,8 @@ class TestRandomSparseMatrix : public ::testing::Test {};
 TEST_F(TestRandomSparseMatrix, csr_structural_validity_double) {
     int64_t m = 100, n = 200;
     double density = 0.05;
-    CSRMatrix<double> A(m, n);
     auto state = RandBLAS::RNGState<>(42);
-    random_csr(density, A, state);
+    auto [A, next_state] = random_csr<double>(m, n, density, state);
 
     EXPECT_EQ(A.rowptr[0], 0);
     EXPECT_EQ(A.rowptr[m], A.nnz);
@@ -68,9 +67,8 @@ TEST_F(TestRandomSparseMatrix, csr_structural_validity_double) {
 TEST_F(TestRandomSparseMatrix, csr_structural_validity_float) {
     int64_t m = 80, n = 150;
     double density = 0.1;
-    CSRMatrix<float> A(m, n);
     auto state = RandBLAS::RNGState<>(99);
-    random_csr(density, A, state);
+    auto [A, next_state] = random_csr<float>(m, n, density, state);
 
     EXPECT_EQ(A.rowptr[0], 0);
     EXPECT_EQ(A.rowptr[m], A.nnz);
@@ -94,9 +92,8 @@ TEST_F(TestRandomSparseMatrix, csr_structural_validity_float) {
 TEST_F(TestRandomSparseMatrix, csc_structural_validity_double) {
     int64_t m = 100, n = 200;
     double density = 0.05;
-    CSCMatrix<double> A(m, n);
     auto state = RandBLAS::RNGState<>(42);
-    random_csc(density, A, state);
+    auto [A, next_state] = random_csc<double>(m, n, density, state);
 
     EXPECT_EQ(A.colptr[0], 0);
     EXPECT_EQ(A.colptr[n], A.nnz);
@@ -120,9 +117,8 @@ TEST_F(TestRandomSparseMatrix, csc_structural_validity_double) {
 TEST_F(TestRandomSparseMatrix, coo_structural_validity_double) {
     int64_t m = 100, n = 200;
     double density = 0.05;
-    COOMatrix<double> A(m, n);
     auto state = RandBLAS::RNGState<>(42);
-    random_coo(density, A, state);
+    auto [A, next_state] = random_coo<double>(m, n, density, state);
 
     EXPECT_EQ(A.sort, NonzeroSort::CSR);
     for (int64_t k = 0; k < A.nnz; ++k) {
@@ -145,42 +141,35 @@ TEST_F(TestRandomSparseMatrix, coo_structural_validity_double) {
 // ============================================================================
 
 TEST_F(TestRandomSparseMatrix, csr_density_zero) {
-    int64_t m = 10, n = 20;
-    CSRMatrix<double> A(m, n);
     auto state = RandBLAS::RNGState<>(42);
-    random_csr(0.0, A, state);
+    auto [A, next_state] = random_csr<double>(10, 20, 0.0, state);
 
     EXPECT_EQ(A.nnz, 0);
     ASSERT_NE(A.rowptr, nullptr);
-    for (int64_t i = 0; i <= m; ++i)
+    for (int64_t i = 0; i <= 10; ++i)
         EXPECT_EQ(A.rowptr[i], 0);
 }
 
 TEST_F(TestRandomSparseMatrix, csc_density_zero) {
-    int64_t m = 10, n = 20;
-    CSCMatrix<double> A(m, n);
     auto state = RandBLAS::RNGState<>(42);
-    random_csc(0.0, A, state);
+    auto [A, next_state] = random_csc<double>(10, 20, 0.0, state);
 
     EXPECT_EQ(A.nnz, 0);
     ASSERT_NE(A.colptr, nullptr);
-    for (int64_t j = 0; j <= n; ++j)
+    for (int64_t j = 0; j <= 20; ++j)
         EXPECT_EQ(A.colptr[j], 0);
 }
 
 TEST_F(TestRandomSparseMatrix, coo_density_zero) {
-    int64_t m = 10, n = 20;
-    COOMatrix<double> A(m, n);
     auto state = RandBLAS::RNGState<>(42);
-    random_coo(0.0, A, state);
+    auto [A, next_state] = random_coo<double>(10, 20, 0.0, state);
     EXPECT_EQ(A.nnz, 0);
 }
 
 TEST_F(TestRandomSparseMatrix, csr_density_one) {
     int64_t m = 5, n = 8;
-    CSRMatrix<double> A(m, n);
     auto state = RandBLAS::RNGState<>(42);
-    random_csr(1.0, A, state);
+    auto [A, next_state] = random_csr<double>(m, n, 1.0, state);
 
     EXPECT_EQ(A.nnz, m * n);
     for (int64_t i = 0; i < m; ++i)
@@ -189,9 +178,8 @@ TEST_F(TestRandomSparseMatrix, csr_density_one) {
 
 TEST_F(TestRandomSparseMatrix, csc_density_one) {
     int64_t m = 5, n = 8;
-    CSCMatrix<double> A(m, n);
     auto state = RandBLAS::RNGState<>(42);
-    random_csc(1.0, A, state);
+    auto [A, next_state] = random_csc<double>(m, n, 1.0, state);
 
     EXPECT_EQ(A.nnz, m * n);
     for (int64_t j = 0; j < n; ++j)
@@ -200,20 +188,17 @@ TEST_F(TestRandomSparseMatrix, csc_density_one) {
 
 TEST_F(TestRandomSparseMatrix, coo_density_one) {
     int64_t m = 5, n = 8;
-    COOMatrix<double> A(m, n);
     auto state = RandBLAS::RNGState<>(42);
-    random_coo(1.0, A, state);
+    auto [A, next_state] = random_coo<double>(m, n, 1.0, state);
     EXPECT_EQ(A.nnz, m * n);
 }
 
 TEST_F(TestRandomSparseMatrix, csr_empty_dimensions) {
-    CSRMatrix<double> A1(0, 10);
     auto state = RandBLAS::RNGState<>(42);
-    random_csr(0.5, A1, state);
+    auto [A1, s1] = random_csr<double>(0, 10, 0.5, state);
     EXPECT_EQ(A1.nnz, 0);
 
-    CSRMatrix<double> A2(10, 0);
-    random_csr(0.5, A2, state);
+    auto [A2, s2] = random_csr<double>(10, 0, 0.5, state);
     EXPECT_EQ(A2.nnz, 0);
 }
 
@@ -226,11 +211,9 @@ TEST_F(TestRandomSparseMatrix, csr_determinism) {
     int64_t m = 50, n = 50;
     double density = 0.1;
 
-    CSRMatrix<double> A1(m, n);
-    CSRMatrix<double> A2(m, n);
     auto state = RandBLAS::RNGState<>(99);
-    random_csr(density, A1, state);
-    random_csr(density, A2, state);
+    auto [A1, s1] = random_csr<double>(m, n, density, state);
+    auto [A2, s2] = random_csr<double>(m, n, density, state);
 
     ASSERT_EQ(A1.nnz, A2.nnz);
     for (int64_t k = 0; k < A1.nnz; ++k) {
@@ -245,11 +228,9 @@ TEST_F(TestRandomSparseMatrix, coo_determinism) {
     int64_t m = 50, n = 50;
     double density = 0.1;
 
-    COOMatrix<double> A1(m, n);
-    COOMatrix<double> A2(m, n);
     auto state = RandBLAS::RNGState<>(99);
-    random_coo(density, A1, state);
-    random_coo(density, A2, state);
+    auto [A1, s1] = random_coo<double>(m, n, density, state);
+    auto [A2, s2] = random_coo<double>(m, n, density, state);
 
     ASSERT_EQ(A1.nnz, A2.nnz);
     for (int64_t k = 0; k < A1.nnz; ++k) {
@@ -269,9 +250,8 @@ TEST_F(TestRandomSparseMatrix, csr_expected_nnz) {
     double density = 0.01;
     int64_t expected = static_cast<int64_t>(m * n * density);  // 10000
 
-    CSRMatrix<double> A(m, n);
     auto state = RandBLAS::RNGState<>(42);
-    random_csr(density, A, state);
+    auto [A, next_state] = random_csr<double>(m, n, density, state);
 
     // 4 standard deviations: std = sqrt(m*n*density*(1-density)) ≈ 99.5
     double std_dev = std::sqrt(m * n * density * (1.0 - density));
@@ -284,9 +264,8 @@ TEST_F(TestRandomSparseMatrix, csc_expected_nnz) {
     double density = 0.01;
     int64_t expected = static_cast<int64_t>(m * n * density);
 
-    CSCMatrix<double> A(m, n);
     auto state = RandBLAS::RNGState<>(42);
-    random_csc(density, A, state);
+    auto [A, next_state] = random_csc<double>(m, n, density, state);
 
     double std_dev = std::sqrt(m * n * density * (1.0 - density));
     EXPECT_GT(A.nnz, expected - 4 * std_dev);
@@ -298,9 +277,8 @@ TEST_F(TestRandomSparseMatrix, coo_expected_nnz) {
     double density = 0.01;
     int64_t expected = static_cast<int64_t>(m * n * density);
 
-    COOMatrix<double> A(m, n);
     auto state = RandBLAS::RNGState<>(42);
-    random_coo(density, A, state);
+    auto [A, next_state] = random_coo<double>(m, n, density, state);
 
     double std_dev = std::sqrt(m * n * density * (1.0 - density));
     EXPECT_GT(A.nnz, expected - 4 * std_dev);
@@ -313,8 +291,7 @@ TEST_F(TestRandomSparseMatrix, coo_expected_nnz) {
 // ============================================================================
 
 TEST_F(TestRandomSparseMatrix, csr_state_advances) {
-    CSRMatrix<double> A(50, 50);
     auto state = RandBLAS::RNGState<>(42);
-    auto next_state = random_csr(0.1, A, state);
+    auto [A, next_state] = random_csr<double>(50, 50, 0.1, state);
     EXPECT_NE(state, next_state);
 }
