@@ -38,6 +38,29 @@ to implement high-level randomized algorithms.
   Make sure to use the flag ``-Dblas_int=int64`` in the CMake configuration line for BLAS++
   If you don't do that then you might get int32, which can lead to issues for large matrices.
 
+Intel MKL (optional)
+--------------------
+If BLAS++ was built against Intel MKL, then RandBLAS will automatically detect this at
+configure time and set ``RandBLAS_HAS_MKL`` in ``RandBLAS/config.h``. Having MKL available
+provides two benefits:
+
+1. **SpGEMM support.** The :cpp:any:`RandBLAS::spgemm` function (sparse × sparse → dense)
+   requires MKL. Without MKL, calling ``spgemm`` will produce a compile-time error.
+   Note that ``spgemm`` only supports single and double precision (``float`` and ``double``),
+   in contrast to other RandBLAS kernels that work with any scalar type.
+
+2. **Accelerated SpMM.** When MKL is present, :cpp:any:`RandBLAS::spmm` will use MKL's
+   optimized sparse BLAS routines for CSR and COO matrices (with a fallback to
+   RandBLAS' hand-rolled kernels for cases MKL cannot handle, such as CSC format
+   or transposed dense operands).
+
+No additional configuration is needed beyond ensuring BLAS++ was built with MKL.
+
+If you want to use MKL for dense BLAS (through BLAS++) but **disable** RandBLAS's
+MKL sparse features, pass ``-DRandBLAS_USE_MKL_SPARSE=OFF`` at configure time::
+
+    cmake -DRandBLAS_USE_MKL_SPARSE=OFF [other flags] ..
+
 Everyone else
 -------------
 Strictly speaking, we only need three things to use RandBLAS in other projects.

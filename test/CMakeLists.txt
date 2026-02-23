@@ -38,6 +38,7 @@ if (GTest_FOUND)
         test_datastructures/test_spmats/test_csr.cc
         test_datastructures/test_spmats/test_coo.cc
         test_datastructures/test_spmats/test_conversions.cc
+        test_datastructures/test_spmats/test_random_matrix.cc
 
         test_matmul_cores/test_spmm/test_spmm_csc.cc
         test_matmul_cores/test_spmm/test_spmm_csr.cc

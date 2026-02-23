@@ -102,6 +102,18 @@ Deterministic operations
     .. doxygenfunction:: RandBLAS::spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T* A, int64_t lda, const SpMat &B, T beta, T *C, int64_t ldc) 
       :project: RandBLAS
 
+.. dropdown:: :math:`\mtxC = \alpha \cdot \op(\mtxA)\cdot \mtxB + \beta \cdot  \mtxC,` with sparse :math:`\mtxA` and sparse :math:`\mtxB` (SpGEMM)
+    :animate: fade-in-slide-down
+    :color: light
+
+    .. doxygenfunction:: RandBLAS::spgemm(blas::Layout layout, blas::Op opA, T alpha, const SpMat1 &A, const SpMat2 &B, T beta, T *C, int64_t ldc)
+      :project: RandBLAS
+
+    .. note::
+
+       This function requires Intel MKL and only supports single and double precision (``float`` and ``double``),
+       in contrast to other RandBLAS kernels that work with any scalar type.
+
 .. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)^{-1} \cdot \mtxB,` with sparse triangular :math:`\mtxA`
     :animate: fade-in-slide-down
     :color: light

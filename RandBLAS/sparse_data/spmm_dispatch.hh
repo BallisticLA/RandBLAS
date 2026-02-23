@@ -381,7 +381,6 @@ inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int
 
 // =============================================================================
 /// \fn spgemm(blas::Layout layout, blas::Op opA,
-///     int64_t m, int64_t n, int64_t k,
 ///     T alpha, const SpMat1 &A, const SpMat2 &B,
 ///     T beta, T *C, int64_t ldc
 /// )
@@ -395,18 +394,58 @@ inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int
 /// :math:`\mtxA` or its transpose, and both :math:`\mtxA` and :math:`\mtxB` are sparse.
 /// The result :math:`\mat(C)` is dense.
 ///
+/// The dimensions :math:`m`, :math:`k`, and :math:`n` are inferred from the sparse matrices:
+///
+///  - If :math:`\opA` is NoTrans: :math:`m = \mtxA.\text{n\_rows}`, :math:`k = \mtxA.\text{n\_cols}`.
+///  - If :math:`\opA` is Trans: :math:`m = \mtxA.\text{n\_cols}`, :math:`k = \mtxA.\text{n\_rows}`.
+///  - :math:`n = \mtxB.\text{n\_cols}`.
+///
 /// .. note::
 ///     This function requires Intel MKL. If MKL is not available at build time,
 ///     calling this function will produce a compile-time error.
+///
+/// .. dropdown:: Full parameter descriptions
+///     :animate: fade-in-slide-down
+///
+///      layout - [in]
+///       * Layout::ColMajor or Layout::RowMajor.
+///       * Matrix storage for :math:`\mat(C)`.
+///
+///      opA - [in]
+///       * If :math:`\opA` == NoTrans, then :math:`\op(\mtxA) = \mtxA`.
+///       * If :math:`\opA` == Trans, then :math:`\op(\mtxA) = \mtxA^T`.
+///
+///      alpha - [in]
+///       * A real scalar.
+///
+///      A - [in]
+///       * A RandBLAS sparse matrix object.
+///       * Defines :math:`\mtxA`.
+///
+///      B - [in]
+///       * A RandBLAS sparse matrix object.
+///       * Defines :math:`\mtxB`.
+///
+///      beta - [in]
+///       * A real scalar.
+///       * If zero, then :math:`C` need not be set on input.
+///
+///      C - [in, out]
+///       * Pointer to 1D array of real scalars.
+///       * On entry, defines :math:`\mat(C)`
+///         on the RIGHT-hand side of :math:`(\star)`.
+///       * On exit, defines :math:`\mat(C)`
+///         on the LEFT-hand side of :math:`(\star)`.
+///
+///      ldc - [in]
+///       * A nonnegative integer.
+///       * Leading dimension of :math:`\mat(C)` when reading from :math:`C`.
 ///
 /// @endverbatim
 template <SparseMatrix SpMat1, SparseMatrix SpMat2, typename T = typename SpMat1::scalar_t>
 inline void spgemm(
     blas::Layout layout,
     blas::Op opA,
-    int64_t m,
-    int64_t n,
-    int64_t k,
     T alpha,
     const SpMat1 &A,
     const SpMat2 &B,
@@ -419,9 +458,9 @@ inline void spgemm(
         "RandBLAS::spgemm: first sparse matrix index type must match MKL_INT size.");
     static_assert(sizeof(typename SpMat2::index_t) == sizeof(MKL_INT),
         "RandBLAS::spgemm: second sparse matrix index type must match MKL_INT size.");
-    RandBLAS::sparse_data::mkl::mkl_spgemm_to_dense(layout, opA, m, n, alpha, A, B, beta, C, ldc);
+    RandBLAS::sparse_data::mkl::mkl_spgemm_to_dense(layout, opA, alpha, A, B, beta, C, ldc);
 #else
-    (void)layout; (void)opA; (void)m; (void)n; (void)k;
+    (void)layout; (void)opA;
     (void)alpha; (void)A; (void)B; (void)beta; (void)C; (void)ldc;
     static_assert(!std::is_same_v<T, T>,
         "RandBLAS::spgemm (sparse x sparse -> dense) requires Intel MKL. "

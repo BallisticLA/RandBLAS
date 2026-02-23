@@ -64,124 +64,19 @@
 #include <iomanip>
 #include <vector>
 #include <cmath>
-#include <random>
 #include <algorithm>
 #include <numeric>
 
-// Internal headers for sparse dispatch and format conversions
+// Internal headers for sparse dispatch, format conversions, and generation
 #include "RandBLAS/sparse_data/conversions.hh"
 #include "RandBLAS/sparse_data/spmm_dispatch.hh"
+#include "RandBLAS/sparse_data/random_matrix.hh"
 
 #include "RandBLAS/config.h"
 
 using namespace std::chrono;
 using blas::Layout;
 using blas::Op;
-
-// Generate a random sparse matrix by sampling each entry independently.
-// Separate generators for each format so the benchmark isn't biased by
-// one particular nonzero pattern (nnz will differ slightly between formats).
-
-template <typename T>
-RandBLAS::sparse_data::CSRMatrix<T, int64_t> generate_sparse_csr(
-    int64_t m, int64_t n, double density, uint64_t seed
-) {
-    using RandBLAS::sparse_data::CSRMatrix;
-
-    std::vector<T> vals;
-    std::vector<int64_t> colidxs;
-    std::vector<int64_t> rowptr(m + 1, 0);
-
-    std::mt19937 rng(seed);
-    std::bernoulli_distribution coin(density);
-    std::normal_distribution<double> gauss(0.0, 1.0);
-
-    for (int64_t i = 0; i < m; ++i) {
-        rowptr[i] = vals.size();
-        for (int64_t j = 0; j < n; ++j) {
-            if (coin(rng)) {
-                vals.push_back(static_cast<T>(gauss(rng)));
-                colidxs.push_back(j);
-            }
-        }
-    }
-    rowptr[m] = vals.size();
-
-    CSRMatrix<T, int64_t> A(m, n);
-    A.reserve(vals.size());
-    std::copy(vals.begin(), vals.end(), A.vals);
-    std::copy(colidxs.begin(), colidxs.end(), A.colidxs);
-    std::copy(rowptr.begin(), rowptr.end(), A.rowptr);
-
-    return A;
-}
-
-template <typename T>
-RandBLAS::sparse_data::CSCMatrix<T, int64_t> generate_sparse_csc(
-    int64_t m, int64_t n, double density, uint64_t seed
-) {
-    using RandBLAS::sparse_data::CSCMatrix;
-
-    std::vector<T> vals;
-    std::vector<int64_t> rowidxs;
-    std::vector<int64_t> colptr(n + 1, 0);
-
-    std::mt19937 rng(seed);
-    std::bernoulli_distribution coin(density);
-    std::normal_distribution<double> gauss(0.0, 1.0);
-
-    for (int64_t j = 0; j < n; ++j) {
-        colptr[j] = vals.size();
-        for (int64_t i = 0; i < m; ++i) {
-            if (coin(rng)) {
-                vals.push_back(static_cast<T>(gauss(rng)));
-                rowidxs.push_back(i);
-            }
-        }
-    }
-    colptr[n] = vals.size();
-
-    CSCMatrix<T, int64_t> A(m, n);
-    A.reserve(vals.size());
-    std::copy(vals.begin(), vals.end(), A.vals);
-    std::copy(rowidxs.begin(), rowidxs.end(), A.rowidxs);
-    std::copy(colptr.begin(), colptr.end(), A.colptr);
-
-    return A;
-}
-
-template <typename T>
-RandBLAS::sparse_data::COOMatrix<T, int64_t> generate_sparse_coo(
-    int64_t m, int64_t n, double density, uint64_t seed
-) {
-    using RandBLAS::sparse_data::COOMatrix;
-
-    std::vector<T> vals;
-    std::vector<int64_t> rows;
-    std::vector<int64_t> cols;
-
-    std::mt19937 rng(seed);
-    std::bernoulli_distribution coin(density);
-    std::normal_distribution<double> gauss(0.0, 1.0);
-
-    for (int64_t i = 0; i < m; ++i) {
-        for (int64_t j = 0; j < n; ++j) {
-            if (coin(rng)) {
-                vals.push_back(static_cast<T>(gauss(rng)));
-                rows.push_back(i);
-                cols.push_back(j);
-            }
-        }
-    }
-
-    COOMatrix<T, int64_t> A(m, n);
-    A.reserve(vals.size());
-    std::copy(vals.begin(), vals.end(), A.vals);
-    std::copy(rows.begin(), rows.end(), A.rows);
-    std::copy(cols.begin(), cols.end(), A.cols);
-
-    return A;
-}
 
 // Calls the hand-rolled CSR left-multiply kernel directly, bypassing MKL.
 // Used to answer question 3 (MKL vs hand-rolled speedup). Replicates the
@@ -290,16 +185,16 @@ void run_config(int64_t m, int64_t n, int64_t d, double density, int num_trials)
     std::cout << "--- S(" << m << "x" << n << "), d=" << d
               << ", density=" << std::setprecision(4) << density << " (" << shape << ") ---\n";
 
-    // Generate sparse matrices
-    auto S_csr = generate_sparse_csr<T>(m, n, density, seed);
-    auto S_csc = generate_sparse_csc<T>(m, n, density, seed + 1);
-    auto S_coo = generate_sparse_coo<T>(m, n, density, seed + 2);
+    // Generate one random COO matrix and convert to CSR/CSC so all three
+    // formats represent the identical mathematical matrix.
+    auto [S_coo, next_state] = RandBLAS::sparse_data::random_coo<T>(m, n, density, RandBLAS::RNGState<>(seed));
+    auto S_csr = S_coo.as_owning_csr();
+    auto S_csc = S_coo.as_owning_csc();
 
-    std::cout << "  nnz: CSR=" << S_csr.nnz << " CSC=" << S_csc.nnz
-              << " COO=" << S_coo.nnz << ", trials=" << num_trials << "\n\n";
+    std::cout << "  nnz=" << S_coo.nnz << ", trials=" << num_trials << "\n\n";
 
     // Generate dense matrices
-    auto state = RandBLAS::RNGState<>(seed + 100);
+    auto state = next_state;
     std::vector<T> A_left(n * d);
     RandBLAS::DenseDist D_left(n, d);
     state = RandBLAS::fill_dense(D_left, A_left.data(), state);
