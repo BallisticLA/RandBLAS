@@ -185,16 +185,16 @@ void run_config(int64_t m, int64_t n, int64_t d, double density, int num_trials)
     std::cout << "--- S(" << m << "x" << n << "), d=" << d
               << ", density=" << std::setprecision(4) << density << " (" << shape << ") ---\n";
 
-    // Generate sparse matrices (O(nnz) expected time via geometric skips)
-    auto [S_csr, s1] = RandBLAS::sparse_data::random_csr<T>(m, n, density, RandBLAS::RNGState<>(seed));
-    auto [S_csc, s2] = RandBLAS::sparse_data::random_csc<T>(m, n, density, RandBLAS::RNGState<>(seed + 1));
-    auto [S_coo, s3] = RandBLAS::sparse_data::random_coo<T>(m, n, density, RandBLAS::RNGState<>(seed + 2));
+    // Generate one random COO matrix and convert to CSR/CSC so all three
+    // formats represent the identical mathematical matrix.
+    auto [S_coo, next_state] = RandBLAS::sparse_data::random_coo<T>(m, n, density, RandBLAS::RNGState<>(seed));
+    auto S_csr = S_coo.as_owning_csr();
+    auto S_csc = S_coo.as_owning_csc();
 
-    std::cout << "  nnz: CSR=" << S_csr.nnz << " CSC=" << S_csc.nnz
-              << " COO=" << S_coo.nnz << ", trials=" << num_trials << "\n\n";
+    std::cout << "  nnz=" << S_coo.nnz << ", trials=" << num_trials << "\n\n";
 
     // Generate dense matrices
-    auto state = RandBLAS::RNGState<>(seed + 100);
+    auto state = next_state;
     std::vector<T> A_left(n * d);
     RandBLAS::DenseDist D_left(n, d);
     state = RandBLAS::fill_dense(D_left, A_left.data(), state);
