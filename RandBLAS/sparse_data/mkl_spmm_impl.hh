@@ -149,6 +149,7 @@ MKLSparseHandle make_mkl_handle_csr(const CSRMatrix<T, sint_t>& A) {
         );
     } else {
         static_assert(sizeof(T) == 0, "MKL sparse BLAS only supports float and double.");
+        // see GitHub PR #155 for why we don't use static_assert(false, ...).
     }
     check_mkl_status(status, "mkl_sparse_create_csr");
     return h;
@@ -182,6 +183,7 @@ MKLSparseHandle make_mkl_handle_csc(const CSCMatrix<T, sint_t>& A) {
         );
     } else {
         static_assert(sizeof(T) == 0, "MKL sparse BLAS only supports float and double.");
+        // see GitHub PR #155 for why we don't use static_assert(false, ...).
     }
     check_mkl_status(status, "mkl_sparse_create_csc");
     return h;
@@ -216,6 +218,7 @@ MKLSparseHandle make_mkl_handle_coo(const COOMatrix<T, sint_t>& A) {
         );
     } else {
         static_assert(sizeof(T) == 0, "MKL sparse BLAS only supports float and double.");
+        // see GitHub PR #155 for why we don't use static_assert(false, ...).
     }
     check_mkl_status(status, "mkl_sparse_create_coo");
 
@@ -249,6 +252,7 @@ MKLSparseHandle make_mkl_handle(const SpMat& A) {
         return make_mkl_handle_coo(A);
     } else {
         static_assert(sizeof(SpMat) == 0, "Unsupported sparse matrix format for MKL backend.");
+        // see GitHub PR #155 for why we don't use static_assert(false, ...).
     }
 }
 
