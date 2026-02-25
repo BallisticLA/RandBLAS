@@ -148,7 +148,7 @@ MKLSparseHandle make_mkl_handle_csr(const CSRMatrix<T, sint_t>& A) {
             rowptr, rowptr + 1, colidxs, A.vals
         );
     } else {
-        static_assert(false, "MKL sparse BLAS only supports float and double.");
+        static_assert(sizeof(T) == 0, "MKL sparse BLAS only supports float and double.");
     }
     check_mkl_status(status, "mkl_sparse_create_csr");
     return h;
@@ -181,7 +181,7 @@ MKLSparseHandle make_mkl_handle_csc(const CSCMatrix<T, sint_t>& A) {
             colptr, colptr + 1, rowidxs, A.vals
         );
     } else {
-        static_assert(false, "MKL sparse BLAS only supports float and double.");
+        static_assert(sizeof(T) == 0, "MKL sparse BLAS only supports float and double.");
     }
     check_mkl_status(status, "mkl_sparse_create_csc");
     return h;
@@ -215,7 +215,7 @@ MKLSparseHandle make_mkl_handle_coo(const COOMatrix<T, sint_t>& A) {
             (MKL_INT)A.nnz, rows, cols, A.vals
         );
     } else {
-        static_assert(false, "MKL sparse BLAS only supports float and double.");
+        static_assert(sizeof(T) == 0, "MKL sparse BLAS only supports float and double.");
     }
     check_mkl_status(status, "mkl_sparse_create_coo");
 
@@ -248,7 +248,7 @@ MKLSparseHandle make_mkl_handle(const SpMat& A) {
     } else if constexpr (is_coo) {
         return make_mkl_handle_coo(A);
     } else {
-        static_assert(false, "Unsupported sparse matrix format for MKL backend.");
+        static_assert(sizeof(SpMat) == 0, "Unsupported sparse matrix format for MKL backend.");
     }
 }
 
