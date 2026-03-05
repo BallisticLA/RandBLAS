@@ -38,13 +38,19 @@
 #include <Random123/threefry.h>
 // NOTE: we do not support Random123's AES or ARS generators.
 
-RandBLAS_OPTIMIZE_OFF
-#include <Random123/boxmuller.hpp>
-// ^ We've run into correctness issues with that file when using clang and
-//   compiling with optimization enabled. To err on the side of caution
-//   we disable compiler optimizations for clang and three other compilers.
+// RandBLAS_OPTIMIZE_OFF
 //
-RandBLAS_OPTIMIZE_ON
+// -----> Pragma above is tentatively commented out. We originally added it
+//        due to a correctness issue alluded to in this commit:
+// 
+//  https://github.com/BallisticLA/RandBLAS/pull/115/changes/e79d63ed5681187d15ea5fc048da4687cae8ac49 
+//
+//        I think it's best to remove the conservative choice until we can
+//        reliably reproduce the issue.
+//
+#include <Random123/boxmuller.hpp>
+// RandBLAS_OPTIMIZE_ON
+
 #include <Random123/uniform.hpp>
 
 /// our extensions to random123
