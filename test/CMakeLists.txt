@@ -38,10 +38,12 @@ if (GTest_FOUND)
         test_datastructures/test_spmats/test_csr.cc
         test_datastructures/test_spmats/test_coo.cc
         test_datastructures/test_spmats/test_conversions.cc
+        test_datastructures/test_spmats/test_random_matrix.cc
 
         test_matmul_cores/test_spmm/test_spmm_csc.cc
         test_matmul_cores/test_spmm/test_spmm_csr.cc
         test_matmul_cores/test_spmm/test_spmm_coo.cc
+        test_matmul_cores/test_spgemm/test_spgemm.cc
         test_sparse_trsm/test_sparse_trsm.cc
 
         test_matmul_wrappers/test_sketch_sparse.cc

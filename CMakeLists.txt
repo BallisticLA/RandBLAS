@@ -14,6 +14,7 @@ find_package(blaspp REQUIRED)
 find_package(Random123 REQUIRED)
 #include(Random123)
 include(OpenMP)
+include(MKL_sparse)
 
 # compile sources
 add_subdirectory(RandBLAS)
