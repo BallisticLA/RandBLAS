@@ -86,8 +86,11 @@ No complex domain support:
   BLAS' support for this is incomplete. You can't mix real and complex, you can't conjugate without transposing, etc… 
   We plan on revisiting the question of complex data in RandBLAS a few years from now.
 
-No support for sparse-times-sparse (aka SpGEMM):
-  This will probably "always" be the case, since we think it's valuable to keep RandBLAS' scope limited.
+Sparse-times-sparse (SpGEMM) requires a third-party library:
+  :cpp:any:`RandBLAS::spgemm` computes sparse × sparse → dense products, but it requires Intel MKL.
+  Without MKL, calling ``spgemm`` will produce a compile-time error.
+  Additionally, ``spgemm`` only supports single and double precision (``float`` and ``double``),
+  in contrast to other RandBLAS kernels that work with any scalar type.
 
 No support for subsampled randomized trig transforms (SRFT, SRHT, SRCT, etc...):
   We'd happily accept a contribution of a randomized Hadamard transform (without subsampling)
