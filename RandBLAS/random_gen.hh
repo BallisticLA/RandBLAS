@@ -33,57 +33,12 @@
 
 #include "compilers.hh"
 #include <Random123/features/compilerfeatures.h>
-
-// this is for sincosf
-#if !defined(_GNU_SOURCE)
-#define _GNU_SOURCE
-#endif
-#include <cmath>
-
-#if !defined(R123_NO_SINCOS) && defined(__APPLE__)
-/* MacOS X 10.10.5 (2015) doesn't have sincosf */
-// use "-D __APPLE__" as a compiler flag to make sure this is hit.
-#define R123_NO_SINCOS 1
-#endif
-
-#if R123_NO_SINCOS /* enable this if sincos and sincosf are not in the math library */
-R123_CUDA_DEVICE R123_STATIC_INLINE void sincosf(float x, float *s, float *c) {
-    *s = std::sinf(x);
-    *c = std::cosf(x);
-}
-
-R123_CUDA_DEVICE R123_STATIC_INLINE void sincos(double x, double *s, double *c) {
-    *s = std::sin(x);
-    *c = std::cos(x);
-}
-#endif /* sincos is not in the math library */
-
-// this is for sincosf
-#if !defined(__CUDACC__)
-static inline void sincospif(float x, float *s, float *c) {
-    const float PIf = 3.1415926535897932f;
-    sincosf(PIf*x, s, c);
-}
-
-static inline void sincospi(double x, double *s, double *c) {
-    const double PI = 3.1415926535897932;
-    sincos(PI*x, s, c);
-}
-#endif
-
-
 #include <Random123/array.h>
 #include <Random123/philox.h>
 #include <Random123/threefry.h>
 // NOTE: we do not support Random123's AES or ARS generators.
 
-RandBLAS_OPTIMIZE_OFF
 #include <Random123/boxmuller.hpp>
-// ^ We've run into correctness issues with that file when using clang and
-//   compiling with optimization enabled. To err on the side of caution
-//   we disable compiler optimizations for clang and three other compilers.
-//
-RandBLAS_OPTIMIZE_ON
 #include <Random123/uniform.hpp>
 
 /// our extensions to random123
