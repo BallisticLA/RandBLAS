@@ -34,17 +34,16 @@
 #include "RandBLAS/config.h"
 #include "RandBLAS/random_gen.hh"
 
-#include <blas.hh>
+#include "RandBLAS/blas_facade.hh"
 #include <utility>
 #include <cstring>
 #include <cstdint>
 #include <iostream>
+#include <sstream>
 
 #if defined(RandBLAS_HAS_OpenMP)
 #include <omp.h>
 #endif
-
-#include<iostream>
 
 
 /// code common across the project

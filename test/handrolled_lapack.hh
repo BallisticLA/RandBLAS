@@ -4,7 +4,7 @@
 #include "RandBLAS/util.hh"
 #include "RandBLAS/dense_skops.hh"
 
-#include <blas.hh>
+#include "RandBLAS/blas_facade.hh"
 #include <iostream>
 #include <vector>
 #include <cmath>
@@ -138,7 +138,7 @@ void qr_block_cgs2(int64_t m, int64_t n, T* A, T* R, std::vector<T> &bigwork, in
     qr_block_cgs(m, n, A, R2, n, littlework, b);
     blas::trmm(
         blas::Layout::ColMajor, blas::Side::Left, blas::Uplo::Upper, blas::Op::NoTrans, blas::Diag::NonUnit,
-        n, n, 1.0, R2, n, R, n
+        n, n, (T)1.0, R2, n, R, n
     );
     return;
 }

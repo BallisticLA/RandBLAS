@@ -35,7 +35,7 @@
 #include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_data/spmm_dispatch.hh"
 
-#include <blas.hh>
+#include "RandBLAS/blas_facade.hh"
 #include <iostream>
 #include <cstdio>
 #include <cmath>

@@ -55,7 +55,7 @@ class TestSubspaceDistortion : public ::testing::Test {
         RandBLAS::RNGState<r123::Philox4x32> state(key);
         auto next_state = RandBLAS::fill_dense(D, S.data(), state);
         T inv_stddev = (name == ScalarDist::Gaussian) ? (T) 1.0 : (T) 1.0;
-        blas::scal(d*N, inv_stddev / std::sqrt(d), S.data(), 1);
+        blas::scal(d*N, (T) (inv_stddev / std::sqrt(d)), S.data(), 1);
         std::vector<T> G(N*N, 0.0);
         blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, N, d, (T)1.0, S.data(), d, (T)0.0, G.data(), N);
         RandBLAS::symmetrize(layout, blas::Uplo::Upper, N, G.data(), N);
