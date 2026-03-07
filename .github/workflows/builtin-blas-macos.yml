@@ -1,0 +1,53 @@
+name: builtin-blas-macos
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: configure OS
+        run: |
+          # os level stuff
+          set -x
+          brew install googletest
+
+      - name: install Random123
+        run: |
+          cd ..
+          git clone https://github.com/DEShawResearch/Random123.git
+          cd Random123/
+          mkdir -p `pwd`/../Random123-install/include
+          cp -rp include/Random123 `pwd`/../Random123-install/include/
+
+      - name: build and test RandBLAS (release)
+        run: |
+          cd ..
+          mkdir RandBLAS-build
+          cd RandBLAS-build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+            -DRandBLAS_BLAS_BACKEND=builtin \
+            -DRandom123_DIR=`pwd`/../Random123-install/include/ \
+            -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
+            -DCMAKE_BINARY_DIR=`pwd` \
+            `pwd`/../RandBLAS
+          make -j2 install
+          ctest --output-on-failure
+
+      - name: build and test RandBLAS (Debug/asan)
+        run: |
+          cd ..
+          mkdir RandBLAS-asan-build
+          cd RandBLAS-asan-build
+          cmake -DCMAKE_BUILD_TYPE=Debug \
+            -DSANITIZE_ADDRESS=ON \
+            -DRandBLAS_BLAS_BACKEND=builtin \
+            -DRandom123_DIR=`pwd`/../Random123-install/include/ \
+            -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
+            -DCMAKE_BINARY_DIR=`pwd` \
+            `pwd`/../RandBLAS
+          make -j2 install
+          ctest --output-on-failure

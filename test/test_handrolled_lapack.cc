@@ -1,7 +1,7 @@
 
 
 #include <cmath>
-#include <blas.hh>
+#include "RandBLAS/blas_facade.hh"
 
 #include "RandBLAS/util.hh"
 #include "handrolled_lapack.hh"
@@ -35,17 +35,17 @@ class TestHandrolledCholesky : public ::testing::Test {
         std::vector<T> C(B);
 
         // define positive definite A
-        blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, n, m, iso_scale, B.data(), m, 0.0, A.data(), n);
+        blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, n, m, iso_scale, B.data(), m, (T)0.0, A.data(), n);
         RandBLAS::symmetrize(layout, blas::Uplo::Upper, n, A.data(), n);
         // overwrite A by its upper-triangular cholesky factor
         cholfunc(n, A.data());
         RandBLAS::overwrite_triangle(layout, blas::Uplo::Lower, n, 1, A.data(), n);
 
         // compute the gram matrix of A's cholesky factor
-        blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, n, n, 1.0, A.data(), n, 0.0, B.data(), n);
+        blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, n, n, (T)1.0, A.data(), n, (T)0.0, B.data(), n);
         RandBLAS::symmetrize(layout, blas::Uplo::Upper, n, B.data(), n);
         // recompute A
-        blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, n, m, iso_scale, C.data(), m, 0.0, A.data(), n);
+        blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, n, m, iso_scale, C.data(), m, (T)0.0, A.data(), n);
         RandBLAS::symmetrize(layout, blas::Uplo::Upper, n, A.data(), n);
 
         test::comparison::matrices_approx_equal(layout, blas::Op::NoTrans, n, n, B.data(), n, A.data(), n, 
