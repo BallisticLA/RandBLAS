@@ -33,8 +33,8 @@
 /// Minimal blas:: namespace for use when BLAS++ is not available.
 /// Provides the enumerations and routines used by RandBLAS:
 ///   Enumerations: Layout, Op, Uplo, Diag
-///   Level 1:      scal, copy, axpy
-///   Level 3:      gemm
+///   Level 1:      scal, copy, axpy, dot, nrm2
+///   Level 3:      gemm, syrk, symm, trmm, trsm
 ///
 /// Enum values match BLAS++ so that code compiled with either backend is
 /// binary-compatible if the enums are ever compared by underlying value.
@@ -59,7 +59,7 @@ enum class Diag   : char { NonUnit = 'N', Unit = 'U' };
 enum class Side   : char { Left = 'L', Right = 'R' };
 
 // ---------------------------------------------------------------------------
-// Level 1: scal, copy, axpy
+// Level 1: scal, copy, axpy, dot, nrm2
 // ---------------------------------------------------------------------------
 
 template <typename T>
