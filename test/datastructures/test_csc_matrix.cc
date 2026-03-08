@@ -27,7 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include "../../comparison.hh"
+#include "../comparison.hh"
 #include "RandBLAS/testing/sparse_data_common.hh"
 #include <gtest/gtest.h>
 #include <algorithm>

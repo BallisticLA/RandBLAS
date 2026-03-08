@@ -27,7 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include "test/test_matmul_cores/linop_common.hh"
+#include "test/linops/linop_common.hh"
 #include <gtest/gtest.h>
 
 using namespace test::linop_common;

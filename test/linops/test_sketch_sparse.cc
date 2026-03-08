@@ -1,4 +1,4 @@
-#include "test/test_matmul_cores/linop_common.hh"
+#include "test/linops/linop_common.hh"
 // ^ That includes a ton of stuff.
 
 using blas::Layout;

@@ -18,7 +18,7 @@ Nothing defined in this folder is part of RandBLAS' public API.
 
 ### matmul_cores
 
-Relies on RandBLAS/testing/linop_common.hh and test/matmul_cores/linop_common.hh.
+Relies on RandBLAS/testing/linop_common.hh and test/linops/linop_common.hh.
 
   * lskges, rskges, lskge3, rskge3. The rskgex functions could reduce to lskgex by transposing the
     product and flipping the layout. Strictly speaking, the rskgex functions don't do that, but they

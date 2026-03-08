@@ -28,13 +28,13 @@
 //
 
 #include <gtest/gtest.h>
-#include "RandBLAS/sparse_data/random_matrix.hh"
+#include "RandBLAS/testing/random_sparse_data.hh"
 #include "RandBLAS/sparse_data/csr_matrix.hh"
 #include "RandBLAS/sparse_data/csc_matrix.hh"
 #include "RandBLAS/sparse_data/coo_matrix.hh"
 #include <cmath>
 
-using namespace RandBLAS::sparse_data;
+using namespace RandBLAS::testing;
 
 
 class TestRandomSparseMatrix : public ::testing::Test {};

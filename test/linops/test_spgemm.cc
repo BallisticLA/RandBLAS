@@ -32,7 +32,7 @@
 #if defined(RandBLAS_HAS_MKL)
 
 #include "RandBLAS/testing/sparse_data_common.hh"
-#include "test/test_matmul_cores/linop_common.hh"
+#include "test/linops/linop_common.hh"
 #include "test/comparison.hh"
 #include <gtest/gtest.h>
 #include <algorithm>

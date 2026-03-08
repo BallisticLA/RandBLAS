@@ -44,7 +44,12 @@
 #include "RandBLAS/sparse_data/csc_matrix.hh"
 
 
-namespace RandBLAS::sparse_data {
+namespace RandBLAS::testing {
+
+using RandBLAS::sparse_data::CSRMatrix;
+using RandBLAS::sparse_data::CSCMatrix;
+using RandBLAS::sparse_data::COOMatrix;
+using RandBLAS::sparse_data::NonzeroSort;
 
 #ifdef __cpp_concepts
 using RandBLAS::SignedInteger;
@@ -355,4 +360,4 @@ std::pair<COOMatrix<T, sint_t>, RandBLAS::RNGState<RNG>> random_coo(
 }
 
 
-} // end namespace RandBLAS::sparse_data
+} // end namespace RandBLAS::testing
