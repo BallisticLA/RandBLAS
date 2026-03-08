@@ -39,7 +39,7 @@ using RandBLAS::sample_indices_iid;
 using RandBLAS::sample_indices_iid_uniform;
 using RandBLAS::repeated_fisher_yates;
 #include "RandBLAS/testing/stats.hh"
-#include "../comparison.hh"
+#include "RandBLAS/testing/comparison.hh"
 
 #include <algorithm>
 #include <iostream>
@@ -323,9 +323,10 @@ class TestSampleIndices : public ::testing::Test
         auto ctr_onecall = t.counter.v[0];
         EXPECT_EQ( ctr_onecall, ctr_twocall );
 
-        test::comparison::buffs_approx_equal(
-            onecall.data(), twocall.data(), r_total*k, __PRETTY_FUNCTION__, __FILE__, __LINE__
-        );
+        auto msg = RandBLAS::testing::buffs_approx_equal(onecall.data(), twocall.data(), r_total*k, __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
     }
 
 };

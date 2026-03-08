@@ -33,7 +33,7 @@
 
 #include "RandBLAS/testing/sparse_data.hh"
 #include "test/linops/linop_common.hh"
-#include "test/comparison.hh"
+#include "RandBLAS/testing/comparison.hh"
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <vector>
@@ -147,10 +147,14 @@ class TestSpGEMM : public ::testing::Test {
             err_alpha, A_abs.data(), lda, B_abs.data(), ldb,
             err_beta, E.data(), ldc);
 
-        test::comparison::buffs_approx_equal(
+        auto msg = RandBLAS::testing::buffs_approx_equal(
             C_actual.data(), C_ref.data(), E.data(), m * n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
+
     }
 
     // Convenience: CSR x CSR

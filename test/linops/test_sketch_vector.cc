@@ -34,7 +34,7 @@
 #include "RandBLAS/util.hh"
 #include "RandBLAS/skge.hh"
 
-#include "test/comparison.hh"
+#include "RandBLAS/testing/comparison.hh"
 
 #include <gtest/gtest.h>
 
@@ -72,15 +72,19 @@ class TestSketchVector : public ::testing::Test
 
         RandBLAS::sketch_vector(blas::Op::NoTrans, d, m, (T)1.0, S, 0, 0, x, incx, (T)0.0, y_actual, incy);
         blas::gemv(S.layout, blas::Op::NoTrans, d, m, (T)1.0, S.buff, lds, x, incx, (T)0.0, y_expect, incy); 
-
-        test::comparison::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
+ 
+        auto msg = RandBLAS::testing::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
                 __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
+
         delete [] x;
         delete [] y_expect;
         delete [] y_actual;
     }
-    
+
     template<typename T>
     static void test_apply_transposed_to_vector(
         uint32_t seed, // Seed for S_wide
@@ -105,9 +109,12 @@ class TestSketchVector : public ::testing::Test
         blas::gemv(S.layout, blas::Op::Trans, m, d, (T)1.0, S.buff, lds, x, incx, (T)0.0, y_expect, incy); 
         
         // Compare entrywise results of sketching with sketch_vector and using gemv
-        test::comparison::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
+        auto msg = RandBLAS::testing::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
                 __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         delete [] x;
         delete [] y_actual;
         delete [] y_expect;
@@ -139,9 +146,12 @@ class TestSketchVector : public ::testing::Test
         RandBLAS::sketch_vector(blas::Op::NoTrans, d, m, (T)1.0, S_wide, 0, 0, x, incx, (T)0.0, y_wide, incy);
         RandBLAS::sketch_vector(blas::Op::Trans, m, d, (T)1.0, S_tall, 0, 0, x, incx, (T)0.0, y_tall, incy);
         
-        test::comparison::buffs_approx_equal(d, y_wide, incy, y_tall, incy,
+        auto msg = RandBLAS::testing::buffs_approx_equal(d, y_wide, incy, y_tall, incy,
                 __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         delete [] x;
         delete [] y_wide;
         delete [] y_tall;
@@ -172,9 +182,12 @@ class TestSketchVector : public ::testing::Test
         blas::gemv(S.layout, blas::Op::NoTrans, d, m, (T)1, S.buff, lds, x, incx, (T)0, y_expect, incy); 
 
         // Compare entrywise results of sketching with sketch_vector and using gemv
-        test::comparison::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
+        auto msg = RandBLAS::testing::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
                 __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         delete [] x;
         delete [] y_actual;
         delete [] y_expect;

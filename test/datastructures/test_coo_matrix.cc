@@ -27,7 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include "../comparison.hh"
+#include "RandBLAS/testing/comparison.hh"
 #include "RandBLAS/testing/sparse_data.hh"
 #include <gtest/gtest.h>
 #include <algorithm>
@@ -87,9 +87,12 @@ class TestCOO : public ::testing::Test {
         std::vector<T> expect(n * n);
         coo_to_dense(A, 1, n, expect.data());
 
-        test::comparison::buffs_approx_equal(actual.data(), expect.data(), n * n,
+        auto msg = RandBLAS::testing::buffs_approx_equal(actual.data(), expect.data(), n * n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         EXPECT_GT(A.nnz, 0);
         EXPECT_LT(A.nnz, n*n);
         return;
@@ -298,9 +301,12 @@ class Test_SkOp_to_COO : public ::testing::Test {
         std::vector<T> A_dense(d * m);
         coo_to_dense(A, Layout::ColMajor, A_dense.data());
     
-        test::comparison::buffs_approx_equal(S_dense.data(), A_dense.data(), d * m,
+        auto msg = RandBLAS::testing::buffs_approx_equal(S_dense.data(), A_dense.data(), d * m,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         return;
     } 
 };

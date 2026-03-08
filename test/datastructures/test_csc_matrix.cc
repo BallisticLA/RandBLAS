@@ -27,7 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#include "../comparison.hh"
+#include "RandBLAS/testing/comparison.hh"
 #include "RandBLAS/testing/sparse_data.hh"
 #include <gtest/gtest.h>
 #include <algorithm>
@@ -67,9 +67,12 @@ class TestCSC_Conversions : public ::testing::Test {
         csc_to_dense(spmat, layout, dn_mat_recon);
 
         // check equivalence of dn_mat and dn_mat_recon
-        test::comparison::buffs_approx_equal(dn_mat, dn_mat_recon, m * n,
+        auto msg = RandBLAS::testing::buffs_approx_equal(dn_mat, dn_mat_recon, m * n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
 
         delete [] dn_mat;
         delete [] dn_mat_recon;
@@ -98,11 +101,14 @@ class TestCSC_Conversions : public ::testing::Test {
         T *mat_actual = new T[m * n]{0.0};
         csc_to_dense(csc, Layout::ColMajor, mat_actual);
 
-        test::comparison::matrices_approx_equal(
+        auto msg = RandBLAS::testing::matrices_approx_equal(
             Layout::ColMajor, Layout::ColMajor, blas::Op::NoTrans,
             m, n, mat_expect, m, mat_actual, m,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
 
         delete [] mat_expect;
         delete [] diag;
@@ -122,11 +128,14 @@ class TestCSC_Conversions : public ::testing::Test {
         std::vector<T> A_dense_csc(n*n);
         coo_to_dense(A_coo, Layout::ColMajor, A_dense_coo.data());
         csc_to_dense(A_csc, Layout::ColMajor, A_dense_csc.data());
-        test::comparison::matrices_approx_equal(
+        auto msg = RandBLAS::testing::matrices_approx_equal(
             Layout::ColMajor, Layout::ColMajor, blas::Op::NoTrans,
             n, n, A_dense_csc.data(), n, A_dense_coo.data(), n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
     }
 
     template <typename T = double>

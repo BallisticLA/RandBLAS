@@ -68,11 +68,14 @@ void test_left_transposed_sketch_of_eye(
 
     std::vector<T> S_dense(m * d, 0.0);
     to_explicit_buffer(S, S_dense.data(), layout);
-    test::comparison::matrices_approx_equal(
+    auto msg = RandBLAS::testing::matrices_approx_equal(
         layout, Op::Trans, d, m,
         B.data(), ldb, S_dense.data(), lds,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
 }
 
 // Adapted from test::linop_common::test_left_apply_submatrix_to_eye.
@@ -113,13 +116,16 @@ void test_left_submat_sketch_of_eye(
         }
     }
 
-    test::comparison::matrices_approx_equal(
+    auto msg = RandBLAS::testing::matrices_approx_equal(
         layout, Op::NoTrans,
         d1, m1,
         B.data(), ldb,
         &expect[offset], ld_expect,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
 
     delete [] expect;
 }
@@ -141,11 +147,15 @@ void test_right_transposed_sketch_of_eye(
 
     std::vector<T> S_dense(n * d, 0.0);
     to_explicit_buffer(S, S_dense.data(), layout);
-    test::comparison::matrices_approx_equal(
-        layout, Op::Trans, n, d, 
+    auto msg = RandBLAS::testing::matrices_approx_equal(
+        layout, Op::Trans, n, d,
         B.data(), ldb, S_dense.data(), lds,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
+
 }
 
 // Adapted from test::linop_common::test_right_apply_submatrix_to_eye.
@@ -179,10 +189,13 @@ void test_right_submat_sketch_of_eye(
         }
     }
 
-    test::comparison::matrices_approx_equal(
+    auto msg = RandBLAS::testing::matrices_approx_equal(
         layout, Op::NoTrans, n, d, B.data(), ldb, &expect[offset], ld_expect,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
 
     delete [] expect;
 }

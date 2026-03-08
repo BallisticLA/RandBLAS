@@ -33,6 +33,8 @@
 #include <limits>
 #include <iostream>
 #include <sstream>
+#include <string>
+#include "RandBLAS.hh"
 
 
 namespace RandBLAS::testing {
@@ -74,6 +76,169 @@ bool approx_equal(T A, T B, std::ostream &str,
         << ", rtol=" << rtol;
 
     return false;
+}
+
+template <typename T>
+std::string approx_equal(
+    T A, T B,
+    const char* testName, const char* fileName, int lineNo,
+    T atol = T(10)*std::numeric_limits<T>::epsilon(),
+    T rtol = std::numeric_limits<T>::epsilon()
+) {
+    std::ostringstream oss;
+    if (!approx_equal(A, B, oss, atol, rtol)) {
+        std::ostringstream out;
+        out << "\n" << fileName << ":" << lineNo << "\n"
+            << testName << "\nTest failed. " << oss.str() << "\n";
+        return out.str();
+    }
+    return "";
+}
+
+template <typename T>
+std::string buffs_approx_equal(
+    const T *actual_ptr,
+    const T *expect_ptr,
+    int64_t size,
+    const char *testName,
+    const char *fileName,
+    int lineNo,
+    T atol = T(10)*std::numeric_limits<T>::epsilon(),
+    T rtol = std::numeric_limits<T>::epsilon()
+) {
+    std::ostringstream oss;
+    for (int64_t i = 0; i < size; ++i) {
+        if (!approx_equal(actual_ptr[i], expect_ptr[i], oss, atol, rtol)) {
+            std::ostringstream out;
+            out << "\n" << fileName << ":" << lineNo << "\n"
+                << testName << "\nTest failed at index " << i
+                << " " << oss.str() << "\n";
+            return out.str();
+        }
+    }
+    return "";
+}
+
+template <typename T>
+std::string buffs_approx_equal(
+    int64_t size,
+    const T *actual_ptr,
+    int64_t inc_actual,
+    const T *expect_ptr,
+    int64_t inc_expect,
+    const char *testName,
+    const char *fileName,
+    int lineNo,
+    T atol = T(10)*std::numeric_limits<T>::epsilon(),
+    T rtol = std::numeric_limits<T>::epsilon()
+) {
+    std::ostringstream oss;
+    for (int64_t i = 0; i < size; ++i) {
+        if (!approx_equal(actual_ptr[i*inc_actual], expect_ptr[i*inc_expect], oss, atol, rtol)) {
+            std::ostringstream out;
+            out << "\n" << fileName << ":" << lineNo << "\n"
+                << testName << "\nTest failed at index " << i
+                << " " << oss.str() << "\n";
+            return out.str();
+        }
+    }
+    return "";
+}
+
+template <typename T>
+std::string buffs_approx_equal(
+    const T *actual_ptr,
+    const T *expect_ptr,
+    const T *bounds_ptr,
+    int64_t size,
+    const char *test_name,
+    const char *file_name,
+    int line_no
+) {
+    for (int64_t i = 0; i < size; ++i) {
+        T actual_err = std::abs(actual_ptr[i] - expect_ptr[i]);
+        T allowed_err = bounds_ptr[i];
+        if (actual_err > allowed_err) {
+            std::ostringstream out;
+            out << "\n\t" << file_name << ":" << line_no << "\n"
+                << "\t" << test_name << "\n\tTest failed at index "
+                << i << ".\n\t| (" << actual_ptr[i] << ") - (" << expect_ptr[i] << ") | "
+                << " > " << allowed_err << "\n";
+            return out.str();
+        }
+    }
+    return "";
+}
+
+template <typename T>
+std::string matrices_approx_equal(
+    blas::Layout layoutA,
+    blas::Layout layoutB,
+    blas::Op transB,
+    int64_t m,
+    int64_t n,
+    const T *A,
+    int64_t lda,
+    const T *B,
+    int64_t ldb,
+    const char *testName,
+    const char *fileName,
+    int lineNo,
+    T atol = T(10)*std::numeric_limits<T>::epsilon(),
+    T rtol = std::numeric_limits<T>::epsilon()
+) {
+    std::ostringstream oss;
+    auto idxa = [lda, layoutA](int64_t i, int64_t j) {
+        return (layoutA == blas::Layout::ColMajor) ? (i + j*lda) : (j + i*lda);
+    };
+    auto idxb = [ldb, layoutB](int64_t i, int64_t j) {
+        return (layoutB == blas::Layout::ColMajor) ? (i + j*ldb) : (j + i*ldb);
+    };
+    if (transB == blas::Op::NoTrans) {
+        for (int64_t i = 0; i < m; ++i) {
+            for (int64_t j = 0; j < n; ++j) {
+                if (!approx_equal(A[idxa(i, j)], B[idxb(i, j)], oss, atol, rtol)) {
+                    std::ostringstream out;
+                    out << "\n" << fileName << ":" << lineNo << "\n"
+                        << testName << "\n\tTest failed at index ("
+                        << i << ", " << j << ")\n\t" << oss.str() << "\n";
+                    return out.str();
+                }
+            }
+        }
+    } else {
+        for (int64_t i = 0; i < m; ++i) {
+            for (int64_t j = 0; j < n; ++j) {
+                if (!approx_equal(A[idxa(i, j)], B[idxb(j, i)], oss, atol, rtol)) {
+                    std::ostringstream out;
+                    out << "\n" << fileName << ":" << lineNo << "\n"
+                        << testName << "\n\tTest failed at index ("
+                        << j << ", " << i << ")\n\t" << oss.str() << "\n";
+                    return out.str();
+                }
+            }
+        }
+    }
+    return "";
+}
+
+template <typename T>
+std::string matrices_approx_equal(
+    blas::Layout layout,
+    blas::Op transB,
+    int64_t m,
+    int64_t n,
+    const T *A,
+    int64_t lda,
+    const T *B,
+    int64_t ldb,
+    const char *testName,
+    const char *fileName,
+    int lineNo,
+    T atol = T(10)*std::numeric_limits<T>::epsilon(),
+    T rtol = std::numeric_limits<T>::epsilon()
+) {
+    return matrices_approx_equal(layout, layout, transB, m, n, A, lda, B, ldb, testName, fileName, lineNo, atol, rtol);
 }
 
 } // end namespace RandBLAS::testing

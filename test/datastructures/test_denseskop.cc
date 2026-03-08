@@ -32,7 +32,7 @@
 #include "RandBLAS/random_gen.hh"
 #include "RandBLAS/dense_skops.hh"
 #include "RandBLAS/util.hh"
-#include "test/comparison.hh"
+#include "RandBLAS/testing/comparison.hh"
 
 #include <gtest/gtest.h>
 
@@ -368,11 +368,14 @@ class TestFillAxis : public::testing::Test
         // check that buffers reflect transposed data : S_wide == S_tall.T
         auto lds_wide = (S_wide.layout == blas::Layout::ColMajor) ? short_dim : long_dim;
         auto lds_tall = (S_tall.layout == blas::Layout::ColMajor) ? long_dim  : short_dim;
-        test::comparison::matrices_approx_equal(
+        auto msg = RandBLAS::testing::matrices_approx_equal(
             S_wide.layout, S_tall.layout, blas::Op::Trans, short_dim, long_dim,
             S_wide.buff, lds_wide, S_tall.buff, lds_tall,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         return;   
     }
 

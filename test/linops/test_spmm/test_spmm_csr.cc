@@ -436,11 +436,14 @@ protected:
         // Matrix multiply accumulates ~k operations, so error is O(k * eps)
         T atol = k * std::numeric_limits<T>::epsilon();
         T rtol = std::sqrt(std::numeric_limits<T>::epsilon());
-        test::comparison::buffs_approx_equal(
+        auto msg = RandBLAS::testing::buffs_approx_equal(
             C_actual.data(), C_ref.data(), m * n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__,
             atol, rtol
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
     }
 };
 

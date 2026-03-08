@@ -42,7 +42,7 @@ using RandBLAS::DenseSkOp;
 using RandBLAS::RNGState;
 using RandBLAS::Axis;
 
-#include "test/comparison.hh"
+#include "RandBLAS/testing/comparison.hh"
 
 #include <gtest/gtest.h>
 #include <vector>
@@ -108,10 +108,13 @@ class TestSketchSymmetric : public ::testing::Test {
         // Compute the expected output
         blas::symm(S.layout, side_a, Uplo::Upper, rows_out, cols_out, alpha, A.data(), lda, S.buff, lds, beta, B_expect.data(), ldb);
 
-        test::comparison::matrices_approx_equal(
+        auto msg = RandBLAS::testing::matrices_approx_equal(
             S.layout, blas::Op::NoTrans, rows_out, cols_out, B_actual.data(), ldb, B_expect.data(), ldb,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         return;
     }
 
@@ -147,10 +150,13 @@ class TestSketchSymmetric : public ::testing::Test {
         RandBLAS::util::flip_layout(S.layout, rows_out, cols_out, S_flipped, lds_init, ldb);
         blas::symm(layout_B, side_a, Uplo::Upper, rows_out, cols_out, alpha, A.data(), lda, S_flipped.data(), ldb, beta, B_expect.data(), ldb);
 
-        test::comparison::matrices_approx_equal(
+        auto msg = RandBLAS::testing::matrices_approx_equal(
             layout_B, blas::Op::NoTrans, rows_out, cols_out, B_actual.data(), ldb, B_expect.data(), ldb,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         return;
     }
 

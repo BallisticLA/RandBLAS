@@ -15,7 +15,7 @@ using blas::Layout;
 using blas::Uplo;
 using blas::Op;
 using blas::Diag;
-#include "../comparison.hh"
+#include "RandBLAS/testing/comparison.hh"
 #include "RandBLAS/testing/sparse_data.hh"
 
 #include <algorithm>
@@ -128,7 +128,10 @@ class TestSptrsm : public ::testing::Test
         
         T atol = RandBLAS::sqrt_epsilon<T>();
         T rtol = atol;
-        test::comparison::buffs_approx_equal(k*n, rhs_copy.data(), 1, ref_ptr, 1, __PRETTY_FUNCTION__, __FILE__, __LINE__, atol, rtol);
+        auto msg = RandBLAS::testing::buffs_approx_equal(k*n, rhs_copy.data(), 1, ref_ptr, 1, __PRETTY_FUNCTION__, __FILE__, __LINE__, atol, rtol);
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         return;
     }
 
@@ -156,7 +159,10 @@ class TestSptrsm : public ::testing::Test
         // }
         T atol = RandBLAS::sqrt_epsilon<T>();
         T rtol = atol;
-        test::comparison::buffs_approx_equal(k*n, rhs_copy.data(), 1, ref_ptr, 1, __PRETTY_FUNCTION__, __FILE__, __LINE__, atol, rtol);
+        auto msg = RandBLAS::testing::buffs_approx_equal(k*n, rhs_copy.data(), 1, ref_ptr, 1, __PRETTY_FUNCTION__, __FILE__, __LINE__, atol, rtol);
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         return;
     }
 

@@ -30,7 +30,9 @@
 #pragma once
 
 #include "RandBLAS/testing/linops.hh"
-#include "test/comparison.hh"
+#include "RandBLAS/testing/comparison.hh"
+
+#include <gtest/gtest.h>
 
 
 namespace test::linop_common {
@@ -83,10 +85,14 @@ void test_left_apply_to_random(
     );
 
     // check the result
-    test::comparison::buffs_approx_equal<T>(
+    auto msg = RandBLAS::testing::buffs_approx_equal<T>(
         B0.data(), B1.data(), E.data(), d * n,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
+
     return;
 }
 
@@ -131,13 +137,16 @@ void test_left_apply_submatrix_to_eye(
         }
     }
 
-    test::comparison::matrices_approx_equal(
+    auto msg = RandBLAS::testing::matrices_approx_equal(
         layout, Op::NoTrans,
         d1, m1,
         B.data(), ldb,
         &expect[offset], ld_expect,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
 
     delete [] expect;
 }
@@ -165,11 +174,14 @@ void test_left_apply_transpose_to_eye(
 
     std::vector<T> S_dense(m * d, 0.0);
     to_explicit_buffer(S, S_dense.data(), layout);
-    test::comparison::matrices_approx_equal(
+    auto msg = RandBLAS::testing::matrices_approx_equal(
         layout, Op::Trans, d, m,
         B.data(), ldb, S_dense.data(), lds,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
 }
 
 template <typename T, typename LinOp>
@@ -208,10 +220,14 @@ void test_left_apply_to_submatrix(
         A_ptr, lda,
         0.0, B1.data(), E.data(), ldb
     );
-    test::comparison::buffs_approx_equal(
+    auto msg = RandBLAS::testing::buffs_approx_equal(
         B0.data(), B1.data(), E.data(), d * n,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
+
 }
 
 template <typename T, typename LinOp>
@@ -245,10 +261,13 @@ void test_left_apply_to_transposed(
         At.data(), lda,
         0.0, B1.data(), E.data(), ldb
     );
-    test::comparison::buffs_approx_equal(
+    auto msg = RandBLAS::testing::buffs_approx_equal(
         B0.data(), B1.data(), E.data(), d * n,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
 
 }
 
@@ -283,11 +302,13 @@ void test_right_apply_to_random(
         beta, B1.data(), E.data(), ldb
     );
 
-    test::comparison::buffs_approx_equal<T>(
+    auto msg = RandBLAS::testing::buffs_approx_equal<T>(
         B0.data(), B1.data(), E.data(), m * d,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
-
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
 }
 
 template <typename T, typename LinOp>
@@ -321,10 +342,13 @@ void test_right_apply_submatrix_to_eye(
         }
     }
 
-    test::comparison::matrices_approx_equal(
+    auto msg = RandBLAS::testing::matrices_approx_equal(
         layout, Op::NoTrans, n, d, B.data(), ldb, &expect[offset], ld_expect,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
 
     delete [] expect;
 }
@@ -345,11 +369,14 @@ void test_right_apply_transpose_to_eye(
 
     std::vector<T> S_dense(n * d, 0.0);
     to_explicit_buffer(S, S_dense.data(), layout);
-    test::comparison::matrices_approx_equal(
+    auto msg = RandBLAS::testing::matrices_approx_equal(
         layout, Op::Trans, n, d,
         B.data(), ldb, S_dense.data(), lds,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
 }
 
 template <typename T, typename LinOp>
@@ -380,10 +407,13 @@ void test_right_apply_to_submatrix(
         1.0, A_ptr, lda, S, 0, 0,
         0.0, B1.data(), E.data(), ldb
     );
-    test::comparison::buffs_approx_equal(
+    auto msg = RandBLAS::testing::buffs_approx_equal(
         B0.data(), B1.data(), E.data(), d * m,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
 
 }
 
@@ -409,10 +439,14 @@ void test_right_apply_to_transposed(
         1.0, At.data(), lda, S, 0, 0,
         0.0, B1.data(), E.data(), ldb
     );
-    test::comparison::buffs_approx_equal(
+    auto msg = RandBLAS::testing::buffs_approx_equal(
         B0.data(), B1.data(), E.data(), m * d,
         __PRETTY_FUNCTION__, __FILE__, __LINE__
     );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
+
 }
 
 } // end namespace test::linop_common

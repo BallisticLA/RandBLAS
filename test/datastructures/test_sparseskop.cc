@@ -30,7 +30,7 @@
 #include <RandBLAS/dense_skops.hh>
 #include <RandBLAS/sparse_skops.hh>
 #include <RandBLAS/util.hh>
-#include "test/comparison.hh"
+#include "RandBLAS/testing/comparison.hh"
 #include <gtest/gtest.h>
 #include <cmath>
 
@@ -131,9 +131,19 @@ class TestSparseSkOpConstruction : public ::testing::Test
         auto next_state = state; // it's safe to pass in a nonsense value, since we aren't going reference this again.
         auto S = new SparseSkOp(sd, state, next_state, -1, vals.data(), rows.data(), cols.data());
         // check that nothing has changed
-        test::comparison::buffs_approx_equal(rows.data(), rows_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
-        test::comparison::buffs_approx_equal(cols.data(), cols_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
-        test::comparison::buffs_approx_equal(vals.data(), vals_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (T) 0, (T) 0);
+        std::string msg;
+        msg = RandBLAS::testing::buffs_approx_equal(rows.data(), rows_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
+        msg = RandBLAS::testing::buffs_approx_equal(cols.data(), cols_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
+        msg = RandBLAS::testing::buffs_approx_equal(vals.data(), vals_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (T) 0, (T) 0);
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         fill_sparse(*S);
         rows_copy = rows;
         cols_copy = cols;
@@ -146,9 +156,18 @@ class TestSparseSkOpConstruction : public ::testing::Test
         }
         // delete S, and make sure the rows,cols,vals are unchanged from before the deletion.
         delete S;
-        test::comparison::buffs_approx_equal(rows.data(), rows_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
-        test::comparison::buffs_approx_equal(cols.data(), cols_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
-        test::comparison::buffs_approx_equal(vals.data(), vals_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (T) 0, (T) 0);
+        msg = RandBLAS::testing::buffs_approx_equal(rows.data(), rows_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
+        msg = RandBLAS::testing::buffs_approx_equal(cols.data(), cols_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
+        msg = RandBLAS::testing::buffs_approx_equal(vals.data(), vals_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (T) 0, (T) 0);
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         return;
     }
 
@@ -166,15 +185,26 @@ class TestSparseSkOpConstruction : public ::testing::Test
         );
         EXPECT_EQ(S.nnz, nnz);
         EXPECT_TRUE(actual_next == expect_next);
-        test::comparison::buffs_approx_equal(
+        std::string msg;
+        msg = RandBLAS::testing::buffs_approx_equal(
             vals.data(), S.vals, nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
-        test::comparison::buffs_approx_equal(
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
+        msg = RandBLAS::testing::buffs_approx_equal(
             rows.data(), S.rows, nnz,  __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
-        test::comparison::buffs_approx_equal(
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
+        msg = RandBLAS::testing::buffs_approx_equal(
             cols.data(), S.cols, nnz,  __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
+        return;
     }
 };
 

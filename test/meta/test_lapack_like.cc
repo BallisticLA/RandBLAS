@@ -5,7 +5,7 @@
 
 #include "RandBLAS/util.hh"
 #include "RandBLAS/testing/lapack_like.hh"
-#include "../comparison.hh"
+#include "RandBLAS/testing/comparison.hh"
 #include "RandBLAS/config.h"
 #include "RandBLAS/dense_skops.hh"
 using RandBLAS::DenseDist;
@@ -48,9 +48,12 @@ class TestHandrolledCholesky : public ::testing::Test {
         blas::syrk(layout, blas::Uplo::Upper, blas::Op::Trans, n, m, iso_scale, C.data(), m, 0.0, A.data(), n);
         RandBLAS::symmetrize(layout, blas::Uplo::Upper, n, A.data(), n);
 
-        test::comparison::matrices_approx_equal(layout, blas::Op::NoTrans, n, n, B.data(), n, A.data(), n, 
+        auto msg = RandBLAS::testing::matrices_approx_equal(layout, blas::Op::NoTrans, n, n, B.data(), n, A.data(), n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
     }
 
     template <typename T>
@@ -79,9 +82,12 @@ class TestHandrolledCholesky : public ::testing::Test {
             B[i+i*n] = std::sqrt(A[i+i*n]);
         }
         RandBLAS::testing::potrf_upper(n, A.data(), n, b);
-        test::comparison::matrices_approx_equal(layout, blas::Op::NoTrans, n, n, B.data(), n, A.data(), n, 
+        auto msg = RandBLAS::testing::matrices_approx_equal(layout, blas::Op::NoTrans, n, n, B.data(), n, A.data(), n,
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
     }
 
 };
@@ -151,7 +157,10 @@ void verify_product(int64_t m, int64_t n, int64_t k, const T* A, const T* B, con
     vector<T> E(m*n, 0.0);
     T err_alpha = 2 * k * std::numeric_limits<T>::epsilon();
     blas::gemm(blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans, m, n, k, err_alpha, A_copy.data(), lda, B_copy.data(), ldb, (T)0.0, E.data(), m);
-    test::comparison::buffs_approx_equal(C_work.data(), C, E.data(), m*n, __PRETTY_FUNCTION__, __FILE__, __LINE__);
+    auto msg = RandBLAS::testing::buffs_approx_equal(C_work.data(), C, E.data(), m*n, __PRETTY_FUNCTION__, __FILE__, __LINE__);
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
     return;
 }
 
@@ -163,9 +172,12 @@ void verify_orthonormal_componentwise(int m, int n, T* Q, T max_cond = 10) {
     std::vector<T> QtQ(n*n, 0.0);
     T tol = max_cond * std::sqrt(m) * std::numeric_limits<T>::epsilon();
     blas::gemm(blas::Layout::ColMajor, blas::Op::Trans, blas::Op::NoTrans, n, n, m, (T) 1.0, Q, m, Q, m, (T) 0.0, QtQ.data(), n);
-    test::comparison::matrices_approx_equal(blas::Layout::ColMajor, blas::Op::NoTrans, n, n, QtQ.data(), n, I.data(), n,
+    auto msg = RandBLAS::testing::matrices_approx_equal(blas::Layout::ColMajor, blas::Op::NoTrans, n, n, QtQ.data(), n, I.data(), n,
         __PRETTY_FUNCTION__, __FILE__, __LINE__, tol, tol
     );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
     return;
 }
 
@@ -251,7 +263,10 @@ class TestHandrolledEigvals : public ::testing::Test {
         T tol = 1e-3;
         auto iter = RandBLAS::testing::posdef_eig_chol_iteration(n, A.data(), eigvals_actual.data(), tol, iters, b);
         ASSERT_EQ(iter, 0);
-        test::comparison::buffs_approx_equal(eigvals_actual.data(), eigvals_expect.data(), n, __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
+        auto msg = RandBLAS::testing::buffs_approx_equal(eigvals_actual.data(), eigvals_expect.data(), n, __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         return;
     }
 
@@ -271,8 +286,15 @@ class TestHandrolledEigvals : public ::testing::Test {
         T max_eig_actual = *std::max_element(eigvals_actual.begin(), eigvals_actual.end());
         std::cout << "min_comp / min_actual " << min_eig_actual / eigvals_expect[n-1] << std::endl;
         std::cout << "max_comp / max_actual " << max_eig_actual / eigvals_expect[0] << std::endl;
-        test::comparison::approx_equal(min_eig_actual, eigvals_expect[n-1], __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
-        test::comparison::approx_equal(max_eig_actual, eigvals_expect[0  ], __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
+        std::string msg;
+        msg = RandBLAS::testing::approx_equal(min_eig_actual, eigvals_expect[n-1], __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
+        msg = RandBLAS::testing::approx_equal(max_eig_actual, eigvals_expect[0  ], __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         return;
     }
 
@@ -298,8 +320,15 @@ class TestHandrolledEigvals : public ::testing::Test {
 
         std::cout << "min_comp / min_actual = " << lambda_min / eigvals_expect[n-1] << std::endl;
         std::cout << "max_comp / max_actual = " << lambda_max / eigvals_expect[0] << std::endl;
-        test::comparison::approx_equal(lambda_min, eigvals_expect[n-1], __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
-        test::comparison::approx_equal(lambda_max, eigvals_expect[0  ], __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
+        std::string msg;
+        msg = RandBLAS::testing::approx_equal(lambda_min, eigvals_expect[n-1], __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
+        msg = RandBLAS::testing::approx_equal(lambda_max, eigvals_expect[0  ], __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
         return;
     }
 };
