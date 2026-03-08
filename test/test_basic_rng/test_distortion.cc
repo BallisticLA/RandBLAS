@@ -35,8 +35,9 @@ using RandBLAS::DenseDist;
 using RandBLAS::ScalarDist;
 using RandBLAS::RNGState;
 
-#include "rng_common.hh"
-#include "../handrolled_lapack.hh"
+#include "RandBLAS/testing/rng_common.hh"
+#include "RandBLAS/testing/handrolled_lapack.hh"
+using namespace RandBLAS::testing;
 
 #include <iostream>
 #include <vector>
@@ -64,7 +65,7 @@ class TestSubspaceDistortion : public ::testing::Test {
         std::vector<T> subwork{};
         T powermethod_reltol = 1e-2;
         T powermethod_failprob = 1e-6;
-        auto [lambda_max, lambda_min, ignore] = hr_lapack::exeigs_powermethod(
+        auto [lambda_max, lambda_min, ignore] = exeigs_powermethod(
             N, G.data(), eigvecs.data(), powermethod_reltol, powermethod_failprob, state, subwork
         );
         T sigma_max = std::sqrt(lambda_max);

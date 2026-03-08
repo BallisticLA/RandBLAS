@@ -33,7 +33,7 @@
 #include "RandBLAS/dense_skops.hh"
 using RandBLAS::RNGState;
 using RandBLAS::ScalarDist;
-#include "rng_common.hh"
+#include "RandBLAS/testing/rng_common.hh"
 
 #include <algorithm>
 #include <iostream>
@@ -58,9 +58,9 @@ class TestScalarDistributions : public ::testing::Test {
     ) { 
         auto F_true = [sd](T x) {
             if (sd == ScalarDist::Gaussian) {
-                return RandBLAS_StatTests::standard_normal_cdf(x);
+                return RandBLAS::testing::standard_normal_cdf(x);
             } else if (sd == ScalarDist::Uniform) {
-                return RandBLAS_StatTests::uniform_syminterval_cdf(x, (T) std::sqrt(3));
+                return RandBLAS::testing::uniform_syminterval_cdf(x, (T) std::sqrt(3));
             } else {
                 std::string msg = "Unrecognized distributions name";
                 throw std::runtime_error(msg);
@@ -109,7 +109,7 @@ class TestScalarDistributions : public ::testing::Test {
 
     template <typename T>
     static void run(double significance, int64_t num_samples, ScalarDist sd, uint32_t seed) {
-        using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
+        using RandBLAS::testing::KolmogorovSmirnovConstants::critical_value_rep_mutator;
         auto critical_value = critical_value_rep_mutator(num_samples, significance);
         RNGState state(seed);
         std::vector<T> samples(num_samples, -1);

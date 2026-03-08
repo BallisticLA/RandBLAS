@@ -39,6 +39,13 @@ using blas::Layout;
 using test::test_datastructures::test_spmats::iid_sparsify_random_dense;
 // ^ Not used in this file, but required by client files.
 
+#ifdef __cpp_concepts
+using RandBLAS::SparseMatrix;
+#else
+#define SparseMatrix typename
+#endif
+
+
 
 template <SparseMatrix SpMat>
 class TestLeftMultiply_Sparse : public ::testing::Test {

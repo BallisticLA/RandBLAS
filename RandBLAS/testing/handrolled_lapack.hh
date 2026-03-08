@@ -1,3 +1,31 @@
+// Copyright, 2024. See LICENSE for copyright holder information.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// (1) Redistributions of source code must retain the above copyright notice,
+// this list of conditions and the following disclaimer.
+//
+// (2) Redistributions in binary form must reproduce the above copyright
+// notice, this list of conditions and the following disclaimer in the
+// documentation and/or other materials provided with the distribution.
+//
+// (3) Neither the name of the copyright holder nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+//
 
 #pragma once
 
@@ -9,9 +37,27 @@
 #include <vector>
 #include <cmath>
 
-namespace hr_lapack {
+namespace RandBLAS::testing {
 
 using RandBLAS::RNGState;
+
+template <typename T>
+void apply_reflectors(int64_t m, int64_t n, int64_t k, const T* vecs, int64_t ldvecs, T* A, int64_t lda) {
+    // A is m-by-n, vecs is m-by-k, both in column-major order.
+    // Each column v in vecs must be nonzero; it induces
+    // a Householder reflector H = I - 2 vv^T / (v^T v).
+    // This function applies the k reflectors in sequence to A,
+    // i.e. A <- H_k ... H_1 A.
+    auto layout = blas::Layout::ColMajor;
+    std::vector<T> w(n);
+    for (int64_t i = 0; i < k; ++i) {
+        const T* v = vecs + i * ldvecs;
+        T tau = (T) 2.0 / blas::dot(m, v, 1, v, 1);
+        blas::gemv(layout, blas::Op::Trans, m, n, (T) 1.0, A, lda, v, 1, (T) 0.0, w.data(), 1);
+        blas::ger(layout, m, n, -tau, v, 1, w.data(), 1, A, lda);
+    }
+    return;
+}
 
 template <typename T>
 int potrf_upper_sequential(int64_t n, T* A, int64_t lda) {
@@ -58,7 +104,7 @@ int potrf_upper(int64_t n, T* A, int64_t lda, int64_t b = 64) {
             layout, blas::Side::Left, uplo, blas::Op::Trans, blas::Diag::NonUnit,
             curr_b, n - curr_b, (T) 1.0, R11, lda, A12, lda
         );
-        blas::syrk(layout, uplo, blas::Op::Trans, 
+        blas::syrk(layout, uplo, blas::Op::Trans,
             n - curr_b, curr_b, (T) -1.0, A12, lda, (T) 1.0, A22, lda
         );
         potrf_upper(n-curr_b, A22, lda, b);
@@ -86,62 +132,6 @@ void chol_qr(int64_t m, int64_t n, T* A, T* R, int64_t chol_block_size = 32, boo
     return;
 }
 
-// work must be length at least max(n, 2*b) * b
-template <typename T>
-void qr_block_cgs(int64_t m, int64_t n, T* A, T* R, int64_t ldr, T* work, int64_t b) {
-    if (n > m)
-        throw std::runtime_error("Invalid dimensions.");
-    randblas_require(ldr >= n);
-
-    b = std::min(b, n);
-    auto layout = blas::Layout::ColMajor;
-    using blas::Op;
-    chol_qr(m, b, A, work, b, true);
-    T one  = (T) 1.0;
-    T zero = (T) 0.0;
-    T* R1 = work;
-    for (int64_t j = 0; j < b; ++j)
-        blas::copy(b, R1 + b*j, 1, R + ldr*j, 1);
-
-    if (b < n) {
-        int64_t n_trail = n - b;
-        T* A1 = A;           // A[:,  :b]
-        T* A2 = A + m * b;   // A[:,  b:]
-        T* R2 = R + ldr * b; // R[:b, b:]
-        // Compute A1tA2 := A1' * A2 and then update A2 -= A1 *  A1tA2
-        T* A1tA2 = work;
-        blas::gemm(layout, Op::Trans,   Op::NoTrans, b, n_trail, m,  one, A1, m, A2,    m, zero, A1tA2, b);
-        blas::gemm(layout, Op::NoTrans, Op::NoTrans, m, n_trail, b, -one, A1, m, A1tA2, b,  one, A2,    m);
-        // Copy A1tA2 to the appropriate place in R
-        for (int64_t j = 0; j < n_trail; ++j) {
-            blas::copy(b, A1tA2 + j*b, 1, R2 + j*ldr, 1);
-        }
-        qr_block_cgs(m, n_trail, A2, R2 + b, ldr, work, b);
-    }
-    return;
-}
-
-// We'll resize bigwork to be length at least (n*n + max(n, 2*b) * b).
-template <typename T>
-void qr_block_cgs2(int64_t m, int64_t n, T* A, T* R, std::vector<T> &bigwork, int64_t b = 64) {
-    b = std::min(b, n);
-    int64_t littlework_size = std::max(n, 2*b) * b;
-    int64_t bigwork_size = n*n + littlework_size;
-    if ((int64_t)bigwork.size() < bigwork_size) {
-        bigwork.resize(bigwork_size);
-    }
-    T* R2 = bigwork.data();
-    T* littlework = R2 + n*n;
-    std::fill(R, R + n * n, (T) 0.0);
-    qr_block_cgs(m, n, A, R, n, littlework, b);
-    RandBLAS::overwrite_triangle(blas::Layout::ColMajor, blas::Uplo::Lower, n, 1, R, n);
-    qr_block_cgs(m, n, A, R2, n, littlework, b);
-    blas::trmm(
-        blas::Layout::ColMajor, blas::Side::Left, blas::Uplo::Upper, blas::Op::NoTrans, blas::Diag::NonUnit,
-        n, n, 1.0, R2, n, R, n
-    );
-    return;
-}
 
 template <typename T>
 bool extremal_eigvals_converged_gershgorin(int64_t n, T* G, T tol) {
@@ -155,7 +145,7 @@ bool extremal_eigvals_converged_gershgorin(int64_t n, T* G, T tol) {
         for (int64_t j = 0; j < n; ++j) {
             if (i != j) {
                 radius += std::abs(G[i * n + j]);
-            }  
+            }
         }
         if (center + radius >= upper) {
             i_ub = i;
@@ -179,7 +169,7 @@ bool extremal_eigvals_converged_gershgorin(int64_t n, T* G, T tol) {
 /**
  * Use Cholesky iteration to compute all eigenvalues of a positive definite matrix A.
  * Run for at most "max_iters" iteration.
- * 
+ *
  * Use the Gershgorin circle theorem as a stopping criteria.
  *
  */
@@ -222,9 +212,6 @@ inline int64_t required_powermethod_iters(int64_t n, T p_fail, T tol) {
     int64_t probability_bound_2 = (int64_t) std::log(std::sqrt(n) / p_fail) / temp1;
     int64_t probability_bound   = std::min(probability_bound_1, probability_bound_2);
 
-    // std::cout << "(n, p, eps) = " << n << ", " << p_fail << ", " << tol << std::endl;
-    // std::cout << "Power iters bound for expectation : " << expectation_bound << std::endl;
-    // std::cout << "Power iters bound for probability : " << probability_bound << std::endl;
     int64_t num_iters = std::max(expectation_bound, probability_bound);
     return num_iters;
 }
@@ -257,7 +244,7 @@ std::pair<T, RNGState<RNG>> power_method(int64_t n, FUNC &A, T* v, T tol, T fail
 // for PSD matrices. Now, we could just run the power method implicitly on the PSD matrix (A - I)^2.
 // This require the same number of matrix-vector multiplications, but it remove the need for ever
 // accessing inv(A) as a linear operator (which we do right now by decomposing A and forming invA explicitly,
-// so we can get away with GEMV). That's useful if A is a fast operator (whether or not that's the case 
+// so we can get away with GEMV). That's useful if A is a fast operator (whether or not that's the case
 // might be delicate since it's a Gram matrix of a sketch S*U).
 //
 template <typename T, typename RNG>
@@ -304,4 +291,4 @@ std::tuple<T, T, RNGState<RNG>> exeigs_powermethod(int64_t n, const T* A, T* eig
     return {lambda_max, lambda_min, final_state};
 }
 
-}
+} // end namespace RandBLAS::testing

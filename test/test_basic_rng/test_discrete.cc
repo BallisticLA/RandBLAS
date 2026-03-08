@@ -38,7 +38,7 @@ using RandBLAS::weights_to_cdf;
 using RandBLAS::sample_indices_iid;
 using RandBLAS::sample_indices_iid_uniform;
 using RandBLAS::repeated_fisher_yates;
-#include "rng_common.hh"
+#include "RandBLAS/testing/rng_common.hh"
 #include "../comparison.hh"
 
 #include <algorithm>
@@ -101,7 +101,7 @@ class TestSampleIndices : public ::testing::Test
     }
 
     static void test_iid_uniform_kolmogorov_smirnov(int64_t N, double significance, int64_t num_samples, uint32_t seed) {
-        using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
+        using RandBLAS::testing::KolmogorovSmirnovConstants::critical_value_rep_mutator;
         auto critical_value = critical_value_rep_mutator(num_samples, significance);
 
         vector<float> true_cdf(N, 1.0);
@@ -116,7 +116,7 @@ class TestSampleIndices : public ::testing::Test
     }
 
     static void test_iid_kolmogorov_smirnov(int64_t N, float exponent, double significance, int64_t num_samples, uint32_t seed) {
-        using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
+        using RandBLAS::testing::KolmogorovSmirnovConstants::critical_value_rep_mutator;
         auto critical_value = critical_value_rep_mutator(num_samples, significance);
 
         // Make the true CDF 
@@ -246,7 +246,7 @@ class TestSampleIndices : public ::testing::Test
     static void fisher_yates_kolmogorov_smirnov_tester(
         const vector<int64_t> &idxs_major, vector<float> &true_cdf, double critical_value, int64_t N, int64_t K, int64_t num_samples
     ) {
-        using RandBLAS_StatTests::ks_check_critval;
+        using RandBLAS::testing::ks_check_critval;
         // Calculate the empirical cdf and check critval
         vector<float> empirical_cdf = fisher_yates_cdf(idxs_major, K, num_samples);
         std::pair<int, double> result = ks_check_critval(true_cdf, empirical_cdf, critical_value);
@@ -257,8 +257,8 @@ class TestSampleIndices : public ::testing::Test
     }
 
     static void single_test_fisher_yates_kolmogorov_smirnov(int64_t N, int64_t K, double significance, int64_t num_samples, uint32_t seed) {
-        using RandBLAS_StatTests::hypergeometric_pmf_arr;
-        using RandBLAS_StatTests::KolmogorovSmirnovConstants::critical_value_rep_mutator;
+        using RandBLAS::testing::hypergeometric_pmf_arr;
+        using RandBLAS::testing::KolmogorovSmirnovConstants::critical_value_rep_mutator;
 
         auto critical_value = critical_value_rep_mutator(num_samples, significance);
 

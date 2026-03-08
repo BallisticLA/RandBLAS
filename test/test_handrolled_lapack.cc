@@ -4,7 +4,7 @@
 #include <blas.hh>
 
 #include "RandBLAS/util.hh"
-#include "handrolled_lapack.hh"
+#include "RandBLAS/testing/handrolled_lapack.hh"
 #include "comparison.hh"
 #include "RandBLAS/config.h"
 #include "RandBLAS/dense_skops.hh"
@@ -55,13 +55,17 @@ class TestHandrolledCholesky : public ::testing::Test {
 
     template <typename T>
     void run_sequential_factor_gram_matrix(int n, uint32_t key) {
-        auto cholfunc = [](int64_t n, T* A) { hr_lapack::potrf_upper_sequential(n, A, n); };
+        auto cholfunc = [](int64_t n, T* A) { 
+            RandBLAS::testing::potrf_upper_sequential(n, A, n);
+        };
         run_factor_gram_matrix<T>(n, cholfunc, key);
     }
 
     template <typename T>
     void run_blocked_factor_gram_matrix(int n, int b, uint32_t key) {
-        auto cholfunc = [b](int64_t n, T* A) { hr_lapack::potrf_upper(n, A, n, b); };
+        auto cholfunc = [b](int64_t n, T* A) { 
+            RandBLAS::testing::potrf_upper(n, A, n, b); 
+        };
         run_factor_gram_matrix<T>(n, cholfunc, key);
     }
 
@@ -74,7 +78,7 @@ class TestHandrolledCholesky : public ::testing::Test {
             A[i+i*n] = 1.0/((T) i + 1.0);
             B[i+i*n] = std::sqrt(A[i+i*n]);
         }
-        hr_lapack::potrf_upper(n, A.data(), n, b);
+        RandBLAS::testing::potrf_upper(n, A.data(), n, b);
         test::comparison::matrices_approx_equal(layout, blas::Op::NoTrans, n, n, B.data(), n, A.data(), n, 
             __PRETTY_FUNCTION__, __FILE__, __LINE__
         );
@@ -181,24 +185,7 @@ class TestHandrolledQR : public ::testing::Test {
 
         std::vector<T> Q(A);
         std::vector<T> R(2*n*n);
-        hr_lapack::chol_qr(m, n, Q.data(), R.data(), b, true);
-        verify_orthonormal_componentwise(m, n, Q.data());
-        verify_product(m, n, n, Q.data(), R.data(), A.data());
-    }
-
-    template <typename T>
-    void run_qr_blocked_cgs(int m, int n, int b, uint32_t key) {
-        DenseDist D(m, n, ScalarDist::Gaussian);
-        std::vector<T> A(m*n);
-        T iso_scale = D.isometry_scale;
-        RNGState state(key);
-        RandBLAS::fill_dense(D, A.data(), state);
-        blas::scal(m*n, iso_scale, A.data(), 1);
-
-        std::vector<T> Q(A);
-        std::vector<T> R(n*n);
-        std::vector<T> work{};
-        hr_lapack::qr_block_cgs2(m, n, Q.data(), R.data(), work, b);
+        RandBLAS::testing::chol_qr(m, n, Q.data(), R.data(), b, true);
         verify_orthonormal_componentwise(m, n, Q.data());
         verify_product(m, n, n, Q.data(), R.data(), A.data());
     }
@@ -224,20 +211,6 @@ TEST_F(TestHandrolledQR, cholqr_medium) {
     }
 }
 
-TEST_F(TestHandrolledQR, blocked_cgs_small) {
-    for (uint32_t key = 111; key < 112; ++key) {
-        run_qr_blocked_cgs<float>(10,  5, 2, key);
-        run_qr_blocked_cgs<float>(10,  7, 2, key);
-        run_qr_blocked_cgs<float>(10, 10, 2, key);
-    }
-}
-
-TEST_F(TestHandrolledQR, blocked_cgs_medium) {
-    for (uint32_t key = 111; key < 112; ++key) {
-        run_qr_blocked_cgs<float>(1000, 1000, 64, key);
-        run_qr_blocked_cgs<float>(1024, 1024, 64, key);
-    }
-}
 
 // MARK: Eigenvalues
 
@@ -246,18 +219,18 @@ std::vector<T> posdef_with_random_eigvecs(std::vector<T> &eigvals, uint32_t key)
     int64_t n = eigvals.size();
     for (auto ev : eigvals) 
         randblas_require(ev > 0);
-    std::vector<T> work0(n*n, 0.0);
-    T* work0_buff = work0.data();
+    std::vector<T> vecs(n*n);
     DenseDist distn(n, n, ScalarDist::Gaussian);
     RNGState state(key);
-    RandBLAS::fill_dense(distn, work0_buff, state);
-    std::vector<T> work1(n*n, 0.0);
-    std::vector<T> work2{};
-    hr_lapack::qr_block_cgs2(n, n, work0_buff, work1.data(), work2);
+    RandBLAS::fill_dense(distn, vecs.data(), state);
+    std::vector<T> Q(n*n, 0.0);
     for (int i = 0; i < n; ++i)
-        blas::scal(n, std::sqrt(eigvals[i]), work0_buff + i*n, 1);
+        Q[i + i*n] = 1.0;
+    RandBLAS::testing::apply_reflectors(n, n, n, vecs.data(), n, Q.data(), n);
+    for (int i = 0; i < n; ++i)
+        blas::scal(n, std::sqrt(eigvals[i]), Q.data() + i*n, 1);
     std::vector<T> out(n*n, 0.0);
-    blas::syrk(blas::Layout::ColMajor, blas::Uplo::Upper, blas::Op::NoTrans, n, n, (T)1.0, work0_buff, n, (T)0.0, out.data(), n);
+    blas::syrk(blas::Layout::ColMajor, blas::Uplo::Upper, blas::Op::NoTrans, n, n, (T)1.0, Q.data(), n, (T)0.0, out.data(), n);
     RandBLAS::symmetrize(blas::Layout::ColMajor, blas::Uplo::Upper, n, out.data(), n);
     return out;
 }
@@ -276,7 +249,7 @@ class TestHandrolledEigvals : public ::testing::Test {
         std::vector<T> eigvals_actual(n);
         int64_t iters = 1;
         T tol = 1e-3;
-        auto iter = hr_lapack::posdef_eig_chol_iteration(n, A.data(), eigvals_actual.data(), tol, iters, b);
+        auto iter = RandBLAS::testing::posdef_eig_chol_iteration(n, A.data(), eigvals_actual.data(), tol, iters, b);
         ASSERT_EQ(iter, 0);
         test::comparison::buffs_approx_equal(eigvals_actual.data(), eigvals_expect.data(), n, __PRETTY_FUNCTION__, __FILE__, __LINE__,  tol, tol);
         return;
@@ -292,7 +265,7 @@ class TestHandrolledEigvals : public ::testing::Test {
         std::vector<T> eigvals_actual(n);
         int64_t iters = 1000;
         T tol = 1e-3;
-        auto iter = hr_lapack::posdef_eig_chol_iteration(n, A.data(), eigvals_actual.data(), tol, iters, b);
+        auto iter = RandBLAS::testing::posdef_eig_chol_iteration(n, A.data(), eigvals_actual.data(), tol, iters, b);
         std::cout << "Number of iterations  : " << iter << std::endl;
         T min_eig_actual = *std::min_element(eigvals_actual.begin(), eigvals_actual.end());
         T max_eig_actual = *std::max_element(eigvals_actual.begin(), eigvals_actual.end());
@@ -319,7 +292,9 @@ class TestHandrolledEigvals : public ::testing::Test {
         // ^ This affects the number of iterations that will be used in the power method. That number is
         //   max{#iterations to succeed in expectation, #iterations to succeed with some probability}.
         //   Large values of p_fail (like p_fail = 0.5) just say "succeed in expectation."
-        auto [lambda_max, lambda_min, ignore] = hr_lapack::exeigs_powermethod(n, A.data(), ourwork.data(), tol, p_fail, state, subwork);
+        auto [lambda_max, lambda_min, ignore] = RandBLAS::testing::exeigs_powermethod(
+            n, A.data(), ourwork.data(), tol, p_fail, state, subwork
+        );
 
         std::cout << "min_comp / min_actual = " << lambda_min / eigvals_expect[n-1] << std::endl;
         std::cout << "max_comp / max_actual = " << lambda_max / eigvals_expect[0] << std::endl;

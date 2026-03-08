@@ -33,10 +33,10 @@
 #include <vector>
 #include <array>
 
-namespace RandBLAS_StatTests {
+namespace RandBLAS::testing {
 
 //
-// MARK: constants 
+// MARK: constants
 // ^ and functions to perform lookups for the constants we store.
 
 namespace KolmogorovSmirnovConstants {
@@ -69,7 +69,7 @@ inline const std::array<const std::array<double, 22>, 6> critical_values {{{
     7.49739992e-03, 5.30252270e-03, 3.74997893e-03, 2.65189975e-03,
     1.87530828e-03, 1.32610915e-03, 9.37733728e-04, 6.63094351e-04,
     4.68886747e-04, 3.31557115e-04
-}, { 
+}, {
     // significance of 1e-2
     5.41792524e-01, 3.92007307e-01, 2.80935776e-01, 2.00288899e-01,
     1.42362543e-01, 1.01005285e-01, 7.15810977e-02, 5.06916722e-02,
@@ -100,7 +100,7 @@ inline const std::array<const std::array<double, 22>, 6> critical_values {{{
     5.44929246e-02, 3.85544959e-02, 2.72724540e-02, 1.92894157e-02,
     1.36420186e-02, 9.64750036e-03, 6.82236902e-03, 4.82441714e-03,
     3.41151342e-03, 2.41237141e-03, 1.70583756e-03, 1.20622593e-03,
-    8.52938821e-04, 6.03122960e-0
+    8.52938821e-04, 6.03122960e-04
 }, {
     // significance of 1e-6
     8.36962528e-01, 6.32173765e-01, 4.60387149e-01, 3.30395198e-01,
@@ -114,7 +114,7 @@ inline const std::array<const std::array<double, 22>, 6> critical_values {{{
 /***
  * Returns the index in significance_levels for the "least significant" value
  * that is "more significant" than "sig".
- * 
+ *
  * The correctness of this function depends on significance_levels being sorted
  * in decreasing order (which corresponds to weakest to strongest significances).
  */
@@ -132,7 +132,7 @@ inline int significance_rep(double sig) {
 
 /***
  * Returns the index in sample_sizes for the smallest sample size that's >= n.
- * 
+ *
  * The correctness of this function depends on sample_sizes being sorted in
  * increasing order.
  */
@@ -167,7 +167,7 @@ double critical_value_rep_mutator(TI &n, double &sig) {
     return cv;
 }
 
-}
+} // end namespace KolmogorovSmirnovConstants
 
 // Function to check the KS-Stat against crit values
 template <typename T>
@@ -197,13 +197,13 @@ inline double log_binomial_coefficient(int64_t n, int64_t k) {
 
 
 //
-// MARK: hypergeometric 
+// MARK: hypergeometric
 //
 
 /***
  * Compute the probability mass function of the hypergeometric distribution with parameters N, K, D.
- * Concretely ... 
- * 
+ * Concretely ...
+ *
  *      Suppose we draw D items without replacement from a set of size N that has K distinguished elements.
  *      This function returns the probability that the sample of D items will contain observed_k elements
  *      from the distinguished set.
@@ -276,4 +276,4 @@ inline T uniform_syminterval_cdf(T x, T radius) {
     return (x + radius) / (2*radius);
 }
 
-} // end namespace RandBLAS_StatTests
+} // end namespace RandBLAS::testing
