@@ -16,7 +16,7 @@ using blas::Uplo;
 using blas::Op;
 using blas::Diag;
 #include "../comparison.hh"
-#include "../test_datastructures/test_spmats/common.hh"
+#include "RandBLAS/testing/sparse_data_common.hh"
 
 #include <algorithm>
 #include <iostream>
@@ -44,11 +44,11 @@ class TestSptrsm : public ::testing::Test
         COOMatrix<T> A(n, n);
         std::vector<T> actual(n * n);
         RandBLAS::RNGState s(key);
-        test::test_datastructures::test_spmats::iid_sparsify_random_dense<T>(n, n, Layout::ColMajor, actual.data(), 1 - nonzero_prob, s);
+        RandBLAS::testing::iid_sparsify_random_dense<T>(n, n, Layout::ColMajor, actual.data(), 1 - nonzero_prob, s);
         RandBLAS::sparse_data::coo::dense_to_coo<T>(Layout::ColMajor, actual.data(), 0.0, A);
 
         COOMatrix<T> A_triangular(n, n);
-        test::test_datastructures::test_spmats::trianglize_coo<T>(A, upper, A_triangular);
+        RandBLAS::testing::trianglize_coo<T>(A, upper, A_triangular);
         return A_triangular;
     }
     

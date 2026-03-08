@@ -31,7 +31,7 @@
 
 #if defined(RandBLAS_HAS_MKL)
 
-#include "test/test_datastructures/test_spmats/common.hh"
+#include "RandBLAS/testing/sparse_data_common.hh"
 #include "test/test_matmul_cores/linop_common.hh"
 #include "test/comparison.hh"
 #include <gtest/gtest.h>
@@ -44,7 +44,7 @@ using namespace RandBLAS::sparse_data::coo;
 using blas::Layout;
 using blas::Op;
 
-using test::test_datastructures::test_spmats::iid_sparsify_random_dense;
+using RandBLAS::testing::iid_sparsify_random_dense;
 using test::linop_common::to_explicit_buffer;
 using test::linop_common::random_matrix;
 

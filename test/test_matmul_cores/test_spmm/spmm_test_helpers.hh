@@ -29,15 +29,12 @@
 
 #pragma once
 
-#include "test/test_datastructures/test_spmats/common.hh"
+#include "RandBLAS/testing/sparse_data_common.hh"
 #include "test/test_matmul_cores/linop_common.hh"
 #include <gtest/gtest.h>
 
 using namespace test::linop_common;
 using blas::Layout;
-
-using test::test_datastructures::test_spmats::iid_sparsify_random_dense;
-// ^ Not used in this file, but required by client files.
 
 #ifdef __cpp_concepts
 using RandBLAS::SparseMatrix;

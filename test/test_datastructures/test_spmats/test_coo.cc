@@ -28,7 +28,7 @@
 //
 
 #include "../../comparison.hh"
-#include "common.hh"
+#include "RandBLAS/testing/sparse_data_common.hh"
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <vector>
@@ -36,8 +36,8 @@
 using RandBLAS::Axis;
 using namespace RandBLAS::sparse_data;
 using namespace RandBLAS::sparse_data::coo;
-using namespace test::test_datastructures::test_spmats;
 using namespace RandBLAS::sparse_data::conversions;
+using RandBLAS::testing::iid_sparsify_random_dense;
 using blas::Layout;
 
 #ifdef __cpp_concepts

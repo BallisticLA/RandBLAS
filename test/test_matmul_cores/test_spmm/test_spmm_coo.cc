@@ -30,6 +30,8 @@
 #include "test/test_matmul_cores/test_spmm/spmm_test_helpers.hh"
 #include <vector>
 
+using RandBLAS::testing::iid_sparsify_random_dense;
+
 using namespace RandBLAS::sparse_data;
 using namespace RandBLAS::sparse_data::coo;
 using blas::Layout;

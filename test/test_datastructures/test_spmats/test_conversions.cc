@@ -28,15 +28,17 @@
 //
 
 #include "../../comparison.hh"
-#include "common.hh"
+#include "RandBLAS/testing/sparse_data_common.hh"
 #include <vector>
 
 using namespace RandBLAS::sparse_data;
-using namespace test::test_datastructures::test_spmats;
 using namespace RandBLAS::sparse_data::conversions;
 using namespace RandBLAS::sparse_data::csc;
 using namespace RandBLAS::sparse_data::csr;
 using namespace RandBLAS::sparse_data::coo;
+
+using RandBLAS::testing::iid_sparsify_random_dense;
+
 using blas::Layout;
 
 class TestSparseTranspose : public ::testing::Test 

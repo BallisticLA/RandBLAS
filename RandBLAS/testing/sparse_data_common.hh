@@ -41,7 +41,7 @@
 #include "RandBLAS/sparse_data/conversions.hh"
 
 
-namespace test::test_datastructures::test_spmats {
+namespace RandBLAS::testing {
 
 using blas::Layout;
 
@@ -54,7 +54,7 @@ void iid_sparsify_random_dense(
     T* mat,
     T prob_of_zero,
     RandBLAS::RNGState<RNG> state
-) { 
+) {
     auto spar = new T[n_rows * n_cols];
     auto dist = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::ScalarDist::Uniform);
     auto next_state = RandBLAS::fill_dense(dist, spar, state);
@@ -162,4 +162,4 @@ int64_t trianglize_coo(
     return new_nnz;
 }
 
-}
+} // end namespace RandBLAS::testing
