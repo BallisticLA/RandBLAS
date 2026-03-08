@@ -30,18 +30,20 @@
 
 /// @file
 ///
-/// BLAS backend selector. Include this header instead of <blas.hh> throughout
-/// RandBLAS. The backend is chosen at configure time via RandBLAS_BLAS_BACKEND:
-///
-///   blaspp  (default) — uses BLAS++ (<blas.hh>) for all BLAS operations.
-///   builtin           — uses RandBLAS's own implementations (blas_builtin.hh).
-///
-/// Either way, code sees the same blas::Layout, blas::Op, blas::scal, etc.
+/// blas:: enum types used by RandBLAS' built-in BLAS backend.
+/// Values match BLAS++ and standard CBLAS character codes, so code compiled
+/// with either backend agrees on the underlying representation.
 
-#include "RandBLAS/config.h"
+namespace blas {
 
-#if defined(RandBLAS_HAS_BLASPP)
-    #include <blas.hh>
-#else
-    #include "RandBLAS/blas_backend/builtin.hh"
-#endif
+// ---------------------------------------------------------------------------
+// Enumerations (values match BLAS++ / standard CBLAS character codes)
+// ---------------------------------------------------------------------------
+
+enum class Layout : char { ColMajor = 'C', RowMajor = 'R' };
+enum class Op     : char { NoTrans = 'N', Trans = 'T', ConjTrans = 'C' };
+enum class Uplo   : char { Upper = 'U', Lower = 'L' };
+enum class Diag   : char { NonUnit = 'N', Unit = 'U' };
+enum class Side   : char { Left = 'L', Right = 'R' };
+
+} // namespace blas

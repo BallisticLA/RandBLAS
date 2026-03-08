@@ -30,18 +30,16 @@
 
 /// @file
 ///
-/// BLAS backend selector. Include this header instead of <blas.hh> throughout
-/// RandBLAS. The backend is chosen at configure time via RandBLAS_BLAS_BACKEND:
-///
-///   blaspp  (default) — uses BLAS++ (<blas.hh>) for all BLAS operations.
-///   builtin           — uses RandBLAS's own implementations (blas_builtin.hh).
-///
-/// Either way, code sees the same blas::Layout, blas::Op, blas::scal, etc.
+/// Aggregating header for RandBLAS' built-in blas:: implementations.
+/// Provides the enumerations and routines used by RandBLAS when BLAS++ is
+/// not available:
+///   Enumerations: Layout, Op, Uplo, Diag, Side
+///   Level 1:      scal, copy, axpy, dot, nrm2
+///   Level 2:      gemv, ger
+///   Level 3:      gemm, syrk, symm, trmm, trsm
 
-#include "RandBLAS/config.h"
-
-#if defined(RandBLAS_HAS_BLASPP)
-    #include <blas.hh>
-#else
-    #include "RandBLAS/blas_backend/builtin.hh"
-#endif
+#include "RandBLAS/blas_backend/enums.hh"
+#include "RandBLAS/blas_backend/level1.hh"
+#include "RandBLAS/blas_backend/gemm.hh"
+#include "RandBLAS/blas_backend/level2.hh"
+#include "RandBLAS/blas_backend/level3.hh"
