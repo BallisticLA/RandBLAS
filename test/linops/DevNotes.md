@@ -1,10 +1,10 @@
-# Notes on functionality tested in test/matmul/
+# Notes on functionality tested in test/linops/
 
 
 ## Tests for sketch_sparse
 
-Our tests for [L/R]SKSP3 are adaptations of the tests in ``matmul_cores/test_lskge3.cc``
-and ``matmul_cores/test_rskge3.cc`` where the data matrix was the identity.
+Our tests for [L/R]SKSP3 are adaptations of the tests in ``test_lskge3.cc``
+and ``test_rskge3.cc`` where the data matrix was the identity.
 
  * We only test COOMatrix for the sparse matrix datatype, but that's reasonable since the implementations
    of [L/R]SKSP3 are fully templated for the sparse matrix datatype.

@@ -38,7 +38,7 @@ using RandBLAS::weights_to_cdf;
 using RandBLAS::sample_indices_iid;
 using RandBLAS::sample_indices_iid_uniform;
 using RandBLAS::repeated_fisher_yates;
-#include "RandBLAS/testing/rng_common.hh"
+#include "RandBLAS/testing/stats.hh"
 #include "../comparison.hh"
 
 #include <algorithm>

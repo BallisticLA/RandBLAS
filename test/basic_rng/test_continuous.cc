@@ -33,7 +33,7 @@
 #include "RandBLAS/dense_skops.hh"
 using RandBLAS::RNGState;
 using RandBLAS::ScalarDist;
-#include "RandBLAS/testing/rng_common.hh"
+#include "RandBLAS/testing/stats.hh"
 
 #include <algorithm>
 #include <iostream>

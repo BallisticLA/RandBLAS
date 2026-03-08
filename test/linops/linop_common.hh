@@ -29,7 +29,7 @@
 
 #pragma once
 
-#include "RandBLAS/testing/linop_common.hh"
+#include "RandBLAS/testing/linops.hh"
 #include "test/comparison.hh"
 
 

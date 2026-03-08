@@ -236,17 +236,7 @@ std::pair<T, RNGState<RNG>> power_method(int64_t n, FUNC &A, T* v, T tol, T fail
     return {lambda, next_state};
 }
 
-// Note that if we're only interested in subspace embedding distortion then it would suffice to just bound
-// the eigenvalue of A-I with largest absolute value (which might be negative). If we went with that approach
-// then we could make do with one run of a power method instead of running the power method on A and inv(A).
-//
-// The convergence results I know for the power method that don't require a spectral gap are specifically
-// for PSD matrices. Now, we could just run the power method implicitly on the PSD matrix (A - I)^2.
-// This require the same number of matrix-vector multiplications, but it remove the need for ever
-// accessing inv(A) as a linear operator (which we do right now by decomposing A and forming invA explicitly,
-// so we can get away with GEMV). That's useful if A is a fast operator (whether or not that's the case
-// might be delicate since it's a Gram matrix of a sketch S*U).
-//
+
 template <typename T, typename RNG>
 std::tuple<T, T, RNGState<RNG>> exeigs_powermethod(int64_t n, const T* A, T* eigvecs, T tol, T failure_prob, const RNGState<RNG> &state,  std::vector<T> work) {
     auto layout = blas::Layout::ColMajor;

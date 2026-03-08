@@ -9,26 +9,29 @@ Nothing defined in this folder is part of RandBLAS' public API.
 
 ## Contents
 
-### matmul_wrappers
+### linops
+
+Relies on RandBLAS/testing/linops.hh and test/linops/linop_common.hh.
+
+Tests of "meaty" functions.
+
+  * lskges, rskges, lskge3, rskge3. The rskgex (x=3 or x=s) functions could reduce to lskgex by transposing the
+    product and flipping the layout. Strictly speaking, the rskgex functions don't do that, but they
+    easily could. In any case, we currently have similar tests for rskgex and lskgex.
+  * left_spmm and right_spmm. The right_spmm implementation falls back on left_spmm. Despite this,
+    right_spmm has its own set of tests.
+
+Tests of wrapper functions.
 
   * sketch_vector. It reduces to the same sketch_general no matter the type of the sketching operator.
   * sketch_sparse. It reduces to left_spmm/right_spmm no matter the type of the data matrix. (The
     sketching operator type is naturally fixed to DenseSkOp.)
   * sketch_symmetric. It reduces to the same sketch_general no matter the type of the sketching operator.
 
-### matmul_cores
-
-Relies on RandBLAS/testing/linop_common.hh and test/linops/linop_common.hh.
-
-  * lskges, rskges, lskge3, rskge3. The rskgex functions could reduce to lskgex by transposing the
-    product and flipping the layout. Strictly speaking, the rskgex functions don't do that, but they
-    easily could. In any case, we currently have similar tests for rskgex and lskgex.
-  * left_spmm and right_spmm. The right_spmm implementation falls back on left_spmm. Despite this,
-    right_spmm has its own set of tests.
 
 ### test_basic_rng
 
-Relies on RandBLAS/testing/rng_common.hh.
+Relies on RandBLAS/testing/stats.hh.
 
   * test_r123.cc has deterministic tests for Random123. The tests compare generated values
     to reference values computed ahead of time. The tests are __extremely__ messy, since they're
@@ -58,7 +61,8 @@ Big picture defensive answer:
     in terms of right-multiplication, and just have left-multiplication reduce
     to adjoint-action from the right. 
 
-    We want someone who adds new functionality to benefit from our testing infrastructure. So we made infrastructure to test GEMM-like APIs where
+    We want someone who adds new functionality to benefit from our testing infrastructure.
+    So we made infrastructure to test GEMM-like APIs where
     one operand is structured, and it's easy to get started using this 
     infrastructure because it's equally valid to start with tests that
     multiply only for one side and only another.

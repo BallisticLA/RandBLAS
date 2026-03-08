@@ -4,7 +4,7 @@
 #include <blas.hh>
 
 #include "RandBLAS/util.hh"
-#include "RandBLAS/testing/handrolled_lapack.hh"
+#include "RandBLAS/testing/lapack_like.hh"
 #include "../comparison.hh"
 #include "RandBLAS/config.h"
 #include "RandBLAS/dense_skops.hh"

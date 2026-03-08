@@ -35,8 +35,8 @@ using RandBLAS::DenseDist;
 using RandBLAS::ScalarDist;
 using RandBLAS::RNGState;
 
-#include "RandBLAS/testing/rng_common.hh"
-#include "RandBLAS/testing/handrolled_lapack.hh"
+#include "RandBLAS/testing/stats.hh"
+#include "RandBLAS/testing/lapack_like.hh"
 using namespace RandBLAS::testing;
 
 #include <iostream>

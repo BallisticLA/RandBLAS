@@ -87,27 +87,27 @@ There are five types of tests called for each sparse matrix format (and both mem
 
 Left-multiplication in COO Format (test_spmm_coo.cc)
 
-- ✅ Paths 1-2: `multiply_eye`, `alpha_beta`, `submatrix_other` (ColMajor, opB=NoTrans)
-- ✅ Paths 3-4: `multiply_eye`, `alpha_beta`, `submatrix_other` (RowMajor, opB=NoTrans)
-- ✅ Paths 1-4: `transpose_other` tests opB=Trans for both layouts
-- ✅ Paths 1-4: `transpose_self` tests opA=Trans (COO→COO) for both layouts
+- Paths 1-2: `multiply_eye`, `alpha_beta`, `submatrix_other` (ColMajor, opB=NoTrans)
+- Paths 3-4: `multiply_eye`, `alpha_beta`, `submatrix_other` (RowMajor, opB=NoTrans)
+- Paths 1-4: `transpose_other` tests opB=Trans for both layouts
+- Paths 1-4: `transpose_self` tests opA=Trans (COO→COO) for both layouts
 
 Left-multiplication in CSC Format (test_spmm_csc.cc)
 
-- ✅ Path 5: `multiply_eye`, `alpha_beta` (ColMajor, opB=NoTrans)
-- ✅ Path 6: `transpose_other` (ColMajor, opB=Trans)
-- ✅ Path 7: `multiply_eye`, `alpha_beta` (RowMajor, opB=NoTrans) → kib_rowmajor kernel
-- ✅ Path 8: `transpose_other` (RowMajor, opB=Trans)
-- ✅ Paths 9-12: `transpose_self` with opA=Trans converts CSC to CSR view
+- Path 5: `multiply_eye`, `alpha_beta` (ColMajor, opB=NoTrans)
+- Path 6: `transpose_other` (ColMajor, opB=Trans)
+- Path 7: `multiply_eye`, `alpha_beta` (RowMajor, opB=NoTrans) → kib_rowmajor kernel
+- Path 8: `transpose_other` (RowMajor, opB=Trans)
+- Paths 9-12: `transpose_self` with opA=Trans converts CSC to CSR view
   - This exercises the CSR kernels
 
 Left-multiplication in CSR Format (test_spmm_csr.cc)
 
-- ✅ Path 9: `multiply_eye`, `alpha_beta` (ColMajor, opB=NoTrans)
-- ✅ Path 10: `transpose_other` (ColMajor, opB=Trans)
-- ✅ Path 11: `multiply_eye`, `alpha_beta` (RowMajor, opB=NoTrans) → ikb_rowmajor kernel
-- ✅ Path 12: `transpose_other` (RowMajor, opB=Trans)
-- ✅ Paths 5-8: `transpose_self` with opA=Trans converts CSR to CSC view
+- Path 9: `multiply_eye`, `alpha_beta` (ColMajor, opB=NoTrans)
+- Path 10: `transpose_other` (ColMajor, opB=Trans)
+- Path 11: `multiply_eye`, `alpha_beta` (RowMajor, opB=NoTrans) → ikb_rowmajor kernel
+- Path 12: `transpose_other` (RowMajor, opB=Trans)
+- Paths 5-8: `transpose_self` with opA=Trans converts CSR to CSC view
   - This exercises the CSC kernels
 
 For completeness, here's a grouping of tests based on the kernel they hit.
