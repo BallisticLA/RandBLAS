@@ -73,7 +73,7 @@ void left_spmm(
     if (opA == Op::Trans) {
         // Try MKL first: it supports SPARSE_OPERATION_TRANSPOSE on CSR natively.
         // Without this, the transpose trick below converts CSR→CSC, which MKL
-        // can't handle, causing unnecessary fallback to slow hand-rolled kernels.
+        // can't handle, causing unnecessary fallback RandBLAS-defined kernels.
         #if defined(RandBLAS_HAS_MKL)
         if constexpr (sizeof(typename SpMat::index_t) == sizeof(MKL_INT)) {
             bool handled = RandBLAS::sparse_data::mkl::mkl_left_spmm(
