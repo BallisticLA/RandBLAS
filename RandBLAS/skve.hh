@@ -30,7 +30,6 @@
 
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
-#include "RandBLAS/random_gen.hh"
 #include "RandBLAS/skge.hh"
 
 #include <iostream>

@@ -31,7 +31,6 @@
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
-#include "RandBLAS/random_gen.hh"
 #include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_data/spmm_dispatch.hh"
 

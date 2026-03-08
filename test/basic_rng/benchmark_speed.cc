@@ -28,7 +28,6 @@
 //
 
 #include "RandBLAS/config.h"
-#include "RandBLAS/random_gen.hh"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/dense_skops.hh"
 

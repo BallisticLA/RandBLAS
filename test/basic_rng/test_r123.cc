@@ -55,7 +55,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdexcept>
 
 #include <RandBLAS/base.hh>
-#include <RandBLAS/random_gen.hh>
 
 #include <Random123/philox.h>
 #include <Random123/threefry.h>
