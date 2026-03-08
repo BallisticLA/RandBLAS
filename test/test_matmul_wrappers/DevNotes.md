@@ -24,7 +24,7 @@ Additional tests would be warranted if we made that change.
 
 *Note.* We have some infrastructure in place for SPMV,
 in the forms of
-    apply_csc_to_vector_from_left_ki
+    apply_csc_to_vector_ki
 and
-    apply_csr_to_vector_from_left_ik.
-Those functions basically assume alpha = beta = 1.
+    apply_csr_to_vector_ik.
+Those functions basically assume beta = 1.
