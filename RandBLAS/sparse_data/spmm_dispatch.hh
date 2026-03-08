@@ -155,23 +155,23 @@ void left_spmm(
 
     // Fallback: hand-rolled sparse kernels.
     if constexpr (is_coo) {
-        using RandBLAS::sparse_data::coo::apply_coo_left_via_csc;
-        apply_coo_left_via_csc(alpha, layout_opB, layout_C, d, n, m, A, ro_a, co_a, B, ldb, C, ldc);
+        using RandBLAS::sparse_data::coo::apply_coo_via_csc;
+        apply_coo_via_csc(alpha, layout_opB, layout_C, d, n, m, A, ro_a, co_a, B, ldb, C, ldc);
     } else if constexpr (is_csc) {
         if (layout_opB == Layout::RowMajor && layout_C == Layout::RowMajor) {
-            using RandBLAS::sparse_data::csc::apply_csc_left_kib_rowmajor_1p1;
-            apply_csc_left_kib_rowmajor_1p1(alpha, n, A, B, ldb, C, ldc);
+            using RandBLAS::sparse_data::csc::apply_csc_kib_1p1_rowmajor;
+            apply_csc_kib_1p1_rowmajor(alpha, n, A, B, ldb, C, ldc);
         } else {
-            using RandBLAS::sparse_data::csc::apply_csc_left_jki_p11;
-            apply_csc_left_jki_p11(alpha, layout_opB, layout_C, n, A, B, ldb, C, ldc);
+            using RandBLAS::sparse_data::csc::apply_csc_jki_p11;
+            apply_csc_jki_p11(alpha, layout_opB, layout_C, n, A, B, ldb, C, ldc);
         }
     } else {
         if  (layout_opB == Layout::RowMajor && layout_C == Layout::RowMajor) {
-             using RandBLAS::sparse_data::csr::apply_csr_left_ikb_p1b_rowmajor;
-             apply_csr_left_ikb_p1b_rowmajor(alpha, d, n, m, A, B, ldb, C, ldc);
+             using RandBLAS::sparse_data::csr::apply_csr_ikb_p1b_rowmajor;
+             apply_csr_ikb_p1b_rowmajor(alpha, d, n, m, A, B, ldb, C, ldc);
         } else {
-            using RandBLAS::sparse_data::csr::apply_csr_left_jik_p11;
-            apply_csr_left_jik_p11(alpha, layout_opB, layout_C, d, n, m, A, B, ldb, C, ldc);
+            using RandBLAS::sparse_data::csr::apply_csr_jik_p11;
+            apply_csr_jik_p11(alpha, layout_opB, layout_C, d, n, m, A, B, ldb, C, ldc);
         }
         
     }

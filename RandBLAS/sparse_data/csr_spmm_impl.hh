@@ -74,7 +74,7 @@ static void apply_csr_to_vector_ik(
 }
 
 template <typename T, SignedInteger sint_t>
-static void apply_csr_left_jik_p11(
+static void apply_csr_jik_p11(
     T alpha,
     blas::Layout layout_B,
     blas::Layout layout_C,
@@ -119,7 +119,7 @@ static void apply_csr_left_jik_p11(
 }
 
 template <typename T, SignedInteger sint_t>
-static void apply_csr_left_ikb_p1b_rowmajor(
+static void apply_csr_ikb_p1b_rowmajor(
     T alpha,
     int64_t d,
     int64_t n,
