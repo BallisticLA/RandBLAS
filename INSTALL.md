@@ -100,14 +100,6 @@ make -j install  # might need "sudo make -j install"
 ctest  # run unit tests (only if GTest was found by CMake)
 ```
 
-If you're running macOS, then it may be necessary to specify
-an additional flag to CMake
-```shell
-     -DCMAKE_CXX_FLAGS="-D __APPLE__"
-```
-This flag is needed to avoid compiler errors with the "sincosf" and "sincos"
-functions in "random_gen.hh".
-
 Here are the conceptual meanings of the recipe's other build flags:
 
 * `-Dblaspp_DIR=X` means `X` is the directory containing the file `blasppConfig.cmake`.
@@ -160,9 +152,3 @@ If performance matters to you then you should inspect the
 information that's printed to screen when you run ``cmake`` for the BLAS++ installation.
 Save that information somewhere while you're setting up your RandBLAS
 development environment.
-
-[An earlier version](https://github.com/BallisticLA/RandBLAS/blob/9d0a03fa41fd7c126b252002a54c2f2562fae31a/INSTALL.md#5-tips)
-of this installation guide had specific recommendations for configuring BLAS++ and LAPACK++ on Intel machines.
-Those recommendations may be useful to you if you're having a hard time getting these libraries setup correctly.
-We removed those recommendations from this guide, since they encouraged a somewhat bad practice of installing BLAS++
-and LAPACK++ to a system-wide location (under ``/opt/``) instead of a location that's used for one project.
