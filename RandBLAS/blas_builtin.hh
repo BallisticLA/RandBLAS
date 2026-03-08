@@ -41,6 +41,7 @@
 ///
 /// The gemm implementation uses 2D loop tiling for reasonable cache efficiency.
 
+#include "RandBLAS/exceptions.hh"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -754,5 +755,123 @@ void trsm(
         }
     }
 }
+
+// 
+//  The following function is adapted from BLAS++. Copyright assertion below.
+//
+//      Copyright (c) 2017-2023, University of Tennessee. All rights reserved.
+//      SPDX-License-Identifier: BSD-3-Clause
+//      This program is free software: you can redistribute it and/or modify it under
+//      the terms of the BSD 3-Clause license. See the accompanying LICENSE file.
+//
+
+template <typename T>
+void ger(
+    blas::Layout layout,
+    int64_t m, int64_t n,
+    T alpha,
+    T const *x, int64_t incx,
+    T const *y, int64_t incy,
+    T *A, int64_t lda
+) {
+    #define A(i_, j_) A[ (i_) + (j_)*lda ]
+
+    // constants
+    const T zero = 0;
+
+    // check arguments
+    randblas_require(m >= 0);
+    randblas_require(n >= 0);
+    randblas_require(incx != 0);
+    randblas_require(incy != 0);
+
+    if (layout == Layout::ColMajor)
+        randblas_require(lda >= m);
+    else
+        randblas_require(lda >= n);
+
+    // quick return
+    if (m == 0 || n == 0 || alpha == zero)
+        return;
+
+    if (layout == Layout::ColMajor) {
+        if (incx == 1 && incy == 1) {
+            // unit stride
+            for (int64_t j = 0; j < n; ++j) {
+                // note: NOT skipping if y[j] is zero, for consistent NAN handling
+                T tmp = alpha * y[j];
+                for (int64_t i = 0; i < m; ++i) {
+                    A(i, j) += x[i] * tmp;
+                }
+            }
+        }
+        else if (incx == 1) {
+            // x unit stride, y non-unit stride
+            int64_t jy = (incy > 0 ? 0 : (-n + 1)*incy);
+            for (int64_t j = 0; j < n; ++j) {
+                T tmp = alpha * y[jy];
+                for (int64_t i = 0; i < m; ++i) {
+                    A(i, j) += x[i] * tmp;
+                }
+                jy += incy;
+            }
+        }
+        else {
+            // x and y non-unit stride
+            int64_t kx = (incx > 0 ? 0 : (-m + 1)*incx);
+            int64_t jy = (incy > 0 ? 0 : (-n + 1)*incy);
+            for (int64_t j = 0; j < n; ++j) {
+                T tmp = alpha * y[jy];
+                int64_t ix = kx;
+                for (int64_t i = 0; i < m; ++i) {
+                    A(i, j) += x[ix] * tmp;
+                    ix += incx;
+                }
+                jy += incy;
+            }
+        }
+    }
+    else {
+        // RowMajor
+        if (incx == 1 && incy == 1) {
+            // unit stride
+            for (int64_t i = 0; i < m; ++i) {
+                // note: NOT skipping if x[i] is zero, for consistent NAN handling
+                T tmp = alpha * x[i];
+                for (int64_t j = 0; j < n; ++j) {
+                    A(j, i) += tmp * y[j];
+                }
+            }
+        }
+        else if (incy == 1) {
+            // x non-unit stride, y unit stride
+            int64_t ix = (incx > 0 ? 0 : (-m + 1)*incx);
+            for (int64_t i = 0; i < m; ++i) {
+                T tmp = alpha * x[ix];
+                for (int64_t j = 0; j < n; ++j) {
+                    A(j, i) += tmp * y[j];
+                }
+                ix += incx;
+            }
+        }
+        else {
+            // x and y non-unit stride
+            int64_t ky = (incy > 0 ? 0 : (-n + 1)*incy);
+            int64_t ix = (incx > 0 ? 0 : (-m + 1)*incx);
+            for (int64_t i = 0; i < m; ++i) {
+                T tmp = alpha * x[ix];
+                int64_t jy = ky;
+                for (int64_t j = 0; j < n; ++j) {
+                    A(j, i) += tmp * y[jy];
+                    jy += incy;
+                }
+                ix += incx;
+            }
+        }
+    }
+
+    #undef A
+}
+
 
 } // namespace blas
