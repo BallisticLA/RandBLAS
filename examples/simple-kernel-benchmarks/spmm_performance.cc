@@ -70,7 +70,7 @@
 // Internal headers for sparse dispatch, format conversions, and generation
 #include "RandBLAS/sparse_data/conversions.hh"
 #include "RandBLAS/sparse_data/spmm_dispatch.hh"
-#include "RandBLAS/sparse_data/random_matrix.hh"
+#include "RandBLAS/testing/sparse_data.hh"
 
 #include "RandBLAS/config.h"
 
@@ -187,7 +187,7 @@ void run_config(int64_t m, int64_t n, int64_t d, double density, int num_trials)
 
     // Generate one random COO matrix and convert to CSR/CSC so all three
     // formats represent the identical mathematical matrix.
-    auto [S_coo, next_state] = RandBLAS::sparse_data::random_coo<T>(m, n, density, RandBLAS::RNGState<>(seed));
+    auto [S_coo, next_state] = RandBLAS::testing::random_coo<T>(m, n, density, RandBLAS::RNGState<>(seed));
     auto S_csr = S_coo.as_owning_csr();
     auto S_csc = S_coo.as_owning_csc();
 
