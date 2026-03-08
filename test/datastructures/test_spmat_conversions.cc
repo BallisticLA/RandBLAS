@@ -28,7 +28,7 @@
 //
 
 #include "../comparison.hh"
-#include "RandBLAS/testing/sparse_data_common.hh"
+#include "RandBLAS/testing/sparse_data.hh"
 #include <vector>
 
 using namespace RandBLAS::sparse_data;

@@ -29,7 +29,7 @@
 
 #pragma once
 
-#include "RandBLAS/testing/sparse_data_common.hh"
+#include "RandBLAS/testing/sparse_data.hh"
 #include "test/linops/linop_common.hh"
 #include <gtest/gtest.h>
 

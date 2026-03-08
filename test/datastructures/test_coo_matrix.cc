@@ -28,7 +28,7 @@
 //
 
 #include "../comparison.hh"
-#include "RandBLAS/testing/sparse_data_common.hh"
+#include "RandBLAS/testing/sparse_data.hh"
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <vector>

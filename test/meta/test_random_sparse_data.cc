@@ -28,7 +28,7 @@
 //
 
 #include <gtest/gtest.h>
-#include "RandBLAS/testing/random_sparse_data.hh"
+#include "RandBLAS/testing/sparse_data.hh"
 #include "RandBLAS/sparse_data/csr_matrix.hh"
 #include "RandBLAS/sparse_data/csc_matrix.hh"
 #include "RandBLAS/sparse_data/coo_matrix.hh"

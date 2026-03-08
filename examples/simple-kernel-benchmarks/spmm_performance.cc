@@ -70,7 +70,7 @@
 // Internal headers for sparse dispatch, format conversions, and generation
 #include "RandBLAS/sparse_data/conversions.hh"
 #include "RandBLAS/sparse_data/spmm_dispatch.hh"
-#include "RandBLAS/testing/random_sparse_data.hh"
+#include "RandBLAS/testing/sparse_data.hh"
 
 #include "RandBLAS/config.h"
 

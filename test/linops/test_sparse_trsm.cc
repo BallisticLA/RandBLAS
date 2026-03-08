@@ -16,7 +16,7 @@ using blas::Uplo;
 using blas::Op;
 using blas::Diag;
 #include "../comparison.hh"
-#include "RandBLAS/testing/sparse_data_common.hh"
+#include "RandBLAS/testing/sparse_data.hh"
 
 #include <algorithm>
 #include <iostream>
