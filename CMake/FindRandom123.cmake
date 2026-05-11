@@ -26,22 +26,9 @@ find_package_handle_standard_args(Random123
     Random123_INCLUDE_DIR)
 
 if (NOT TARGET Random123)
-
-    # interface libarary for use elsewhere in the project
     add_library(Random123 INTERFACE)
-
     target_include_directories(Random123
         SYSTEM INTERFACE "${Random123_INCLUDE_DIR}")
-
-    install(TARGETS Random123 EXPORT Random123)
-
-    install(EXPORT Random123
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake"
-        EXPORT_LINK_INTERFACE_LIBRARIES)
-
-    install(FILES CMake/FindRandom123.cmake
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake")
-
 endif()
 
 endif()
