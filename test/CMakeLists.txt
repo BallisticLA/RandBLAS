@@ -46,6 +46,7 @@ if (GTest_FOUND)
         linops/test_spmm/test_spmm_csc.cc
         linops/test_spmm/test_spmm_csr.cc
         linops/test_spmm/test_spmm_coo.cc
+        linops/test_spsymm.cc
 
         linops/test_sketch_sparse.cc
     )
