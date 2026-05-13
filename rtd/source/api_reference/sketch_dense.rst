@@ -67,18 +67,24 @@ Analogs to GEMM
 Analogs to SYMM
 ---------------
 
+These overloads accept a ``blas::Uplo`` parameter naming the triangle of
+:math:`\mtxA` that is structurally stored; the opposite triangle is implied
+by symmetry and is **not** read. Currently only ``DenseSkOp`` is supported;
+calling these with a ``SparseSkOp`` throws ``RandBLAS::Error`` (Case B of the
+SYMM-kernels plan; see ``RandBLAS/sparse_data/DevNotes.md``).
+
 .. dropdown:: :math:`\mtxB = \alpha \cdot \mtxS \cdot \mtxA + \beta \cdot \mtxB`
   :animate: fade-in-slide-down
   :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, T alpha, const SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, blas::Uplo uplo, T alpha, const SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb)
       :project: RandBLAS
 
 .. dropdown:: :math:`\mtxB = \alpha \cdot \mtxA \cdot \mtxS + \beta \cdot \mtxB`
   :animate: fade-in-slide-down
   :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, T alpha, const T *A, int64_t lda, const SKOP &S, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, blas::Uplo uplo, T alpha, const T *A, int64_t lda, const SKOP &S, T beta, T *B, int64_t ldb)
       :project: RandBLAS
 
 
@@ -86,10 +92,10 @@ Analogs to SYMM
     :animate: fade-in-slide-down
     :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, int64_t d, int64_t n, T alpha, const SKOP &S, int64_t ro_s, int64_t co_s, const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, blas::Uplo uplo, int64_t d, int64_t n, T alpha, const SKOP &S, int64_t ro_s, int64_t co_s, const T *A, int64_t lda, T beta, T *B, int64_t ldb)
       :project: RandBLAS
 
-    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, int64_t n, int64_t d, T alpha, const T *A, int64_t lda, const SKOP &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, blas::Uplo uplo, int64_t n, int64_t d, T alpha, const T *A, int64_t lda, const SKOP &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb)
       :project: RandBLAS
 
 

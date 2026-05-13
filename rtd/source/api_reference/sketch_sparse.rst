@@ -114,6 +114,35 @@ Deterministic operations
        This function requires Intel MKL and only supports single and double precision (``float`` and ``double``),
        in contrast to other RandBLAS kernels that work with any scalar type.
 
+.. dropdown:: :math:`\mtxY = \alpha \cdot \mtxA \cdot \mtxB + \beta \cdot \mtxY,` with sparse symmetric :math:`\mtxA` (spsymm)
+    :animate: fade-in-slide-down
+    :color: light
+
+    .. doxygenfunction:: RandBLAS::spsymm(blas::Layout layout, blas::Uplo uplo, int64_t m, int64_t n, T alpha, const SpMat &A, const T *B, int64_t ldb, T beta, T *Y, int64_t ldy)
+      :project: RandBLAS
+
+    .. doxygenfunction:: RandBLAS::spsymm(blas::Layout layout, int64_t m, int64_t n, T alpha, const Symmetric<SpMat> &A_sym, const T *B, int64_t ldb, T beta, T *Y, int64_t ldy)
+      :project: RandBLAS
+
+    Only the triangle named by ``uplo`` is read from :math:`\mtxA`. With Intel MKL,
+    the call dispatches to ``mkl_sparse_d_mm`` with a symmetric ``matrix_descr``
+    for the fast path; otherwise it uses a hand-rolled per-format kernel
+    (CSR / CSC / COO). See ``RandBLAS/sparse_data/DevNotes.md`` for the dispatch
+    flow and the broader 4-case design that ``spsymm`` belongs to.
+
+    .. note::
+
+       The ``Symmetric<SpMat>`` carrier (a non-owning wrapper holding a
+       ``const SpMat &`` and a ``blas::Uplo``) is the type-safety hook that
+       prevents a symmetric sparse matrix from being accidentally passed to
+       the general ``spmm`` / ``spgemm`` routines.
+
+       Companion stubs exist for the cases where the second factor is also
+       sparse (Case D) or where the symmetric factor is dense and the second
+       is sparse (Case B, via ``sketch_symmetric``). They throw
+       ``RandBLAS::Error`` with a pointer to the design plan; no portable
+       kernel for those shapes exists in current sparse-BLAS libraries.
+
 .. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)^{-1} \cdot \mtxB,` with sparse triangular :math:`\mtxA`
     :animate: fade-in-slide-down
     :color: light
