@@ -60,14 +60,15 @@ void random_symmetric_mat(int64_t n, T* A, int64_t lda, STATE s) {
 
 template <typename T, typename SKOP>
 blas::Side sketch_symmetric_side(
-    blas::Side side_skop, blas::Layout layout, int64_t rows_out, int64_t cols_out,
+    blas::Side side_skop, blas::Layout layout, blas::Uplo uplo,
+    int64_t rows_out, int64_t cols_out,
     T alpha, const T* A, int64_t lda, SKOP &S, int64_t ro_s, int64_t co_s, T beta, T* B, int64_t ldb
 ) {
     if (side_skop == blas::Side::Left) {
-        RandBLAS::sketch_symmetric(layout, rows_out, cols_out, alpha, S, ro_s, co_s, A, lda, beta, B, ldb);
+        RandBLAS::sketch_symmetric(layout, uplo, rows_out, cols_out, alpha, S, ro_s, co_s, A, lda, beta, B, ldb);
         return blas::Side::Right;
     } else {
-        RandBLAS::sketch_symmetric(layout, rows_out, cols_out, alpha, A, lda, S, ro_s, co_s, beta, B, ldb);
+        RandBLAS::sketch_symmetric(layout, uplo, rows_out, cols_out, alpha, A, lda, S, ro_s, co_s, beta, B, ldb);
         return blas::Side::Left;
     }
 }
@@ -88,7 +89,8 @@ class TestSketchSymmetric : public ::testing::Test {
 
     template <typename T>
     static void test_same_layouts(
-        uint32_t seed_a, uint32_t seed_skop, Axis major_axis, T alpha, int64_t d, int64_t n, int64_t lda, T beta, blas::Side side_skop
+        uint32_t seed_a, uint32_t seed_skop, Axis major_axis, T alpha, int64_t d, int64_t n, int64_t lda, T beta, blas::Side side_skop,
+        blas::Uplo uplo = blas::Uplo::Upper
     ) {
         auto [rows_out, cols_out] = dims_of_sketch_symmetric_output(d, n, side_skop);
         std::vector<T> A(lda*lda, 0.0);
@@ -104,9 +106,9 @@ class TestSketchSymmetric : public ::testing::Test {
         std::vector<T> B_expect(B_actual);
 
         // Compute the actual output
-        auto side_a = sketch_symmetric_side(side_skop, S.layout, rows_out, cols_out, alpha, A.data(), lda, S, 0, 0, beta, B_actual.data(), ldb);
+        auto side_a = sketch_symmetric_side(side_skop, S.layout, uplo, rows_out, cols_out, alpha, A.data(), lda, S, 0, 0, beta, B_actual.data(), ldb);
         // Compute the expected output
-        blas::symm(S.layout, side_a, Uplo::Upper, rows_out, cols_out, alpha, A.data(), lda, S.buff, lds, beta, B_expect.data(), ldb);
+        blas::symm(S.layout, side_a, uplo, rows_out, cols_out, alpha, A.data(), lda, S.buff, lds, beta, B_expect.data(), ldb);
 
         auto msg = RandBLAS::testing::matrices_approx_equal(
             S.layout, blas::Op::NoTrans, rows_out, cols_out, B_actual.data(), ldb, B_expect.data(), ldb,
@@ -120,7 +122,8 @@ class TestSketchSymmetric : public ::testing::Test {
 
     template <typename T>
     static void test_opposing_layouts(
-        uint32_t seed_a, uint32_t seed_skop, Axis major_axis, T alpha, int64_t d, int64_t n, int64_t lda, T beta, blas::Side side_skop
+        uint32_t seed_a, uint32_t seed_skop, Axis major_axis, T alpha, int64_t d, int64_t n, int64_t lda, T beta, blas::Side side_skop,
+        blas::Uplo uplo = blas::Uplo::Upper
     ) {
         auto [rows_out, cols_out] = dims_of_sketch_symmetric_output(d, n, side_skop);
         std::vector<T> A(lda*lda, 0.0);
@@ -144,11 +147,11 @@ class TestSketchSymmetric : public ::testing::Test {
         RandBLAS::fill_dense(D, B_actual.data(), RNGState(seed_b));
         std::vector<T> B_expect(B_actual);
         // Compute the actual output
-        auto side_a = sketch_symmetric_side(side_skop, layout_B, rows_out, cols_out, alpha, A.data(), lda, S, 0, 0, beta, B_actual.data(), ldb);
+        auto side_a = sketch_symmetric_side(side_skop, layout_B, uplo, rows_out, cols_out, alpha, A.data(), lda, S, 0, 0, beta, B_actual.data(), ldb);
         // Compute the expected output
         std::vector<T> S_flipped(S.buff, S.buff + d*n);
         RandBLAS::util::flip_layout(S.layout, rows_out, cols_out, S_flipped, lds_init, ldb);
-        blas::symm(layout_B, side_a, Uplo::Upper, rows_out, cols_out, alpha, A.data(), lda, S_flipped.data(), ldb, beta, B_expect.data(), ldb);
+        blas::symm(layout_B, side_a, uplo, rows_out, cols_out, alpha, A.data(), lda, S_flipped.data(), ldb, beta, B_expect.data(), ldb);
 
         auto msg = RandBLAS::testing::matrices_approx_equal(
             layout_B, blas::Op::NoTrans, rows_out, cols_out, B_actual.data(), ldb, B_expect.data(), ldb,
@@ -160,36 +163,12 @@ class TestSketchSymmetric : public ::testing::Test {
         return;
     }
 
-    template <typename T>
-    static void test_error_on_asymmetric() {
-        // Build a 3x3 non-symmetric matrix (A[0,1] != A[1,0]) and verify
-        // that sketch_symmetric raises RandBLAS::Error due to the symmetry check.
-        int64_t n = 3;
-        int64_t d = 2;
-        // Column-major 3x3 matrix: symmetric except A(0,1)=5 vs A(1,0)=0.
-        //   col0  col1  col2
-        //   1.0   5.0   0.0
-        //   0.0   2.0   0.0
-        //   0.0   0.0   3.0
-        std::vector<T> A = {
-            1.0, 0.0, 0.0,
-            5.0, 2.0, 0.0,
-            0.0, 0.0, 3.0
-        };
-        DenseDist D(d, n, ScalarDist::Uniform, Axis::Short);
-        DenseSkOp<T> S(D, 42);
-        RandBLAS::fill_dense(S);
-        std::vector<T> B(d * n, 0.0);
-        try {
-            RandBLAS::sketch_symmetric(Layout::ColMajor, d, n, (T)1.0, S, 0, 0, A.data(), n, (T)0.0, B.data(), d);
-            FAIL() << "Expected RandBLAS::Error for asymmetric matrix";
-        } catch (const RandBLAS::Error& e) {
-            std::string msg = e.what();
-            EXPECT_NE(msg.find("Symmetry check failed"), std::string::npos)
-                << "Error message did not mention symmetry check: " << msg;
-        }
-        return;
-    }
+    // Note: an earlier `test_error_on_asymmetric` test verified that
+    // sketch_symmetric threw on asymmetric input via require_symmetric. With
+    // the SYMM-based dispatch (project-plans/randblas-symm-plan.md, Phase 1),
+    // only the triangle named by `uplo` is read --- the opposite triangle
+    // contributing wrong values is undefined behavior at the caller, not a
+    // RandBLAS check. The test was removed accordingly.
 };
 
 
@@ -391,9 +370,3 @@ TEST_F(TestSketchSymmetric, right_lift_opposing_layouts) {
     test_opposing_layouts(31, 33, Axis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Right);
 }
 
-// MARK: validation errors
-
-TEST_F(TestSketchSymmetric, symmetry_check_fails_for_asymmetric_matrix) {
-    test_error_on_asymmetric<double>();
-    test_error_on_asymmetric<float>();
-}
