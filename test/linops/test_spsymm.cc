@@ -191,6 +191,22 @@ TEST_F(TestSpsymm, CSR_Left_Alpha0) {
 }
 
 // Symmetric<SpMat> wrapper routing: covers the public RandBLAS::spsymm(layout, Symmetric, ...) overload
+// Case D stub: sparse-symmetric A times sparse B must throw RandBLAS::Error.
+// The API surface is reserved; the body is "not implemented" pending a future PR.
+TEST_F(TestSpsymm, CaseD_SparseSparseThrows) {
+    CSRMatrix<double> A_sparse(4, 4);
+    CSRMatrix<double> B_sparse(4, 3);
+    std::vector<double> Y(4 * 3, 0.0);
+    EXPECT_THROW({
+        RandBLAS::sparse_data::spsymm(
+            Layout::ColMajor, Side::Left, Uplo::Upper,
+            4, 3, 1.0,
+            A_sparse, B_sparse,
+            0.0, Y.data(), 4
+        );
+    }, RandBLAS::Error);
+}
+
 TEST_F(TestSpsymm, SymmetricWrapper) {
     using SpMat = CSRMatrix<double>;
     int64_t n_A = 8;

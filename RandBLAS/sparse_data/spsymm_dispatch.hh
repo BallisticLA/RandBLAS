@@ -124,6 +124,62 @@ void spsymm(
     }
 }
 
+// =============================================================================
+/// Case D stub: sparse-symmetric A times sparse B, dense output.
+///
+/// @verbatim embed:rst:leading-slashes
+/// Not implemented in this PR. The function signature is reserved here so that
+/// future PRs can fill in the body without breaking source compatibility for
+/// downstream users. Calling this overload triggers ``RandBLAS::Error`` via
+/// ``randblas_require(false, ...)``.
+///
+/// Why no implementation? No portable kernel for "sparse-symmetric A times
+/// sparse B into a dense result" exists in MKL, Ginkgo, the SparseBLAS
+/// reference (``SparseBLAS/spblas-reference``), or MAGMA-sparse (all surveyed
+/// 2026-05). The C++ Sparse BLAS standardization proposal (arXiv:2411.13259)
+/// does not specify a SYMM-shaped sparse op either. Hand-rolling the kernel is
+/// feasible but ~1-2 weeks of work, deferred outside the current PR.
+///
+/// Composition fallbacks callers can use today:
+///
+///   - Densify B and call the Case-C spsymm (above). Exploits A's symmetry
+///     but loses B's sparsity benefit.
+///   - With Intel MKL: ``mkl_sparse_sp2m`` accepts a symmetric ``matrix_descr``
+///     on A and produces a sparse C, which can be densified afterward.
+///     Exploits both structures but pays an intermediate sparse-C plus a
+///     dense-fill step.
+///
+/// See project-plans/randblas-symm-plan.md for the full design context.
+/// @endverbatim
+template <SparseMatrix SpMatA, SparseMatrix SpMatB,
+          typename T = typename SpMatA::scalar_t>
+void spsymm(
+    blas::Layout layout,
+    blas::Side side,
+    blas::Uplo uplo,
+    int64_t m, int64_t n,
+    T alpha,
+    const SpMatA& A,
+    const SpMatB& B,
+    T beta,
+    T* Y, int64_t ldy
+) {
+    (void) layout; (void) side; (void) uplo;
+    (void) m; (void) n; (void) alpha;
+    (void) A; (void) B; (void) beta;
+    (void) Y; (void) ldy;
+    randblas_require(
+        false &&
+        "RandBLAS::sparse_data::spsymm(..., const SpMatA& A, const SpMatB& B, ...) "
+        "(Case D: sparse-symmetric A times sparse B into dense Y) is not "
+        "implemented. No portable reference kernel exists in MKL, Ginkgo, "
+        "spblas-reference, or MAGMA-sparse (as of 2026-05). Composition "
+        "fallbacks: (a) densify B and call the Case-C spsymm, or (b) call "
+        "mkl_sparse_sp2m with a symmetric descriptor on A and densify the "
+        "resulting sparse C. See project-plans/randblas-symm-plan.md."
+    );
+}
+
 } // end namespace RandBLAS::sparse_data
 
 

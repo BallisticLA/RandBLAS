@@ -60,6 +60,73 @@ we're inside one of those functions.
     This heuristic can differ from that used if we had called `[left/right]_spmm` directly on
     a COO matrix.
 
+## SYMM-shaped kernels (spsymm)
+
+RandBLAS exposes a SYMM-style API for sparse symmetric matrices via the
+``spsymm`` family. The design covers four cases based on the structure of the
+two operands (``A`` symmetric vs. the second factor ``B``):
+
+| Tag | Operation                       | A storage           | B storage | Status this PR                                  |
+|-----|---------------------------------|---------------------|-----------|-------------------------------------------------|
+| A   | dense-symm × dense              | dense, one triangle | dense     | Implemented via ``blas::symm`` in ``sksy.hh``    |
+| B   | dense-symm × sparse             | dense, one triangle | sparse    | Stub in ``sksy.hh`` (``sketch_symmetric`` on SparseSkOp). Throws ``RandBLAS::Error``. |
+| C   | sparse-symm × dense (→ dense)   | sparse, one triangle | dense     | Implemented in ``spsymm_dispatch.hh`` (MKL fast path + per-format fallbacks). |
+| D   | sparse-symm × sparse → dense    | sparse, one triangle | sparse    | Stub in ``spsymm_dispatch.hh`` (overload taking two ``SparseMatrix`` args). Throws ``RandBLAS::Error``. |
+
+### MKL availability
+
+| Tag | MKL native?    | Notes                                                                                                           |
+|-----|----------------|-----------------------------------------------------------------------------------------------------------------|
+| A   | No (BLAS++)    | ``blas::symm`` directly.                                                                                        |
+| B   | No             | The transpose trick puts the sparse op on the left of ``mkl_sparse_d_mm``, but the dense A has no ``matrix_descr``, so MKL can't be told A is symmetric. |
+| C   | Yes (mostly)   | ``mkl_sparse_d_mm`` with ``descr.type = SPARSE_MATRIX_TYPE_SYMMETRIC``. RandBLAS falls back to a hand kernel for side=Right (MKL has no Side parameter) and for CSC (``mkl_sparse_d_mm`` returns NOT_SUPPORTED on CSC). |
+| D   | Partial        | ``mkl_sparse_sp2m`` accepts a symmetric descriptor on A but writes sparse output; densifying afterward is a workable composition fallback but not a single-call kernel. |
+
+### Case C dispatch (``spsymm_dispatch.hh``)
+
+``RandBLAS::sparse_data::spsymm(layout, side, uplo, m, n, alpha, A, B, ldb, beta, Y, ldy)``
+dispatches as follows:
+
+1. Validate: A is square (``A.n_rows == A.n_cols``), and matches the side
+   convention (``A.n_rows == m`` for side=Left, ``A.n_rows == n`` for side=Right).
+2. If RandBLAS was built with MKL and the index width matches ``MKL_INT``,
+   try ``mkl::mkl_spsymm``. It applies the ``SPARSE_MATRIX_TYPE_SYMMETRIC``
+   descriptor and calls ``mkl_sparse_d_mm`` directly. Returns false for
+   side=Right and CSC; control falls through to step 3 in either case.
+3. Format-specific fallback: ``csr_spsymm`` / ``csc_spsymm`` / ``coo_spsymm``.
+   Each iterates the named triangle once. For each stored entry ``A(i,j) = v``,
+   it emits one ``blas::axpy`` for the structural location and a second one
+   for the implied symmetric counterpart (when ``i != j``). Diagonal entries
+   contribute once. Entries outside the named triangle are silently skipped,
+   so a caller that mistakenly stored both triangles still gets the correct
+   answer (the kernel just behaves as if the "extra" entries were absent).
+
+A shared ``internal::apply_beta_scale`` helper (defined in
+``csr_spsymm_impl.hh``, re-included by the other two format files) handles
+the ``Y <- beta * Y`` pass on entry.
+
+The public-facing wrappers in the top-level ``RandBLAS::`` namespace are:
+
+  - ``spsymm(layout, uplo, m, n, alpha, A, B, ldb, beta, Y, ldy)`` --
+    convenience for side=Left.
+  - ``spsymm(layout, m, n, alpha, Symmetric<SpMat> A_sym, B, ldb, beta, Y, ldy)``
+    -- routes via the ``Symmetric<SpMat>`` carrier so the uplo annotation
+    travels with the matrix.
+
+### Cases B and D: why stub-only
+
+No portable kernel for "dense-symm × sparse" or "sparse-symm × sparse → dense"
+exists in MKL, Ginkgo, the SparseBLAS reference implementation, the C++
+Sparse BLAS proposal (arXiv:2411.13259), or MAGMA-sparse (surveyed 2026-05).
+Hand-rolling is feasible but non-trivial: case B's access pattern is "for
+each nonzero of B, gather a column of A from the stored triangle", which is
+awkward to vectorize; case D layers a symmetric-triangle filter on top of
+an spgemm-into-dense pattern.
+
+The stubs exist so the API surface is locked: future PRs can fill in the
+bodies without breaking source compatibility for downstream callers. The
+stub message points back to ``project-plans/randblas-symm-plan.md``.
+
 ## Sketching sparse data with dense operators
 
 If we call ``sketch_sparse`` with a DenseSkOp, ``S``, and a sparse matrix, ``A``, then we'll get routed to either
