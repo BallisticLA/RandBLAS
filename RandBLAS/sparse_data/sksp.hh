@@ -415,7 +415,7 @@ using namespace RandBLAS::sparse_data;
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B`.
 ///
 /// @endverbatim
-template <SparseMatrix SpMat, typename DenseSkOp, typename T = DenseSkOp::scalar_t>
+template <SparseMatrix SpMat, typename DenseSkOp, typename T = typename DenseSkOp::scalar_t>
 inline void sketch_sparse(
     blas::Layout layout,
     blas::Op opS,
@@ -517,7 +517,7 @@ inline void sketch_sparse(
 ///       * Leading dimension of :math:`\mat(B)` when reading from :math:`B`.
 ///
 /// @endverbatim
-template <SparseMatrix SpMat, typename DenseSkOp, typename T = DenseSkOp::scalar_t>
+template <SparseMatrix SpMat, typename DenseSkOp, typename T = typename DenseSkOp::scalar_t>
 inline void sketch_sparse(
     blas::Layout layout,
     blas::Op opA,

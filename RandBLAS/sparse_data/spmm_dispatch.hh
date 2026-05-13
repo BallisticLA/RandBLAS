@@ -49,7 +49,7 @@
 
 namespace RandBLAS::sparse_data {
 
-template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
+template <SparseMatrix SpMat, typename T = typename SpMat::scalar_t>
 void left_spmm(
     blas::Layout layout,
     blas::Op opA,
@@ -178,7 +178,7 @@ void left_spmm(
     return;
 }
 
-template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
+template <SparseMatrix SpMat, typename T = typename SpMat::scalar_t>
 inline void right_spmm(
     blas::Layout layout,
     blas::Op opA,
@@ -295,7 +295,7 @@ namespace RandBLAS {
 ///       * Leading dimension of :math:`\mat(C)` when reading from :math:`C`.
 ///
 /// @endverbatim
-template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
+template <SparseMatrix SpMat, typename T = typename SpMat::scalar_t>
 inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const SpMat &A, const T *B, int64_t ldb, T beta, T *C, int64_t ldc) {
     RandBLAS::sparse_data::left_spmm(layout, opA, opB, m, n, k, alpha, A, 0, 0, B, ldb, beta, C, ldc);
     return;
@@ -373,7 +373,7 @@ inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int
 ///       * Leading dimension of :math:`\mat(C)` when reading from :math:`C`.
 ///
 /// @endverbatim
-template <SparseMatrix SpMat, typename T = SpMat::scalar_t>
+template <SparseMatrix SpMat, typename T = typename SpMat::scalar_t>
 inline void spmm(blas::Layout layout, blas::Op opA, blas::Op opB, int64_t m, int64_t n, int64_t k, T alpha, const T *A, int64_t lda, const SpMat &B, T beta, T *C, int64_t ldc) {
     RandBLAS::sparse_data::right_spmm(layout, opA, opB, m, n, k, alpha, A, lda, B, 0, 0, beta, C, ldc);
     return;
