@@ -180,6 +180,29 @@ using namespace RandBLAS::dense;
 using namespace RandBLAS::sparse;
 
 
+namespace detail {
+
+// =============================================================================
+/// Shared Case-B stub-throw helper for the four SparseSkOp-taking
+/// sketch_symmetric specializations. The variadic parameter pack consumes
+/// the caller's arguments so the compiler doesn't warn about unused
+/// parameters in the (genuinely-unused, by design) stub bodies.
+template <typename ...Args>
+[[noreturn]] inline void throw_sketch_symmetric_case_b(Args&&...) {
+    randblas_require(
+        false &&
+        "RandBLAS::sketch_symmetric with a sparse sketching operator is the "
+        "Case-B kernel from project-plans/randblas-symm-plan.md. Not implemented "
+        "in this PR --- the API signature is reserved so future PRs can fill in "
+        "the body without breaking source compatibility. Composition fallback: "
+        "densify the SkOp then call sketch_symmetric on the dense version."
+    );
+    __builtin_unreachable();
+}
+
+} // namespace detail
+
+
 // MARK: SUBMAT(S)
 
 // =============================================================================
@@ -307,17 +330,7 @@ inline void sketch_symmetric(
     T beta,
     T* B, int64_t ldb
 ) {
-    (void) layout; (void) uplo; (void) d; (void) n; (void) alpha;
-    (void) S; (void) ro_s; (void) co_s; (void) A; (void) lda;
-    (void) beta; (void) B; (void) ldb;
-    randblas_require(
-        false &&
-        "RandBLAS::sketch_symmetric with a sparse sketching operator is the "
-        "Case-B kernel from project-plans/randblas-symm-plan.md. Not implemented "
-        "in this PR --- the API signature is reserved so future PRs can fill in "
-        "the body without breaking source compatibility. Composition fallback: "
-        "densify the SkOp then call sketch_symmetric on the dense version."
-    );
+    detail::throw_sketch_symmetric_case_b(layout, uplo, d, n, alpha, S, ro_s, co_s, A, lda, beta, B, ldb);
 }
 
 
@@ -376,14 +389,7 @@ inline void sketch_symmetric(
     T beta,
     T* B, int64_t ldb
 ) {
-    (void) layout; (void) uplo; (void) n; (void) d; (void) alpha;
-    (void) S; (void) ro_s; (void) co_s; (void) A; (void) lda;
-    (void) beta; (void) B; (void) ldb;
-    randblas_require(
-        false &&
-        "RandBLAS::sketch_symmetric with a sparse sketching operator is the "
-        "Case-B kernel from project-plans/randblas-symm-plan.md. Not implemented."
-    );
+    detail::throw_sketch_symmetric_case_b(layout, uplo, n, d, alpha, A, lda, S, ro_s, co_s, beta, B, ldb);
 }
 
 
@@ -441,14 +447,7 @@ inline void sketch_symmetric(
     T beta,
     T* B, int64_t ldb
 ) {
-    (void) layout; (void) uplo; (void) alpha;
-    (void) S; (void) A; (void) lda;
-    (void) beta; (void) B; (void) ldb;
-    randblas_require(
-        false &&
-        "RandBLAS::sketch_symmetric with a sparse sketching operator is the "
-        "Case-B kernel from project-plans/randblas-symm-plan.md. Not implemented."
-    );
+    detail::throw_sketch_symmetric_case_b(layout, uplo, alpha, S, A, lda, beta, B, ldb);
 }
 
 
@@ -503,14 +502,7 @@ inline void sketch_symmetric(
     T beta,
     T* B, int64_t ldb
 ) {
-    (void) layout; (void) uplo; (void) alpha;
-    (void) S; (void) A; (void) lda;
-    (void) beta; (void) B; (void) ldb;
-    randblas_require(
-        false &&
-        "RandBLAS::sketch_symmetric with a sparse sketching operator is the "
-        "Case-B kernel from project-plans/randblas-symm-plan.md. Not implemented."
-    );
+    detail::throw_sketch_symmetric_case_b(layout, uplo, alpha, S, A, lda, beta, B, ldb);
 }
 
 } // end namespace RandBLAS
