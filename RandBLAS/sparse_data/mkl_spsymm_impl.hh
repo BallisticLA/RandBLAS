@@ -57,12 +57,19 @@ namespace RandBLAS::sparse_data::mkl {
 // hand-rolled per-format kernel. MKL applies alpha and beta internally; the
 // caller therefore passes them through unchanged.
 //
-// Known limitations that trigger a fallback:
-//   - side == Right: MKL's mkl_sparse_d_mm has no side parameter; the
-//     symmetric matrix is always on the left of the dense block. The
-//     transpose-trick to express side=Right via layout flips depends on
-//     leading-dim assumptions that don't always hold; safer to fall back.
+// Known limitation that triggers a fallback:
 //   - Index type mismatched with MKL_INT.
+//
+// Both Side values are handled:
+//   - side=Left (Y = alpha*A*B + beta*Y): direct call to mkl_sparse_d_mm
+//     with the symmetric descriptor.
+//   - side=Right (Y = alpha*B*A + beta*Y): A is symmetric so A == A^T,
+//     and (B*A)^T = A^T * B^T = A * B^T. We tell MKL to compute A*B^T
+//     into Y^T by flipping the MKL layout flag. Concretely, the same
+//     user buffers for B and Y are reinterpreted in the opposite layout
+//     (ColMajor <-> RowMajor); ldb and ldy carry through unchanged
+//     because the reinterpretation has the same leading-dim semantics
+//     (rows-of-RowMajor have the same stride as cols-of-ColMajor).
 //
 // CSC handling: MKL's mkl_sparse_d_mm returns NOT_SUPPORTED for CSC even
 // with a symmetric descriptor. We work around this by taking the
@@ -90,9 +97,6 @@ bool mkl_spsymm(
     using sint_t = typename SpMat::index_t;
     constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
 
-    if (side != blas::Side::Left)
-        return false;
-
     if constexpr (is_csc) {
         // Symmetric A: A == A^T. The CSC->CSR view is lightweight (same
         // buffers, reinterpreted) and gives us a CSR matrix MKL accepts;
@@ -115,10 +119,21 @@ bool mkl_spsymm(
         : SPARSE_FILL_MODE_LOWER;
     descr.diag = SPARSE_DIAG_NON_UNIT;
 
+    // For side=Right, reinterpret B and Y in the opposite layout to
+    // present them to MKL as B^T and Y^T; MKL then computes Y^T = A*B^T
+    // which is the transpose of Y = B*A. The number of MKL-side
+    // right-hand-side columns is m (the user's row count) rather than n
+    // (the user's col count, = A's order).
+    blas::Layout mkl_layout = (side == blas::Side::Left)
+        ? layout
+        : (layout == blas::Layout::ColMajor ? blas::Layout::RowMajor
+                                            : blas::Layout::ColMajor);
+    int64_t n_rhs = (side == blas::Side::Left) ? n : m;
+
     sparse_status_t status = mkl_sparse_mm_call(
         SPARSE_OPERATION_NON_TRANSPOSE, alpha, h.handle, descr,
-        to_mkl_layout(layout),
-        B, n, ldb, beta, Y, ldy
+        to_mkl_layout(mkl_layout),
+        B, n_rhs, ldb, beta, Y, ldy
     );
 
     // Some MKL versions return NOT_SUPPORTED for combinations we couldn't
@@ -127,7 +142,6 @@ bool mkl_spsymm(
         return false;
 
     check_mkl_status(status, "mkl_sparse_mm (symmetric)");
-    (void) m;  // m is implied by A.n_rows; kept for signature symmetry
     return true;
 }
 
