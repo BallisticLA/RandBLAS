@@ -62,9 +62,16 @@ namespace RandBLAS::sparse_data::mkl {
 //     symmetric matrix is always on the left of the dense block. The
 //     transpose-trick to express side=Right via layout flips depends on
 //     leading-dim assumptions that don't always hold; safer to fall back.
-//   - CSC format: MKL's mkl_sparse_d_mm returns NOT_SUPPORTED for CSC even
-//     with a symmetric descriptor (mirrors the behavior in mkl_left_spmm).
 //   - Index type mismatched with MKL_INT.
+//
+// CSC handling: MKL's mkl_sparse_d_mm returns NOT_SUPPORTED for CSC even
+// with a symmetric descriptor. We work around this by taking the
+// CSC.transpose() view (a lightweight CSR view over the same buffers,
+// since A is symmetric so A == A^T) and recursing. The triangle the user
+// named in the CSC is in the *opposite* triangle of the CSR view (a CSC
+// Upper entry at (i, j) with i <= j becomes a CSR-view entry at (j, i)
+// with j >= i, i.e., Lower in the CSR view), so the recursive call flips
+// uplo.
 // ============================================================================
 template <SparseMatrix SpMat, typename T = typename SpMat::scalar_t>
 bool mkl_spsymm(
@@ -85,8 +92,19 @@ bool mkl_spsymm(
 
     if (side != blas::Side::Left)
         return false;
-    if constexpr (is_csc)
-        return false;
+
+    if constexpr (is_csc) {
+        // Symmetric A: A == A^T. The CSC->CSR view is lightweight (same
+        // buffers, reinterpreted) and gives us a CSR matrix MKL accepts;
+        // the structurally stored triangle moves from {Upper,Lower} to
+        // the opposite side in the CSR view.
+        auto At = A.transpose();
+        blas::Uplo uplo_flipped = (uplo == blas::Uplo::Upper)
+            ? blas::Uplo::Lower
+            : blas::Uplo::Upper;
+        return mkl_spsymm(layout, side, uplo_flipped, m, n,
+                          alpha, At, B, ldb, beta, Y, ldy);
+    }
 
     auto h = make_mkl_handle(A);
 
