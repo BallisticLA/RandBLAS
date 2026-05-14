@@ -103,13 +103,7 @@ void handrolled_left_spmm_csr(
     const T *B, int64_t ldb, T beta, T *C, int64_t ldc
 ) {
     // Apply beta to C (same as dispatch)
-    if (layout == Layout::ColMajor) {
-        for (int64_t i = 0; i < n; ++i)
-            RandBLAS::util::safe_scal(d, beta, &C[i*ldc]);
-    } else {
-        for (int64_t i = 0; i < d; ++i)
-            RandBLAS::util::safe_scal(n, beta, &C[i*ldc]);
-    }
+    RandBLAS::util::lascl(layout, d, n, beta, C, ldc);
     if (alpha == (T)0) return;
 
     // Call the hand-rolled CSR kernel directly (same as dispatch fallback)

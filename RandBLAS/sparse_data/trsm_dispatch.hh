@@ -31,6 +31,7 @@
 
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
+#include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/coo_matrix.hh"
 #include "RandBLAS/sparse_data/csr_matrix.hh"
@@ -199,13 +200,10 @@ void trsm(
     int64_t m = A.n_rows;
     if (layout == blas::Layout::ColMajor) {
         randblas_require(ldb >= m);
-        for (int64_t i = 0; i < n; ++i)
-            RandBLAS::util::safe_scal(m, alpha, &B[i*ldb]);
     } else {
         randblas_require(ldb >= n);
-        for (int64_t i = 0; i < m; ++i)
-            RandBLAS::util::safe_scal(n, alpha, &B[i*ldb]);
     }
+    RandBLAS::util::lascl(layout, m, n, alpha, B, ldb);
 
     if (alpha == static_cast<T>(0))
         return;
