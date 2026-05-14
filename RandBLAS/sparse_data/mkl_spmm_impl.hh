@@ -42,6 +42,7 @@
 #include <type_traits>
 
 #include "RandBLAS/exceptions.hh"
+#include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/coo_matrix.hh"
 #include "RandBLAS/sparse_data/csr_matrix.hh"
@@ -394,20 +395,8 @@ void mkl_spgemm_to_dense(
     //   3. C = alpha * temp + C (if needed)
 
     if (alpha == (T)0) {
-        // Just scale C by beta
-        if (beta == (T)0) {
-            int64_t total = (layout == blas::Layout::ColMajor) ? ldc * n : ldc * m;
-            std::fill(C, C + total, (T)0);
-        } else if (beta != (T)1) {
-            // Scale each column/row of C
-            if (layout == blas::Layout::ColMajor) {
-                for (int64_t j = 0; j < n; ++j)
-                    blas::scal(m, beta, &C[j * ldc], 1);
-            } else {
-                for (int64_t i = 0; i < m; ++i)
-                    blas::scal(n, beta, &C[i * ldc], 1);
-            }
-        }
+        // Just scale C by beta.
+        RandBLAS::util::lascl(layout, m, n, beta, C, ldc);
         return;
     }
 
@@ -437,17 +426,14 @@ void mkl_spgemm_to_dense(
     check_mkl_status(status, "mkl_sparse_spmmd");
 
     if (!direct_write) {
-        // C = alpha * target + beta * C
+        // C = alpha * target + beta * C: hoist the scale, then per-vector axpy.
+        RandBLAS::util::lascl(layout, m, n, beta, C, ldc);
         if (layout == blas::Layout::ColMajor) {
-            for (int64_t j = 0; j < n; ++j) {
-                blas::scal(m, beta, &C[j * ldc], 1);
+            for (int64_t j = 0; j < n; ++j)
                 blas::axpy(m, alpha, &target[j * ldc], 1, &C[j * ldc], 1);
-            }
         } else {
-            for (int64_t i = 0; i < m; ++i) {
-                blas::scal(n, beta, &C[i * ldc], 1);
+            for (int64_t i = 0; i < m; ++i)
                 blas::axpy(n, alpha, &target[i * ldc], 1, &C[i * ldc], 1);
-            }
         }
     }
 }

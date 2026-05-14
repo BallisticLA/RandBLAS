@@ -30,41 +30,12 @@
 #pragma once
 
 #include "RandBLAS/exceptions.hh"
+#include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/csr_matrix.hh"
 #include <blas.hh>
-#include <algorithm>
 
 namespace RandBLAS::sparse_data {
-
-namespace internal {
-
-// Apply Y <- beta * Y for an m-by-n dense matrix with leading dimension ldy.
-// Used by the spsymm fallback kernels to fold beta-scaling out of the
-// nonzero-traversal loop.
-template <typename T>
-inline void apply_beta_scale(blas::Layout layout, int64_t m, int64_t n, T beta, T* Y, int64_t ldy) {
-    if (beta == T(1)) return;
-    if (beta == T(0)) {
-        if (layout == blas::Layout::ColMajor) {
-            for (int64_t j = 0; j < n; ++j)
-                std::fill(Y + j*ldy, Y + j*ldy + m, T(0));
-        } else {
-            for (int64_t i = 0; i < m; ++i)
-                std::fill(Y + i*ldy, Y + i*ldy + n, T(0));
-        }
-        return;
-    }
-    if (layout == blas::Layout::ColMajor) {
-        for (int64_t j = 0; j < n; ++j)
-            blas::scal(m, beta, Y + j*ldy, 1);
-    } else {
-        for (int64_t i = 0; i < m; ++i)
-            blas::scal(n, beta, Y + i*ldy, 1);
-    }
-}
-
-} // namespace internal
 
 
 // =============================================================================
@@ -96,7 +67,7 @@ void csr_spsymm(
     int64_t k = (side == blas::Side::Left) ? m : n;
     randblas_require(A.n_rows == k);
 
-    internal::apply_beta_scale(layout, m, n, beta, Y, ldy);
+    RandBLAS::util::lascl(layout, m, n, beta, Y, ldy);
     if (alpha == T(0)) return;
 
     const bool col_major = (layout == blas::Layout::ColMajor);

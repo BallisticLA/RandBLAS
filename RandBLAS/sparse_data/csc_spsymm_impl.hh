@@ -30,9 +30,9 @@
 #pragma once
 
 #include "RandBLAS/exceptions.hh"
+#include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/csc_matrix.hh"
-#include "RandBLAS/sparse_data/csr_spsymm_impl.hh"  // for internal::apply_beta_scale
 #include <blas.hh>
 
 namespace RandBLAS::sparse_data {
@@ -60,7 +60,7 @@ void csc_spsymm(
     int64_t k = (side == blas::Side::Left) ? m : n;
     randblas_require(A.n_rows == k);
 
-    internal::apply_beta_scale(layout, m, n, beta, Y, ldy);
+    RandBLAS::util::lascl(layout, m, n, beta, Y, ldy);
     if (alpha == T(0)) return;
 
     const bool col_major = (layout == blas::Layout::ColMajor);
