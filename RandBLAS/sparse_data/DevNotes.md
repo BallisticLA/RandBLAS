@@ -71,7 +71,7 @@ two operands (``A`` symmetric vs. the second factor ``B``):
 | A   | dense-symm × dense              | dense, one triangle | dense     | Implemented via ``blas::symm`` in ``sksy.hh``.   |
 | B   | dense-symm × sparse             | dense, one triangle | sparse    | Implemented via hand-rolled ``lsksys`` / ``rsksys`` in ``sksy.hh`` (two-axpy scatter per stored nonzero of S, reading only the named triangle of A). |
 | C   | sparse-symm × dense (→ dense)   | sparse, one triangle | dense     | Implemented in ``spsymm_dispatch.hh`` (MKL fast path + per-format fallbacks). |
-| D   | sparse-symm × sparse → dense    | sparse, one triangle | sparse    | Stub in ``spsymm_dispatch.hh`` (overload taking two ``SparseMatrix`` args). Throws ``RandBLAS::Error``. |
+| D   | sparse-symm × sparse → dense    | sparse, one triangle | sparse    | Implemented via densify-B + Case-C composition in ``spsymm_dispatch.hh``. |
 
 ### MKL availability
 
@@ -80,7 +80,7 @@ two operands (``A`` symmetric vs. the second factor ``B``):
 | A   | No (BLAS++)    | ``blas::symm`` directly.                                                                                        |
 | B   | No             | The transpose trick puts the sparse op on the left of ``mkl_sparse_d_mm``, but the dense A has no ``matrix_descr``, so MKL can't be told A is symmetric. We hand-roll instead --- see ``lsksys`` / ``rsksys`` in ``sksy.hh``. |
 | C   | Yes (mostly)   | ``mkl_sparse_d_mm`` with ``descr.type = SPARSE_MATRIX_TYPE_SYMMETRIC``. RandBLAS falls back to a hand kernel for side=Right (MKL has no Side parameter) and for CSC (``mkl_sparse_d_mm`` returns NOT_SUPPORTED on CSC). |
-| D   | Partial        | ``mkl_sparse_sp2m`` accepts a symmetric descriptor on A but writes sparse output; densifying afterward is a workable composition fallback but not a single-call kernel. |
+| D   | No             | ``mkl_sparse_sp2m`` returns ``SPARSE_STATUS_NOT_SUPPORTED`` when ``descrA.type == SPARSE_MATRIX_TYPE_SYMMETRIC`` (only ``GENERAL`` is accepted there); ``mkl_sparse_d_spmmd`` takes no descriptor at all. Symmetric expansion has to happen on the RandBLAS side, so we don't gain anything by routing through MKL. |
 
 ### Case C dispatch (``spsymm_dispatch.hh``)
 
@@ -134,17 +134,35 @@ beyond consistent inclusion in one of the two ranges. SparseSkOp is COO
 internally, so submatrix filtering is a direct ``if (row < ro_s ...) continue``
 on the COO triples.
 
-### Case D: stub-only
+### Case D: densify-B + Case-C composition
 
-No portable kernel for "sparse-symm × sparse → dense" exists in MKL,
-Ginkgo, the SparseBLAS reference implementation, the C++ Sparse BLAS
-proposal (arXiv:2411.13259), or MAGMA-sparse (surveyed 2026-05).
-Hand-rolling is feasible but the design space is messier than Case B
-(mixed A/B sparse formats balloon the dispatch grid; the symmetric
-filter sits on top of an spgemm-into-dense pattern). Deferred to a
-future PR. Composition fallbacks documented in the stub's throw
-message: densify B then call Case C, or use ``mkl_sparse_sp2m`` with
-a symmetric descriptor on A and densify the resulting sparse C.
+Lives in ``spsymm_dispatch.hh`` next to the Case-C dispatcher. The
+overload taking two ``SparseMatrix`` operands allocates an ``m`` by
+``n`` ``std::vector<T>`` (tight leading dim in the caller's
+``layout``), fills it via the format-specific ``coo_to_dense`` /
+``csr_to_dense`` / ``csc_to_dense`` helper picked by ``if constexpr``,
+then calls the existing Case-C ``spsymm`` overload on the densified
+buffer. Works in any build (the MKL fast path or the per-format hand
+kernel both apply, depending on the build), and across all 3 × 3 = 9
+sparse-format pairings for ``(A, B)`` since the densification picks
+the right format-specific helper.
+
+Why this composition rather than a single MKL ``sp2m`` call:
+
+  - ``mkl_sparse_sp2m`` returns ``SPARSE_STATUS_NOT_SUPPORTED`` when
+    the ``matrix_descr`` on either operand is
+    ``SPARSE_MATRIX_TYPE_SYMMETRIC``; only ``GENERAL`` is accepted
+    there.
+  - ``mkl_sparse_d_spmmd`` (which writes directly to dense ``C``)
+    accepts no descriptor at all.
+
+So the symmetric expansion has to happen on the RandBLAS side either
+way. Composing through Case C gets it for free at the cost of a
+temporary dense buffer for ``B`` (cost ``O(m*n)``), and for the
+typical RandNLA workload where ``B`` is a sketching operator with
+``nnz(B) << m*n`` the buffer cost is small relative to the work that
+would have to happen anyway. ``Y`` itself is never touched until the
+Case-C call.
 
 ## Sketching sparse data with dense operators
 

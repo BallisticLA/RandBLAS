@@ -36,8 +36,10 @@
 #include "RandBLAS/testing/comparison.hh"
 
 #include <gtest/gtest.h>
-#include <vector>
+#include <algorithm>
+#include <random>
 #include <type_traits>
+#include <vector>
 
 using namespace RandBLAS::sparse_data;
 using namespace RandBLAS::sparse_data::coo;
@@ -175,6 +177,84 @@ protected:
             }
         }
     }
+
+    // Case D: sparse-symmetric A times sparse B -> dense Y. Reference is
+    // dense blas::symm on a fully-populated A and a densified B.
+    template <typename SpMatA, typename SpMatB, typename T = typename SpMatA::scalar_t>
+    static void run_case_d(
+        Layout layout, Side side, Uplo uplo,
+        int64_t n_A, int64_t d,
+        T alpha, T beta,
+        uint32_t seed_A, uint32_t seed_B,
+        double density_B = 0.3
+    ) {
+        int64_t m_BY, n_BY;
+        if (side == Side::Left) { m_BY = n_A; n_BY = d; }
+        else                    { m_BY = d;   n_BY = n_A; }
+
+        // Build dense symm A (full-storage reference).
+        int64_t lda = n_A;
+        std::vector<T> A_full(lda * n_A, T(0));
+        fill_sym_dense<T>(n_A, A_full.data(), lda, seed_A);
+        // Build sparse A from a one-triangle copy.
+        std::vector<T> A_tri(A_full);
+        zero_other_triangle<T>(n_A, A_tri.data(), lda, uplo);
+        SpMatA A_sparse(n_A, n_A);
+        dense_to_sparse_format<SpMatA, T>(Layout::ColMajor, A_tri.data(), T(0), A_sparse);
+
+        // Random sparse B as a ColMajor dense buffer first, then convert to SpMatB.
+        std::vector<T> B_dense(m_BY * n_BY, T(0));
+        {
+            std::mt19937_64 rng(static_cast<uint64_t>(seed_B));
+            std::uniform_real_distribution<double> uni01(0.0, 1.0);
+            std::uniform_real_distribution<double> univ(-1.0, 1.0);
+            for (int64_t j = 0; j < n_BY; ++j) {
+                for (int64_t i = 0; i < m_BY; ++i) {
+                    if (uni01(rng) < density_B) {
+                        B_dense[i + j * m_BY] = static_cast<T>(univ(rng));
+                    }
+                }
+            }
+        }
+        SpMatB B_sparse(m_BY, n_BY);
+        dense_to_sparse_format<SpMatB, T>(Layout::ColMajor, B_dense.data(), T(0), B_sparse);
+
+        int64_t ldb = (layout == Layout::ColMajor) ? m_BY : n_BY;
+        int64_t ldy = ldb;
+        // The dense reference call to blas::symm uses the requested layout.
+        std::vector<T> B_dense_layout(m_BY * n_BY);
+        if (layout == Layout::ColMajor) {
+            std::copy(B_dense.begin(), B_dense.end(), B_dense_layout.begin());
+        } else {
+            for (int64_t i = 0; i < m_BY; ++i)
+                for (int64_t j = 0; j < n_BY; ++j)
+                    B_dense_layout[i * ldb + j] = B_dense[i + j * m_BY];
+        }
+
+        std::vector<T> Y_actual(m_BY * n_BY);
+        DenseDist DY(m_BY, n_BY, ScalarDist::Uniform);
+        RandBLAS::fill_dense_unpacked(layout, DY, m_BY, n_BY, 0, 0, Y_actual.data(), RNGState(seed_B + 13));
+        std::vector<T> Y_expect = Y_actual;
+
+        // Reference: dense blas::symm on full-storage A and dense B.
+        blas::symm(layout, side, uplo, m_BY, n_BY,
+                   alpha, A_full.data(), lda, B_dense_layout.data(), ldb,
+                   beta, Y_expect.data(), ldy);
+
+        // Under test: sparse-symm A times sparse B via Case D.
+        RandBLAS::sparse_data::spsymm(layout, side, uplo, m_BY, n_BY,
+                                      alpha, A_sparse, B_sparse,
+                                      beta, Y_actual.data(), ldy);
+
+        T atol = T(100) * std::numeric_limits<T>::epsilon();
+        T rtol = T(10)  * std::numeric_limits<T>::epsilon();
+        auto msg = RandBLAS::testing::matrices_approx_equal(
+            layout, blas::Op::NoTrans, m_BY, n_BY,
+            Y_actual.data(), ldy, Y_expect.data(), ldy,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__, atol, rtol
+        );
+        if (!msg.empty()) FAIL() << msg;
+    }
 };
 
 
@@ -203,21 +283,36 @@ TEST_F(TestSpsymm, CSR_Left_Alpha0) {
     run_case<CSRMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 10, 4, 0.0, 0.5, 0, 3);
 }
 
-// Symmetric<SpMat> wrapper routing: covers the public RandBLAS::spsymm(layout, Symmetric, ...) overload
-// Case D stub: sparse-symmetric A times sparse B must throw RandBLAS::Error.
-// The API surface is reserved; the body is "not implemented" pending a future PR.
-TEST_F(TestSpsymm, CaseD_SparseSparseThrows) {
-    CSRMatrix<double> A_sparse(4, 4);
-    CSRMatrix<double> B_sparse(4, 3);
-    std::vector<double> Y(4 * 3, 0.0);
-    EXPECT_THROW({
-        RandBLAS::sparse_data::spsymm(
-            Layout::ColMajor, Side::Left, Uplo::Upper,
-            4, 3, 1.0,
-            A_sparse, B_sparse,
-            0.0, Y.data(), 4
-        );
-    }, RandBLAS::Error);
+
+// Format-pair sweep: 3 A-formats x 3 B-formats x both sides + an uplo and
+// edge-case sample. MKL handles all 9 pairs via make_mkl_handle.
+TEST_F(TestSpsymm, CaseD_CSR_CSR_Left) {
+    run_case_d<CSRMatrix<double>, CSRMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 1.5, -0.5, 0, 1);
+    run_case_d<CSRMatrix<double>, CSRMatrix<double>>(Layout::RowMajor, Side::Left, Uplo::Lower, 8, 3, 1.5, -0.5, 0, 1);
+}
+TEST_F(TestSpsymm, CaseD_CSC_CSC_Left) {
+    run_case_d<CSCMatrix<double>, CSCMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 1.5, -0.5, 0, 1);
+    run_case_d<CSCMatrix<double>, CSCMatrix<double>>(Layout::RowMajor, Side::Left, Uplo::Lower, 8, 3, 1.5, -0.5, 0, 1);
+}
+TEST_F(TestSpsymm, CaseD_COO_COO_Left) {
+    run_case_d<COOMatrix<double>, COOMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 1.5, -0.5, 0, 1);
+    run_case_d<COOMatrix<double>, COOMatrix<double>>(Layout::RowMajor, Side::Left, Uplo::Lower, 8, 3, 1.5, -0.5, 0, 1);
+}
+TEST_F(TestSpsymm, CaseD_Mixed_Format_Left) {
+    run_case_d<CSRMatrix<double>, CSCMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 1.0, 0.0, 0, 1);
+    run_case_d<CSCMatrix<double>, CSRMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Lower, 8, 3, 1.0, 0.0, 0, 1);
+    run_case_d<COOMatrix<double>, CSRMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 1.0, 0.0, 0, 1);
+}
+TEST_F(TestSpsymm, CaseD_CSR_CSR_Right) {
+    run_case_d<CSRMatrix<double>, CSRMatrix<double>>(Layout::ColMajor, Side::Right, Uplo::Upper, 8, 3, 1.5, -0.5, 0, 1);
+    run_case_d<CSRMatrix<double>, CSRMatrix<double>>(Layout::RowMajor, Side::Right, Uplo::Lower, 8, 3, 1.5, -0.5, 0, 1);
+}
+TEST_F(TestSpsymm, CaseD_Float) {
+    run_case_d<CSRMatrix<float>, CSRMatrix<float>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 1.5f, -0.5f, 0, 1);
+}
+TEST_F(TestSpsymm, CaseD_AlphaZero_BetaScale) {
+    // alpha=0 path: just beta-scales Y, doesn't even touch A or B.
+    run_case_d<CSRMatrix<double>, CSRMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 0.0, 0.5, 0, 1);
 }
 
 // Routes through the public RandBLAS::spsymm(Symmetric<SpMat>) wrapper

@@ -144,12 +144,16 @@ Deterministic operations
        access pattern.
 
        The "sparse-symm A times sparse RHS, dense output" case (Case D) is
-       a throw-stub: the new two-``SparseMatrix``-arg ``spsymm`` overload
-       throws ``RandBLAS::Error``. No portable reference kernel exists for
-       this shape; composition fallbacks are listed in the stub's throw
-       message (densify the sparse RHS and call Case C, or call
-       ``mkl_sparse_sp2m`` with a symmetric descriptor on A and densify
-       the resulting sparse output).
+       implemented via a two-``SparseMatrix``-arg ``spsymm`` overload that
+       densifies the sparse RHS into a temporary ``m``-by-``n`` buffer
+       (in the caller's layout) and then calls the Case-C dispatcher on
+       the densified buffer. This covers all 3 x 3 = 9 sparse-format
+       pairings for ``(A, B)``. ``mkl_sparse_sp2m`` rejects symmetric
+       descriptors and ``mkl_sparse_d_spmmd`` takes no descriptor, so
+       routing through MKL would not avoid the symmetric expansion ---
+       composing through Case C costs an ``O(m*n)`` temporary, which is
+       small for the typical RandNLA workload where ``B`` is a sketching
+       operator with ``nnz(B) << m*n``.
 
 .. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)^{-1} \cdot \mtxB,` with sparse triangular :math:`\mtxA`
     :animate: fade-in-slide-down
