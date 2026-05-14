@@ -31,6 +31,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/random_gen.hh"
 #include "RandBLAS/dense_skops.hh"
+#include "RandBLAS/sparse_skops.hh"
 #include "RandBLAS/util.hh"
 #include "RandBLAS/sksy.hh"
 
@@ -39,6 +40,8 @@ using blas::Uplo;
 using RandBLAS::ScalarDist;
 using RandBLAS::DenseDist;
 using RandBLAS::DenseSkOp;
+using RandBLAS::SparseDist;
+using RandBLAS::SparseSkOp;
 using RandBLAS::RNGState;
 using RandBLAS::Axis;
 
@@ -169,6 +172,70 @@ class TestSketchSymmetric : public ::testing::Test {
     // only the triangle named by `uplo` is read --- the opposite triangle
     // contributing wrong values is undefined behavior at the caller, not a
     // RandBLAS check. The test was removed accordingly.
+
+    // =============================================================================
+    // Case B exerciser: sparse SkOp x dense symmetric A. Reference is the
+    // densified-sparse-skop fed to blas::symm. layout is explicit (SparseSkOp
+    // has no S.layout the way DenseSkOp does --- the COO storage is layout-
+    // agnostic, and the test layout determines how both B and the dense
+    // reference of S are laid out).
+    template <typename T>
+    static void test_sparse_skop(
+        Layout layout,
+        uint32_t seed_a, uint32_t seed_skop, Axis major_axis,
+        T alpha, int64_t d, int64_t n, int64_t lda, T beta,
+        blas::Side side_skop,
+        int64_t vec_nnz = 2,
+        Uplo uplo = Uplo::Upper
+    ) {
+        auto [rows_out, cols_out] = dims_of_sketch_symmetric_output(d, n, side_skop);
+        std::vector<T> A(lda * lda, T(0));
+        random_symmetric_mat(n, A.data(), lda, RNGState(seed_a));
+
+        SparseDist DS(rows_out, cols_out, vec_nnz, major_axis);
+        SparseSkOp<T> S(DS, seed_skop);
+        RandBLAS::fill_sparse(S);
+
+        // Densify S into a buffer matching the requested layout, for the SYMM
+        // reference. lds is the major-axis leading dim.
+        int64_t lds = (layout == Layout::ColMajor) ? rows_out : cols_out;
+        int64_t ldb = lds;
+        std::vector<T> S_dense(static_cast<size_t>(rows_out) * cols_out, T(0));
+        auto Scoo = RandBLAS::coo_view_of_skop(S);
+        for (int64_t p = 0; p < Scoo.nnz; ++p) {
+            int64_t r = Scoo.rows[p], c = Scoo.cols[p];
+            if (layout == Layout::ColMajor) {
+                S_dense[r + c * lds] = Scoo.vals[p];
+            } else {
+                S_dense[r * lds + c] = Scoo.vals[p];
+            }
+        }
+
+        uint32_t seed_b = seed_a + 42;
+        std::vector<T> B_actual(static_cast<size_t>(rows_out) * cols_out);
+        DenseDist DB(rows_out, cols_out, ScalarDist::Uniform);
+        RandBLAS::fill_dense_unpacked(layout, DB, rows_out, cols_out, 0, 0, B_actual.data(), RNGState(seed_b));
+        std::vector<T> B_expect = B_actual;
+
+        auto side_a = sketch_symmetric_side(
+            side_skop, layout, uplo, rows_out, cols_out,
+            alpha, A.data(), lda, S, 0, 0, beta, B_actual.data(), ldb
+        );
+        blas::symm(layout, side_a, uplo, rows_out, cols_out,
+                   alpha, A.data(), lda, S_dense.data(), lds, beta, B_expect.data(), ldb);
+
+        // Same FMA-order-divergence tolerance as the spsymm tests: the sparse
+        // path emits two AXPYs per stored nonzero (different accumulation
+        // order than dense SYMM on a fully-stored matrix).
+        T atol = T(100) * std::numeric_limits<T>::epsilon();
+        T rtol = T(10)  * std::numeric_limits<T>::epsilon();
+        auto msg = RandBLAS::testing::matrices_approx_equal(
+            layout, blas::Op::NoTrans, rows_out, cols_out,
+            B_actual.data(), ldb, B_expect.data(), ldb,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__, atol, rtol
+        );
+        if (!msg.empty()) FAIL() << msg;
+    }
 };
 
 
@@ -368,5 +435,52 @@ TEST_F(TestSketchSymmetric, right_lift_opposing_layouts) {
     test_opposing_layouts(0, 1,   Axis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Right);
     test_opposing_layouts(31, 33, Axis::Short, 0.5, 50, 10, 19, -1.0, blas::Side::Right);
     test_opposing_layouts(31, 33, Axis::Long,  0.5, 50, 10, 19, -1.0, blas::Side::Right);
+}
+
+
+// MARK: SPARSE SkOp (Case B). 4-axis sweep:
+//   side x layout x uplo x beta-mode (zero/nonzero).
+// One seed pair per cell to keep the per-config trial count modest.
+
+TEST_F(TestSketchSymmetric, sparse_skop_left_colmajor_upper) {
+    test_sparse_skop<double>(Layout::ColMajor,  0,  1, Axis::Short, 0.5, 3, 10, 10,  0.0, blas::Side::Left,  2, Uplo::Upper);
+    test_sparse_skop<double>(Layout::ColMajor,  0,  1, Axis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Left,  2, Uplo::Upper);
+    test_sparse_skop<double>(Layout::ColMajor, 31, 33, Axis::Long,  0.5, 3, 10, 19,  0.0, blas::Side::Left,  2, Uplo::Upper);
+    test_sparse_skop<float>( Layout::ColMajor,  0,  1, Axis::Short, 0.5f, 3, 10, 10, 0.0f, blas::Side::Left, 2, Uplo::Upper);
+}
+
+TEST_F(TestSketchSymmetric, sparse_skop_left_rowmajor_upper) {
+    test_sparse_skop<double>(Layout::RowMajor,  0,  1, Axis::Short, 0.5, 3, 10, 10,  0.0, blas::Side::Left,  2, Uplo::Upper);
+    test_sparse_skop<double>(Layout::RowMajor,  0,  1, Axis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Left,  2, Uplo::Upper);
+    test_sparse_skop<double>(Layout::RowMajor, 31, 33, Axis::Long,  0.5, 3, 10, 19,  0.0, blas::Side::Left,  2, Uplo::Upper);
+}
+
+TEST_F(TestSketchSymmetric, sparse_skop_right_colmajor_upper) {
+    test_sparse_skop<double>(Layout::ColMajor,  0,  1, Axis::Short, 0.5, 3, 10, 10,  0.0, blas::Side::Right, 2, Uplo::Upper);
+    test_sparse_skop<double>(Layout::ColMajor,  0,  1, Axis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Right, 2, Uplo::Upper);
+    test_sparse_skop<double>(Layout::ColMajor, 31, 33, Axis::Long,  0.5, 3, 10, 19,  0.0, blas::Side::Right, 2, Uplo::Upper);
+}
+
+TEST_F(TestSketchSymmetric, sparse_skop_right_rowmajor_upper) {
+    test_sparse_skop<double>(Layout::RowMajor,  0,  1, Axis::Short, 0.5, 3, 10, 10,  0.0, blas::Side::Right, 2, Uplo::Upper);
+    test_sparse_skop<double>(Layout::RowMajor,  0,  1, Axis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Right, 2, Uplo::Upper);
+    test_sparse_skop<double>(Layout::RowMajor, 31, 33, Axis::Long,  0.5, 3, 10, 19,  0.0, blas::Side::Right, 2, Uplo::Upper);
+}
+
+TEST_F(TestSketchSymmetric, sparse_skop_lower_triangle) {
+    // Uplo::Lower coverage --- one cell per (side, layout) combo, since the
+    // Upper-vs-Lower difference exercises the same kernel branches as
+    // ColMajor-vs-RowMajor (different inner-loop axpy strides).
+    test_sparse_skop<double>(Layout::ColMajor, 0, 1, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Left,  2, Uplo::Lower);
+    test_sparse_skop<double>(Layout::RowMajor, 0, 1, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Left,  2, Uplo::Lower);
+    test_sparse_skop<double>(Layout::ColMajor, 0, 1, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Right, 2, Uplo::Lower);
+    test_sparse_skop<double>(Layout::RowMajor, 0, 1, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Right, 2, Uplo::Lower);
+}
+
+TEST_F(TestSketchSymmetric, sparse_skop_lift) {
+    // Embedding goes the wrong way (d > n): tests that the kernel handles
+    // non-square sketches in both directions.
+    test_sparse_skop<double>(Layout::ColMajor, 0, 1, Axis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Left,  2, Uplo::Upper);
+    test_sparse_skop<double>(Layout::ColMajor, 0, 1, Axis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Right, 2, Uplo::Upper);
 }
 

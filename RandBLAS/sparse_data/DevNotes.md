@@ -68,8 +68,8 @@ two operands (``A`` symmetric vs. the second factor ``B``):
 
 | Tag | Operation                       | A storage           | B storage | Status this PR                                  |
 |-----|---------------------------------|---------------------|-----------|-------------------------------------------------|
-| A   | dense-symm × dense              | dense, one triangle | dense     | Implemented via ``blas::symm`` in ``sksy.hh``    |
-| B   | dense-symm × sparse             | dense, one triangle | sparse    | Stub in ``sksy.hh`` (``sketch_symmetric`` on SparseSkOp). Throws ``RandBLAS::Error``. |
+| A   | dense-symm × dense              | dense, one triangle | dense     | Implemented via ``blas::symm`` in ``sksy.hh``.   |
+| B   | dense-symm × sparse             | dense, one triangle | sparse    | Implemented via hand-rolled ``lsksys`` / ``rsksys`` in ``sksy.hh`` (two-axpy scatter per stored nonzero of S, reading only the named triangle of A). |
 | C   | sparse-symm × dense (→ dense)   | sparse, one triangle | dense     | Implemented in ``spsymm_dispatch.hh`` (MKL fast path + per-format fallbacks). |
 | D   | sparse-symm × sparse → dense    | sparse, one triangle | sparse    | Stub in ``spsymm_dispatch.hh`` (overload taking two ``SparseMatrix`` args). Throws ``RandBLAS::Error``. |
 
@@ -78,7 +78,7 @@ two operands (``A`` symmetric vs. the second factor ``B``):
 | Tag | MKL native?    | Notes                                                                                                           |
 |-----|----------------|-----------------------------------------------------------------------------------------------------------------|
 | A   | No (BLAS++)    | ``blas::symm`` directly.                                                                                        |
-| B   | No             | The transpose trick puts the sparse op on the left of ``mkl_sparse_d_mm``, but the dense A has no ``matrix_descr``, so MKL can't be told A is symmetric. |
+| B   | No             | The transpose trick puts the sparse op on the left of ``mkl_sparse_d_mm``, but the dense A has no ``matrix_descr``, so MKL can't be told A is symmetric. We hand-roll instead --- see ``lsksys`` / ``rsksys`` in ``sksy.hh``. |
 | C   | Yes (mostly)   | ``mkl_sparse_d_mm`` with ``descr.type = SPARSE_MATRIX_TYPE_SYMMETRIC``. RandBLAS falls back to a hand kernel for side=Right (MKL has no Side parameter) and for CSC (``mkl_sparse_d_mm`` returns NOT_SUPPORTED on CSC). |
 | D   | Partial        | ``mkl_sparse_sp2m`` accepts a symmetric descriptor on A but writes sparse output; densifying afterward is a workable composition fallback but not a single-call kernel. |
 
@@ -113,19 +113,38 @@ The public-facing wrappers in the top-level ``RandBLAS::`` namespace are:
     -- routes via the ``Symmetric<SpMat>`` carrier so the uplo annotation
     travels with the matrix.
 
-### Cases B and D: why stub-only
+### Case B: hand-rolled in ``lsksys`` / ``rsksys``
 
-No portable kernel for "dense-symm × sparse" or "sparse-symm × sparse → dense"
-exists in MKL, Ginkgo, the SparseBLAS reference implementation, the C++
-Sparse BLAS proposal (arXiv:2411.13259), or MAGMA-sparse (surveyed 2026-05).
-Hand-rolling is feasible but non-trivial: case B's access pattern is "for
-each nonzero of B, gather a column of A from the stored triangle", which is
-awkward to vectorize; case D layers a symmetric-triangle filter on top of
-an spgemm-into-dense pattern.
+Lives in ``sksy.hh`` next to the dense-SkOp helpers ``lsksy3`` / ``rsksy3``.
+For each stored nonzero ``(i_S, j_S, v)`` of the SparseSkOp's COO view (with
+submatrix offsets ``(ro_s, co_s)`` filtered inline), the kernel applies
+``alpha * v`` to one row or column of the symmetric dense A and accumulates
+into the corresponding row or column of the output. Reading "row j of A" (or
+"col i of A") splits into two ranges based on the diagonal:
 
-The stubs exist so the API surface is locked: future PRs can fill in the
-bodies without breaking source compatibility for downstream callers. The
-stub message points back to ``project-plans/randblas-symm-plan.md``.
+  - For ``Uplo::Upper``: the part above the diagonal walks A's stored row /
+    column directly; the part below comes from the symmetric reflection
+    (reading the transposed-position entry from the stored triangle).
+  - For ``Uplo::Lower``: the roles swap.
+
+Each range becomes a single ``blas::axpy`` with the appropriate stride, so
+the inner-loop body is exactly two AXPY calls per stored nonzero of S
+(plus a uniform layout / uplo branch). No special handling for the diagonal
+beyond consistent inclusion in one of the two ranges. SparseSkOp is COO
+internally, so submatrix filtering is a direct ``if (row < ro_s ...) continue``
+on the COO triples.
+
+### Case D: stub-only
+
+No portable kernel for "sparse-symm × sparse → dense" exists in MKL,
+Ginkgo, the SparseBLAS reference implementation, the C++ Sparse BLAS
+proposal (arXiv:2411.13259), or MAGMA-sparse (surveyed 2026-05).
+Hand-rolling is feasible but the design space is messier than Case B
+(mixed A/B sparse formats balloon the dispatch grid; the symmetric
+filter sits on top of an spgemm-into-dense pattern). Deferred to a
+future PR. Composition fallbacks documented in the stub's throw
+message: densify B then call Case C, or use ``mkl_sparse_sp2m`` with
+a symmetric descriptor on A and densify the resulting sparse C.
 
 ## Sketching sparse data with dense operators
 

@@ -110,10 +110,13 @@ No support for negative values of "incx" or "incy" in sketch_vector.
   to extend our SPMV kernels to support that, then we'd happily accept such a contribution.
   (It shouldn't be hard! We just haven't gotten around to this.)
 
-SparseSkOp is not yet supported in sketch_symmetric.
-  ``sketch_symmetric`` now takes a ``blas::Uplo`` and dispatches to ``blas::symm`` for ``DenseSkOp``, exploiting symmetry of :math:`A`. The ``SparseSkOp`` branch throws ``RandBLAS::Error`` --- this is Case B in the SYMM-kernels plan
-  (``RandBLAS/sparse_data/DevNotes.md``). No portable kernel for "dense-symm matrix times sparse operator" exists in MKL, Ginkgo, the SparseBLAS reference, or MAGMA-sparse, so we deferred the hand-roll to a future PR.
-  As a composition fallback, ``DenseSkOp(densify(sparse_op))`` can be passed to ``sketch_symmetric`` instead --- it loses the operator-side sparsity benefit but exploits A's symmetry.
+sketch_symmetric supports both DenseSkOp and SparseSkOp.
+  ``sketch_symmetric`` now takes a ``blas::Uplo`` and exploits symmetry of :math:`A`:
+  the ``DenseSkOp`` branch dispatches to ``blas::symm`` (via ``lsksy3`` / ``rsksy3``)
+  and the ``SparseSkOp`` branch dispatches to a hand-rolled kernel (``lsksys`` /
+  ``rsksys``) that emits two ``blas::axpy`` calls per stored nonzero of the SkOp,
+  reading only the triangle of :math:`A` named by ``uplo``. See
+  ``RandBLAS/sparse_data/DevNotes.md`` for the access-pattern detail.
 
 Layout-mismatched ``DenseSkOp`` in ``sketch_symmetric`` falls back to GEMM.
   When the ``DenseSkOp``'s storage layout differs from the caller's ``layout`` parameter, ``sketch_symmetric`` falls back to ``blas::gemm`` with the transpose flag --- ``blas::symm`` has no on-the-fly transpose flag for the dense operand. The layout-matched case still gets the SYMM speedup.

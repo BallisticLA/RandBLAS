@@ -137,11 +137,19 @@ Deterministic operations
        prevents a symmetric sparse matrix from being accidentally passed to
        the general ``spmm`` / ``spgemm`` routines.
 
-       Companion stubs exist for the cases where the second factor is also
-       sparse (Case D) or where the symmetric factor is dense and the second
-       is sparse (Case B, via ``sketch_symmetric``). They throw
-       ``RandBLAS::Error`` with a pointer to the design plan; no portable
-       kernel for those shapes exists in current sparse-BLAS libraries.
+       The "dense-symm A times sparse SkOp" case (Case B) is also implemented:
+       it lives in ``sketch_symmetric`` (the SparseSkOp branch) and uses a
+       hand-rolled two-axpy-per-nonzero kernel that reads only the named
+       triangle of A. See ``RandBLAS/sparse_data/DevNotes.md`` for the
+       access pattern.
+
+       The "sparse-symm A times sparse RHS, dense output" case (Case D) is
+       a throw-stub: the new two-``SparseMatrix``-arg ``spsymm`` overload
+       throws ``RandBLAS::Error``. No portable reference kernel exists for
+       this shape; composition fallbacks are listed in the stub's throw
+       message (densify the sparse RHS and call Case C, or call
+       ``mkl_sparse_sp2m`` with a symmetric descriptor on A and densify
+       the resulting sparse output).
 
 .. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)^{-1} \cdot \mtxB,` with sparse triangular :math:`\mtxA`
     :animate: fade-in-slide-down

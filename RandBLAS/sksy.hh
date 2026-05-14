@@ -38,7 +38,8 @@
 // Symmetric sketching helpers (SYMM-backed). See project-plans/randblas-symm-plan.md
 // for the four-case API design and the implementation status of each case.
 //   - lsksy3, rsksy3: Case A (dense-symm A x dense Omega), via blas::symm.
-//   - SparseSkOp branches of sketch_symmetric: Case B stubs (not implemented).
+//   - lsksys, rsksys: Case B (dense-symm A x sparse SkOp), per-stored-entry
+//     two-axpy scatter that reads only the uplo triangle of A.
 // =============================================================================
 
 namespace RandBLAS::dense {
@@ -187,33 +188,171 @@ void rsksy3(
 } // end namespace RandBLAS::dense
 
 
+namespace RandBLAS::sparse {
+
+// =============================================================================
+/// LSKSYS: dense symmetric A on the right of a SparseSkOp.
+///
+/// Computes B = alpha * submat(S) * mat(A) + beta * B, where:
+///   - mat(A) is n-by-n dense symmetric, with only the `uplo` triangle stored.
+///   - submat(S) is the d-by-n view of S at (ro_s, co_s); S is a SparseSkOp.
+///   - mat(B) is d-by-n dense.
+///
+/// Inner loop: for each stored nonzero (row_S, col_S, v) of S inside the
+/// submatrix window, contribute alpha*v * (row col_S of A) to row (row_S - ro_s)
+/// of B. The row of symmetric A is assembled from the stored triangle as two
+/// blas::axpy calls (one along the stored column, one along the stored row past
+/// the diagonal).
+template <typename T, typename RNG, SignedInteger sint_t>
+void lsksys(
+    blas::Layout layout,
+    blas::Uplo uplo,
+    int64_t d,
+    int64_t n,
+    T alpha,
+    const SparseSkOp<T, RNG, sint_t> &S,
+    int64_t ro_s,
+    int64_t co_s,
+    const T *A,
+    int64_t lda,
+    T beta,
+    T *B,
+    int64_t ldb
+) {
+    if (S.nnz < 0) {
+        SparseSkOp<T, RNG, sint_t> shallowcopy(S.dist, S.seed_state);
+        fill_sparse(shallowcopy);
+        lsksys(layout, uplo, d, n, alpha, shallowcopy, ro_s, co_s, A, lda, beta, B, ldb);
+        return;
+    }
+
+    util::lascl(layout, d, n, beta, B, ldb);
+    if (alpha == T(0)) return;
+
+    auto Scoo = coo_view_of_skop(S);
+    const bool col_major = (layout == blas::Layout::ColMajor);
+
+    for (int64_t p = 0; p < Scoo.nnz; ++p) {
+        sint_t row_S = Scoo.rows[p];
+        sint_t col_S = Scoo.cols[p];
+        if (row_S < ro_s || row_S >= ro_s + d) continue;
+        if (col_S < co_s || col_S >= co_s + n) continue;
+        int64_t i = static_cast<int64_t>(row_S) - ro_s;  // B row
+        int64_t j = static_cast<int64_t>(col_S) - co_s;  // A row index (sym A read as row j)
+        T av = alpha * Scoo.vals[p];
+
+        // B[i, :] += av * row_j(A_sym), split by uplo into two contiguous
+        // ranges of A so each becomes a single axpy.
+        if (uplo == blas::Uplo::Upper) {
+            // row j of A:
+            //   c in [0, j]: read A[c, j]      (column j of stored Upper, rows 0..j)
+            //   c in (j, n-1]: read A[j, c]    (row j of stored Upper, cols j+1..n-1)
+            if (col_major) {
+                blas::axpy(j + 1, av, &A[j * lda], 1, &B[i], ldb);
+                blas::axpy(n - j - 1, av, &A[j + (j + 1) * lda], lda, &B[i + (j + 1) * ldb], ldb);
+            } else {
+                blas::axpy(j + 1, av, &A[j], lda, &B[i * ldb], 1);
+                blas::axpy(n - j - 1, av, &A[j * lda + j + 1], 1, &B[i * ldb + j + 1], 1);
+            }
+        } else {
+            // Lower-stored:
+            //   c in [0, j]: read A[j, c]      (row j of stored Lower, cols 0..j)
+            //   c in (j, n-1]: read A[c, j]    (column j of stored Lower, rows j+1..n-1)
+            if (col_major) {
+                blas::axpy(j + 1, av, &A[j], lda, &B[i], ldb);
+                blas::axpy(n - j - 1, av, &A[(j + 1) + j * lda], 1, &B[i + (j + 1) * ldb], ldb);
+            } else {
+                blas::axpy(j + 1, av, &A[j * lda], 1, &B[i * ldb], 1);
+                blas::axpy(n - j - 1, av, &A[(j + 1) * lda + j], lda, &B[i * ldb + j + 1], 1);
+            }
+        }
+    }
+}
+
+
+// =============================================================================
+/// RSKSYS: dense symmetric A on the left of a SparseSkOp.
+///
+/// Computes B = alpha * mat(A) * submat(S) + beta * B, where:
+///   - mat(A) is n-by-n dense symmetric, with only the `uplo` triangle stored.
+///   - submat(S) is the n-by-d view of S at (ro_s, co_s); S is a SparseSkOp.
+///   - mat(B) is n-by-d dense.
+///
+/// Same two-axpy scatter pattern as lsksys, but on columns of A (the column
+/// of A indexed by row_S of S contributes into the column of B indexed by
+/// col_S - co_s).
+template <typename T, typename RNG, SignedInteger sint_t>
+void rsksys(
+    blas::Layout layout,
+    blas::Uplo uplo,
+    int64_t n,
+    int64_t d,
+    T alpha,
+    const T *A,
+    int64_t lda,
+    const SparseSkOp<T, RNG, sint_t> &S,
+    int64_t ro_s,
+    int64_t co_s,
+    T beta,
+    T *B,
+    int64_t ldb
+) {
+    if (S.nnz < 0) {
+        SparseSkOp<T, RNG, sint_t> shallowcopy(S.dist, S.seed_state);
+        fill_sparse(shallowcopy);
+        rsksys(layout, uplo, n, d, alpha, A, lda, shallowcopy, ro_s, co_s, beta, B, ldb);
+        return;
+    }
+
+    util::lascl(layout, n, d, beta, B, ldb);
+    if (alpha == T(0)) return;
+
+    auto Scoo = coo_view_of_skop(S);
+    const bool col_major = (layout == blas::Layout::ColMajor);
+
+    for (int64_t p = 0; p < Scoo.nnz; ++p) {
+        sint_t row_S = Scoo.rows[p];
+        sint_t col_S = Scoo.cols[p];
+        if (row_S < ro_s || row_S >= ro_s + n) continue;
+        if (col_S < co_s || col_S >= co_s + d) continue;
+        int64_t i = static_cast<int64_t>(row_S) - ro_s;  // A column index
+        int64_t j = static_cast<int64_t>(col_S) - co_s;  // B column
+        T av = alpha * Scoo.vals[p];
+
+        // B[:, j] += av * col_i(A_sym), split by uplo:
+        if (uplo == blas::Uplo::Upper) {
+            // col i of A:
+            //   r in [0, i]: read A[r, i]    (column i of stored Upper, rows 0..i)
+            //   r in (i, n-1]: read A[i, r]  (row i of stored Upper, cols i+1..n-1)
+            if (col_major) {
+                blas::axpy(i + 1, av, &A[i * lda], 1, &B[j * ldb], 1);
+                blas::axpy(n - i - 1, av, &A[i + (i + 1) * lda], lda, &B[(i + 1) + j * ldb], 1);
+            } else {
+                blas::axpy(i + 1, av, &A[i], lda, &B[j], ldb);
+                blas::axpy(n - i - 1, av, &A[i * lda + i + 1], 1, &B[(i + 1) * ldb + j], ldb);
+            }
+        } else {
+            // Lower-stored col i:
+            //   r in [0, i-1]: read A[i, r]  (row i of stored Lower, cols 0..i-1)
+            //   r in [i, n-1]: read A[r, i]  (column i of stored Lower, rows i..n-1)
+            if (col_major) {
+                blas::axpy(i, av, &A[i], lda, &B[j * ldb], 1);
+                blas::axpy(n - i, av, &A[i + i * lda], 1, &B[i + j * ldb], 1);
+            } else {
+                blas::axpy(i, av, &A[i * lda], 1, &B[j], ldb);
+                blas::axpy(n - i, av, &A[i * lda + i], lda, &B[i * ldb + j], ldb);
+            }
+        }
+    }
+}
+
+} // end namespace RandBLAS::sparse
+
+
 namespace RandBLAS {
 
 using namespace RandBLAS::dense;
 using namespace RandBLAS::sparse;
-
-
-namespace detail {
-
-// =============================================================================
-/// Shared Case-B stub-throw helper for the four SparseSkOp-taking
-/// sketch_symmetric specializations. The variadic parameter pack consumes
-/// the caller's arguments so the compiler doesn't warn about unused
-/// parameters in the (genuinely-unused, by design) stub bodies.
-template <typename ...Args>
-[[noreturn]] inline void throw_sketch_symmetric_case_b(Args&&...) {
-    randblas_require(
-        false &&
-        "RandBLAS::sketch_symmetric with a sparse sketching operator is the "
-        "Case-B kernel from project-plans/randblas-symm-plan.md. Not implemented "
-        "in this PR --- the API signature is reserved so future PRs can fill in "
-        "the body without breaking source compatibility. Composition fallback: "
-        "densify the SkOp then call sketch_symmetric on the dense version."
-    );
-    __builtin_unreachable();
-}
-
-} // namespace detail
 
 
 // MARK: SUBMAT(S)
@@ -343,7 +482,7 @@ inline void sketch_symmetric(
     T beta,
     T* B, int64_t ldb
 ) {
-    detail::throw_sketch_symmetric_case_b(layout, uplo, d, n, alpha, S, ro_s, co_s, A, lda, beta, B, ldb);
+    RandBLAS::sparse::lsksys(layout, uplo, d, n, alpha, S, ro_s, co_s, A, lda, beta, B, ldb);
 }
 
 
@@ -402,7 +541,7 @@ inline void sketch_symmetric(
     T beta,
     T* B, int64_t ldb
 ) {
-    detail::throw_sketch_symmetric_case_b(layout, uplo, n, d, alpha, A, lda, S, ro_s, co_s, beta, B, ldb);
+    RandBLAS::sparse::rsksys(layout, uplo, n, d, alpha, A, lda, S, ro_s, co_s, beta, B, ldb);
 }
 
 
@@ -460,7 +599,9 @@ inline void sketch_symmetric(
     T beta,
     T* B, int64_t ldb
 ) {
-    detail::throw_sketch_symmetric_case_b(layout, uplo, alpha, S, A, lda, beta, B, ldb);
+    int64_t d = S.dist.n_rows;
+    int64_t n = S.dist.n_cols;
+    RandBLAS::sparse::lsksys(layout, uplo, d, n, alpha, S, 0, 0, A, lda, beta, B, ldb);
 }
 
 
@@ -515,7 +656,9 @@ inline void sketch_symmetric(
     T beta,
     T* B, int64_t ldb
 ) {
-    detail::throw_sketch_symmetric_case_b(layout, uplo, alpha, S, A, lda, beta, B, ldb);
+    int64_t n = S.dist.n_rows;
+    int64_t d = S.dist.n_cols;
+    RandBLAS::sparse::rsksys(layout, uplo, n, d, alpha, A, lda, S, 0, 0, beta, B, ldb);
 }
 
 } // end namespace RandBLAS
