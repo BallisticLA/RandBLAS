@@ -259,6 +259,38 @@ MKLSparseHandle make_mkl_handle(const SpMat& A) {
 }
 
 // ============================================================================
+// Type-dispatched wrapper around mkl_sparse_d_mm / mkl_sparse_s_mm.
+// Shared between mkl_left_spmm (general A) and mkl_spsymm (symmetric A);
+// the caller controls the matrix_descr (general vs symmetric) and the
+// `op` flag, plus the post-call status interpretation.
+// ============================================================================
+template <typename T>
+inline sparse_status_t mkl_sparse_mm_call(
+    sparse_operation_t op, T alpha, sparse_matrix_t A_handle,
+    const struct matrix_descr& descr,
+    sparse_layout_t mkl_layout,
+    const T* B, int64_t n_rhs, int64_t ldb,
+    T beta, T* C, int64_t ldc
+) {
+    if constexpr (std::is_same_v<T, double>) {
+        return mkl_sparse_d_mm(
+            op, alpha, A_handle, descr, mkl_layout,
+            B, (MKL_INT)n_rhs, (MKL_INT)ldb,
+            beta, C, (MKL_INT)ldc
+        );
+    } else if constexpr (std::is_same_v<T, float>) {
+        return mkl_sparse_s_mm(
+            op, alpha, A_handle, descr, mkl_layout,
+            B, (MKL_INT)n_rhs, (MKL_INT)ldb,
+            beta, C, (MKL_INT)ldc
+        );
+    } else {
+        static_assert(sizeof(T) == 0, "MKL sparse BLAS only supports float and double.");
+        // see GitHub PR #155 for why we don't use static_assert(false, ...).
+    }
+}
+
+// ============================================================================
 // MKL-accelerated left_spmm: C = alpha * op(A) * op(B) + beta * C
 //   where A is sparse, B and C are dense.
 //
@@ -335,25 +367,11 @@ bool mkl_left_spmm(
     struct matrix_descr descr;
     descr.type = SPARSE_MATRIX_TYPE_GENERAL;
 
-    sparse_status_t status;
-    if constexpr (std::is_same_v<T, double>) {
-        status = mkl_sparse_d_mm(
-            mkl_op, alpha, h.handle, descr,
-            to_mkl_layout(layout),
-            B, (MKL_INT)n, (MKL_INT)ldb,
-            beta, C, (MKL_INT)ldc
-        );
-    } else if constexpr (std::is_same_v<T, float>) {
-        status = mkl_sparse_s_mm(
-            mkl_op, alpha, h.handle, descr,
-            to_mkl_layout(layout),
-            B, (MKL_INT)n, (MKL_INT)ldb,
-            beta, C, (MKL_INT)ldc
-        );
-    } else {
-        // unsupported floating point type.
-        return false;
-    }
+    sparse_status_t status = mkl_sparse_mm_call(
+        mkl_op, alpha, h.handle, descr,
+        to_mkl_layout(layout),
+        B, n, ldb, beta, C, ldc
+    );
     check_mkl_status(status, "mkl_sparse_mm");
     return true;  // signal: MKL handled it
 }

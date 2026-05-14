@@ -115,24 +115,11 @@ bool mkl_spsymm(
         : SPARSE_FILL_MODE_LOWER;
     descr.diag = SPARSE_DIAG_NON_UNIT;
 
-    sparse_status_t status;
-    if constexpr (std::is_same_v<T, double>) {
-        status = mkl_sparse_d_mm(
-            SPARSE_OPERATION_NON_TRANSPOSE, alpha, h.handle, descr,
-            to_mkl_layout(layout),
-            B, (MKL_INT)n, (MKL_INT)ldb,
-            beta, Y, (MKL_INT)ldy
-        );
-    } else if constexpr (std::is_same_v<T, float>) {
-        status = mkl_sparse_s_mm(
-            SPARSE_OPERATION_NON_TRANSPOSE, alpha, h.handle, descr,
-            to_mkl_layout(layout),
-            B, (MKL_INT)n, (MKL_INT)ldb,
-            beta, Y, (MKL_INT)ldy
-        );
-    } else {
-        static_assert(sizeof(T) == 0, "MKL sparse BLAS only supports float and double.");
-    }
+    sparse_status_t status = mkl_sparse_mm_call(
+        SPARSE_OPERATION_NON_TRANSPOSE, alpha, h.handle, descr,
+        to_mkl_layout(layout),
+        B, n, ldb, beta, Y, ldy
+    );
 
     // Some MKL versions return NOT_SUPPORTED for combinations we couldn't
     // predict. Don't throw -- signal fallback.
