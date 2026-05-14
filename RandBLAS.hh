@@ -39,5 +39,6 @@
 #include <RandBLAS/skve.hh>
 #include <RandBLAS/sksy.hh>
 #include <RandBLAS/sparse_data/sksp.hh>
+#include <RandBLAS/sparse_data/spsymm_dispatch.hh>
 
 #endif
