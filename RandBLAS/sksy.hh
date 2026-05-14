@@ -55,10 +55,10 @@ namespace RandBLAS::dense {
 /// `submatrix_as_blackbox` (same pattern as `lskge3`). When the buffered S's
 /// storage layout matches the caller's `layout`, the final call is
 /// `blas::symm` with `side = Right` (since A is on the right of S in the
-/// operation). When layouts mismatch, SYMM cannot transpose S on-the-fly;
-/// this first cut falls back to `blas::gemm` with `opS = Trans`, sacrificing
-/// the SYMM speedup on that path. Optimization target: transpose-copy of S
-/// into matching layout, then SYMM. See project-plans/randblas-symm-plan.md §7.
+/// operation). When layouts mismatch, SYMM cannot transpose S on the fly, so
+/// we transpose-copy S into a tight buffer matching the caller's layout (cost:
+/// `O(d * n)` for the copy) and then call SYMM on the copy. This keeps the
+/// SYMM speedup on the matvec, at the cost of the one-time copy.
 template <typename T, typename DenseSkOp>
 void lsksy3(
     blas::Layout layout,
@@ -102,11 +102,17 @@ void lsksy3(
         blas::symm(layout, blas::Side::Right, uplo, d, n,
                    alpha, A, lda, S_ptr, lds, beta, B, ldb);
     } else {
-        // Layout mismatch: SYMM has no opS flag. Fall back to GEMM with
-        // opS = Trans. Loses the SYMM 1.3-1.8x speedup on this path but is
-        // correct. Optimization target tracked in randblas-symm-plan.md §7.
-        blas::gemm(layout, blas::Op::Trans, blas::Op::NoTrans, d, n, n,
-                   alpha, S_ptr, lds, A, lda, beta, B, ldb);
+        // Layout mismatch: transpose-copy S into a tight buffer in the
+        // caller's layout, then SYMM. Costs O(d*n) for the copy, but keeps
+        // the SYMM speedup (~1.3-1.8x over GEMM) on the d*n*n_A matvec.
+        int64_t lds_new = (layout == blas::Layout::ColMajor) ? d : n;
+        std::vector<T> S_copy(static_cast<size_t>(d) * static_cast<size_t>(n));
+        auto [irs_in,  ics_in]  = layout_to_strides(S.layout, lds);
+        auto [irs_out, ics_out] = layout_to_strides(layout, lds_new);
+        util::omatcopy(d, n, S_ptr, irs_in, ics_in,
+                       S_copy.data(), irs_out, ics_out);
+        blas::symm(layout, blas::Side::Right, uplo, d, n,
+                   alpha, A, lda, S_copy.data(), lds_new, beta, B, ldb);
     }
     return;
 }
@@ -164,9 +170,16 @@ void rsksy3(
         blas::symm(layout, blas::Side::Left, uplo, n, d,
                    alpha, A, lda, S_ptr, lds, beta, B, ldb);
     } else {
-        // Layout-mismatch fallback (see lsksy3).
-        blas::gemm(layout, blas::Op::NoTrans, blas::Op::Trans, n, d, n,
-                   alpha, A, lda, S_ptr, lds, beta, B, ldb);
+        // Layout mismatch: transpose-copy S into a tight matching-layout
+        // buffer, then SYMM. See lsksy3 for the trade-off discussion.
+        int64_t lds_new = (layout == blas::Layout::ColMajor) ? n : d;
+        std::vector<T> S_copy(static_cast<size_t>(n) * static_cast<size_t>(d));
+        auto [irs_in,  ics_in]  = layout_to_strides(S.layout, lds);
+        auto [irs_out, ics_out] = layout_to_strides(layout, lds_new);
+        util::omatcopy(n, d, S_ptr, irs_in, ics_in,
+                       S_copy.data(), irs_out, ics_out);
+        blas::symm(layout, blas::Side::Left, uplo, n, d,
+                   alpha, A, lda, S_copy.data(), lds_new, beta, B, ldb);
     }
     return;
 }
