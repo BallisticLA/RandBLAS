@@ -95,7 +95,8 @@ protected:
         Layout layout, Side side, Uplo uplo,
         int64_t n_A, int64_t d,
         T alpha, T beta,
-        uint32_t seed_A, uint32_t seed_B
+        uint32_t seed_A, uint32_t seed_B,
+        bool route_via_wrapper = false
     ) {
         // For side=Left:  Y = alpha*A*B + beta*Y, A is n_A x n_A, B and Y are n_A x d.
         // For side=Right: Y = alpha*B*A + beta*Y, B and Y are d x n_A, A is n_A x n_A.
@@ -132,10 +133,22 @@ protected:
                    alpha, A_full.data(), lda, B.data(), ldb,
                    beta, Y_expect.data(), ldy);
 
-        // Under test: spsymm on the one-triangle sparse A.
-        RandBLAS::sparse_data::spsymm(layout, side, uplo, m_BY, n_BY,
-                                      alpha, A_sparse, B.data(), ldb,
-                                      beta, Y_actual.data(), ldy);
+        // Under test: spsymm on the one-triangle sparse A. By default we
+        // call the low-level dispatcher directly; if `route_via_wrapper` is
+        // set, we go through the public RandBLAS::spsymm(Symmetric<SpMat>)
+        // overload to exercise the wrapper-routing path. side=Left only
+        // for the wrapper path since the public wrapper defaults side=Left.
+        if (route_via_wrapper) {
+            randblas_require(side == Side::Left);
+            auto A_sym = RandBLAS::as_symmetric(A_sparse, uplo);
+            RandBLAS::spsymm(layout, m_BY, n_BY,
+                             alpha, A_sym, B.data(), ldb,
+                             beta, Y_actual.data(), ldy);
+        } else {
+            RandBLAS::sparse_data::spsymm(layout, side, uplo, m_BY, n_BY,
+                                          alpha, A_sparse, B.data(), ldb,
+                                          beta, Y_actual.data(), ldy);
+        }
 
         // Tolerance: the dense reference (blas::symm) and the sparse path
         // accumulate in different orders, so we get a few ULPs of accumulation
@@ -207,42 +220,16 @@ TEST_F(TestSpsymm, CaseD_SparseSparseThrows) {
     }, RandBLAS::Error);
 }
 
+// Routes through the public RandBLAS::spsymm(Symmetric<SpMat>) wrapper
+// overload instead of the lower-level RandBLAS::sparse_data::spsymm.
+// All other setup (dense reference, comparison tolerance) is identical
+// to run_case; we set route_via_wrapper=true to flip the dispatch.
 TEST_F(TestSpsymm, SymmetricWrapper) {
-    using SpMat = CSRMatrix<double>;
-    int64_t n_A = 8;
-    int64_t d = 3;
-    int64_t lda = n_A;
-    std::vector<double> A_full(lda * n_A, 0.0);
-    fill_sym_dense<double>(n_A, A_full.data(), lda, 0);
-    std::vector<double> A_tri(A_full);
-    zero_other_triangle<double>(n_A, A_tri.data(), lda, Uplo::Upper);
-    SpMat A_sparse(n_A, n_A);
-    dense_to_csr(Layout::ColMajor, A_tri.data(), 0.0, A_sparse);
-
-    int64_t m_BY = n_A, n_BY = d;
-    int64_t ldb = m_BY, ldy = m_BY;
-    std::vector<double> B(m_BY * n_BY);
-    DenseDist DB(m_BY, n_BY, ScalarDist::Uniform);
-    RandBLAS::fill_dense_unpacked(Layout::ColMajor, DB, m_BY, n_BY, 0, 0, B.data(), RNGState(11));
-    std::vector<double> Y_actual(m_BY * n_BY, 0.0);
-    std::vector<double> Y_expect = Y_actual;
-
-    double alpha = 1.0, beta = 0.0;
-    blas::symm(Layout::ColMajor, Side::Left, Uplo::Upper, m_BY, n_BY,
-               alpha, A_full.data(), lda, B.data(), ldb,
-               beta, Y_expect.data(), ldy);
-
-    // Route via wrapper overload at the public RandBLAS:: namespace
-    auto A_sym = RandBLAS::as_symmetric(A_sparse, Uplo::Upper);
-    RandBLAS::spsymm(Layout::ColMajor, m_BY, n_BY, alpha, A_sym,
-                     B.data(), ldb, beta, Y_actual.data(), ldy);
-
-    double atol = 100.0 * std::numeric_limits<double>::epsilon();
-    double rtol = 10.0 * std::numeric_limits<double>::epsilon();
-    auto msg = RandBLAS::testing::matrices_approx_equal(
-        Layout::ColMajor, blas::Op::NoTrans, m_BY, n_BY,
-        Y_actual.data(), ldy, Y_expect.data(), ldy,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__, atol, rtol
+    run_case<CSRMatrix<double>>(
+        Layout::ColMajor, Side::Left, Uplo::Upper,
+        /*n_A=*/8, /*d=*/3,
+        /*alpha=*/1.0, /*beta=*/0.0,
+        /*seed_A=*/0, /*seed_B=*/11,
+        /*route_via_wrapper=*/true
     );
-    if (!msg.empty()) FAIL() << msg;
 }
