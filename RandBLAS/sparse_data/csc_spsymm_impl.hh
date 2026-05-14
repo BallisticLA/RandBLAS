@@ -33,6 +33,7 @@
 #include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/csc_matrix.hh"
+#include "RandBLAS/sparse_data/spsymm_internal.hh"
 #include <blas.hh>
 
 namespace RandBLAS::sparse_data {
@@ -63,8 +64,6 @@ void csc_spsymm(
     RandBLAS::util::lascl(layout, m, n, beta, Y, ldy);
     if (alpha == T(0)) return;
 
-    const bool col_major = (layout == blas::Layout::ColMajor);
-
     if (side == blas::Side::Left) {
         // Y = alpha * A * B + ...   (A is m-by-m)
         for (int64_t j = 0; j < m; ++j) {
@@ -73,15 +72,7 @@ void csc_spsymm(
                 if (uplo == blas::Uplo::Upper && i > j) continue;
                 if (uplo == blas::Uplo::Lower && i < j) continue;
                 T av = alpha * A.vals[p];
-                if (col_major) {
-                    blas::axpy(n, av, &B[j], ldb, &Y[i], ldy);
-                    if (i != j)
-                        blas::axpy(n, av, &B[i], ldb, &Y[j], ldy);
-                } else {
-                    blas::axpy(n, av, &B[j*ldb], 1, &Y[i*ldy], 1);
-                    if (i != j)
-                        blas::axpy(n, av, &B[i*ldb], 1, &Y[j*ldy], 1);
-                }
+                internal::spsymm_scatter_left(layout, n, av, i, j, B, ldb, Y, ldy);
             }
         }
     } else {
@@ -92,15 +83,7 @@ void csc_spsymm(
                 if (uplo == blas::Uplo::Upper && i > j) continue;
                 if (uplo == blas::Uplo::Lower && i < j) continue;
                 T av = alpha * A.vals[p];
-                if (col_major) {
-                    blas::axpy(m, av, &B[i*ldb], 1, &Y[j*ldy], 1);
-                    if (i != j)
-                        blas::axpy(m, av, &B[j*ldb], 1, &Y[i*ldy], 1);
-                } else {
-                    blas::axpy(m, av, &B[i], ldb, &Y[j], ldy);
-                    if (i != j)
-                        blas::axpy(m, av, &B[j], ldb, &Y[i], ldy);
-                }
+                internal::spsymm_scatter_right(layout, m, av, i, j, B, ldb, Y, ldy);
             }
         }
     }

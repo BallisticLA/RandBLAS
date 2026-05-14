@@ -33,6 +33,7 @@
 #include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/coo_matrix.hh"
+#include "RandBLAS/sparse_data/spsymm_internal.hh"
 #include <blas.hh>
 
 namespace RandBLAS::sparse_data {
@@ -63,36 +64,16 @@ void coo_spsymm(
     RandBLAS::util::lascl(layout, m, n, beta, Y, ldy);
     if (alpha == T(0)) return;
 
-    const bool col_major = (layout == blas::Layout::ColMajor);
-
     for (int64_t p = 0; p < A.nnz; ++p) {
         sint_t i = A.rows[p];
         sint_t j = A.cols[p];
         if (uplo == blas::Uplo::Upper && j < i) continue;
         if (uplo == blas::Uplo::Lower && j > i) continue;
         T av = alpha * A.vals[p];
-
-        if (side == blas::Side::Left) {
-            if (col_major) {
-                blas::axpy(n, av, &B[j], ldb, &Y[i], ldy);
-                if (j != i)
-                    blas::axpy(n, av, &B[i], ldb, &Y[j], ldy);
-            } else {
-                blas::axpy(n, av, &B[j*ldb], 1, &Y[i*ldy], 1);
-                if (j != i)
-                    blas::axpy(n, av, &B[i*ldb], 1, &Y[j*ldy], 1);
-            }
-        } else {
-            if (col_major) {
-                blas::axpy(m, av, &B[i*ldb], 1, &Y[j*ldy], 1);
-                if (j != i)
-                    blas::axpy(m, av, &B[j*ldb], 1, &Y[i*ldy], 1);
-            } else {
-                blas::axpy(m, av, &B[i], ldb, &Y[j], ldy);
-                if (j != i)
-                    blas::axpy(m, av, &B[j], ldb, &Y[i], ldy);
-            }
-        }
+        if (side == blas::Side::Left)
+            internal::spsymm_scatter_left(layout, n, av, i, j, B, ldb, Y, ldy);
+        else
+            internal::spsymm_scatter_right(layout, m, av, i, j, B, ldb, Y, ldy);
     }
 }
 

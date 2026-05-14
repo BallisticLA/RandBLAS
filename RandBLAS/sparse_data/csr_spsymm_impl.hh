@@ -33,6 +33,7 @@
 #include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/csr_matrix.hh"
+#include "RandBLAS/sparse_data/spsymm_internal.hh"
 #include <blas.hh>
 
 namespace RandBLAS::sparse_data {
@@ -70,50 +71,26 @@ void csr_spsymm(
     RandBLAS::util::lascl(layout, m, n, beta, Y, ldy);
     if (alpha == T(0)) return;
 
-    const bool col_major = (layout == blas::Layout::ColMajor);
-
     if (side == blas::Side::Left) {
         // Y = alpha * A * B + ...   (A is m-by-m)
-        // For stored (i, j, v):
-        //   Y[i, :] += alpha * v * B[j, :]
-        //   if i != j: Y[j, :] += alpha * v * B[i, :]
         for (int64_t i = 0; i < m; ++i) {
             for (int64_t p = A.rowptr[i]; p < A.rowptr[i+1]; ++p) {
                 sint_t j = A.colidxs[p];
                 if (uplo == blas::Uplo::Upper && j < i) continue;
                 if (uplo == blas::Uplo::Lower && j > i) continue;
                 T av = alpha * A.vals[p];
-                if (col_major) {
-                    blas::axpy(n, av, &B[j], ldb, &Y[i], ldy);
-                    if (j != i)
-                        blas::axpy(n, av, &B[i], ldb, &Y[j], ldy);
-                } else {
-                    blas::axpy(n, av, &B[j*ldb], 1, &Y[i*ldy], 1);
-                    if (j != i)
-                        blas::axpy(n, av, &B[i*ldb], 1, &Y[j*ldy], 1);
-                }
+                internal::spsymm_scatter_left(layout, n, av, i, j, B, ldb, Y, ldy);
             }
         }
     } else {
         // Y = alpha * B * A + ...   (A is n-by-n)
-        // For stored (i, j, v):
-        //   Y[:, j] += alpha * v * B[:, i]
-        //   if i != j: Y[:, i] += alpha * v * B[:, j]
         for (int64_t i = 0; i < n; ++i) {
             for (int64_t p = A.rowptr[i]; p < A.rowptr[i+1]; ++p) {
                 sint_t j = A.colidxs[p];
                 if (uplo == blas::Uplo::Upper && j < i) continue;
                 if (uplo == blas::Uplo::Lower && j > i) continue;
                 T av = alpha * A.vals[p];
-                if (col_major) {
-                    blas::axpy(m, av, &B[i*ldb], 1, &Y[j*ldy], 1);
-                    if (j != i)
-                        blas::axpy(m, av, &B[j*ldb], 1, &Y[i*ldy], 1);
-                } else {
-                    blas::axpy(m, av, &B[i], ldb, &Y[j], ldy);
-                    if (j != i)
-                        blas::axpy(m, av, &B[j], ldb, &Y[i], ldy);
-                }
+                internal::spsymm_scatter_right(layout, m, av, i, j, B, ldb, Y, ldy);
             }
         }
     }
