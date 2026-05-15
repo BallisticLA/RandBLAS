@@ -12,16 +12,16 @@ if (GTest_FOUND)
     #####################################################################
 
     set(DENSEDATA_SOURCES
-        test_datastructures/test_denseskop.cc
-        test_datastructures/test_sparseskop.cc
+        datastructures/test_denseskop.cc
+        datastructures/test_sparseskop.cc
 
-        test_matmul_cores/test_lskge3.cc
-        test_matmul_cores/test_rskge3.cc
-        test_matmul_cores/test_lskges.cc
-        test_matmul_cores/test_rskges.cc
+        linops/test_lskge3.cc
+        linops/test_rskge3.cc
+        linops/test_lskges.cc
+        linops/test_rskges.cc
 
-        test_matmul_wrappers/test_sketch_vector.cc
-        test_matmul_wrappers/test_sketch_symmetric.cc
+        linops/test_sketch_vector.cc
+        linops/test_sketch_symmetric.cc
     )
     add_executable(densedata_tests ${DENSEDATA_SOURCES})
     target_link_libraries(densedata_tests RandBLAS GTest::GTest GTest::Main)
@@ -34,19 +34,18 @@ if (GTest_FOUND)
     #####################################################################
 
     set(SPARSEDATA_SOURCES
-        test_datastructures/test_spmats/test_csc.cc
-        test_datastructures/test_spmats/test_csr.cc
-        test_datastructures/test_spmats/test_coo.cc
-        test_datastructures/test_spmats/test_conversions.cc
-        test_datastructures/test_spmats/test_random_matrix.cc
+        datastructures/test_csc_matrix.cc
+        datastructures/test_csr_matrix.cc
+        datastructures/test_coo_matrix.cc
+        datastructures/test_spmat_conversions.cc
 
-        test_matmul_cores/test_spmm/test_spmm_csc.cc
-        test_matmul_cores/test_spmm/test_spmm_csr.cc
-        test_matmul_cores/test_spmm/test_spmm_coo.cc
-        test_matmul_cores/test_spgemm/test_spgemm.cc
-        test_sparse_trsm/test_sparse_trsm.cc
+        linops/test_spgemm.cc
+        linops/test_sparse_trsm.cc
+        linops/test_spmm/test_spmm_csc.cc
+        linops/test_spmm/test_spmm_csr.cc
+        linops/test_spmm/test_spmm_coo.cc
 
-        test_matmul_wrappers/test_sketch_sparse.cc
+        linops/test_sketch_sparse.cc
     )
     add_executable(sparsedata_tests ${SPARSEDATA_SOURCES})
     target_link_libraries(sparsedata_tests RandBLAS GTest::GTest GTest::Main)
@@ -59,17 +58,17 @@ if (GTest_FOUND)
     #####################################################################
 
     set(STAT_SOURCES
-        test_basic_rng/test_r123.cc
-        test_basic_rng/test_discrete.cc
-        test_basic_rng/test_continuous.cc
-        test_basic_rng/test_distortion.cc
+        basic_rng/test_r123.cc
+        basic_rng/test_discrete.cc
+        basic_rng/test_continuous.cc
+        basic_rng/test_distortion.cc
     )
     add_executable(stat_tests ${STAT_SOURCES})
     target_link_libraries(stat_tests RandBLAS GTest::GTest GTest::Main)
     gtest_discover_tests(stat_tests)
-    file(COPY test_basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-    file(COPY test_basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/..)
-    file(COPY test_basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/../test/)
+    file(COPY basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+    file(COPY basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/..)
+    file(COPY basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/../test/)
 
     #####################################################################
     #
@@ -77,7 +76,7 @@ if (GTest_FOUND)
     #
     #####################################################################
 
-    set(META_SOURCES test_handrolled_lapack.cc)
+    set(META_SOURCES meta/test_lapack_like.cc meta/test_sparse_data_generators.cc meta/test_comparison.cc)
     add_executable(meta_tests ${META_SOURCES})
     target_link_libraries(meta_tests RandBLAS GTest::GTest GTest::Main)
     gtest_discover_tests(meta_tests)
@@ -109,5 +108,5 @@ if (GTest_FOUND)
 endif()
 message(STATUS "Checking for regression tests ... ${tmp}")
 
-add_executable(test_rng_speed test_basic_rng/benchmark_speed.cc)
+add_executable(test_rng_speed basic_rng/benchmark_speed.cc)
 target_link_libraries(test_rng_speed RandBLAS)

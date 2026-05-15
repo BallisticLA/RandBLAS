@@ -96,7 +96,7 @@ static void apply_regular_csc_to_vector_ki(
 }
 
 template <typename T, SignedInteger sint_t>
-static void apply_csc_left_jki_p11(
+static void apply_csc_jki_p11(
     T alpha,
     blas::Layout layout_B,
     blas::Layout layout_C,
@@ -152,7 +152,7 @@ static void apply_csc_left_jki_p11(
 }
 
 template <typename T, SignedInteger sint_t>
-static void apply_csc_left_kib_rowmajor_1p1(
+static void apply_csc_kib_1p1_rowmajor(
     T alpha,
     int64_t n,
     const CSCMatrix<T, sint_t> &A,

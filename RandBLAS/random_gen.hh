@@ -33,57 +33,39 @@
 
 #include "compilers.hh"
 #include <Random123/features/compilerfeatures.h>
-
-// this is for sincosf
-#if !defined(_GNU_SOURCE)
-#define _GNU_SOURCE
-#endif
-#include <cmath>
-
-#if !defined(R123_NO_SINCOS) && defined(__APPLE__)
-/* MacOS X 10.10.5 (2015) doesn't have sincosf */
-// use "-D __APPLE__" as a compiler flag to make sure this is hit.
-#define R123_NO_SINCOS 1
-#endif
-
-#if R123_NO_SINCOS /* enable this if sincos and sincosf are not in the math library */
-R123_CUDA_DEVICE R123_STATIC_INLINE void sincosf(float x, float *s, float *c) {
-    *s = std::sinf(x);
-    *c = std::cosf(x);
-}
-
-R123_CUDA_DEVICE R123_STATIC_INLINE void sincos(double x, double *s, double *c) {
-    *s = std::sin(x);
-    *c = std::cos(x);
-}
-#endif /* sincos is not in the math library */
-
-// this is for sincosf
-#if !defined(__CUDACC__)
-static inline void sincospif(float x, float *s, float *c) {
-    const float PIf = 3.1415926535897932f;
-    sincosf(PIf*x, s, c);
-}
-
-static inline void sincospi(double x, double *s, double *c) {
-    const double PI = 3.1415926535897932;
-    sincos(PI*x, s, c);
-}
-#endif
-
-
 #include <Random123/array.h>
 #include <Random123/philox.h>
 #include <Random123/threefry.h>
 // NOTE: we do not support Random123's AES or ARS generators.
 
-RandBLAS_OPTIMIZE_OFF
-#include <Random123/boxmuller.hpp>
-// ^ We've run into correctness issues with that file when using clang and
-//   compiling with optimization enabled. To err on the side of caution
-//   we disable compiler optimizations for clang and three other compilers.
+// Host-side shim for sincospi / sincospif. Random123/boxmuller.hpp calls these
+// unqualified; its own fallback definitions are gated behind
+//     `!defined(CUDART_VERSION) || CUDART_VERSION < 5000`
+// and are therefore skipped on host compiles where any dependency leaks
+// <cuda_runtime.h> into the include chain (notably blaspp's CMake config
+// transitively exports CUDA_INCLUDE_DIRS when blaspp was built with CUDA
+// support, which then poisons RandBLAS's host test compiles). Without these
+// definitions the host-compiled code fails to link.
 //
-RandBLAS_OPTIMIZE_ON
+// An earlier version of this shim was removed in PR #156 (9b73a25, 2026-03-05)
+// on the theory that CI green = unused. RandBLAS CI does not currently
+// exercise the Linux + CUDA-aware blaspp configuration where the failure
+// manifests; restoring the shim so host builds succeed on that config.
+#if !defined(__CUDACC__)
+#include <cmath>
+static inline void sincospif(float x, float *s, float *c) {
+    const float PIf = 3.1415926535897932f;
+    *s = std::sin(PIf * x);
+    *c = std::cos(PIf * x);
+}
+static inline void sincospi(double x, double *s, double *c) {
+    const double PI = 3.1415926535897932;
+    *s = std::sin(PI * x);
+    *c = std::cos(PI * x);
+}
+#endif
+
+#include <Random123/boxmuller.hpp>
 #include <Random123/uniform.hpp>
 
 /// our extensions to random123
