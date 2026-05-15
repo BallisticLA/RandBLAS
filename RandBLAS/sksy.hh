@@ -32,14 +32,17 @@
 #include "RandBLAS/util.hh"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/skge.hh"
+#include "RandBLAS/sparse_data/coo_sksys_impl.hh"
 
 
 // =============================================================================
 // Symmetric sketching helpers (SYMM-backed). See project-plans/randblas-symm-plan.md
 // for the four-case API design and the implementation status of each case.
 //   - lsksy3, rsksy3: Case A (dense-symm A x dense Omega), via blas::symm.
-//   - lsksys, rsksys: Case B (dense-symm A x sparse SkOp), per-stored-entry
-//     two-axpy scatter that reads only the uplo triangle of A.
+//   - lsksys, rsksys: Case B (dense-symm A x sparse SkOp). Thin wrappers
+//     handling the SparseSkOp materialization-and-recurse; the actual COO
+//     walk + two-axpy scatter lives in sparse_data/coo_sksys_impl.hh
+//     as coo_lsksys / coo_rsksys.
 // =============================================================================
 
 namespace RandBLAS::dense {
@@ -105,7 +108,7 @@ void lsksy3(
     } else {
         // Layout mismatch: transpose-copy S into a tight buffer in the
         // caller's layout, then SYMM. Costs O(d*n) for the copy, but keeps
-        // the SYMM speedup (~1.3-1.8x over GEMM) on the d*n*n_A matvec.
+        // the SYMM speedup over GEMM on the d*n*n_A matvec.
         int64_t lds_new = (layout == blas::Layout::ColMajor) ? d : n;
         std::vector<T> S_copy(static_cast<size_t>(d) * static_cast<size_t>(n));
         auto [irs_in,  ics_in]  = layout_to_strides(S.layout, lds);
@@ -227,46 +230,10 @@ void lsksys(
     }
 
     util::lascl(layout, d, n, beta, B, ldb);
-    if (alpha == T(0)) return;
-
     auto Scoo = coo_view_of_skop(S);
-    const bool col_major = (layout == blas::Layout::ColMajor);
-
-    for (int64_t p = 0; p < Scoo.nnz; ++p) {
-        sint_t row_S = Scoo.rows[p];
-        sint_t col_S = Scoo.cols[p];
-        if (row_S < ro_s || row_S >= ro_s + d) continue;
-        if (col_S < co_s || col_S >= co_s + n) continue;
-        int64_t i = static_cast<int64_t>(row_S) - ro_s;  // B row
-        int64_t j = static_cast<int64_t>(col_S) - co_s;  // A row index (sym A read as row j)
-        T av = alpha * Scoo.vals[p];
-
-        // B[i, :] += av * row_j(A_sym), split by uplo into two contiguous
-        // ranges of A so each becomes a single axpy.
-        if (uplo == blas::Uplo::Upper) {
-            // row j of A:
-            //   c in [0, j]: read A[c, j]      (column j of stored Upper, rows 0..j)
-            //   c in (j, n-1]: read A[j, c]    (row j of stored Upper, cols j+1..n-1)
-            if (col_major) {
-                blas::axpy(j + 1, av, &A[j * lda], 1, &B[i], ldb);
-                blas::axpy(n - j - 1, av, &A[j + (j + 1) * lda], lda, &B[i + (j + 1) * ldb], ldb);
-            } else {
-                blas::axpy(j + 1, av, &A[j], lda, &B[i * ldb], 1);
-                blas::axpy(n - j - 1, av, &A[j * lda + j + 1], 1, &B[i * ldb + j + 1], 1);
-            }
-        } else {
-            // Lower-stored:
-            //   c in [0, j]: read A[j, c]      (row j of stored Lower, cols 0..j)
-            //   c in (j, n-1]: read A[c, j]    (column j of stored Lower, rows j+1..n-1)
-            if (col_major) {
-                blas::axpy(j + 1, av, &A[j], lda, &B[i], ldb);
-                blas::axpy(n - j - 1, av, &A[(j + 1) + j * lda], 1, &B[i + (j + 1) * ldb], ldb);
-            } else {
-                blas::axpy(j + 1, av, &A[j * lda], 1, &B[i * ldb], 1);
-                blas::axpy(n - j - 1, av, &A[(j + 1) * lda + j], lda, &B[i * ldb + j + 1], 1);
-            }
-        }
-    }
+    RandBLAS::sparse_data::coo_lsksys(
+        layout, uplo, d, n, alpha, Scoo, ro_s, co_s, A, lda, B, ldb
+    );
 }
 
 
@@ -305,45 +272,10 @@ void rsksys(
     }
 
     util::lascl(layout, n, d, beta, B, ldb);
-    if (alpha == T(0)) return;
-
     auto Scoo = coo_view_of_skop(S);
-    const bool col_major = (layout == blas::Layout::ColMajor);
-
-    for (int64_t p = 0; p < Scoo.nnz; ++p) {
-        sint_t row_S = Scoo.rows[p];
-        sint_t col_S = Scoo.cols[p];
-        if (row_S < ro_s || row_S >= ro_s + n) continue;
-        if (col_S < co_s || col_S >= co_s + d) continue;
-        int64_t i = static_cast<int64_t>(row_S) - ro_s;  // A column index
-        int64_t j = static_cast<int64_t>(col_S) - co_s;  // B column
-        T av = alpha * Scoo.vals[p];
-
-        // B[:, j] += av * col_i(A_sym), split by uplo:
-        if (uplo == blas::Uplo::Upper) {
-            // col i of A:
-            //   r in [0, i]: read A[r, i]    (column i of stored Upper, rows 0..i)
-            //   r in (i, n-1]: read A[i, r]  (row i of stored Upper, cols i+1..n-1)
-            if (col_major) {
-                blas::axpy(i + 1, av, &A[i * lda], 1, &B[j * ldb], 1);
-                blas::axpy(n - i - 1, av, &A[i + (i + 1) * lda], lda, &B[(i + 1) + j * ldb], 1);
-            } else {
-                blas::axpy(i + 1, av, &A[i], lda, &B[j], ldb);
-                blas::axpy(n - i - 1, av, &A[i * lda + i + 1], 1, &B[(i + 1) * ldb + j], ldb);
-            }
-        } else {
-            // Lower-stored col i:
-            //   r in [0, i-1]: read A[i, r]  (row i of stored Lower, cols 0..i-1)
-            //   r in [i, n-1]: read A[r, i]  (column i of stored Lower, rows i..n-1)
-            if (col_major) {
-                blas::axpy(i, av, &A[i], lda, &B[j * ldb], 1);
-                blas::axpy(n - i, av, &A[i + i * lda], 1, &B[i + j * ldb], 1);
-            } else {
-                blas::axpy(i, av, &A[i * lda], 1, &B[j], ldb);
-                blas::axpy(n - i, av, &A[i * lda + i], lda, &B[i * ldb + j], ldb);
-            }
-        }
-    }
+    RandBLAS::sparse_data::coo_rsksys(
+        layout, uplo, n, d, alpha, A, lda, Scoo, ro_s, co_s, B, ldb
+    );
 }
 
 } // end namespace RandBLAS::sparse
@@ -414,9 +346,10 @@ using namespace RandBLAS::sparse;
 ///
 ///      S - [in]
 ///       * A SketchingOperator object (DenseSkOp or SparseSkOp).
-///       * Defines :math:`\submat(\mtxS).` SparseSkOp is currently not supported and
-///         calls with a SparseSkOp will throw a :math:`\ttt{RandBLAS::Error}` ---
-///         this is the Case-B kernel from `project-plans/randblas-symm-plan.md`.
+///       * Defines :math:`\submat(\mtxS).` DenseSkOp dispatches to a SYMM-backed
+///         kernel (Case A); SparseSkOp dispatches to a hand-rolled
+///         per-stored-nonzero scatter that reads only the named triangle of
+///         :math:`A` (Case B). See `project-plans/randblas-symm-plan.md`.
 ///
 ///      ro_s - [in]
 ///       * A nonnegative integer.

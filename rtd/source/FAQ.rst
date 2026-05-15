@@ -118,8 +118,8 @@ sketch_symmetric supports both DenseSkOp and SparseSkOp.
   reading only the triangle of :math:`A` named by ``uplo``. See
   ``RandBLAS/sparse_data/DevNotes.md`` for the access-pattern detail.
 
-Layout-mismatched ``DenseSkOp`` in ``sketch_symmetric`` falls back to GEMM.
-  When the ``DenseSkOp``'s storage layout differs from the caller's ``layout`` parameter, ``sketch_symmetric`` falls back to ``blas::gemm`` with the transpose flag --- ``blas::symm`` has no on-the-fly transpose flag for the dense operand. The layout-matched case still gets the SYMM speedup.
+Layout-mismatched ``DenseSkOp`` in ``sketch_symmetric`` transpose-copies the operand.
+  When the ``DenseSkOp``'s storage layout differs from the caller's ``layout`` parameter, ``sketch_symmetric`` transpose-copies the operand into a tight buffer in the caller's layout and then calls ``blas::symm``. The copy is ``O(d * n)``; ``blas::symm`` has no on-the-fly transpose flag for the dense operand, so this is what it costs to keep the SYMM speedup over a ``blas::gemm`` fallback. The layout-matched case skips the copy.
 
 
 Language interoperability

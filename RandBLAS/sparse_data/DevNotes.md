@@ -69,7 +69,7 @@ two operands (``A`` symmetric vs. the second factor ``B``):
 | Tag | Operation                       | A storage           | B storage | Status this PR                                  |
 |-----|---------------------------------|---------------------|-----------|-------------------------------------------------|
 | A   | dense-symm × dense              | dense, one triangle | dense     | Implemented via ``blas::symm`` in ``sksy.hh``.   |
-| B   | dense-symm × sparse             | dense, one triangle | sparse    | Implemented via hand-rolled ``lsksys`` / ``rsksys`` in ``sksy.hh`` (two-axpy scatter per stored nonzero of S, reading only the named triangle of A). |
+| B   | dense-symm × sparse             | dense, one triangle | sparse    | Implemented via hand-rolled ``lsksys`` / ``rsksys`` wrappers in ``sksy.hh`` that handle the SparseSkOp materialization-and-recurse, and the ``coo_lsksys`` / ``coo_rsksys`` COO kernels in ``sparse_data/coo_sksys_impl.hh`` that do the two-axpy scatter per stored nonzero of S (reading only the named triangle of A). |
 | C   | sparse-symm × dense (→ dense)   | sparse, one triangle | dense     | Implemented in ``spsymm_dispatch.hh`` (MKL fast path + per-format fallbacks). |
 | D   | sparse-symm × sparse → dense    | sparse, one triangle | sparse    | Implemented via densify-B + Case-C composition in ``spsymm_dispatch.hh``. |
 
@@ -78,7 +78,7 @@ two operands (``A`` symmetric vs. the second factor ``B``):
 | Tag | MKL native?    | Notes                                                                                                           |
 |-----|----------------|-----------------------------------------------------------------------------------------------------------------|
 | A   | No (BLAS++)    | ``blas::symm`` directly.                                                                                        |
-| B   | No             | The transpose trick puts the sparse op on the left of ``mkl_sparse_d_mm``, but the dense A has no ``matrix_descr``, so MKL can't be told A is symmetric. We hand-roll instead --- see ``lsksys`` / ``rsksys`` in ``sksy.hh``. |
+| B   | No             | The transpose trick puts the sparse op on the left of ``mkl_sparse_d_mm``, but the dense A has no ``matrix_descr``, so MKL can't be told A is symmetric. We hand-roll instead --- see ``coo_lsksys`` / ``coo_rsksys`` in ``sparse_data/coo_sksys_impl.hh`` (with thin SparseSkOp wrappers in ``sksy.hh``). |
 | C   | Yes (mostly)   | ``mkl_sparse_d_mm`` with ``descr.type = SPARSE_MATRIX_TYPE_SYMMETRIC``. RandBLAS falls back to a hand kernel for side=Right (MKL has no Side parameter) and for CSC (``mkl_sparse_d_mm`` returns NOT_SUPPORTED on CSC). |
 | D   | No             | ``mkl_sparse_sp2m`` returns ``SPARSE_STATUS_NOT_SUPPORTED`` when ``descrA.type == SPARSE_MATRIX_TYPE_SYMMETRIC`` (only ``GENERAL`` is accepted there); ``mkl_sparse_d_spmmd`` takes no descriptor at all. Symmetric expansion has to happen on the RandBLAS side, so we don't gain anything by routing through MKL. |
 
@@ -113,9 +113,17 @@ The public-facing wrappers in the top-level ``RandBLAS::`` namespace are:
     -- routes via the ``Symmetric<SpMat>`` carrier so the uplo annotation
     travels with the matrix.
 
-### Case B: hand-rolled in ``lsksys`` / ``rsksys``
+### Case B: hand-rolled COO kernels in ``coo_sksys_impl.hh``
 
-Lives in ``sksy.hh`` next to the dense-SkOp helpers ``lsksy3`` / ``rsksy3``.
+The COO walk and scatter live in ``sparse_data/coo_sksys_impl.hh`` as
+``coo_lsksys`` / ``coo_rsksys``, taking a ``COOMatrix<T, sint_t>`` plus
+submatrix offsets and writing into a dense buffer. Thin wrappers
+``lsksys`` / ``rsksys`` in ``sksy.hh`` handle the SparseSkOp
+materialization-and-recurse pattern, beta-scale ``B`` via ``util::lascl``,
+unpack the SparseSkOp into its COO view, and forward into the kernel.
+The split keeps ``sksy.hh`` focused on SkOp dispatch and puts the
+format-specific work next to the other COO kernels.
+
 For each stored nonzero ``(i_S, j_S, v)`` of the SparseSkOp's COO view (with
 submatrix offsets ``(ro_s, co_s)`` filtered inline), the kernel applies
 ``alpha * v`` to one row or column of the symmetric dense A and accumulates
