@@ -50,9 +50,9 @@ namespace RandBLAS::sparse_data {
 // For each stored nonzero (row_S, col_S, v) of Scoo inside the window, the
 // kernel contributes alpha*v * (row col_S of A) to row (row_S - ro_s) of B.
 // The row of symmetric A is assembled from the stored triangle as two
-// blas::axpy calls -- one along the stored column up to (and including) the
-// diagonal, one along the stored row past the diagonal -- chosen by `uplo`
-// and the matrix layout.
+// blas::axpy calls: one along the stored column up to (and including) the
+// diagonal, one along the stored row past the diagonal. The split is chosen
+// by `uplo` and the matrix layout.
 //
 // Beta-scaling of B and the alpha==0 short-circuit are the caller's
 // responsibility (so that this kernel can be composed with other accumulators

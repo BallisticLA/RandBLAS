@@ -78,7 +78,7 @@ two operands (``A`` symmetric vs. the second factor ``B``):
 | Tag | MKL native?    | Notes                                                                                                           |
 |-----|----------------|-----------------------------------------------------------------------------------------------------------------|
 | A   | No (BLAS++)    | ``blas::symm`` directly.                                                                                        |
-| B   | No             | The transpose trick puts the sparse op on the left of ``mkl_sparse_d_mm``, but the dense A has no ``matrix_descr``, so MKL can't be told A is symmetric. We hand-roll instead --- see ``coo_lsksys`` / ``coo_rsksys`` in ``sparse_data/coo_sksys_impl.hh`` (with thin SparseSkOp wrappers in ``sksy.hh``). |
+| B   | No             | The transpose trick puts the sparse op on the left of ``mkl_sparse_d_mm``, but the dense A has no ``matrix_descr``, so MKL can't be told A is symmetric. We hand-roll instead. See ``coo_lsksys`` / ``coo_rsksys`` in ``sparse_data/coo_sksys_impl.hh`` (with thin SparseSkOp wrappers in ``sksy.hh``). |
 | C   | Yes (mostly)   | ``mkl_sparse_d_mm`` with ``descr.type = SPARSE_MATRIX_TYPE_SYMMETRIC``. RandBLAS falls back to a hand kernel for side=Right (MKL has no Side parameter) and for CSC (``mkl_sparse_d_mm`` returns NOT_SUPPORTED on CSC). |
 | D   | No             | ``mkl_sparse_sp2m`` returns ``SPARSE_STATUS_NOT_SUPPORTED`` when ``descrA.type == SPARSE_MATRIX_TYPE_SYMMETRIC`` (only ``GENERAL`` is accepted there); ``mkl_sparse_d_spmmd`` takes no descriptor at all. Symmetric expansion has to happen on the RandBLAS side, so we don't gain anything by routing through MKL. |
 
@@ -107,10 +107,10 @@ the ``Y <- beta * Y`` pass on entry.
 
 The public-facing wrappers in the top-level ``RandBLAS::`` namespace are:
 
-  - ``spsymm(layout, uplo, m, n, alpha, A, B, ldb, beta, Y, ldy)`` --
+  - ``spsymm(layout, uplo, m, n, alpha, A, B, ldb, beta, Y, ldy)``,
     convenience for side=Left.
-  - ``spsymm(layout, m, n, alpha, Symmetric<SpMat> A_sym, B, ldb, beta, Y, ldy)``
-    -- routes via the ``Symmetric<SpMat>`` carrier so the uplo annotation
+  - ``spsymm(layout, m, n, alpha, Symmetric<SpMat> A_sym, B, ldb, beta, Y, ldy)``,
+    routes via the ``Symmetric<SpMat>`` carrier so the uplo annotation
     travels with the matrix.
 
 ### Case B: hand-rolled COO kernels in ``coo_sksys_impl.hh``

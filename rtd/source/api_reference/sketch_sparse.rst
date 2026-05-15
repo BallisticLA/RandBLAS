@@ -150,8 +150,8 @@ Deterministic operations
        the densified buffer. This covers all 3 x 3 = 9 sparse-format
        pairings for ``(A, B)``. ``mkl_sparse_sp2m`` rejects symmetric
        descriptors and ``mkl_sparse_d_spmmd`` takes no descriptor, so
-       routing through MKL would not avoid the symmetric expansion ---
-       composing through Case C costs an ``O(m*n)`` temporary, which is
+       routing through MKL would not avoid the symmetric expansion. The
+       composition through Case C costs an ``O(m*n)`` temporary, which is
        small for the typical RandNLA workload where ``B`` is a sketching
        operator with ``nnz(B) << m*n``.
 
