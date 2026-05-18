@@ -130,20 +130,17 @@ static void apply_csr_ikb_p1b_rowmajor(
     randblas_require(d == A.n_rows);
     randblas_require(m == A.n_cols);
 
-    #pragma omp parallel default(shared)
-    {
-        #pragma omp for schedule(dynamic)
-        for (int64_t i = 0; i < d; ++i) {
-            // C[i, 0:n] += alpha * A[i, :] @ B[:, 0:n]
-            T* row_C = &C[i*ldc];
-            for (int64_t ell = A.rowptr[i]; ell < A.rowptr[i+1]; ++ell) {
-                // we're working with A[i,k] for k = A.colidxs[ell]
-                // compute C[i, 0:n] += alpha * A[i,k] * B[k, 0:n]
-                T scale = alpha * A.vals[ell];
-                int64_t k = A.colidxs[ell];
-                const T* row_B = &B[k*ldb];
-                blas::axpy(n, scale, row_B, 1, row_C, 1);
-            }
+    #pragma omp parallel for schedule(dynamic)
+    for (int64_t i = 0; i < d; ++i) {
+        // C[i, 0:n] += alpha * A[i, :] @ B[:, 0:n]
+        T* row_C = &C[i*ldc];
+        for (int64_t ell = A.rowptr[i]; ell < A.rowptr[i+1]; ++ell) {
+            // we're working with A[i,k] for k = A.colidxs[ell]
+            // compute C[i, 0:n] += alpha * A[i,k] * B[k, 0:n]
+            T scale = alpha * A.vals[ell];
+            int64_t k = A.colidxs[ell];
+            const T* row_B = &B[k*ldb];
+            blas::axpy(n, scale, row_B, 1, row_C, 1);
         }
     }
     return;
