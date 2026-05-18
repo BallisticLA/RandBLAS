@@ -41,6 +41,7 @@
 #include <cmath>
 #include <algorithm>
 #include <unordered_map>
+#include <numeric>
 
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
