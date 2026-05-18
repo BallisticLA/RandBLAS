@@ -122,33 +122,27 @@ static void trsm_jki_p11(
 
     int64_t j, p, ell;
     if (uplo == blas::Uplo::Lower) {
-        #pragma omp parallel default(shared) private(j, p, ell)
-        {
-            #pragma omp for schedule(static)
-            for (ell = 0; ell < n; ell++) {
-                T* col_B = &B[ell * B_inter_col_stride];
-                for (j = 0; j < m; ++j) {
-                    T &Bjl = col_B[j * B_inter_row_stride];
-                    if (nonunit)
-                        Bjl /= vals[ptrs[j]];
-                    for (p = ptrs[j]+1; p < ptrs[j+1]; ++p)
-                        col_B[idxs[p] * B_inter_row_stride] -= vals[p] * Bjl;
-                }
+        #pragma omp parallel for schedule(static) private(j, p, ell)
+        for (ell = 0; ell < n; ell++) {
+            T* col_B = &B[ell * B_inter_col_stride];
+            for (j = 0; j < m; ++j) {
+                T &Bjl = col_B[j * B_inter_row_stride];
+                if (nonunit)
+                    Bjl /= vals[ptrs[j]];
+                for (p = ptrs[j]+1; p < ptrs[j+1]; ++p)
+                    col_B[idxs[p] * B_inter_row_stride] -= vals[p] * Bjl;
             }
         }
     } else {
-        #pragma omp parallel default(shared) private(j, p, ell)
-        {
-            #pragma omp for schedule(static)
-            for (ell = 0; ell < n; ell++) {
-                T* col_B = &B[ell * B_inter_col_stride];
-                for (j = m-1; j >= 0; --j) {
-                    T &Bjl = col_B[j * B_inter_row_stride];
-                    if (nonunit)
-                        Bjl /= vals[ptrs[j+1] - 1];
-                    for (p = ptrs[j]; p < ptrs[j+1] - 1; ++p)
-                        col_B[idxs[p] * B_inter_row_stride] -= vals[p] * Bjl;
-                }
+        #pragma omp parallel for schedule(static) private(j, p, ell)
+        for (ell = 0; ell < n; ell++) {
+            T* col_B = &B[ell * B_inter_col_stride];
+            for (j = m-1; j >= 0; --j) {
+                T &Bjl = col_B[j * B_inter_row_stride];
+                if (nonunit)
+                    Bjl /= vals[ptrs[j+1] - 1];
+                for (p = ptrs[j]; p < ptrs[j+1] - 1; ++p)
+                    col_B[idxs[p] * B_inter_row_stride] -= vals[p] * Bjl;
             }
         }
     }
