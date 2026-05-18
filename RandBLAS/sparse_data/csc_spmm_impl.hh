@@ -171,13 +171,8 @@ static void apply_csc_kib_1p1_rowmajor(
             int num_threads = 1;
         #endif
 
-        int block_size = d / num_threads;
-        block_size = std::max(block_size, 1);
-        int i_lower = block_size * t;
-        int i_upper = block_size * (t + 1);
-        if (t + 1 == num_threads) {
-            i_upper = d;
-        }
+        int i_lower = (d * t) / num_threads;
+        int i_upper = (d * (t + 1)) / num_threads;
         for (int64_t k = 0; k < m; ++k) {
             // Rank-1 update: C[:,:] += A[:,k] @ B[k,:]
             const T* row_B = &B[k*ldb];
