@@ -123,29 +123,24 @@ static void apply_csc_jki_p11(
     auto C_inter_col_stride = s.inter_col_stride;
     auto C_inter_row_stride = s.inter_row_stride;
 
-    #pragma omp parallel default(shared)
-    {
-        const T *B_col = nullptr;
-        T *C_col = nullptr;
-        #pragma omp for schedule(static)
-        for (int64_t j = 0; j < n; j++) {
-            B_col = &B[B_inter_col_stride * j];
-            C_col = &C[C_inter_col_stride * j];
-            if (fixed_nnz_per_col) {
-                apply_regular_csc_to_vector_ki<T>(
-                    alpha,
-                    A.vals, A.rowidxs, A.colptr[1],
-                    m, B_col, B_inter_row_stride,
-                    C_col, C_inter_row_stride
-                );
-            } else {
-                apply_csc_to_vector_ki<T>(
-                    alpha,
-                    A.vals, A.rowidxs, A.colptr,
-                    m, B_col, B_inter_row_stride,
-                    C_col, C_inter_row_stride
-                ); 
-            }
+    #pragma omp parallel for schedule(static)
+    for (int64_t j = 0; j < n; j++) {
+        const T* B_col = &B[B_inter_col_stride * j];
+              T* C_col = &C[C_inter_col_stride * j];
+        if (fixed_nnz_per_col) {
+            apply_regular_csc_to_vector_ki<T>(
+                alpha,
+                A.vals, A.rowidxs, A.colptr[1],
+                m, B_col, B_inter_row_stride,
+                C_col, C_inter_row_stride
+            );
+        } else {
+            apply_csc_to_vector_ki<T>(
+                alpha,
+                A.vals, A.rowidxs, A.colptr,
+                m, B_col, B_inter_row_stride,
+                C_col, C_inter_row_stride
+            ); 
         }
     }
     return;
