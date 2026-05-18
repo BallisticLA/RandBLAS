@@ -100,20 +100,15 @@ static void apply_csr_jik_p11(
     auto C_inter_col_stride = s.inter_col_stride;
     auto C_inter_row_stride = s.inter_row_stride;
 
-    #pragma omp parallel default(shared)
-    {
-        const T *B_col = nullptr;
-        T *C_col = nullptr;
-        #pragma omp for schedule(static)
-        for (int64_t j = 0; j < n; j++) {
-            B_col = &B[B_inter_col_stride * j];
-            C_col = &C[C_inter_col_stride * j];
-            apply_csr_to_vector_ik(alpha,
-                   vals, A.rowptr, A.colidxs,
-                   B_col, B_inter_row_stride,
-                d, C_col, C_inter_row_stride
-            );
-        }
+    #pragma omp parallel for schedule(static)
+    for (int64_t j = 0; j < n; j++) {
+        const T *B_col = &B[B_inter_col_stride * j];
+              T *C_col = &C[C_inter_col_stride * j];
+        apply_csr_to_vector_ik(alpha,
+                vals, A.rowptr, A.colidxs,
+                B_col, B_inter_row_stride,
+            d, C_col, C_inter_row_stride
+        );
     }
     return;
 }
