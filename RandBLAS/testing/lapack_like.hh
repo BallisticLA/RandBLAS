@@ -32,7 +32,7 @@
 #include "RandBLAS/util.hh"
 #include "RandBLAS/dense_skops.hh"
 
-#include <blas.hh>
+#include "RandBLAS/blas_facade.hh"
 #include <iostream>
 #include <vector>
 #include <cmath>

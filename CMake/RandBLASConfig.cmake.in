@@ -8,11 +8,14 @@ set(RandBLAS_VERSION_PATCH "@RandBLAS_VERSION_PATCH@")
 set(RandBLAS_COMMITS_SINCE_RELEASE "@RandBLAS_COMMITS_SINCE_RELEASE@")
 set(RandBLAS_COMMIT_HASH "@RandBLAS_COMMIT_HASH@")
 
-# BLAS++
-if (NOT blaspp_DIR)
-    set(blaspp_DIR @blaspp_DIR@)
+# BLAS backend
+set(RandBLAS_HAS_BLASPP @RandBLAS_HAS_BLASPP@)
+if (RandBLAS_HAS_BLASPP)
+    if (NOT blaspp_DIR)
+        set(blaspp_DIR @blaspp_DIR@)
+    endif ()
+    find_dependency(blaspp)
 endif ()
-find_dependency(blaspp)
 
 # Random123
 if (NOT Random123_DIR)

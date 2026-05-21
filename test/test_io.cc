@@ -1,7 +1,7 @@
 
 
 #include <cmath>
-#include <blas.hh>
+#include "RandBLAS/blas_facade.hh"
 
 #include "RandBLAS/base.hh"
 #include "RandBLAS/util.hh"

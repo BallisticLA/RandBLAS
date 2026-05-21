@@ -30,7 +30,6 @@
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/util.hh"
-#include <RandBLAS/random_gen.hh>
 #include <RandBLAS/exceptions.hh>
 #include <RandBLAS/sparse_skops.hh>
 using RandBLAS::RNGState;

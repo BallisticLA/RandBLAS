@@ -25,72 +25,21 @@
 // CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
-//
 
-#include "RandBLAS/config.h"
-#include "RandBLAS/base.hh"
-#include "RandBLAS/dense_skops.hh"
+#pragma once
 
-#include <iostream>
-#include <vector>
-#include <typeinfo>
-#include <cstring>
-#include <chrono>
+/// @file
+///
+/// Aggregating header for RandBLAS' built-in blas:: implementations.
+/// Provides the enumerations and routines used by RandBLAS when BLAS++ is
+/// not available:
+///   Enumerations: Layout, Op, Uplo, Diag, Side
+///   Level 1:      scal, copy, axpy, dot, nrm2
+///   Level 2:      gemv, ger
+///   Level 3:      gemm, syrk, symm, trmm, trsm
 
-using namespace RandBLAS;
-
-
-template <typename T>
-std::ostream &operator<<(std::ostream &os, std::vector<T> &v)
-{
-    size_t n = v.size();
-    os << "{";
-    if (n)
-    {
-        os << v[0];
-        for (size_t i = 1; i < n; ++i)
-            os << ", " << v[i];
-    }
-    os << "}";
-    return os;
-}
-
-
-
-template <typename T, typename RNG, typename OP>
-auto run_test(RandBLAS::DenseDist D, T *mat)
-{
-    auto t0 = std::chrono::high_resolution_clock::now();
-    RNGState<RNG> seed;
-    RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(D.n_cols, mat, D.n_rows, D.n_cols, 0, seed);
-    auto t1 = std::chrono::high_resolution_clock::now();
-    return (t1 - t0).count();
-}
-
-
-int main(int argc, char **argv)
-{
-    (void) argc;
-
-    using T = float;
-    using RNG = r123::Philox4x32;
-    using OP = r123ext::uneg11;
-
-    int64_t m = atoi(argv[1]);
-    int64_t n = atoi(argv[2]);
-    int64_t d = m*n;
-    RandBLAS::DenseDist dist{m, n, RandBLAS::ScalarDist::Uniform};
-
-    std::vector<T> mat(d);
-
-    auto dt = run_test<T,RNG,OP>(dist, mat.data());
-
-    std::cerr << "[" << typeid(RNG).name() << ", "
-        << typeid(OP).name() << "] dt = " << dt << std::endl;
-
-    if (d < 100)
-        std::cerr << "mat = " << mat << std::endl;
-
-    return 0;
-}
-
+#include "RandBLAS/blas_backend/enums.hh"
+#include "RandBLAS/blas_backend/level1.hh"
+#include "RandBLAS/blas_backend/gemm.hh"
+#include "RandBLAS/blas_backend/level2.hh"
+#include "RandBLAS/blas_backend/level3.hh"

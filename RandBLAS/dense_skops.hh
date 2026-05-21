@@ -30,10 +30,9 @@
 
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
-#include "RandBLAS/random_gen.hh"
 #include "RandBLAS/util.hh"
 
-#include <blas.hh>
+#include "RandBLAS/blas_facade.hh"
 
 #include <iostream>
 #include <stdio.h>

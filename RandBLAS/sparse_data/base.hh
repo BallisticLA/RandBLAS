@@ -30,7 +30,7 @@
 
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
-#include <blas.hh>
+#include "RandBLAS/blas_facade.hh"
 
 #ifdef __cpp_concepts
 #include <concepts>

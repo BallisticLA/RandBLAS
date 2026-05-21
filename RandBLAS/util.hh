@@ -32,7 +32,7 @@
 #include <RandBLAS/base.hh>
 #include <RandBLAS/exceptions.hh>
 #include <RandBLAS/compilers.hh>
-#include <blas.hh>
+#include "RandBLAS/blas_facade.hh"
 #include <Random123/philox.h>
 #include <Random123/uniform.hpp>
 

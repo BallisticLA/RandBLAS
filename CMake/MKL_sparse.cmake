@@ -5,6 +5,13 @@ features while still using MKL through BLAS++." ON)
 
 message(STATUS "Checking for MKL sparse BLAS ...")
 
+if (NOT RandBLAS_HAS_BLASPP)
+    message(STATUS "  Disabled: builtin BLAS backend does not support MKL sparse")
+    set(RandBLAS_HAS_MKL FALSE CACHE BOOL "Set if MKL sparse BLAS is available" FORCE)
+    message(STATUS "Checking for MKL sparse BLAS ... ${RandBLAS_HAS_MKL}")
+    return()
+endif()
+
 if (NOT RandBLAS_USE_MKL_SPARSE)
     message(STATUS "  Disabled by user (RandBLAS_USE_MKL_SPARSE=OFF)")
     set(RandBLAS_HAS_MKL FALSE CACHE BOOL "Set if MKL sparse BLAS is available" FORCE)

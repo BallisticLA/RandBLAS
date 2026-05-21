@@ -41,6 +41,15 @@
 //      @RandBLAS_COMMIT_HASH@            -->    cb84abc
 //
 
+#cmakedefine RandBLAS_HAS_BLASPP
+// ^ Defined when RandBLAS_BLAS_BACKEND=blaspp (the default).
+//   When defined, RandBLAS uses BLAS++ for all BLAS operations.
+//   When not defined, RandBLAS uses its own built-in implementations
+//   (see RandBLAS/blas_builtin.hh).
+//
+//   If you are not using CMake, define this if you are linking to BLAS++.
+//
+
 #cmakedefine RandBLAS_HAS_OpenMP
 // ^ CMake determines whether or not to #define RandBLAS_HAS_OpenMP
 //
