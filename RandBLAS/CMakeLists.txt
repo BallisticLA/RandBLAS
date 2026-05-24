@@ -29,13 +29,16 @@ endif()
 
 target_link_libraries(RandBLAS INTERFACE ${RandBLAS_libs})
 
-set(RandBLAS_cxx_opts -Wall -Wextra -Wno-comment)
-if (SANITIZE_ADDRESS)
-    list(APPEND RandBLAS_cxx_opts -fsanitize=address)
-    target_link_options(RandBLAS INTERFACE -fsanitize=address)
-endif()
+# Build-time only: warning and sanitizer flags should not leak into the installed target.
+target_compile_options(RandBLAS INTERFACE
+    $<BUILD_INTERFACE:-Wall>
+    $<BUILD_INTERFACE:-Wextra>
+    $<BUILD_INTERFACE:-Wno-comment>)
 
-target_compile_options(RandBLAS INTERFACE ${RandBLAS_cxx_opts})
+if (SANITIZE_ADDRESS)
+    target_compile_options(RandBLAS INTERFACE $<BUILD_INTERFACE:-fsanitize=address>)
+    target_link_options(RandBLAS    INTERFACE $<BUILD_INTERFACE:-fsanitize=address>)
+endif()
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../RandBLAS.hh"
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
@@ -47,5 +50,5 @@ install(TARGETS RandBLAS EXPORT RandBLAS
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
-install(EXPORT RandBLAS DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake
+install(EXPORT RandBLAS DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/RandBLAS
   EXPORT_LINK_INTERFACE_LIBRARIES)
