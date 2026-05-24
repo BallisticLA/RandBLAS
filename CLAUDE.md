@@ -115,7 +115,6 @@ The sparse triangular solve function (`trsm`) handles transposition similarly:
 
 - **C++20** required (uses concepts for type constraints)
 - Some compilers (e.g., gcc 8.5) may need `-fconcepts` flag
-- macOS may need `-D __APPLE__` for `sincosf`/`sincos` functions
 
 ### Style Guidelines
 
