@@ -1,5 +1,5 @@
 
-set(RandBLAS_libs blaspp Random123)
+set(RandBLAS_libs blaspp Random123::Random123)
 if (RandBLAS_HAS_OpenMP)
     list(APPEND RandBLAS_libs OpenMP::OpenMP_CXX)
 endif()
