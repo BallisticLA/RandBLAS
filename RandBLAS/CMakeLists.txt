@@ -15,6 +15,8 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/config.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/RandBLAS)
 
 add_library(RandBLAS INTERFACE)
+target_compile_features(RandBLAS INTERFACE cxx_std_20)
+
 
 target_include_directories(RandBLAS INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
