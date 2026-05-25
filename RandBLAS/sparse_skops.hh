@@ -41,11 +41,62 @@
 #include <cmath>
 #include <algorithm>
 #include <unordered_map>
+#include <numeric>
 
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 namespace RandBLAS::sparse {
+
+inline std::uint64_t promote_uint_pair(std::uint32_t &a, std::uint32_t &b) {
+    return static_cast<std::uint64_t>(a) + (static_cast<std::uint64_t>(b) << 32);
+}
+
+template <typename T, SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
+void _considerate_fisher_yates(
+    const state_t &state,
+    int64_t k,
+    int64_t n,
+    sint_t* samples,
+    sint_t* indices,
+    sint_t* work_piv,
+    T* vals = nullptr
+) {
+    // On entry:
+    //  samples  = buffer of length k; output-only.
+    //  indices  = {0, 1, 2, ..., n - 1}; input-output; not const.
+    //  work_piv = buffer of length k; output-only.
+    randblas_require( k <= n );
+    if (vals != nullptr) {
+        randblas_require(state.len_c >= 4);
+    }
+    typename state_t::generator gen;
+    auto ctr = state.counter;
+    for (sint_t j = 0; j < k; ++j) {
+        auto rv = gen(ctr, state.key);
+        // ^ Array of uint32's, sampled uniformly at random.
+        ctr.incr();
+        // ^ The counter is incremented every loop, even if this means
+        //   we aren't being super efficient in terms of samples.
+        auto s = promote_uint_pair(rv[0], rv[1]);
+        sint_t p = j + static_cast<sint_t>(s % (n - j));
+        // ^ sample from {j, j+1, ...., n - 1}
+        work_piv[j] = p;
+        std::swap(indices[p], indices[j]);
+        samples[j] = indices[j];
+        if (vals != nullptr) {
+            vals[j] = (rv[2] % 2 == 0) ? 1.0 : -1.0;
+        }
+    }
+    for (sint_t j = 1; j <= k; ++j) {
+        sint_t i = k - j;
+        sint_t s = samples[i];
+        sint_t p = work_piv[i];
+        indices[i] = indices[p];
+        indices[p] = s;
+    }
+    return;
+}
 
 
 template <typename T, SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
@@ -58,50 +109,27 @@ static state_t repeated_fisher_yates(
     sint_t *idxs_minor,
     T *vals
 ) {
-    bool write_vals = vals != nullptr;
-    bool write_idxs_minor = idxs_minor != nullptr;
     randblas_error_if(vec_nnz > dim_major);
     std::vector<sint_t> vec_work(dim_major);
-    for (sint_t j = 0; j < dim_major; ++j)
-        vec_work[j] = j;
+    std::iota(vec_work.begin(), vec_work.end(), 0);
     std::vector<sint_t> pivots(vec_nnz);
-    using RNG = typename state_t::generator;
-    RNG gen;
     auto [ctr, key] = state;
     for (sint_t i = 0; i < dim_minor; ++i) {
-        sint_t offset = i * vec_nnz;
-        auto ctr_work = ctr;
-        ctr_work.incr(offset);
-        for (sint_t j = 0; j < vec_nnz; ++j) {
-            // one step of Fisher-Yates shuffling
-            auto rv = gen(ctr_work, key);
-            sint_t ell = j + rv[0] % (dim_major - j);
-            pivots[j] = ell;
-            sint_t swap = vec_work[ell];
-            vec_work[ell] = vec_work[j];
-            vec_work[j] = swap;
-            // update (rows, cols, vals)
-            idxs_major[j + offset] = (sint_t) swap;
-            if (write_vals)
-                vals[j + offset] = (rv[1] % 2 == 0) ? 1.0 : -1.0;
-            if (write_idxs_minor)
-                idxs_minor[j + offset] = (sint_t) i;
-            // increment counter
-            ctr_work.incr();
+        state_t state_work{ctr, state.key};
+        _considerate_fisher_yates(
+            state_work, vec_nnz, dim_major,
+            idxs_major, vec_work.data(), pivots.data(), vals
+        );
+        ctr.incr(vec_nnz);
+        idxs_major += vec_nnz;
+        if (idxs_minor != nullptr) {
+            std::fill(idxs_minor, idxs_minor + vec_nnz, i);
+            idxs_minor += vec_nnz;
         }
-        // Restore vec_work for next iteration of Fisher-Yates.
-        //      This isn't necessary from a statistical perspective,
-        //      but it makes it easier to generate submatrices of
-        //      a given SparseSkOp.
-        for (sint_t j = 1; j <= vec_nnz; ++j) {
-            sint_t jj = vec_nnz - j;
-            sint_t swap = idxs_major[jj + offset];
-            sint_t ell = pivots[jj];
-            vec_work[jj] = vec_work[ell];
-            vec_work[ell] = swap;
+        if (vals != nullptr) { 
+            vals += vec_nnz;
         }
     }
-    ctr.incr(dim_minor * vec_nnz);
     return state_t {ctr, key};
 }
 

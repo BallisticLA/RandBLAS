@@ -130,9 +130,7 @@ static RNGState<RNG> fill_dense_submat_impl(int64_t n_cols, T* smat, int64_t n_s
     const CTR_t c = temp_c;
     const KEY_t k = seed.key;
 
-    #pragma omp parallel
-    {
-    #pragma omp for schedule(static)
+    #pragma omp parallel for schedule(static)
     for (int64_t row = 0; row < n_srows; row++) {
 
         int64_t incr_from_c = safe_int_product(ctr_inter_row_stride, row);
@@ -160,7 +158,6 @@ static RNGState<RNG> fill_dense_submat_impl(int64_t n_cols, T* smat, int64_t n_s
         c_row.incr();
         rv = OP::generate(rng, c_row, k);
         copy_promote(last_block_stop, rv, smat_row + ind);
-    }
     }
     
     // find the largest counter in the counter array

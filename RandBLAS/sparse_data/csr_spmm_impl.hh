@@ -100,20 +100,15 @@ static void apply_csr_jik_p11(
     auto C_inter_col_stride = s.inter_col_stride;
     auto C_inter_row_stride = s.inter_row_stride;
 
-    #pragma omp parallel default(shared)
-    {
-        const T *B_col = nullptr;
-        T *C_col = nullptr;
-        #pragma omp for schedule(static)
-        for (int64_t j = 0; j < n; j++) {
-            B_col = &B[B_inter_col_stride * j];
-            C_col = &C[C_inter_col_stride * j];
-            apply_csr_to_vector_ik(alpha,
-                   vals, A.rowptr, A.colidxs,
-                   B_col, B_inter_row_stride,
-                d, C_col, C_inter_row_stride
-            );
-        }
+    #pragma omp parallel for schedule(static)
+    for (int64_t j = 0; j < n; j++) {
+        const T *B_col = &B[B_inter_col_stride * j];
+              T *C_col = &C[C_inter_col_stride * j];
+        apply_csr_to_vector_ik(alpha,
+                vals, A.rowptr, A.colidxs,
+                B_col, B_inter_row_stride,
+            d, C_col, C_inter_row_stride
+        );
     }
     return;
 }
@@ -135,20 +130,17 @@ static void apply_csr_ikb_p1b_rowmajor(
     randblas_require(d == A.n_rows);
     randblas_require(m == A.n_cols);
 
-    #pragma omp parallel default(shared)
-    {
-        #pragma omp for schedule(dynamic)
-        for (int64_t i = 0; i < d; ++i) {
-            // C[i, 0:n] += alpha * A[i, :] @ B[:, 0:n]
-            T* row_C = &C[i*ldc];
-            for (int64_t ell = A.rowptr[i]; ell < A.rowptr[i+1]; ++ell) {
-                // we're working with A[i,k] for k = A.colidxs[ell]
-                // compute C[i, 0:n] += alpha * A[i,k] * B[k, 0:n]
-                T scale = alpha * A.vals[ell];
-                int64_t k = A.colidxs[ell];
-                const T* row_B = &B[k*ldb];
-                blas::axpy(n, scale, row_B, 1, row_C, 1);
-            }
+    #pragma omp parallel for schedule(dynamic)
+    for (int64_t i = 0; i < d; ++i) {
+        // C[i, 0:n] += alpha * A[i, :] @ B[:, 0:n]
+        T* row_C = &C[i*ldc];
+        for (int64_t ell = A.rowptr[i]; ell < A.rowptr[i+1]; ++ell) {
+            // we're working with A[i,k] for k = A.colidxs[ell]
+            // compute C[i, 0:n] += alpha * A[i,k] * B[k, 0:n]
+            T scale = alpha * A.vals[ell];
+            int64_t k = A.colidxs[ell];
+            const T* row_B = &B[k*ldb];
+            blas::axpy(n, scale, row_B, 1, row_C, 1);
         }
     }
     return;

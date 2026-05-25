@@ -123,29 +123,24 @@ static void apply_csc_jki_p11(
     auto C_inter_col_stride = s.inter_col_stride;
     auto C_inter_row_stride = s.inter_row_stride;
 
-    #pragma omp parallel default(shared)
-    {
-        const T *B_col = nullptr;
-        T *C_col = nullptr;
-        #pragma omp for schedule(static)
-        for (int64_t j = 0; j < n; j++) {
-            B_col = &B[B_inter_col_stride * j];
-            C_col = &C[C_inter_col_stride * j];
-            if (fixed_nnz_per_col) {
-                apply_regular_csc_to_vector_ki<T>(
-                    alpha,
-                    A.vals, A.rowidxs, A.colptr[1],
-                    m, B_col, B_inter_row_stride,
-                    C_col, C_inter_row_stride
-                );
-            } else {
-                apply_csc_to_vector_ki<T>(
-                    alpha,
-                    A.vals, A.rowidxs, A.colptr,
-                    m, B_col, B_inter_row_stride,
-                    C_col, C_inter_row_stride
-                ); 
-            }
+    #pragma omp parallel for schedule(static)
+    for (int64_t j = 0; j < n; j++) {
+        const T* B_col = &B[B_inter_col_stride * j];
+              T* C_col = &C[C_inter_col_stride * j];
+        if (fixed_nnz_per_col) {
+            apply_regular_csc_to_vector_ki<T>(
+                alpha,
+                A.vals, A.rowidxs, A.colptr[1],
+                m, B_col, B_inter_row_stride,
+                C_col, C_inter_row_stride
+            );
+        } else {
+            apply_csc_to_vector_ki<T>(
+                alpha,
+                A.vals, A.rowidxs, A.colptr,
+                m, B_col, B_inter_row_stride,
+                C_col, C_inter_row_stride
+            ); 
         }
     }
     return;
@@ -166,30 +161,18 @@ static void apply_csc_kib_1p1_rowmajor(
     auto d = A.n_rows;
     auto m = A.n_cols;
 
-    int num_threads = 1;
-    #if defined(RandBLAS_HAS_OpenMP)
-    #pragma omp parallel 
-    {
-        num_threads = omp_get_num_threads();
-    }
-    #endif
-
-    int* block_bounds = new int[num_threads + 1]{};
-    int block_size = d / num_threads;
-    if (block_size == 0) { block_size = 1;}
-    for (int t = 0; t < num_threads; ++t)
-        block_bounds[t+1] = block_bounds[t] + block_size;
-    block_bounds[num_threads] += d % num_threads;
-
     #pragma omp parallel default(shared)
     {
         #if defined(RandBLAS_HAS_OpenMP)
-        int t = omp_get_thread_num();
+            int t = omp_get_thread_num();
+            int num_threads = omp_get_num_threads();
         #else
-        int t = 0;
+            int t = 0;
+            int num_threads = 1;
         #endif
-        int i_lower = block_bounds[t];
-        int i_upper = block_bounds[t+1];
+
+        int i_lower = (d * t) / num_threads;
+        int i_upper = (d * (t + 1)) / num_threads;
         for (int64_t k = 0; k < m; ++k) {
             // Rank-1 update: C[:,:] += A[:,k] @ B[k,:]
             const T* row_B = &B[k*ldb];
@@ -203,8 +186,6 @@ static void apply_csc_kib_1p1_rowmajor(
             }
         }
     }
-
-    delete [] block_bounds;
     return;
 }
 
