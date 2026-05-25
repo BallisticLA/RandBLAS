@@ -120,7 +120,7 @@ For instance, the following CMake snippet demonstrates how an executable can
 be linked to the RandBLAS library:
 
 ```cmake
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.12)
 find_package(RandBLAS REQUIRED)
 add_executable(myexec ...)
 target_link_libraries(myexec RandBLAS ...)
@@ -133,7 +133,7 @@ but it doesn't have a ``find_package`` command for BLAS++. That's because when C
 the RandBLAS installation will tell CMake where to find blaspp as a dependency.
 Note also that LAPACK++ is referenced as ``lapackpp``.
 ```cmake
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.12)
 project(my_randblas_project)
 # ^ The project name can be whatever you want.
 find_package(RandBLAS REQUIRED)
