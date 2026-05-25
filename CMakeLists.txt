@@ -17,7 +17,9 @@ include(MKL_sparse)
 
 # compile sources
 add_subdirectory(RandBLAS)
-add_subdirectory(test)
+if (BUILD_TESTS)
+    add_subdirectory(test)
+endif()
 
 # export the configuration
 include(rb_config)
