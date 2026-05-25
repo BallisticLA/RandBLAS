@@ -617,6 +617,7 @@ inline void rskges(
         SparseSkOp<T,RNG,sint_t> shallowcopy(S.dist, S.seed_state); // shallowcopy.own_memory = true.
         fill_sparse(shallowcopy);
         rskges(layout, opA, opS, m, d, n, alpha, A, lda, shallowcopy, ro_s, co_s, beta, B, ldb);
+        return;
     }
     auto Scoo = coo_view_of_skop(S);
     right_spmm(
