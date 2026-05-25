@@ -48,7 +48,7 @@ jobs:
           cd build
           cmake \
             -DCMAKE_BUILD_TYPE=Release \
-            -DRandBLAS_DIR="$(pwd)/../../../RandBLAS-install/lib/cmake" \
+            -DCMAKE_PREFIX_PATH="$(pwd)/../../../RandBLAS-install" \
             -Dblaspp_DIR="${blaspp_DIR}" \
             -Dlapackpp_DIR="${lapackpp_DIR}" \
             -DRandom123_DIR="${Random123_DIR}" \
