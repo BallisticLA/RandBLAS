@@ -100,14 +100,6 @@ make -j install  # might need "sudo make -j install"
 ctest  # run unit tests (only if GTest was found by CMake)
 ```
 
-If you're running macOS, then it may be necessary to specify
-an additional flag to CMake
-```shell
-     -DCMAKE_CXX_FLAGS="-D __APPLE__"
-```
-This flag is needed to avoid compiler errors with the "sincosf" and "sincos"
-functions in "random_gen.hh".
-
 Here are the conceptual meanings of the recipe's other build flags:
 
 * `-Dblaspp_DIR=X` means `X` is the directory containing the file `blasppConfig.cmake`.
@@ -117,8 +109,8 @@ Here are the conceptual meanings of the recipe's other build flags:
 
 * `-DCMAKE_INSTALL_PREFIX=Z` means subdirectories within `Z` will contain
    the RandBLAS binaries, header files, and CMake configuration files needed
-   for using RandBLAS in other projects. You should make note of the directory
-   that ends up containing the file ``RandBLAS.cmake``.
+   for using RandBLAS in other projects. The CMake configuration files are
+   installed to `Z/lib/cmake/RandBLAS/`.
 
 
 ## 4. Using RandBLAS in other projects
@@ -128,12 +120,12 @@ For instance, the following CMake snippet demonstrates how an executable can
 be linked to the RandBLAS library:
 
 ```cmake
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.12)
 find_package(RandBLAS REQUIRED)
 add_executable(myexec ...)
 target_link_libraries(myexec RandBLAS ...)
 ```
-In order to build that CMake project you'd need to specify a build flag ``-DRandBLAS_DIR=X``, where ``X`` is a directory that contains ``RandBLAS.cmake``.
+In order to build that CMake project you'd need to point CMake at the RandBLAS installation. The recommended way is ``-DCMAKE_PREFIX_PATH=Z``, where ``Z`` is the installation prefix from the previous section. Alternatively, set ``-DRandBLAS_DIR=Z/lib/cmake/RandBLAS`` to skip CMake's package-search and name the config directory directly.
 
 Most projects that use RandBLAS will also use LAPACK++.
 Here is example CMake code for such a project. Note that it references BLAS++ in the final line (as ``blaspp``),
@@ -141,7 +133,7 @@ but it doesn't have a ``find_package`` command for BLAS++. That's because when C
 the RandBLAS installation will tell CMake where to find blaspp as a dependency.
 Note also that LAPACK++ is referenced as ``lapackpp``.
 ```cmake
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.12)
 project(my_randblas_project)
 # ^ The project name can be whatever you want.
 find_package(RandBLAS REQUIRED)
@@ -152,17 +144,3 @@ add_executable(my_project ${myproject_cxx_source})
 target_include_directories(myproject PUBLIC ${Random123_DIR})
 target_link_libraries(myproject PUBLIC RandBLAS blaspp lapackpp)
 ```
-
-## 5. Tips
-
-The performance of RandBLAS depends heavily on how BLAS++ is configured.
-If performance matters to you then you should inspect the
-information that's printed to screen when you run ``cmake`` for the BLAS++ installation.
-Save that information somewhere while you're setting up your RandBLAS
-development environment.
-
-[An earlier version](https://github.com/BallisticLA/RandBLAS/blob/9d0a03fa41fd7c126b252002a54c2f2562fae31a/INSTALL.md#5-tips)
-of this installation guide had specific recommendations for configuring BLAS++ and LAPACK++ on Intel machines.
-Those recommendations may be useful to you if you're having a hard time getting these libraries setup correctly.
-We removed those recommendations from this guide, since they encouraged a somewhat bad practice of installing BLAS++
-and LAPACK++ to a system-wide location (under ``/opt/``) instead of a location that's used for one project.

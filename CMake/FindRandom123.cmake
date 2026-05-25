@@ -25,9 +25,9 @@ find_package_handle_standard_args(Random123
     "Failed to find Random123. Set -DRandom123_DIR=X with X pointing to the directory where the header files \"Random123/*.h\" are located."
     Random123_INCLUDE_DIR)
 
-if (NOT TARGET Random123)
-    add_library(Random123 INTERFACE)
-    target_include_directories(Random123
+if (NOT TARGET Random123::Random123)
+    add_library(Random123::Random123 INTERFACE IMPORTED GLOBAL)
+    target_include_directories(Random123::Random123
         SYSTEM INTERFACE "${Random123_INCLUDE_DIR}")
 endif()
 

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.12)
 
 project(RandBLAS)
 
@@ -17,7 +17,9 @@ include(MKL_sparse)
 
 # compile sources
 add_subdirectory(RandBLAS)
-add_subdirectory(test)
+if (BUILD_TESTS)
+    add_subdirectory(test)
+endif()
 
 # export the configuration
 include(rb_config)

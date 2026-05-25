@@ -115,7 +115,6 @@ The sparse triangular solve function (`trsm`) handles transposition similarly:
 
 - **C++20** required (uses concepts for type constraints)
 - Some compilers (e.g., gcc 8.5) may need `-fconcepts` flag
-- macOS may need `-D __APPLE__` for `sincosf`/`sincos` functions
 
 ### Style Guidelines
 
@@ -180,7 +179,6 @@ Key CMake variables:
 - `blaspp_DIR`: Path to BLAS++ installation (containing `blasppConfig.cmake`)
 - `Random123_DIR`: Path to Random123 headers
 - `CMAKE_BUILD_TYPE`: Release or Debug
-- `CMAKE_CXX_FLAGS`: May need `-D __APPLE__` on macOS
 
 ### Installation
 
@@ -284,7 +282,6 @@ All CI tests must pass before merging.
 - **Don't** change RNG behavior without carefully preserving thread-independence
 - **Don't** optimize sparse kernels without benchmarking
 - **Don't** add BLAS++ dependencies beyond current subset without discussion
-- **Don't** break CMake configuration for downstream projects
 - **Don't** assume all 12 sparse matrix codepaths are tested (verify coverage)
 
 ## External Dependencies
@@ -305,7 +302,7 @@ All CI tests must pass before merging.
 
 - BLAS++ configuration heavily affects performance - users should inspect CMake output
 - Random123 headers must be in include path for downstream projects
-- OpenMP detection can fail on macOS with default system compilers (use homebrew gcc/clang)
+- OpenMP detection can fail on macOS with default system compilers (check for alternatives via homebrew, spack, or Environment Modules).
 
 ## Security and Correctness
 
