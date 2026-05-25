@@ -17,9 +17,9 @@ If you want a TL;DR version of this guide, refer to one of the following.
 ## 1. Required dependencies: a C++20 compatible compiler, BLAS++, and Random123
 
 RandBLAS uses C++20 [concepts](https://en.cppreference.com/w/cpp/language/constraints).
-Make sure your compiler supports these. Some compilers (like gcc 8.5) might need to be
-invoked with an additional flag (``-fconcepts``) in order to support this aspect of the
-C++20 standard. See [this issue](https://github.com/BallisticLA/RandBLAS/issues/90) for more info.
+Make sure your compiler supports these. We test gcc ≥13 on Linux, and both Apple Clang
+and Homebrew LLVM on macOS; older toolchains (such as gcc 8.5 with `-fconcepts`) are not
+supported.
 
 BLAS++ is a C++ API for the Basic Linear Algebra Subroutines.
 It can be installed with GNU make or CMake.

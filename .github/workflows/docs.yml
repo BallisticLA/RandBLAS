@@ -1,0 +1,43 @@
+name: docs
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sphinx:
+    name: sphinx-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install doxygen
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y doxygen
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: rtd/requirements.txt
+
+      - name: install Python deps
+        shell: bash
+        run: pip install -r rtd/requirements.txt
+
+      # conf.py invokes `doxygen` itself before Sphinx runs, so a plain
+      # sphinx-build is sufficient. -W (warnings-as-errors) is intentionally
+      # NOT set here: this workflow lands as a shadow build first, and we'll
+      # flip on -W in a follow-up PR after the docstring backlog is cleared.
+      - name: sphinx-build
+        shell: bash
+        working-directory: ${{ github.workspace }}/rtd
+        run: sphinx-build source build

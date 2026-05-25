@@ -293,7 +293,7 @@ All CI tests must pass before merging.
 
 - **BLAS++** (blaspp): BLAS portability layer - must be built with CMake
 - **Random123**: Header-only RNG library
-- **C++20 compiler**: gcc ≥9, clang ≥10, or equivalent
+- **C++20 compiler**: gcc ≥13, or any clang sufficiently recent to handle C++20 concepts (CI tests Apple Clang and Homebrew LLVM on macOS, clang from `apt` on Linux)
 
 ### Optional
 

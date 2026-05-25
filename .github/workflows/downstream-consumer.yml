@@ -1,0 +1,55 @@
+name: downstream-consumer
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  find-package-smoke:
+    name: linux-gcc-find-package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup RandBLAS dependencies
+        uses: ./.github/actions/setup-randblas-deps
+        with:
+          cc: gcc
+          cxx: g++
+          blas-backend: openblas
+
+      - name: build and install RandBLAS
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd ..
+          mkdir RandBLAS-build
+          cd RandBLAS-build
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -Dblaspp_DIR="${blaspp_DIR}" \
+            -DRandom123_DIR="${Random123_DIR}" \
+            -DCMAKE_INSTALL_PREFIX="$(pwd)/../RandBLAS-install" \
+            "$(pwd)/../RandBLAS"
+          make -j"$(nproc)" install
+
+      - name: configure and build downstream smoke test
+        shell: bash
+        working-directory: ${{ github.workspace }}/test/downstream
+        run: |
+          set -euxo pipefail
+          mkdir build
+          cd build
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DRandBLAS_DIR="$(pwd)/../../../../RandBLAS-install/lib/cmake" \
+            -Dblaspp_DIR="${blaspp_DIR}" \
+            -DRandom123_DIR="${Random123_DIR}" \
+            ..
+          make -j"$(nproc)"
+          ./smoke

@@ -1,0 +1,63 @@
+name: thread-sanitizer
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tsan:
+    name: linux-clang-tsan-openmp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install clang + libomp
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y clang libomp-dev
+
+      - name: setup RandBLAS dependencies
+        uses: ./.github/actions/setup-randblas-deps
+        with:
+          cc: clang
+          cxx: clang++
+          blas-backend: openblas
+
+      - name: configure and build RandBLAS with TSan
+        shell: bash
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          set -euxo pipefail
+          cd ..
+          mkdir RandBLAS-tsan-build
+          cd RandBLAS-tsan-build
+          cmake \
+            -DCMAKE_C_COMPILER="${CC}" \
+            -DCMAKE_CXX_COMPILER="${CXX}" \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread" \
+            -Dblaspp_DIR="${blaspp_DIR}" \
+            -DRandom123_DIR="${Random123_DIR}" \
+            "$(pwd)/../RandBLAS"
+          make -j"$(nproc)"
+
+      - name: ctest under TSan (OMP_NUM_THREADS=4)
+        shell: bash
+        working-directory: ${{ github.workspace }}/../RandBLAS-tsan-build
+        env:
+          OMP_NUM_THREADS: "4"
+          # ignore_noninstrumented_modules=1 silences spurious reports against
+          # blaspp/openblas/libomp/libc, none of which are built with TSan.
+          TSAN_OPTIONS: "halt_on_error=0 ignore_noninstrumented_modules=1 second_deadlock_stack=1"
+        # test_rng_speed is a benchmark, not a correctness test; skip it under TSan.
+        run: ctest --output-on-failure -E test_rng_speed
