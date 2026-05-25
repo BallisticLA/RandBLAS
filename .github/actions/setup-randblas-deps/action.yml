@@ -174,8 +174,11 @@ runs:
         cd ..
         rm -rf Random123 Random123-install
         git clone --depth 1 https://github.com/DEShawResearch/Random123.git
-        cd Random123
-        make prefix="$(pwd)/../Random123-install" install-include
+        # Random123's `make install-include` target uses GNU `cp -d`, which
+        # isn't supported by BSD cp on macOS. Copy the headers directly so
+        # the same step works on both platforms.
+        mkdir -p Random123-install/include
+        cp -R Random123/include/Random123 Random123-install/include/
 
     - name: export dependency paths
       shell: bash
