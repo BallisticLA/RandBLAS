@@ -1,0 +1,240 @@
+name: core
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux / gcc / OpenBLAS — primary correctness cell (Release).
+          - label: linux-gcc-openblas-release
+            os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            blas-backend: openblas
+            build-type: Release
+            sanitizer: none
+            openmp: true
+
+          # Linux / gcc / OpenBLAS — Debug + ASan.
+          - label: linux-gcc-openblas-debug-asan
+            os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            blas-backend: openblas
+            build-type: Debug
+            sanitizer: asan
+            openmp: true
+
+          # Linux / gcc / OpenBLAS — Release + UBSan.
+          - label: linux-gcc-openblas-release-ubsan
+            os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            blas-backend: openblas
+            build-type: Release
+            sanitizer: ubsan
+            openmp: true
+
+          # Linux / gcc / MKL — exercises RandBLAS_HAS_MKL codepaths.
+          - label: linux-gcc-mkl-release
+            os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            blas-backend: mkl
+            build-type: Release
+            sanitizer: none
+            openmp: true
+
+          # Linux / clang / OpenBLAS — Release.
+          - label: linux-clang-openblas-release
+            os: ubuntu-latest
+            cc: clang
+            cxx: clang++
+            blas-backend: openblas
+            build-type: Release
+            sanitizer: none
+            openmp: true
+
+          # Linux / clang / OpenBLAS — Release + ASan.
+          - label: linux-clang-openblas-release-asan
+            os: ubuntu-latest
+            cc: clang
+            cxx: clang++
+            blas-backend: openblas
+            build-type: Release
+            sanitizer: asan
+            openmp: true
+
+          # macOS 14 / Apple Clang / Accelerate — no OpenMP (serial).
+          - label: macos14-appleclang-accelerate-release
+            os: macos-14
+            cc: clang
+            cxx: clang++
+            blas-backend: accelerate
+            build-type: Release
+            sanitizer: none
+            openmp: false
+
+          # macOS 14 / Apple Clang / Accelerate — Debug + ASan, no OpenMP.
+          - label: macos14-appleclang-accelerate-debug-asan
+            os: macos-14
+            cc: clang
+            cxx: clang++
+            blas-backend: accelerate
+            build-type: Debug
+            sanitizer: asan
+            openmp: false
+
+          # macOS 14 / Homebrew LLVM / Accelerate — OpenMP build.
+          - label: macos14-llvm-accelerate-release
+            os: macos-14
+            cc: brew-llvm-clang
+            cxx: brew-llvm-clang++
+            blas-backend: accelerate
+            build-type: Release
+            sanitizer: none
+            openmp: true
+
+          # macOS 14 / Homebrew LLVM / Accelerate — Release + ASan with OpenMP.
+          - label: macos14-llvm-accelerate-release-asan
+            os: macos-14
+            cc: brew-llvm-clang
+            cxx: brew-llvm-clang++
+            blas-backend: accelerate
+            build-type: Release
+            sanitizer: asan
+            openmp: true
+
+          # macOS 15 / Homebrew LLVM / Accelerate — track latest macOS runner.
+          - label: macos15-llvm-accelerate-release
+            os: macos-15
+            cc: brew-llvm-clang
+            cxx: brew-llvm-clang++
+            blas-backend: accelerate
+            build-type: Release
+            sanitizer: none
+            openmp: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: resolve compiler paths
+        id: compilers
+        shell: bash
+        run: |
+          set -euxo pipefail
+          case "${{ matrix.cc }}" in
+            brew-llvm-clang)
+              brew update
+              brew install llvm
+              llvm_prefix="$(brew --prefix llvm)"
+              echo "cc=${llvm_prefix}/bin/clang" >> "$GITHUB_OUTPUT"
+              echo "cxx=${llvm_prefix}/bin/clang++" >> "$GITHUB_OUTPUT"
+              echo "${llvm_prefix}/bin" >> "$GITHUB_PATH"
+              ;;
+            clang)
+              if [[ "${{ runner.os }}" == "Linux" ]]; then
+                sudo apt-get update -qq
+                sudo apt-get install -qq -y clang
+              fi
+              echo "cc=clang" >> "$GITHUB_OUTPUT"
+              echo "cxx=clang++" >> "$GITHUB_OUTPUT"
+              ;;
+            gcc)
+              echo "cc=gcc" >> "$GITHUB_OUTPUT"
+              echo "cxx=g++" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::unknown matrix.cc: ${{ matrix.cc }}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: setup RandBLAS dependencies
+        uses: ./.github/actions/setup-randblas-deps
+        with:
+          cc: ${{ steps.compilers.outputs.cc }}
+          cxx: ${{ steps.compilers.outputs.cxx }}
+          blas-backend: ${{ matrix.blas-backend }}
+
+      - name: configure and build RandBLAS
+        shell: bash
+        env:
+          CC: ${{ steps.compilers.outputs.cc }}
+          CXX: ${{ steps.compilers.outputs.cxx }}
+        run: |
+          set -euxo pipefail
+          cd ..
+          mkdir -p RandBLAS-build
+          cd RandBLAS-build
+
+          sanitize_address_arg=""
+          extra_cxx_flags=""
+          extra_link_flags=""
+          case "${{ matrix.sanitizer }}" in
+            none) ;;
+            asan)
+              sanitize_address_arg="-DSANITIZE_ADDRESS=ON"
+              ;;
+            ubsan)
+              extra_cxx_flags="-fsanitize=undefined -fno-sanitize-recover=undefined"
+              extra_link_flags="-fsanitize=undefined"
+              ;;
+            *)
+              echo "::error::unknown matrix.sanitizer: ${{ matrix.sanitizer }}" >&2
+              exit 1
+              ;;
+          esac
+
+          cmake \
+            -DCMAKE_C_COMPILER="${CC}" \
+            -DCMAKE_CXX_COMPILER="${CXX}" \
+            -DCMAKE_BUILD_TYPE="${{ matrix.build-type }}" \
+            -DCMAKE_CXX_FLAGS="${extra_cxx_flags}" \
+            -DCMAKE_EXE_LINKER_FLAGS="${extra_link_flags}" \
+            ${sanitize_address_arg} \
+            -Dblaspp_DIR="${blaspp_DIR}" \
+            -DRandom123_DIR="${Random123_DIR}" \
+            -DCMAKE_INSTALL_PREFIX="$(pwd)/../RandBLAS-install" \
+            "$(pwd)/../RandBLAS"
+
+          if [[ "$(uname)" == "Darwin" ]]; then
+            jobs="$(sysctl -n hw.logicalcpu)"
+          else
+            jobs="$(nproc)"
+          fi
+          make -j"${jobs}" install
+
+      - name: ctest (OMP_NUM_THREADS=1)
+        if: matrix.openmp
+        shell: bash
+        working-directory: ${{ github.workspace }}/../RandBLAS-build
+        env:
+          OMP_NUM_THREADS: "1"
+        run: ctest --output-on-failure
+
+      - name: ctest (OMP_NUM_THREADS=4)
+        if: matrix.openmp
+        shell: bash
+        working-directory: ${{ github.workspace }}/../RandBLAS-build
+        env:
+          OMP_NUM_THREADS: "4"
+        run: ctest --output-on-failure
+
+      - name: ctest (no OpenMP)
+        if: ${{ !matrix.openmp }}
+        shell: bash
+        working-directory: ${{ github.workspace }}/../RandBLAS-build
+        run: ctest --output-on-failure

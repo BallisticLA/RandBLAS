@@ -1,0 +1,189 @@
+name: setup-randblas-deps
+description: >
+  Installs RandBLAS build dependencies (GoogleTest, BLAS++, Random123, and
+  optionally LAPACK++), with caching for the from-source dependencies. Exports
+  blaspp_DIR, Random123_DIR, and (optionally) lapackpp_DIR via GITHUB_ENV.
+
+inputs:
+  cc:
+    description: "C compiler to use for building from-source dependencies."
+    required: true
+  cxx:
+    description: "C++ compiler to use for building from-source dependencies."
+    required: true
+  blas-backend:
+    description: "BLAS backend for blaspp: openblas, mkl, accelerate, or auto."
+    required: false
+    default: auto
+  install-lapackpp:
+    description: "If 'true', also clone and build LAPACK++ (needed by examples)."
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: install system packages (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -euxo pipefail
+        export DEBIAN_FRONTEND=noninteractive
+        sudo apt-get update -qq
+        sudo apt-get install -qq -y \
+          git-core gfortran cmake make automake m4 \
+          libgtest-dev
+        case "${{ inputs.blas-backend }}" in
+          openblas)
+            sudo apt-get install -qq -y libopenblas-openmp-dev
+            ;;
+          mkl)
+            sudo apt-get install -qq -y libmkl-dev
+            ;;
+          auto)
+            sudo apt-get install -qq -y libopenblas-openmp-dev
+            ;;
+          accelerate)
+            echo "::error::accelerate backend is not available on Linux" >&2
+            exit 1
+            ;;
+          *)
+            echo "::error::unknown blas-backend: ${{ inputs.blas-backend }}" >&2
+            exit 1
+            ;;
+        esac
+
+    - name: install system packages (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        set -euxo pipefail
+        brew install googletest
+        case "${{ inputs.blas-backend }}" in
+          accelerate|auto) : ;;
+          openblas)        brew install openblas ;;
+          mkl)
+            echo "::error::mkl backend is not supported on macOS" >&2
+            exit 1
+            ;;
+          *)
+            echo "::error::unknown blas-backend: ${{ inputs.blas-backend }}" >&2
+            exit 1
+            ;;
+        esac
+
+    - name: resolve blaspp HEAD commit
+      id: blaspp-rev
+      shell: bash
+      run: |
+        set -euxo pipefail
+        sha="$(git ls-remote https://github.com/icl-utk-edu/blaspp.git HEAD | awk '{print $1}')"
+        echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+    - name: resolve lapackpp HEAD commit
+      if: inputs.install-lapackpp == 'true'
+      id: lapackpp-rev
+      shell: bash
+      run: |
+        set -euxo pipefail
+        sha="$(git ls-remote https://github.com/icl-utk-edu/lapackpp.git HEAD | awk '{print $1}')"
+        echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+    - name: cache blaspp install
+      id: blaspp-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/../blaspp-install
+        key: blaspp-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}
+
+    - name: build blaspp
+      if: steps.blaspp-cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        CC: ${{ inputs.cc }}
+        CXX: ${{ inputs.cxx }}
+      run: |
+        set -euxo pipefail
+        cd ..
+        rm -rf blaspp blaspp-build blaspp-install
+        git clone --depth 1 https://github.com/icl-utk-edu/blaspp.git
+        mkdir blaspp-build
+        cd blaspp-build
+        blas_arg=""
+        case "${{ inputs.blas-backend }}" in
+          openblas)   blas_arg="-Dblas=openblas" ;;
+          mkl)        blas_arg="-Dblas=mkl" ;;
+          accelerate) blas_arg="-Dblas=accelerate" ;;
+          auto)       blas_arg="" ;;
+        esac
+        cmake \
+          -DCMAKE_C_COMPILER="${CC}" \
+          -DCMAKE_CXX_COMPILER="${CXX}" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX="$(pwd)/../blaspp-install" \
+          -Dbuild_tests=OFF \
+          ${blas_arg} \
+          ../blaspp
+        if [[ "$(uname)" == "Darwin" ]]; then
+          jobs="$(sysctl -n hw.logicalcpu)"
+        else
+          jobs="$(nproc)"
+        fi
+        make -j"${jobs}" install
+
+    - name: cache lapackpp install
+      if: inputs.install-lapackpp == 'true'
+      id: lapackpp-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/../lapackpp-install
+        key: lapackpp-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}-${{ steps.lapackpp-rev.outputs.sha }}
+
+    - name: build lapackpp
+      if: inputs.install-lapackpp == 'true' && steps.lapackpp-cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        CC: ${{ inputs.cc }}
+        CXX: ${{ inputs.cxx }}
+      run: |
+        set -euxo pipefail
+        cd ..
+        rm -rf lapackpp lapackpp-build lapackpp-install
+        git clone --depth 1 https://github.com/icl-utk-edu/lapackpp.git
+        mkdir lapackpp-build
+        cd lapackpp-build
+        cmake \
+          -DCMAKE_C_COMPILER="${CC}" \
+          -DCMAKE_CXX_COMPILER="${CXX}" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX="$(pwd)/../lapackpp-install" \
+          -Dblaspp_DIR="$(pwd)/../blaspp-install/lib/cmake/blaspp" \
+          -Dbuild_tests=OFF \
+          ../lapackpp
+        if [[ "$(uname)" == "Darwin" ]]; then
+          jobs="$(sysctl -n hw.logicalcpu)"
+        else
+          jobs="$(nproc)"
+        fi
+        make -j"${jobs}" install
+
+    - name: install Random123 headers
+      shell: bash
+      run: |
+        set -euxo pipefail
+        cd ..
+        rm -rf Random123 Random123-install
+        git clone --depth 1 https://github.com/DEShawResearch/Random123.git
+        cd Random123
+        make prefix="$(pwd)/../Random123-install" install-include
+
+    - name: export dependency paths
+      shell: bash
+      run: |
+        set -euxo pipefail
+        cd ..
+        echo "blaspp_DIR=$(pwd)/blaspp-install/lib/cmake/blaspp" >> "$GITHUB_ENV"
+        echo "Random123_DIR=$(pwd)/Random123-install/include" >> "$GITHUB_ENV"
+        if [[ "${{ inputs.install-lapackpp }}" == "true" ]]; then
+          echo "lapackpp_DIR=$(pwd)/lapackpp-install/lib/cmake/lapackpp" >> "$GITHUB_ENV"
+        fi
