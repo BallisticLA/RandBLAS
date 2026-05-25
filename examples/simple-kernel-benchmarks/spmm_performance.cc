@@ -101,10 +101,10 @@ void handrolled_left_spmm_csr(
     Layout layout_opB = layout;  // opB == NoTrans
     Layout layout_C = layout;
     if (layout_opB == Layout::RowMajor && layout_C == Layout::RowMajor) {
-        RandBLAS::sparse_data::csr::apply_csr_left_ikb_p1b_rowmajor(
+        RandBLAS::sparse_data::csr::apply_csr_ikb_p1b_rowmajor(
             alpha, d, n, m, A, B, ldb, C, ldc);
     } else {
-        RandBLAS::sparse_data::csr::apply_csr_left_jik_p11(
+        RandBLAS::sparse_data::csr::apply_csr_jik_p11(
             alpha, layout_opB, layout_C, d, n, m, A, B, ldb, C, ldc);
     }
 }
