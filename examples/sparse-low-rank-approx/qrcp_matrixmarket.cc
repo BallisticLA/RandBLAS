@@ -172,28 +172,26 @@ int sketch_orthogonalize_rows(int64_t m, int64_t n, T* A, T* work, int64_t d, in
 }
 
 template <typename T>
-int lu_row_stabilize(int64_t m, int64_t n, T* mat, int64_t* piv_work) {
+int lu_row_stabilize(int64_t m, int64_t n, T* mat, int64_t* piv_work, T* transpose_work) {
+    // Co-range stabilization via LU of the transpose: P mat^T = L U, then mat <- L^T P.
+    // If mat's rows are linearly dependent on entry, the output rows will be made independent,
+    // so this can spuriously increase the dimension of the row space.
     randblas_require(m < n);
-    for (int64_t i = 0; i < m; ++i)
-        piv_work[i] = 0;
-    lapack::getrf(m, n, mat, m, piv_work);
-    // above: the permutation applied to the rows of mat doesn't matter in our context.
-    // below: Need to zero-out the strict lower triangle of mat and scale each row.
-    T tol = std::numeric_limits<T>::epsilon()*10;
-    bool nonzero_diag_U = true;
-    for (int64_t j = 0; (j < m-1) & nonzero_diag_U; ++j) {
-        nonzero_diag_U = abs(mat[j + j*m]) > tol;
-        for (int64_t i = j + 1; i < m; ++i) {
-            mat[i + j*m] = 0.0;
-        }
+    // 1. Transpose mat (m-by-n, lda=m, col-major) into transpose_work (n-by-m, lda=n, col-major).
+    RandBLAS::util::omatcopy(n, m, mat, m, 1, transpose_work, 1, n);
+    // 2. P mat^T = L U; transpose_work now holds L\U.
+    lapack::getrf(n, m, transpose_work, n, piv_work);
+    // 3. Zero the strict upper triangle of the top m-by-m block and set unit diagonal, so
+    //    transpose_work holds the full lower-trapezoidal L factor (n-by-m).
+    for (int64_t j = 0; j < m; ++j) {
+        for (int64_t i = 0; i < j; ++i)
+            transpose_work[i + j*n] = 0.0;
+        transpose_work[j + j*n] = 1.0;
     }
-    if (!nonzero_diag_U) {
-        throw std::runtime_error("LU stabilization failed. Matrix has been overwritten, so we cannot recover.");
-    }
-    for (int64_t i = 0; i < m; ++i) {
-        T scale = 1.0 / mat[i + i*m];
-        blas::scal(n, scale, mat + i, m);
-    }
+    // 4. Apply P^T to L, so transpose_work holds P^T L.
+    lapack::laswp(m, transpose_work, n, 1, m, piv_work, 1);
+    // 5. Transpose back: mat <- (P^T L)^T = L^T P.
+    RandBLAS::util::omatcopy(m, n, transpose_work, n, 1, mat, 1, m);
     return 0;
 }
 
@@ -245,9 +243,10 @@ void power_iter_col_sketch(SpMat &A, int64_t k, T* Y, int64_t p_data_aware, STAT
     int64_t* piv_work = new int64_t[k];
     int64_t sketch_dim = (int64_t) (1.25*k + 1);
     T* sketch_orth_work = new T[sketch_dim * m]{0.0};
-    auto stab_func = [sm, k, piv_work, tau_work, sketch_orth_work, sketch_dim](T* mat_to_stab, int64_t num_mat_cols, int64_t key) {
+    T* lu_transpose_work = (sm == StabilizationMethod::LU) ? new T[k * std::max(m, n)] : nullptr;
+    auto stab_func = [sm, k, piv_work, tau_work, sketch_orth_work, sketch_dim, lu_transpose_work](T* mat_to_stab, int64_t num_mat_cols, int64_t key) {
         if (sm == StabilizationMethod::LU) {
-            lu_row_stabilize(k, num_mat_cols, mat_to_stab, piv_work);
+            lu_row_stabilize(k, num_mat_cols, mat_to_stab, piv_work, lu_transpose_work);
         } else if (sm == StabilizationMethod::LQ) {
             qr_row_stabilize(k, num_mat_cols, mat_to_stab, tau_work);
         } else if (sm == StabilizationMethod::sketch) {
@@ -292,6 +291,7 @@ void power_iter_col_sketch(SpMat &A, int64_t k, T* Y, int64_t p_data_aware, STAT
     delete [] tau_work;
     delete [] piv_work;
     delete [] sketch_orth_work;
+    delete [] lu_transpose_work;
     return;
 }
 
@@ -449,7 +449,7 @@ int main(int argc, char** argv) {
     run(mat_csc, k, power_iter_steps, StabilizationMethod::sketch, extra_verbose);
     std::cout << "Do nothing. This is numerically dangerous unless power_iter_steps is extremely small.\n";
     run(mat_csc, k, power_iter_steps, StabilizationMethod::None, extra_verbose);
-    std::cout << "Take (scaled) U from row-pivoted LU. This may exit with an error!\n";
+    std::cout << "Take L^T P from row-pivoted LU of W^T.\n";
     run(mat_csc, k, power_iter_steps, StabilizationMethod::LU, extra_verbose);
     return 0;
 }
