@@ -459,7 +459,7 @@ void run_all_base_rng_kats() {
 
     UnknownKatTracker ukt{};
 
-    inname = "./r123_kat_vectors.txt";
+    inname = KAT_VECTORS_PATH;
 	inpfile = fopen(inname, "r");
 	if (inpfile == NULL)
         FAIL() << "Error opening input file " << inname << " for reading. Received error code " << errno << "\n";

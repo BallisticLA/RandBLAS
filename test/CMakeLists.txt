@@ -65,10 +65,10 @@ if (GTest_FOUND)
     )
     add_executable(stat_tests ${STAT_SOURCES})
     target_link_libraries(stat_tests RandBLAS GTest::GTest GTest::Main)
+    # Bake the KAT vector path in at compile time so the test is cwd-independent.
+    target_compile_definitions(stat_tests PRIVATE
+        KAT_VECTORS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/basic_rng/r123_kat_vectors.txt")
     gtest_discover_tests(stat_tests)
-    file(COPY basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-    file(COPY basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/..)
-    file(COPY basic_rng/r123_kat_vectors.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/../test/)
 
     #####################################################################
     #
