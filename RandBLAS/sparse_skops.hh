@@ -110,6 +110,23 @@ static state_t repeated_fisher_yates(
     T *vals
 ) {
     randblas_error_if(vec_nnz > dim_major);
+    if (vec_nnz == 1) {
+        // Sampling 1 element without replacement is the same as with replacement,
+        // so delegate to the cheaper i.i.d. sampler. Per-matvec call (k=1) matches
+        // the per-matvec increment formula in compute_next_state.
+        state_t cur_state = state;
+        for (int64_t i = 0; i < dim_minor; ++i) {
+            if (vals != nullptr) {
+                cur_state = sample_indices_iid_uniform<T, sint_t, true>(
+                    dim_major, 1, idxs_major + i, vals + i, cur_state);
+            } else {
+                cur_state = sample_indices_iid_uniform<sint_t>(
+                    dim_major, 1, idxs_major + i, cur_state);
+            }
+            if (idxs_minor != nullptr) idxs_minor[i] = i;
+        }
+        return cur_state;
+    }
     std::vector<sint_t> vec_work(dim_major);
     std::iota(vec_work.begin(), vec_work.end(), 0);
     std::vector<sint_t> pivots(vec_nnz);
@@ -296,9 +313,15 @@ RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
     int64_t num_mavec, incrs_per_mavec;
     if (dist.major_axis == Axis::Short) {
         num_mavec = std::max(dist.n_rows, dist.n_cols);
-        incrs_per_mavec = dist.vec_nnz;
-        // ^ SASOs don't try to be frugal with CBRNG increments.
-        //   See repeated_fisher_yates.
+        if (dist.vec_nnz == 1) {
+            // SASO with vec_nnz=1 delegates to sample_indices_iid_uniform
+            // (per-matvec, with rademachers), which is frugal with CBRNG increments.
+            incrs_per_mavec = (int64_t) std::ceil((double) dist.vec_nnz / ((double) state.len_c/2));
+        } else {
+            incrs_per_mavec = dist.vec_nnz;
+            // ^ SASOs don't try to be frugal with CBRNG increments.
+            //   See repeated_fisher_yates.
+        }
     } else {
         num_mavec = std::min(dist.n_rows, dist.n_cols);
         incrs_per_mavec = (int64_t) std::ceil((double) dist.vec_nnz / ((double) state.len_c/2));
