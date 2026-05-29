@@ -61,22 +61,24 @@ void apply_reflectors(int64_t m, int64_t n, int64_t k, const T* vecs, int64_t ld
 
 template <typename T>
 int potrf_upper_sequential(int64_t n, T* A, int64_t lda) {
-    // Cache access is much better if the matrix is lower triangular.
-    // Could implement as lower triangular and then call transpose_square.
-    for (int64_t j = 0; j < n; ++j) {
-        if (A[j + j * lda] <= 0) {
-            std::cout << "Cholesky failed at index " << (j+1) << " of " << n << ".";
-            return j+1;
-        }
-        A[j + j * lda] = std::sqrt(A[j + j * lda]);
-        for (int64_t i = j + 1; i < n; ++i) {
-            A[j + i * lda] /= A[j + j * lda];
-        }
-        for (int64_t k = j + 1; k < n; ++k) {
-            for (int64_t i = k; i < n; ++i) {
-                A[k + i * lda] -= A[j + i * lda] * A[j + k * lda];
+    int64_t j, i, k;
+    for (j = 0; j < n; ++j) {
+        T* A_j = A + j*lda;                   // column j: rows 0..n-1, unit stride
+        for (i = 0; i < j; ++i) {
+            const T* A_i = A + i*lda;         // column i: already finalized
+            T s = A_j[i];
+            for (int64_t k = 0; k < i; ++k) {
+                s -= A_i[k] * A_j[k];         // dot of two column-prefixes — both stride 1
             }
+            A_j[i] = s / A_i[i];              // divide by U(i,i), the diagonal of column i
         }
+        T d = A_j[j];
+        for (k = 0; k < j; ++k)
+            d -= A_j[k] * A_j[k];             // walks down column j, stride 1
+        if (d <= 0) {
+            return j + 1;                     // leading minor of order j+1 not SPD
+        }
+        A_j[j] = std::sqrt(d);
     }
     return 0;
 }
@@ -107,7 +109,9 @@ int potrf_upper(int64_t n, T* A, int64_t lda, int64_t b = 64) {
         blas::syrk(layout, uplo, blas::Op::Trans,
             n - curr_b, curr_b, (T) -1.0, A12, lda, (T) 1.0, A22, lda
         );
-        potrf_upper(n-curr_b, A22, lda, b);
+        if (int info = potrf_upper(n-curr_b, A22, lda, b)) {
+            return info + curr_b;
+        }
     }
     return 0;
 }
