@@ -513,35 +513,31 @@ state_t sample_indices_iid(int64_t n, const T* cdf, int64_t k, sint_t* samples, 
     return state_t(ctr, key);
 }
  
+inline std::uint64_t promote_uint_pair(std::uint32_t a, std::uint32_t b) {
+    return static_cast<std::uint64_t>(a) + (static_cast<std::uint64_t>(b) << 32);
+}
+
 template <typename T, SignedInteger sint_t, bool WriteRademachers = true, typename state_t = RNGState<DefaultRNG>>
 state_t sample_indices_iid_uniform(int64_t n, int64_t k, sint_t* samples, T* rademachers, const state_t &state) {
-    using RNG = typename state_t::generator;
-    auto [ctr, key] = state;
-    RNG gen;
-    auto rv_array = r123ext::uneg11::generate(gen, ctr, key);
-    int64_t len_c = static_cast<int64_t>(state.len_c);
     if constexpr (WriteRademachers) {
-        len_c = 2*(len_c/2);
-        // ^ round down to the nearest multiple of two.
+        randblas_require(state.len_c >= 4);
+    } else {
+        randblas_require(state.len_c >= 2);
     }
-    int64_t rv_index = 0;
-    double dN = (double) n;
+    using RNG = typename state_t::generator;
+    RNG gen;
+    auto ctr = state.counter;
+    auto key = state.key;
+    std::uint64_t n_64 = static_cast<std::uint64_t>(n);
     for (int64_t i = 0; i < k; ++i) {
-        auto random_unif01 = uneg11_to_u01<double>(rv_array[rv_index]);
-        sint_t sample_index = (sint_t) dN * random_unif01;
-        samples[i] = sample_index;
-        rv_index += 1;
+        auto rv = gen(ctr, key);
+        ctr.incr();
+        std::uint64_t s = promote_uint_pair(rv[0], rv[1]);
+        samples[i] = static_cast<sint_t>(s % n_64);
         if constexpr (WriteRademachers) {
-            rademachers[i] = (rv_array[rv_index] >= 0) ? (T) 1 : (T) -1;
-            rv_index += 1;
-        }
-        if (rv_index == len_c) {
-            ctr.incr(1);
-            rv_array = r123ext::uneg11::generate(gen, ctr, key);
-            rv_index = 0;
+            rademachers[i] = (rv[2] % 2 == 0) ? (T) 1 : (T) -1;
         }
     }
-    if (0 < rv_index) ctr.incr(1);
     return state_t(ctr, key);
 }
 

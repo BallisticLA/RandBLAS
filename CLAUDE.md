@@ -104,7 +104,7 @@ The sparse triangular solve function (`trsm`) handles transposition similarly:
 - `lskgeX`: **Left** sketching, **ge**neral (dense) data, variant X
 - `rskgeX`: **Right** sketching, **ge**neral (dense) data, variant X
 - `lskges`: Left sketching with **s**parse operator
-- `lskge3`: Left sketching with dense operator (calls GEMM, "3" for 3-argument GEMM-like)
+- `lskge3`: Left sketching with dense operator (calls GEMM, a "BLAS 3" operation)
 - `lsksp3`: Left sketching **sp**arse data (where "left" refers to operator position)
 
 **Counterintuitive detail**: In `lsksp3` and `rsksp3`, the "left/right" refers to the operator's position. But these functions call `right_spmm`/`left_spmm` respectively, where "left/right" refers to the sparse data matrix position. See `sparse_data/DevNotes.md` lines 59-74.

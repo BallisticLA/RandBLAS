@@ -48,10 +48,6 @@
 
 namespace RandBLAS::sparse {
 
-inline std::uint64_t promote_uint_pair(std::uint32_t &a, std::uint32_t &b) {
-    return static_cast<std::uint64_t>(a) + (static_cast<std::uint64_t>(b) << 32);
-}
-
 template <typename T, SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
 void _considerate_fisher_yates(
     const state_t &state,
@@ -110,6 +106,19 @@ static state_t repeated_fisher_yates(
     T *vals
 ) {
     randblas_error_if(vec_nnz > dim_major);
+    if (vec_nnz == 1) {
+        // Sampling 1 element without replacement is the same as with replacement,
+        // so delegate to the cheaper i.i.d. sampler in a single batched call.
+        if (idxs_minor != nullptr)
+            std::iota(idxs_minor, idxs_minor + dim_minor, sint_t{0});
+        if (vals != nullptr) {
+            return sample_indices_iid_uniform<T, sint_t, true>(
+                dim_major, dim_minor, idxs_major, vals, state);
+        } else {
+            return sample_indices_iid_uniform<sint_t>(
+                dim_major, dim_minor, idxs_major, state);
+        }
+    }
     std::vector<sint_t> vec_work(dim_major);
     std::iota(vec_work.begin(), vec_work.end(), 0);
     std::vector<sint_t> pivots(vec_nnz);
@@ -293,20 +302,13 @@ inline state_t repeated_fisher_yates(
 
 template <typename RNG = DefaultRNG>
 RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
-    int64_t num_mavec, incrs_per_mavec;
-    if (dist.major_axis == Axis::Short) {
-        num_mavec = std::max(dist.n_rows, dist.n_cols);
-        incrs_per_mavec = dist.vec_nnz;
-        // ^ SASOs don't try to be frugal with CBRNG increments.
-        //   See repeated_fisher_yates.
-    } else {
-        num_mavec = std::min(dist.n_rows, dist.n_cols);
-        incrs_per_mavec = (int64_t) std::ceil((double) dist.vec_nnz / ((double) state.len_c/2));
-        // ^ LASOs do try to be frugal with CBRNG increments.
-        //   See sample_indices_iid_uniform.
-    }
-    int64_t full_incr = num_mavec * incrs_per_mavec;
-    state.counter.incr(full_incr);
+    // Both _considerate_fisher_yates (SASO with vec_nnz > 1) and
+    // sample_indices_iid_uniform (SASO with vec_nnz == 1, and LASO) consume
+    // exactly one CBRNG counter increment per nonzero.
+    int64_t num_major_axis_vec = (dist.major_axis == Axis::Short)
+        ? std::max(dist.n_rows, dist.n_cols)
+        : std::min(dist.n_rows, dist.n_cols);
+    state.counter.incr(num_major_axis_vec * dist.vec_nnz);
     return state;
 }
 
