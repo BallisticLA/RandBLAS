@@ -287,11 +287,6 @@ bool mkl_left_spmm(
     constexpr bool is_coo = std::is_same_v<SpMat, COOMatrix<T, sint_t>>;
     constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
 
-    // MKL's mkl_sparse_d_mm does not support CSC format (returns NOT_SUPPORTED).
-    // Fall back to hand-rolled kernels for CSC matrices.
-    if constexpr (is_csc)
-        return false;
-
     // For COO matrices, RandBLAS allows A.n_rows >= d and A.n_cols >= m
     // (operating on a submatrix). MKL operates on the full matrix, so we
     // can only use MKL when dimensions match exactly and offsets are zero.
@@ -308,21 +303,40 @@ bool mkl_left_spmm(
     if (opB != blas::Op::NoTrans)
         return false;
 
-    auto h = make_mkl_handle(A);
+    // Build the MKL sparse handle and the operation to apply to it.
+    //   CSR / COO: the handle wraps A directly; the operation is opA.
+    //   CSC: mkl_sparse_?_mm does not accept CSC, but a CSC matrix's arrays ARE
+    //   a CSR matrix for A^T (transpose_as_csr shares colptr/rowidxs/vals). So
+    //   build the CSR-of-A^T handle and flip the operation (NoTrans <-> Trans),
+    //   which leaves op(A)*B unchanged. MKL supports SPARSE_OPERATION_TRANSPOSE
+    //   on CSR natively, so no explicit transpose or copy is materialized.
+    MKLSparseHandle h;
+    sparse_operation_t mkl_op;
+    if constexpr (is_csc) {
+        auto At = A.transpose();   // CSRMatrix view of A^T (shares A's arrays)
+        h = make_mkl_handle_csr(At);
+        mkl_op = (opA == blas::Op::NoTrans)
+            ? SPARSE_OPERATION_TRANSPOSE
+            : SPARSE_OPERATION_NON_TRANSPOSE;
+    } else {
+        h = make_mkl_handle(A);
+        mkl_op = to_mkl_op(opA);
+    }
+
     struct matrix_descr descr;
     descr.type = SPARSE_MATRIX_TYPE_GENERAL;
 
     sparse_status_t status;
     if constexpr (std::is_same_v<T, double>) {
         status = mkl_sparse_d_mm(
-            to_mkl_op(opA), alpha, h.handle, descr,
+            mkl_op, alpha, h.handle, descr,
             to_mkl_layout(layout),
             B, (MKL_INT)n, (MKL_INT)ldb,
             beta, C, (MKL_INT)ldc
         );
     } else if constexpr (std::is_same_v<T, float>) {
         status = mkl_sparse_s_mm(
-            to_mkl_op(opA), alpha, h.handle, descr,
+            mkl_op, alpha, h.handle, descr,
             to_mkl_layout(layout),
             B, (MKL_INT)n, (MKL_INT)ldb,
             beta, C, (MKL_INT)ldc

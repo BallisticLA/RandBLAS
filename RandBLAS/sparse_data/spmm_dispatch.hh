@@ -69,21 +69,13 @@ void left_spmm(
 ) {
     using blas::Layout;
     using blas::Op;
-    // handle applying a transposed sparse matrix.
+    // Applying a transposed sparse matrix reduces to the NoTrans case on a
+    // zero-copy transpose view (CSR<->CSC, COO<->COO). MKL, when present,
+    // engages on the recursive NoTrans call: mkl_left_spmm handles all three
+    // formats -- including CSC, which it consumes as a CSR-of-transpose view --
+    // so the transposed CSR no longer needs to be pre-routed to MKL here to
+    // avoid a CSC fallback.
     if (opA == Op::Trans) {
-        // Try MKL first: it supports SPARSE_OPERATION_TRANSPOSE on CSR natively.
-        // Without this, the transpose trick below converts CSR→CSC, which MKL
-        // can't handle, causing unnecessary fallback RandBLAS-defined kernels.
-        #if defined(RandBLAS_HAS_MKL)
-        if constexpr (sizeof(typename SpMat::index_t) == sizeof(MKL_INT)) {
-            bool handled = RandBLAS::sparse_data::mkl::mkl_left_spmm(
-                layout, opA, opB, d, n, m, alpha,
-                A, ro_a, co_a, B, ldb, beta, C, ldc
-            );
-            if (handled)
-                return;
-        }
-        #endif
         auto At = A.transpose();
         left_spmm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
         return;
@@ -141,7 +133,8 @@ void left_spmm(
     #if defined(RandBLAS_HAS_MKL)
     if constexpr (sizeof(typename SpMat::index_t) == sizeof(MKL_INT)) {
         // mkl_left_spmm returns false if it can't handle this case
-        // (e.g., COO with submatrix offsets, CSC format).
+        // (e.g., COO with submatrix offsets, or opB == Trans). CSC is handled
+        // via a CSR-of-transpose view inside mkl_left_spmm.
         // Beta is already applied to C above, so pass beta=1 to MKL
         // so it adds alpha*A*B to the existing (pre-scaled) C.
         bool handled = RandBLAS::sparse_data::mkl::mkl_left_spmm(
