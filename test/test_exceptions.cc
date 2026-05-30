@@ -28,7 +28,7 @@ TEST_F(TestExceptions, randblas_require_expr_arg) {
         randblas_require(flag > 1);
     } catch (RandBLAS::Error &e) {
         std::string message{e.what()};
-        flag = (int) message.find("flag > 1") != std::string::npos;
+        flag = message.find("flag > 1") != std::string::npos;
     }
     ASSERT_TRUE(flag);
 }
