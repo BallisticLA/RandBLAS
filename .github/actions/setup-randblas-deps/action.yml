@@ -35,8 +35,7 @@ runs:
           libgtest-dev
         case "${{ inputs.blas-backend }}" in
           openblas)
-            # ILP64 (64-bit integer) OpenBLAS to match blaspp's -Dblas_int=int64.
-            sudo apt-get install -qq -y libopenblas64-openmp-dev
+            sudo apt-get install -qq -y libopenblas-openmp-dev
             ;;
           mkl)
             sudo apt-get install -qq -y libmkl-dev
@@ -50,7 +49,7 @@ runs:
             echo "CPATH=${mkl_inc}${CPATH:+:$CPATH}" >> "$GITHUB_ENV"
             ;;
           auto)
-            sudo apt-get install -qq -y libopenblas64-openmp-dev
+            sudo apt-get install -qq -y libopenblas-openmp-dev
             ;;
           accelerate)
             echo "::error::accelerate backend is not available on Linux" >&2
@@ -103,7 +102,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/../blaspp-install
-        key: blaspp-ilp64-mklfix1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}
+        key: blaspp-mklfix2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}
 
     - name: build blaspp
       if: steps.blaspp-cache.outputs.cache-hit != 'true'
@@ -119,9 +118,15 @@ runs:
         mkdir blaspp-build
         cd blaspp-build
         blas_arg=""
+        # ILP64 only for MKL: it makes MKL_INT 64-bit, which RandBLAS's MKL
+        # spgemm path (test_spgemm, compiled only under RandBLAS_HAS_MKL)
+        # requires to match its int64_t sparse indices. Other backends stay
+        # LP64 -- blaspp's public API is int64_t regardless, so RandBLAS is
+        # unaffected, and this avoids needing ILP64 OpenBLAS/Accelerate libs.
+        blas_int_arg=""
         case "${{ inputs.blas-backend }}" in
           openblas)   blas_arg="-Dblas=openblas" ;;
-          mkl)        blas_arg="-Dblas=mkl" ;;
+          mkl)        blas_arg="-Dblas=mkl"; blas_int_arg="-Dblas_int=int64" ;;
           accelerate) blas_arg="-Dblas=accelerate" ;;
           auto)       blas_arg="" ;;
         esac
@@ -131,7 +136,7 @@ runs:
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_INSTALL_PREFIX="$(pwd)/../blaspp-install" \
           -Dbuild_tests=OFF \
-          -Dblas_int=int64 \
+          ${blas_int_arg} \
           ${blas_arg} \
           ../blaspp
         if [[ "$(uname)" == "Darwin" ]]; then
@@ -147,7 +152,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/../lapackpp-install
-        key: lapackpp-ilp64-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}-${{ steps.lapackpp-rev.outputs.sha }}
+        key: lapackpp-mklfix2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}-${{ steps.lapackpp-rev.outputs.sha }}
 
     - name: build lapackpp
       if: inputs.install-lapackpp == 'true' && steps.lapackpp-cache.outputs.cache-hit != 'true'
@@ -162,6 +167,11 @@ runs:
         git clone --depth 1 https://github.com/icl-utk-edu/lapackpp.git
         mkdir lapackpp-build
         cd lapackpp-build
+        # Match the int width of the blaspp we link against (ILP64 only for MKL).
+        blas_int_arg=""
+        if [[ "${{ inputs.blas-backend }}" == "mkl" ]]; then
+          blas_int_arg="-Dblas_int=int64"
+        fi
         cmake \
           -DCMAKE_C_COMPILER="${CC}" \
           -DCMAKE_CXX_COMPILER="${CXX}" \
@@ -169,7 +179,7 @@ runs:
           -DCMAKE_INSTALL_PREFIX="$(pwd)/../lapackpp-install" \
           -Dblaspp_DIR="$(pwd)/../blaspp-install/lib/cmake/blaspp" \
           -Dbuild_tests=OFF \
-          -Dblas_int=int64 \
+          ${blas_int_arg} \
           ../lapackpp
         if [[ "$(uname)" == "Darwin" ]]; then
           jobs="$(sysctl -n hw.logicalcpu)"
