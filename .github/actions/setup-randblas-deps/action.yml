@@ -39,6 +39,14 @@ runs:
             ;;
           mkl)
             sudo apt-get install -qq -y libmkl-dev
+            # Debian packages MKL headers under /usr/include/mkl and sets no
+            # MKLROOT. blaspp's MKL detection (config/mkl_version.cc) needs the
+            # headers on the include path or it never defines BLAS_HAVE_MKL, and
+            # RandBLAS's find_path(mkl_spblas.h) needs MKLROOT to point at the
+            # header dir. Discover the dir rather than hardcoding it.
+            mkl_inc="$(dirname "$(find /usr/include -name mkl_spblas.h | head -n1)")"
+            echo "MKLROOT=${mkl_inc}" >> "$GITHUB_ENV"
+            echo "CPATH=${mkl_inc}${CPATH:+:$CPATH}" >> "$GITHUB_ENV"
             ;;
           auto)
             sudo apt-get install -qq -y libopenblas-openmp-dev
@@ -94,7 +102,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/../blaspp-install
-        key: blaspp-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}
+        key: blaspp-mklfix1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}
 
     - name: build blaspp
       if: steps.blaspp-cache.outputs.cache-hit != 'true'

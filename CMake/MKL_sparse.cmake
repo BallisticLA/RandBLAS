@@ -33,9 +33,15 @@ endif()
 
 if (_mkl_found_via_blaspp)
     # BLAS++ was built with MKL. Find the sparse BLAS header.
+    # mkl_spblas.h lives in different places depending on the MKL packaging:
+    #   - oneAPI:        $MKLROOT/include
+    #   - Debian apt:    /usr/include/mkl (and MKLROOT is usually unset)
+    # Search MKLROOT and the standard system prefixes, trying both the bare
+    # include dir and an mkl/ subdir.
     find_path(MKL_SPARSE_INCLUDE_DIR mkl_spblas.h
         HINTS ENV MKLROOT $ENV{MKLROOT}/include
-        PATH_SUFFIXES include)
+        PATHS /usr/include /usr/local/include
+        PATH_SUFFIXES include mkl include/mkl latest/include)
     if (MKL_SPARSE_INCLUDE_DIR)
         set(tmp TRUE)
         message(STATUS "  MKL sparse BLAS header found: ${MKL_SPARSE_INCLUDE_DIR}/mkl_spblas.h")
