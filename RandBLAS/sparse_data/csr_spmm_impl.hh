@@ -48,6 +48,40 @@ using RandBLAS::SignedInteger;
 #define SignedInteger typename
 #endif
 
+// Core CSR SpMV accumulation:  Av[i] += alpha * sum_ell vals[ell] * v[colidxs[ell]].
+// Templated on UnitStride so the hot ColMajor case (incv == incAv == 1) drops the
+// runtime index multiplies; `if constexpr` keeps a single source for both variants.
+// The simd reduction permits FP reassociation, which breaks the serial dependence
+// on the accumulator (no effect when compiled without OpenMP -- the pragma is
+// ignored and the loop simply runs unvectorized, as with the rest of this file).
+template <bool UnitStride, typename T, SignedInteger sint_t>
+static void apply_csr_to_vector_ik_impl(
+    T alpha,
+    const T *vals, const sint_t *rowptr, const sint_t *colidxs,
+    const T *v, int64_t incv,
+    int64_t len_Av, T *Av, int64_t incAv
+) {
+    UNUSED(incv); UNUSED(incAv);
+    // ^ silence compiler complaints if UnitStride == true.
+    for (int64_t i = 0; i < len_Av; ++i) {
+        T Av_i_diff = 0.0;
+        #pragma omp simd reduction(+:Av_i_diff)
+        for (int64_t ell = rowptr[i]; ell < rowptr[i+1]; ++ell) {
+            int64_t j = colidxs[ell];
+            if constexpr (UnitStride) {
+                Av_i_diff += vals[ell] * v[j];
+            } else {
+                Av_i_diff += vals[ell] * v[j*incv];
+            }
+        }
+        if constexpr (UnitStride) {
+            Av[i] += alpha * Av_i_diff;
+        } else {
+            Av[i*incAv] += alpha * Av_i_diff;
+        }
+    }
+}
+
 template <typename T, SignedInteger sint_t = int64_t>
 static void apply_csr_to_vector_ik(
     T alpha,
@@ -62,14 +96,14 @@ static void apply_csr_to_vector_ik(
     T *Av,          // Av += alpha * A * v.
     int64_t incAv   // stride between elements of Av
 ) {
-    for (int64_t i = 0; i < len_Av; ++i) {
-        T Av_i_diff = 0.0;
-        for (int64_t ell = rowptr[i]; ell < rowptr[i+1]; ++ell) {
-            int j = colidxs[ell];
-            T Aij = vals[ell];
-            Av_i_diff += Aij * v[j*incv];
-        }
-        Av[i*incAv] += alpha * Av_i_diff;
+    // Unit stride (incv == incAv == 1) is the ColMajor case; specialize on it so
+    // the inner reduction carries no index multiplies. Other strides fall through.
+    if (incv == 1 && incAv == 1) {
+        apply_csr_to_vector_ik_impl<true>(
+            alpha, vals, rowptr, colidxs, v, incv, len_Av, Av, incAv);
+    } else {
+        apply_csr_to_vector_ik_impl<false>(
+            alpha, vals, rowptr, colidxs, v, incv, len_Av, Av, incAv);
     }
 }
 
