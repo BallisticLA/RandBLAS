@@ -14,6 +14,12 @@
 //   RowMajor dense -> apply_csr_ikb_p1b_rowmajor / apply_csc_kib_1p1_rowmajor
 //   (COO delegates to the CSC kernels in both layouts, via apply_coo_via_csc)
 //
+// A fourth combination -- op(B)=Trans (computing C = S * A^T, the dense operand
+// fed transposed) -- also routes to apply_csr_jik_p11 / apply_csc_jki_p11, but
+// with a STRIDED dense access (gather when C is ColMajor, strided store when C
+// is RowMajor) rather than the unit-stride NoTrans ColMajor pattern. MKL
+// declines op(B)=Trans, so it is hand-rolled even on MKL builds.
+//
 // These are exactly the kernels that left_spmm and right_spmm TOGETHER reach.
 // right_spmm reduces to left_spmm by transposing the sparse operand (CSR<->CSC
 // view) and flipping the layout, so the old "right CSR (ColMajor)" path runs
@@ -32,6 +38,8 @@
 //      the one path that does NOT go through left_spmm -- on an MKL build the
 //      dispatch always picks MKL, so the hand-rolled kernel is otherwise
 //      unreachable. It compiles out entirely when MKL is disabled.
+//   4. op(B)=Trans (C = S * A^T): how much does the strided dense access cost
+//      relative to the unit-stride NoTrans path? Reported in two extra tables.
 //
 // NOTE: benchmarks the SpMM kernel directly, not sketch_general. SpMM dominates
 // sketching cost, so these results are a good proxy for sketching performance.
@@ -264,6 +272,32 @@ void run_config(int64_t m, int64_t n, int64_t d, double density, int num_trials)
     auto [min_rm_csc, med_rm_csc] = time_spmm(S_csc, Layout::RowMajor, B_rm);
     auto [min_rm_coo, med_rm_coo] = time_spmm(S_coo, Layout::RowMajor, B_rm);
 
+    // ---- Transposed dense (opB=Trans): C = S * A^T, dense operand fed
+    //      transposed so the SAME product S*A is computed. This routes to the
+    //      jik/jci kernels with a STRIDED dense access (incv != 1 when C is
+    //      ColMajor, incAv != 1 when C is RowMajor) -- distinct from the
+    //      unit-stride NoTrans ColMajor path, and the only sparse-NoTrans path
+    //      MKL declines (so it stays hand-rolled on MKL builds).
+    //      A^T (d x n) needs no new storage: the transpose of the ColMajor n-x-d
+    //      buffer IS the RowMajor buffer, so ColMajor-A^T == A_rm, RowMajor == A_cm.
+    auto time_spmm_t = [&](const auto& S, Layout layout, std::vector<T>& B) {
+        const T* ATptr = (layout == Layout::ColMajor) ? A_rm.data() : A_cm.data();
+        int64_t ldAT   = (layout == Layout::ColMajor) ? d : n;
+        int64_t ldB    = (layout == Layout::ColMajor) ? m : d;
+        return run_trials([&]() {
+            std::fill(B.begin(), B.end(), 0.0);
+            rbsd::left_spmm(layout, Op::NoTrans, Op::Trans, m, d, n,
+                            1.0, S, 0, 0, ATptr, ldAT, 0.0, B.data(), ldB);
+        }, num_trials);
+    };
+
+    auto [min_tcm_csr, med_tcm_csr] = time_spmm_t(S_csr, Layout::ColMajor, B_cm);
+    auto [min_tcm_csc, med_tcm_csc] = time_spmm_t(S_csc, Layout::ColMajor, B_cm);
+    auto [min_tcm_coo, med_tcm_coo] = time_spmm_t(S_coo, Layout::ColMajor, B_cm);
+    auto [min_trm_csr, med_trm_csr] = time_spmm_t(S_csr, Layout::RowMajor, B_rm);
+    auto [min_trm_csc, med_trm_csc] = time_spmm_t(S_csc, Layout::RowMajor, B_rm);
+    auto [min_trm_coo, med_trm_coo] = time_spmm_t(S_coo, Layout::RowMajor, B_rm);
+
     // ---- Reference: densify + GEMM, per layout ----
     // The ColMajor reference (ref_cm) doubles as the correctness oracle.
     std::vector<T> ref_cm(m * d);
@@ -290,12 +324,22 @@ void run_config(int64_t m, int64_t n, int64_t d, double density, int num_trials)
     int num_checks = 0;
     std::vector<T> result(m * d);
 
-    auto check = [&](const std::string& label, const auto& S, Layout layout) {
-        const T* Aptr = (layout == Layout::ColMajor) ? A_cm.data() : A_rm.data();
-        int64_t ldA   = (layout == Layout::ColMajor) ? n : d;
-        int64_t ldC   = (layout == Layout::ColMajor) ? m : d;
+    // All NoTrans and Trans paths compute the same logical product S*A, so they
+    // are all checked against the single ColMajor oracle ref_cm. For opB=Trans
+    // the dense operand is A^T (== the other layout's buffer; see timing above).
+    auto check = [&](const std::string& label, const auto& S, Layout layout, Op opB) {
+        const T* Aptr;
+        int64_t ldA;
+        if (opB == Op::NoTrans) {
+            Aptr = (layout == Layout::ColMajor) ? A_cm.data() : A_rm.data();
+            ldA  = (layout == Layout::ColMajor) ? n : d;
+        } else {
+            Aptr = (layout == Layout::ColMajor) ? A_rm.data() : A_cm.data();
+            ldA  = (layout == Layout::ColMajor) ? d : n;
+        }
+        int64_t ldC = (layout == Layout::ColMajor) ? m : d;
         std::fill(result.begin(), result.end(), 0.0);
-        rbsd::left_spmm(layout, Op::NoTrans, Op::NoTrans, m, d, n,
+        rbsd::left_spmm(layout, Op::NoTrans, opB, m, d, n,
                         1.0, S, 0, 0, Aptr, ldA, 0.0, result.data(), ldC);
         double maxdiff = 0;
         for (int64_t i = 0; i < m; ++i)
@@ -310,12 +354,18 @@ void run_config(int64_t m, int64_t n, int64_t d, double density, int num_trials)
         }
     };
 
-    check("ColMajor+CSR", S_csr, Layout::ColMajor);
-    check("ColMajor+CSC", S_csc, Layout::ColMajor);
-    check("ColMajor+COO", S_coo, Layout::ColMajor);
-    check("RowMajor+CSR", S_csr, Layout::RowMajor);
-    check("RowMajor+CSC", S_csc, Layout::RowMajor);
-    check("RowMajor+COO", S_coo, Layout::RowMajor);
+    check("ColMajor+CSR",      S_csr, Layout::ColMajor, Op::NoTrans);
+    check("ColMajor+CSC",      S_csc, Layout::ColMajor, Op::NoTrans);
+    check("ColMajor+COO",      S_coo, Layout::ColMajor, Op::NoTrans);
+    check("RowMajor+CSR",      S_csr, Layout::RowMajor, Op::NoTrans);
+    check("RowMajor+CSC",      S_csc, Layout::RowMajor, Op::NoTrans);
+    check("RowMajor+COO",      S_coo, Layout::RowMajor, Op::NoTrans);
+    check("ColMajor+CSR(B^T)", S_csr, Layout::ColMajor, Op::Trans);
+    check("ColMajor+CSC(B^T)", S_csc, Layout::ColMajor, Op::Trans);
+    check("ColMajor+COO(B^T)", S_coo, Layout::ColMajor, Op::Trans);
+    check("RowMajor+CSR(B^T)", S_csr, Layout::RowMajor, Op::Trans);
+    check("RowMajor+CSC(B^T)", S_csc, Layout::RowMajor, Op::Trans);
+    check("RowMajor+COO(B^T)", S_coo, Layout::RowMajor, Op::Trans);
 
     // Also verify the hand-rolled CSR path.
     #if defined(RandBLAS_HAS_MKL)
@@ -370,13 +420,32 @@ void run_config(int64_t m, int64_t n, int64_t d, double density, int num_trials)
     print_densify_row("densify+GEMM", min_ref_rm, min_dens_rm, min_gemm_rm, brm);
     std::cout << "\n";
 
-    // Summary: best ColMajor vs best RowMajor (same logical problem)
-    std::cout << "  SUMMARY: best ColMajor " << bcm << " us  |  best RowMajor " << brm << " us  |  ";
+    // Transposed-dense tables (opB=Trans -> jik/jci with strided dense access).
+    // MKL declines opB=Trans, so these stay hand-rolled even on MKL builds.
+    long btc = std::min({min_tcm_csr, min_tcm_csc, min_tcm_coo});
+    print_table_header("LEFT SPMM, transposed dense, ColMajor C: C = S * A^T   (opB=Trans -> jik/jci, strided gather)");
+    print_row("CSR", min_tcm_csr, med_tcm_csr, btc);
+    print_row("CSC", min_tcm_csc, med_tcm_csc, btc);
+    print_row("COO", min_tcm_coo, med_tcm_coo, btc);
+    std::cout << "\n";
+
+    long btr = std::min({min_trm_csr, min_trm_csc, min_trm_coo});
+    print_table_header("LEFT SPMM, transposed dense, RowMajor C: C = S * A^T   (opB=Trans -> jik/jci, strided store)");
+    print_row("CSR", min_trm_csr, med_trm_csr, btr);
+    print_row("CSC", min_trm_csc, med_trm_csc, btr);
+    print_row("COO", min_trm_coo, med_trm_coo, btr);
+    std::cout << "\n";
+
+    // Summary: best NoTrans (ColMajor vs RowMajor) and the transposed-dense cost.
+    long bnt = std::min(bcm, brm);
+    long bt  = std::min(btc, btr);
+    std::cout << "  SUMMARY: best NoTrans ColMajor " << bcm << " us  |  best NoTrans RowMajor " << brm << " us  |  ";
     if (brm <= bcm)
         std::cout << "RowMajor " << std::fixed << std::setprecision(2) << (double)bcm / brm << "x faster\n";
     else
         std::cout << "ColMajor " << std::fixed << std::setprecision(2) << (double)brm / bcm << "x faster\n";
-    std::cout << "\n";
+    std::cout << "           best transposed-dense (opB=Trans) " << bt << " us  ("
+              << std::fixed << std::setprecision(2) << (double)bt / bnt << "x vs best NoTrans)\n\n";
 }
 
 int main(int argc, char** argv) {
