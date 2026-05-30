@@ -35,7 +35,8 @@ runs:
           libgtest-dev
         case "${{ inputs.blas-backend }}" in
           openblas)
-            sudo apt-get install -qq -y libopenblas-openmp-dev
+            # ILP64 (64-bit integer) OpenBLAS to match blaspp's -Dblas_int=int64.
+            sudo apt-get install -qq -y libopenblas64-openmp-dev
             ;;
           mkl)
             sudo apt-get install -qq -y libmkl-dev
@@ -49,7 +50,7 @@ runs:
             echo "CPATH=${mkl_inc}${CPATH:+:$CPATH}" >> "$GITHUB_ENV"
             ;;
           auto)
-            sudo apt-get install -qq -y libopenblas-openmp-dev
+            sudo apt-get install -qq -y libopenblas64-openmp-dev
             ;;
           accelerate)
             echo "::error::accelerate backend is not available on Linux" >&2
@@ -102,7 +103,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/../blaspp-install
-        key: blaspp-mklfix1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}
+        key: blaspp-ilp64-mklfix1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}
 
     - name: build blaspp
       if: steps.blaspp-cache.outputs.cache-hit != 'true'
@@ -130,6 +131,7 @@ runs:
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_INSTALL_PREFIX="$(pwd)/../blaspp-install" \
           -Dbuild_tests=OFF \
+          -Dblas_int=int64 \
           ${blas_arg} \
           ../blaspp
         if [[ "$(uname)" == "Darwin" ]]; then
@@ -145,7 +147,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/../lapackpp-install
-        key: lapackpp-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}-${{ steps.lapackpp-rev.outputs.sha }}
+        key: lapackpp-ilp64-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}-${{ steps.lapackpp-rev.outputs.sha }}
 
     - name: build lapackpp
       if: inputs.install-lapackpp == 'true' && steps.lapackpp-cache.outputs.cache-hit != 'true'
@@ -167,6 +169,7 @@ runs:
           -DCMAKE_INSTALL_PREFIX="$(pwd)/../lapackpp-install" \
           -Dblaspp_DIR="$(pwd)/../blaspp-install/lib/cmake/blaspp" \
           -Dbuild_tests=OFF \
+          -Dblas_int=int64 \
           ../lapackpp
         if [[ "$(uname)" == "Darwin" ]]; then
           jobs="$(sysctl -n hw.logicalcpu)"
