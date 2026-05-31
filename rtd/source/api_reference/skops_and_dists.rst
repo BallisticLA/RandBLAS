@@ -105,7 +105,7 @@ Sparse sketching, with CountSketch *et al.*
   .. doxygenfunction:: RandBLAS::fill_sparse(SparseSkOp &S)
       :project: RandBLAS
 
-  .. doxygenfunction:: RandBLAS::fill_sparse_unpacked_nosub(const SparseDist &D, int64_t &nnz, T* vals, sint_t* rows, sint_t* cols, const state_t &seed_state)
+  .. doxygenfunction:: RandBLAS::fill_sparse_unpacked
       :project: RandBLAS
 
 

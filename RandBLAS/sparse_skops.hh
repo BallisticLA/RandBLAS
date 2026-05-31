@@ -525,33 +525,46 @@ void laso_merge_long_axis_vector_coo_data(
 ///   .. |vals|  mathmacro:: \mathtt{vals}
 ///   .. |rows|  mathmacro:: \mathtt{rows}
 ///   .. |cols|  mathmacro:: \mathtt{cols}
-///   .. |Dfullnnz| mathmacro:: {\mathcal{D}\mathtt{.full\_nnz}}
 ///
 /// @endverbatim
-/// Samples ONLY the \math{\ttt{n_rows_sub} \times \ttt{n_cols_sub}} submatrix of the
-/// operator defined by \math{(\D,\ttt{seed_state})} whose upper-left corner sits at
-/// \math{(\ttt{ro_s},\ttt{co_s})}, without ever materializing the full operator. This
-/// function has no allocation stage.
+/// Sample the \math{\ttt{n_rows_sub} \times \ttt{n_cols_sub}} submatrix of \math{\mtxS}
+/// whose upper-left corner is at \math{(\ttt{ro_s},\ttt{co_s}),} where \math{\mtxS} is
+/// defined by \math{(\D,\ttt{seed_state}).} The submatrix is sampled directly, without
+/// materializing the full operator, and is returned in COO format.
 ///
-/// <b>Workspace query.</b> If any of \math{(\vals,\rows,\cols)} is null, then this
-/// function performs no sampling: it writes the required length of each array to
-/// \math{\ttt{nnz}} and returns \math{\ttt{seed_state}} unchanged. Use this to size your
-/// buffers from \math{(\D,\ttt{n_rows_sub},\ttt{n_cols_sub},\ttt{ro_s},\ttt{co_s})}
-/// without having to derive the worst-case nonzero count yourself.
+/// If any of \math{(\vals,\rows,\cols)} is null, then no sampling occurs: the required
+/// length of each output array is written to \math{\ttt{nnz},} and \math{\ttt{seed_state}}
+/// is returned unchanged. Use this "workspace query" to size the output arrays.
 ///
-/// On entry (when \math{(\vals,\rows,\cols)} are all non-null), they must be arrays of
-/// length at least \math{\ttt{D.vec_nnz} \cdot \ttt{num_major_sub}}, where
-/// \math{\ttt{num_major_sub}} is the number of major-axis vectors that intersect the
-/// requested submatrix (this is the worst-case nonzero count for the submatrix, and it is
-/// exactly the value returned by the workspace query above). On exit, the first
-/// \math{\ttt{nnz}} entries of these arrays contain the data for a COO sparse matrix
-/// representation of \math{\submat(\mtxS)}, with row/column indices already shifted into
-/// \math{[0,\ttt{n_rows_sub}) \times [0,\ttt{n_cols_sub})}.
+/// This function is the sparse analog of fill_dense_unpacked().
 ///
-/// The data produced by this function equals, entry-for-entry as a sparse matrix, the
-/// \math{[\ttt{ro_s}:\ttt{ro_s}+\ttt{n_rows_sub},\,\ttt{co_s}:\ttt{co_s}+\ttt{n_cols_sub}]}
-/// submatrix of \math{\ttt{fill_sparse_unpacked_nosub}(\D,\ldots)}.
+/// @verbatim embed:rst:leading-slashes
+/// .. dropdown:: Full parameter descriptions
+///   :animate: fade-in-slide-down
 ///
+///     D
+///      - A SparseDist that defines the full operator :math:`\mtxS.`
+///
+///     n_rows_sub, n_cols_sub
+///      - The number of rows and columns in the submatrix to sample.
+///
+///     ro_s, co_s
+///      - The row and column offsets of the submatrix as a part of :math:`\mtxS.`
+///
+///     nnz
+///      - On exit: the number of nonzeros written to the output arrays.
+///      - For a workspace query: the required length of each output array.
+///
+///     vals, rows, cols
+///      - Output buffers for the COO data of the submatrix, with indices shifted into
+///        :math:`[0,\ttt{n_rows_sub}) \times [0,\ttt{n_cols_sub}).`
+///      - Each must have length at least the value reported by a workspace query.
+///      - Pass any of them as null to perform a workspace query instead of sampling.
+///
+///     seed_state
+///      - A CBRNG state used to define :math:`\mtxS.`
+///
+/// @endverbatim
 template <typename T, typename sint_t, typename state_t>
 state_t fill_sparse_unpacked(
     const SparseDist &D,
@@ -571,7 +584,7 @@ state_t fill_sparse_unpacked(
     int64_t vec_nnz   = D.vec_nnz;
 
     // Map the submatrix's (row, col) offsets/extents onto the (short, long) axes,
-    // exactly as fill_sparse_unpacked_nosub chooses idxs_short/idxs_long.
+    // matching how the full operator assigns its short/long index arrays.
     bool short_is_rows = (D.n_rows <= D.n_cols);
     int64_t short_off, short_sub, long_off, long_sub;
     if (short_is_rows) {
@@ -668,16 +681,11 @@ state_t fill_sparse_unpacked(
 }
 
 // =============================================================================
-/// This function is the underlying implementation of fill_sparse(SparseSkOp &S).
-/// It has no allocation stage.
-///
-/// On entry, \math{(\vals,\rows,\cols)} are arrays of length at least \math{\Dfullnnz.}
-/// On exit, the first \math{\ttt{nnz}} entries of these arrays contain the data for
-/// a COO sparse matrix representation of the SparseSkOp
-/// defined by \math{(\D,\ttt{seed_state)}.}
-///
-/// The function fill_sparse_unpacked lets you perform a similar operation that
-/// only returns data for a submatrix of a SparseSkOp.
+// DEPRECATED: retained only for backward compatibility in the RandBLAS 1.x release
+// series, and scheduled for removal in RandBLAS 2. Use fill_sparse_unpacked with
+// ro_s = co_s = 0 and the full operator dimensions instead. It writes the COO data for
+// the operator (D, seed_state) into the first nnz entries of (vals, rows, cols), which
+// must have length at least D.full_nnz.
 template <typename T, typename sint_t, typename state_t>
 state_t fill_sparse_unpacked_nosub(
     const SparseDist &D,
@@ -725,7 +733,7 @@ void fill_sparse(SparseSkOp &S) {
     randblas_require(S.rows != nullptr);
     randblas_require(S.cols != nullptr);
     randblas_require(S.vals != nullptr);
-    fill_sparse_unpacked_nosub(S.dist, S.nnz, S.vals, S.rows, S.cols, S.seed_state);
+    fill_sparse_unpacked(S.dist, S.dist.n_rows, S.dist.n_cols, 0, 0, S.nnz, S.vals, S.rows, S.cols, S.seed_state);
     // ^ We ignore the return value from that function call.
     return;
 }
