@@ -531,14 +531,21 @@ void laso_merge_long_axis_vector_coo_data(
 /// Samples ONLY the \math{\ttt{n_rows_sub} \times \ttt{n_cols_sub}} submatrix of the
 /// operator defined by \math{(\D,\ttt{seed_state})} whose upper-left corner sits at
 /// \math{(\ttt{ro_s},\ttt{co_s})}, without ever materializing the full operator. This
-/// function has no allocation stage and it skips checks for null pointers.
+/// function has no allocation stage.
 ///
-/// On entry, \math{(\vals,\rows,\cols)} are arrays of length at least
-/// \math{\ttt{D.vec_nnz} \cdot \ttt{num_major_sub}}, where \math{\ttt{num_major_sub}} is
-/// the number of major-axis vectors that intersect the requested submatrix (this is the
-/// worst-case nonzero count for the submatrix). On exit, the first \math{\ttt{nnz}}
-/// entries of these arrays contain the data for a COO sparse matrix representation of
-/// \math{\submat(\mtxS)}, with row/column indices already shifted into
+/// <b>Workspace query.</b> If any of \math{(\vals,\rows,\cols)} is null, then this
+/// function performs no sampling: it writes the required length of each array to
+/// \math{\ttt{nnz}} and returns \math{\ttt{seed_state}} unchanged. Use this to size your
+/// buffers from \math{(\D,\ttt{n_rows_sub},\ttt{n_cols_sub},\ttt{ro_s},\ttt{co_s})}
+/// without having to derive the worst-case nonzero count yourself.
+///
+/// On entry (when \math{(\vals,\rows,\cols)} are all non-null), they must be arrays of
+/// length at least \math{\ttt{D.vec_nnz} \cdot \ttt{num_major_sub}}, where
+/// \math{\ttt{num_major_sub}} is the number of major-axis vectors that intersect the
+/// requested submatrix (this is the worst-case nonzero count for the submatrix, and it is
+/// exactly the value returned by the workspace query above). On exit, the first
+/// \math{\ttt{nnz}} entries of these arrays contain the data for a COO sparse matrix
+/// representation of \math{\submat(\mtxS)}, with row/column indices already shifted into
 /// \math{[0,\ttt{n_rows_sub}) \times [0,\ttt{n_cols_sub})}.
 ///
 /// The data produced by this function equals, entry-for-entry as a sparse matrix, the
@@ -587,6 +594,17 @@ state_t fill_sparse_unpacked(
         dim_major_off = long_off;  dim_major_sub = long_sub;
         num_major_off = short_off; num_major_sub = short_sub;
         major_is_rows = !short_is_rows;
+    }
+
+    // Workspace query. If any of (vals, rows, cols) is null, we do not sample: we just
+    // report the required array length in nnz and return. The worst-case nonzero count
+    // for the requested submatrix is vec_nnz * num_major_sub (every nonzero of each
+    // sampled major-axis vector could land inside the window). Callers can use this to
+    // size (vals, rows, cols) from (D, n_rows_sub, n_cols_sub, ro_s, co_s) alone, rather
+    // than reconstructing the axis mapping themselves.
+    if (vals == nullptr || rows == nullptr || cols == nullptr) {
+        nnz = vec_nnz * num_major_sub;
+        return seed_state;
     }
 
     // Skip the RNG counter past the num_major_off major-axis vectors we don't need.
@@ -651,7 +669,7 @@ state_t fill_sparse_unpacked(
 
 // =============================================================================
 /// This function is the underlying implementation of fill_sparse(SparseSkOp &S).
-/// It has no allocation stage and it skips checks for null pointers.
+/// It has no allocation stage.
 ///
 /// On entry, \math{(\vals,\rows,\cols)} are arrays of length at least \math{\Dfullnnz.}
 /// On exit, the first \math{\ttt{nnz}} entries of these arrays contain the data for
@@ -666,6 +684,9 @@ state_t fill_sparse_unpacked_nosub(
     int64_t &nnz, T* vals, sint_t* rows, sint_t *cols,
     const state_t &seed_state
 ) {
+    randblas_require( vals != nullptr );
+    randblas_require( rows != nullptr );
+    randblas_require( cols != nullptr );
     return fill_sparse_unpacked(
         D, D.n_rows, D.n_cols, 0, 0, nnz, vals, rows, cols, seed_state
     );
@@ -796,14 +817,14 @@ COOMatrix<T, sint_t> submatrix_as_coo(
     randblas_require(co_s + n_cols_sub <= S.n_cols);
     const SparseDist &D = S.dist;
 
-    // Worst-case nnz of the submatrix = vec_nnz * (number of major-axis vectors that
-    // intersect the submatrix). num_major_sub is that count; derive it via the same axis
-    // mapping used in fill_sparse_unpacked.
-    bool short_is_rows = (D.n_rows <= D.n_cols);
-    int64_t short_sub = short_is_rows ? n_rows_sub : n_cols_sub;
-    int64_t long_sub  = short_is_rows ? n_cols_sub : n_rows_sub;
-    int64_t num_major_sub = (D.major_axis == Axis::Short) ? long_sub : short_sub;
-    int64_t cap = D.vec_nnz * num_major_sub;
+    // Ask fill_sparse_unpacked (via its workspace-query mode) how large the buffers must
+    // be, rather than reconstructing the axis mapping here. cap is the worst-case nonzero
+    // count for the requested submatrix.
+    int64_t cap;
+    fill_sparse_unpacked(
+        D, n_rows_sub, n_cols_sub, ro_s, co_s, cap,
+        (T*) nullptr, (sint_t*) nullptr, (sint_t*) nullptr, S.seed_state
+    );
 
     // Allocate the worst-case buffers, sample only the requested submatrix, and attach
     // the buffers to an owning COOMatrix. We use the standard ctor + manual attach
