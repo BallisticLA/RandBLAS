@@ -206,6 +206,97 @@ class TestSparseSkOpConstruction : public ::testing::Test
         }
         return;
     }
+
+    // Equivalence oracle for submatrix sampling: for a given (ro_s, co_s, sub dims),
+    // fill_sparse_unpacked(...) must equal -- entry-for-entry as a sparse matrix -- the
+    // corresponding submatrix of the FULL operator from fill_sparse_unpacked_nosub(...).
+    // We compare by densifying both into dense n_rows_sub-by-n_cols_sub buffers, which is
+    // order-independent (important since SASO/LASO entry order may differ).
+    template <typename T, SignedInteger sint_t = int64_t>
+    void fill_unpacked_sub_one(
+        Axis major_axis, int64_t vec_nnz, int64_t d, int64_t m,
+        int64_t ro_s, int64_t co_s, int64_t n_rows_sub, int64_t n_cols_sub, uint32_t key
+    ) {
+        SparseDist D {d, m, vec_nnz, major_axis};
+        RNGState<RandBLAS::DefaultRNG> seed(key);
+
+        // Full operator via the no-submatrix path.
+        int64_t full_nnz_out = -1;
+        vector<T> full_vals(D.full_nnz);
+        vector<sint_t> full_rows(D.full_nnz);
+        vector<sint_t> full_cols(D.full_nnz);
+        fill_sparse_unpacked_nosub(
+            D, full_nnz_out, full_vals.data(), full_rows.data(), full_cols.data(), seed
+        );
+
+        // Submatrix via the new path.
+        // Worst-case nnz = vec_nnz * (#major-axis vectors intersecting the submatrix).
+        bool short_is_rows = (d <= m);
+        int64_t long_sub  = short_is_rows ? n_cols_sub : n_rows_sub;
+        int64_t short_sub = short_is_rows ? n_rows_sub : n_cols_sub;
+        int64_t minor_sub = (major_axis == Axis::Short) ? long_sub : short_sub;
+        int64_t cap = vec_nnz * minor_sub;
+        int64_t sub_nnz_out = -1;
+        vector<T> sub_vals(cap > 0 ? cap : 1);
+        vector<sint_t> sub_rows(cap > 0 ? cap : 1);
+        vector<sint_t> sub_cols(cap > 0 ? cap : 1);
+        RandBLAS::fill_sparse_unpacked(
+            D, n_rows_sub, n_cols_sub, ro_s, co_s,
+            sub_nnz_out, sub_vals.data(), sub_rows.data(), sub_cols.data(), seed
+        );
+        ASSERT_GE(sub_nnz_out, 0);
+        ASSERT_LE(sub_nnz_out, cap);
+
+        // Densify the oracle (restrict-after-sampling).
+        vector<T> dense_oracle(n_rows_sub * n_cols_sub, (T) 0);
+        for (int64_t i = 0; i < full_nnz_out; ++i) {
+            int64_t r = full_rows[i];
+            int64_t c = full_cols[i];
+            if (ro_s <= r && r < ro_s + n_rows_sub && co_s <= c && c < co_s + n_cols_sub) {
+                dense_oracle[(r - ro_s) * n_cols_sub + (c - co_s)] += full_vals[i];
+            }
+        }
+        // Densify the submatrix (restrict-while-sampling).
+        vector<T> dense_sub(n_rows_sub * n_cols_sub, (T) 0);
+        for (int64_t i = 0; i < sub_nnz_out; ++i) {
+            int64_t r = sub_rows[i];
+            int64_t c = sub_cols[i];
+            ASSERT_GE(r, 0); ASSERT_LT(r, n_rows_sub);
+            ASSERT_GE(c, 0); ASSERT_LT(c, n_cols_sub);
+            dense_sub[r * n_cols_sub + c] += sub_vals[i];
+        }
+        std::string msg = RandBLAS::testing::buffs_approx_equal(
+            dense_sub.data(), dense_oracle.data(), n_rows_sub * n_cols_sub,
+            __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
+        return;
+    }
+
+    template <typename T, SignedInteger sint_t = int64_t>
+    void fill_unpacked_sub(Axis major_axis, int64_t vec_nnz, int64_t d, int64_t m) {
+        for (auto key : keys) {
+            // full-size (regression guard: must reproduce nosub exactly)
+            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 0, 0, d, m, key);
+            // corner offsets / partial windows
+            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 1, 0, d - 1, m,     key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 0, 1, d,     m - 1, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 1, 1, d - 1, m - 1, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 2, 3, d - 3, m - 4, key);
+            // single row / single column
+            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 0, 0, 1, m, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 0, 0, d, 1, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, d - 1, 0, 1, m, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 0, m - 1, d, 1, key);
+            // 1x1 windows at a few positions (some likely empty for SASO)
+            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 0, 0, 1, 1, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, d - 1, m - 1, 1, 1, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, d / 2, m / 2, 1, 1, key);
+        }
+        return;
+    }
 };
 
 TEST_F(TestSparseSkOpConstruction, respect_ownership) {
@@ -226,6 +317,36 @@ TEST_F(TestSparseSkOpConstruction, fill_unpacked_nosub_saso) {
 TEST_F(TestSparseSkOpConstruction, fill_unpacked_nosub_laso) {
     unpacked_nosub({10,20,7,Axis::Long});
     unpacked_nosub({20,10,7,Axis::Long});
+}
+
+TEST_F(TestSparseSkOpConstruction, fill_unpacked_sub_saso) {
+    for (int64_t vnz : {(int64_t) 1, (int64_t) 2, (int64_t) 4, (int64_t) 7}) {
+        fill_unpacked_sub<float>(Axis::Short, vnz, 7, 13);   // wide
+        fill_unpacked_sub<float>(Axis::Short, vnz, 13, 7);   // tall
+        fill_unpacked_sub<float>(Axis::Short, vnz, 10, 10);  // square
+    }
+}
+
+TEST_F(TestSparseSkOpConstruction, fill_unpacked_sub_laso) {
+    for (int64_t vnz : {(int64_t) 1, (int64_t) 2, (int64_t) 4, (int64_t) 7}) {
+        fill_unpacked_sub<float>(Axis::Long, vnz, 7, 13);    // wide
+        fill_unpacked_sub<float>(Axis::Long, vnz, 13, 7);    // tall
+        fill_unpacked_sub<float>(Axis::Long, vnz, 10, 10);   // square
+    }
+}
+
+TEST_F(TestSparseSkOpConstruction, fill_unpacked_sub_saso_int32) {
+    for (int64_t vnz : {(int64_t) 1, (int64_t) 2, (int64_t) 4, (int64_t) 7}) {
+        fill_unpacked_sub<float, int>(Axis::Short, vnz, 7, 13);
+        fill_unpacked_sub<float, int>(Axis::Short, vnz, 13, 7);
+    }
+}
+
+TEST_F(TestSparseSkOpConstruction, fill_unpacked_sub_laso_int32) {
+    for (int64_t vnz : {(int64_t) 1, (int64_t) 2, (int64_t) 4, (int64_t) 7}) {
+        fill_unpacked_sub<float, int>(Axis::Long, vnz, 7, 13);
+        fill_unpacked_sub<float, int>(Axis::Long, vnz, 13, 7);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////

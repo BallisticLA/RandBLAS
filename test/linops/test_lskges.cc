@@ -574,3 +574,75 @@ TEST_F(TestLSKGES, nontrivial_scales_rowmajor2)
     double beta = -1.0;
     alpha_beta<double>(0, alpha, beta, 21, 4, blas::Layout::RowMajor);
 }
+
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//     Submatrix codepath (S.nnz < 0): generate only the needed submatrix.
+//     Check it matches the result of first filling the full operator.
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+class TestLSKGES_SubmatrixPath : public ::testing::Test {
+    protected:
+    virtual void SetUp(){};
+    virtual void TearDown(){};
+
+    template <typename T>
+    void run(Axis major_axis, blas::Op opS, blas::Layout layout, int64_t vec_nnz) {
+        // op(submat(S)) is d1-by-m1; submat(S) lives at (S_ro, S_co) of the larger D0.
+        int64_t d1 = 5, m1 = 8, n = 6;
+        int64_t S_ro = 2, S_co = 3;
+        int64_t big_rows, big_cols;
+        if (opS == blas::Op::NoTrans) { big_rows = d1 + S_ro + 1; big_cols = m1 + S_co + 2; }
+        else                          { big_rows = m1 + S_ro + 1; big_cols = d1 + S_co + 2; }
+        SparseDist D0 {big_rows, big_cols, vec_nnz, major_axis};
+        RandBLAS::RNGState<r123::Philox4x32> seed((uint32_t) 7);
+
+        // Dense input A: op(A) is m1-by-n with opA = NoTrans, so A is m1-by-n.
+        int64_t lda = (layout == blas::Layout::ColMajor) ? m1 : n;
+        std::vector<T> A(m1 * n);
+        RandBLAS::RNGState<r123::Philox4x32> a_state((uint32_t) 99);
+        RandBLAS::DenseDist DA {m1, n};
+        RandBLAS::fill_dense(DA, A.data(), a_state);
+
+        int64_t ldb = (layout == blas::Layout::ColMajor) ? d1 : n;
+        std::vector<T> B_old(d1 * n, (T) 0);
+        std::vector<T> B_new(d1 * n, (T) 0);
+
+        // Old path: fill the FULL operator, then sketch its submatrix.
+        SparseSkOp<T> S_old(D0, seed);
+        RandBLAS::fill_sparse(S_old);
+        RandBLAS::sketch_general(layout, opS, blas::Op::NoTrans, d1, n, m1,
+            (T) 1.0, S_old, S_ro, S_co, A.data(), lda, (T) 0.0, B_old.data(), ldb);
+
+        // New path: do NOT fill (S.nnz < 0), so lskges builds only the submatrix.
+        SparseSkOp<T> S_new(D0, seed);
+        RandBLAS::sketch_general(layout, opS, blas::Op::NoTrans, d1, n, m1,
+            (T) 1.0, S_new, S_ro, S_co, A.data(), lda, (T) 0.0, B_new.data(), ldb);
+
+        auto msg = RandBLAS::testing::buffs_approx_equal(
+            B_new.data(), B_old.data(), d1 * n, __PRETTY_FUNCTION__, __FILE__, __LINE__
+        );
+        if (msg.size() > 0) {
+            FAIL() << msg;
+        }
+        return;
+    }
+};
+
+TEST_F(TestLSKGES_SubmatrixPath, equivalence_to_full_fill) {
+    using L = blas::Layout;
+    using O = blas::Op;
+    for (auto ax : {Axis::Short, Axis::Long}) {
+        for (auto opS : {O::NoTrans, O::Trans}) {
+            for (auto layout : {L::ColMajor, L::RowMajor}) {
+                for (int64_t vnz : {(int64_t) 1, (int64_t) 2, (int64_t) 3}) {
+                    run<double>(ax, opS, layout, vnz);
+                }
+            }
+        }
+    }
+}

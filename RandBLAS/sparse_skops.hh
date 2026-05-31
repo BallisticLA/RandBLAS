@@ -94,7 +94,6 @@ void _considerate_fisher_yates(
     return;
 }
 
-
 template <typename T, SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
 static state_t repeated_fisher_yates(
     const state_t &state,
@@ -155,7 +154,7 @@ inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t dim_major
 namespace RandBLAS {
 
 // Forward declaration of SparseSkOp. It's returnable by
-// SparseDist.sample(), but its definition involves DenseDist.
+// SparseDist.sample(), but its definition involves SparseDist.
 template<typename T, typename RNG, SignedInteger sint_t>
 struct SparseSkOp;
 
@@ -287,7 +286,7 @@ struct SparseDist {
 /// This function is used for sampling a sequence of \math{k} elements uniformly
 /// without replacement from the index set \math{\\{0,\ldots,n-1\\}.} It uses a special 
 /// implementation of Fisher-Yates shuffling to produce \math{r} such samples in \math{O(n + rk)} time.
-/// These samples are stored by  writing to \math{\ttt{samples}} in \math{r} blocks of length \math{k.}
+/// These samples are stored by writing to \math{\ttt{samples}} in \math{r} blocks of length \math{k.}
 /// 
 /// The returned RNGState should
 /// be used for the next call to a random sampling function whose output should be statistically
@@ -529,69 +528,147 @@ void laso_merge_long_axis_vector_coo_data(
 ///   .. |Dfullnnz| mathmacro:: {\mathcal{D}\mathtt{.full\_nnz}}
 ///
 /// @endverbatim
+/// Samples ONLY the \math{\ttt{n_rows_sub} \times \ttt{n_cols_sub}} submatrix of the
+/// operator defined by \math{(\D,\ttt{seed_state})} whose upper-left corner sits at
+/// \math{(\ttt{ro_s},\ttt{co_s})}, without ever materializing the full operator. This
+/// function has no allocation stage and it skips checks for null pointers.
+///
+/// On entry, \math{(\vals,\rows,\cols)} are arrays of length at least
+/// \math{\ttt{D.vec_nnz} \cdot \ttt{num_major_sub}}, where \math{\ttt{num_major_sub}} is
+/// the number of major-axis vectors that intersect the requested submatrix (this is the
+/// worst-case nonzero count for the submatrix). On exit, the first \math{\ttt{nnz}}
+/// entries of these arrays contain the data for a COO sparse matrix representation of
+/// \math{\submat(\mtxS)}, with row/column indices already shifted into
+/// \math{[0,\ttt{n_rows_sub}) \times [0,\ttt{n_cols_sub})}.
+///
+/// The data produced by this function equals, entry-for-entry as a sparse matrix, the
+/// \math{[\ttt{ro_s}:\ttt{ro_s}+\ttt{n_rows_sub},\,\ttt{co_s}:\ttt{co_s}+\ttt{n_cols_sub}]}
+/// submatrix of \math{\ttt{fill_sparse_unpacked_nosub}(\D,\ldots)}.
+///
+template <typename T, typename sint_t, typename state_t>
+state_t fill_sparse_unpacked(
+    const SparseDist &D,
+    int64_t n_rows_sub, int64_t n_cols_sub,
+    int64_t ro_s, int64_t co_s,
+    int64_t &nnz, T* vals, sint_t* rows, sint_t* cols,
+    const state_t &seed_state
+) {
+    randblas_require(D.n_rows >= n_rows_sub + ro_s);
+    randblas_require(D.n_cols >= n_cols_sub + co_s);
+
+    // An operator sampled from D is built by drawing D.dim_minor major-axis vectors,
+    // each a length-(D.dim_major) sparse vector with vec_nnz nonzeros. Below we call the
+    // length of a major-axis vector "dim_major" and (in the submatrix variables) the
+    // count of such vectors "num_major" -- so the full operator's num_major == D.dim_minor.
+    int64_t dim_major = D.dim_major;
+    int64_t vec_nnz   = D.vec_nnz;
+
+    // Map the submatrix's (row, col) offsets/extents onto the (short, long) axes,
+    // exactly as fill_sparse_unpacked_nosub chooses idxs_short/idxs_long.
+    bool short_is_rows = (D.n_rows <= D.n_cols);
+    int64_t short_off, short_sub, long_off, long_sub;
+    if (short_is_rows) {
+        short_off = ro_s; short_sub = n_rows_sub; long_off = co_s; long_sub = n_cols_sub;
+    } else {
+        short_off = co_s; short_sub = n_cols_sub; long_off = ro_s; long_sub = n_rows_sub;
+    }
+
+    // The major axis is the short axis for SASO and the long axis for LASO; the count
+    // of major-axis vectors runs along the other axis. The submatrix keeps a window of
+    // dim_major_sub coordinates (starting at dim_major_off) WITHIN each kept vector, and
+    // keeps num_major_sub of the vectors (starting at vector index num_major_off).
+    int64_t dim_major_off, dim_major_sub, num_major_off, num_major_sub;
+    bool major_is_rows;
+    if (D.major_axis == Axis::Short) {
+        dim_major_off = short_off; dim_major_sub = short_sub;
+        num_major_off = long_off;  num_major_sub = long_sub;
+        major_is_rows = short_is_rows;
+    } else {
+        dim_major_off = long_off;  dim_major_sub = long_sub;
+        num_major_off = short_off; num_major_sub = short_sub;
+        major_is_rows = !short_is_rows;
+    }
+
+    // Skip the RNG counter past the num_major_off major-axis vectors we don't need.
+    // Both the Fisher-Yates path (vec_nnz > 1) and the i.i.d.-uniform path (vec_nnz == 1
+    // and LASO) consume exactly vec_nnz counter increments per major-axis vector, so the
+    // skip amount is uniform.
+    state_t work_state = seed_state;
+    work_state.counter.incr(num_major_off * vec_nnz);
+
+    // Identify which output array holds the major-axis coordinate and which holds the
+    // minor-axis coordinate (the index of the major-axis vector). We sample directly
+    // into these buffers (no scratch space) and then compact in place, so they must each
+    // have capacity >= vec_nnz * num_major_sub.
+    sint_t* idxs_major = major_is_rows ? rows : cols;
+    sint_t* idxs_minor = major_is_rows ? cols : rows;
+
+    // Phase 1: sample the num_major_sub requested major-axis vectors directly into the
+    // output buffers, using the same helpers (and hence the same RNG stream) as the full
+    // operator. On exit, the first "total" entries carry full major coordinates and local
+    // minor coordinates (0..num_major_sub-1); "total" is the pre-filter nnz.
+    int64_t total;
+    state_t end_state;
+    if (D.major_axis == Axis::Short) {
+        end_state = sparse::repeated_fisher_yates(
+            work_state, vec_nnz, dim_major, num_major_sub, idxs_major, idxs_minor, vals
+        );
+        total = vec_nnz * num_major_sub;
+    } else {
+        // LASO: each major-axis vector is sampled with replacement and merged in place,
+        // advancing through the output buffers exactly as the full operator does.
+        std::unordered_map<sint_t, T> loc2count{};
+        std::unordered_map<sint_t, T> loc2scale{};
+        sint_t* im = idxs_major;
+        sint_t* in = idxs_minor;
+        T*      v  = vals;
+        total = 0;
+        end_state = work_state;
+        for (int64_t i = 0; i < num_major_sub; ++i) {
+            end_state = sample_indices_iid_uniform(dim_major, vec_nnz, im, v, end_state);
+            laso_merge_long_axis_vector_coo_data(vec_nnz, v, im, in, i, loc2count, loc2scale);
+            int64_t count = (int64_t) loc2count.size();
+            im += count; in += count; v += count; total += count;
+        }
+    }
+
+    // Phase 2: compact in place, keeping only nonzeros whose major coordinate lands in
+    // the window [dim_major_off, dim_major_off + dim_major_sub) and shifting those
+    // coordinates down to local indices. The write index nnz never exceeds the read
+    // index k, so reading and writing the same buffers is safe.
+    nnz = 0;
+    for (int64_t k = 0; k < total; ++k) {
+        sint_t mc = idxs_major[k] - (sint_t) dim_major_off;
+        if (0 <= mc && mc < (sint_t) dim_major_sub) {
+            idxs_major[nnz] = mc;
+            idxs_minor[nnz] = idxs_minor[k];
+            vals[nnz]       = vals[k];
+            nnz++;
+        }
+    }
+    return end_state;
+}
+
+// =============================================================================
 /// This function is the underlying implementation of fill_sparse(SparseSkOp &S).
 /// It has no allocation stage and it skips checks for null pointers.
 ///
 /// On entry, \math{(\vals,\rows,\cols)} are arrays of length at least \math{\Dfullnnz.}
-/// On exit, the first \math{\ttt{nnz}} entries of these arrays contain the data for 
+/// On exit, the first \math{\ttt{nnz}} entries of these arrays contain the data for
 /// a COO sparse matrix representation of the SparseSkOp
 /// defined by \math{(\D,\ttt{seed_state)}.}
 ///
-/// Note: the "nosub" suffix in this function name reflects how it has no ability
-/// to sample submatrices of sparse sketching operators. A future release of
-/// RandBLAS will add a function called "fill_sparse_unpacked()" with capabilities
-/// that are completely analogous to fill_dense_unpacked().
-/// 
+/// The function fill_sparse_unpacked lets you perform a similar operation that
+/// only returns data for a submatrix of a SparseSkOp.
 template <typename T, typename sint_t, typename state_t>
 state_t fill_sparse_unpacked_nosub(
     const SparseDist &D,
     int64_t &nnz, T* vals, sint_t* rows, sint_t *cols,
     const state_t &seed_state
 ) {
-    int64_t dim_major = D.dim_major;
-    int64_t dim_minor = D.dim_minor;
-
-    sint_t *idxs_short = (D.n_rows <= D.n_cols) ? rows : cols;
-    sint_t *idxs_long  = (D.n_rows <= D.n_cols) ? cols : rows;
-    int64_t vec_nnz  = D.vec_nnz;
-
-    if (D.major_axis == Axis::Short) {
-        auto state = sparse::repeated_fisher_yates(
-            seed_state, vec_nnz, dim_major, dim_minor, idxs_short, idxs_long, vals
-        );
-        nnz = vec_nnz * dim_minor;
-        return state;
-    } else {
-        // We're long-axis major.
-        
-        // We don't sample all at once since we might need to merge duplicate entries
-        // in each long-axis vector. The way we do this is different than the
-        // standard COOMatrix convention of just adding entries together.
-
-        // We begin by defining some datastructures that we repeatedly pass to a helper function.
-        // See the comments in the helper function for info on what these guys mean.
-        std::unordered_map<sint_t, T> loc2count{};
-        std::unordered_map<sint_t, T> loc2scale{}; 
-        int64_t total_nnz = 0;
-        auto state = seed_state;
-        for (int64_t i = 0; i < dim_minor; ++i) {
-            state = sample_indices_iid_uniform(dim_major, vec_nnz, idxs_long, vals, state);
-            // ^ That writes directly so S.vals and either S.rows or S.cols.
-            //   The new values might need to be changed if there are duplicates in idxs_long.
-            //   We have a helper function for this since it's a tedious process.
-            //   The helper function also sets whichever of S.rows or S.cols wasn't populated.
-            laso_merge_long_axis_vector_coo_data(
-                vec_nnz, vals, idxs_long, idxs_short, i, loc2count, loc2scale
-            );
-            int64_t count = loc2count.size();
-            vals += count;
-            idxs_long  += count;
-            idxs_short += count;
-            total_nnz  += count;
-        }
-        nnz = total_nnz;
-        return state;
-    }
+    return fill_sparse_unpacked(
+        D, D.n_rows, D.n_cols, 0, 0, nnz, vals, rows, cols, seed_state
+    );
 }
 
 
@@ -687,13 +764,63 @@ void print_sparse(SparseSkOp const &S0) {
 namespace RandBLAS::sparse {
 
 using RandBLAS::SparseSkOp;
+using RandBLAS::SparseDist;
 using RandBLAS::Axis;
+using RandBLAS::fill_sparse_unpacked;
 using RandBLAS::sparse_data::COOMatrix;
 
 template <typename SparseSkOp, typename T = SparseSkOp::scalar_t, typename sint_t = SparseSkOp::index_t>
 COOMatrix<T, sint_t> coo_view_of_skop(const SparseSkOp &S) {
     randblas_require(S.nnz > 0);
     COOMatrix<T, sint_t> A(S.n_rows, S.n_cols, S.nnz, S.vals, S.rows, S.cols);
+    return A;
+}
+
+// =============================================================================
+/// Allocate and return a memory-owning COOMatrix holding ONLY the
+/// \math{\ttt{n_rows_sub} \times \ttt{n_cols_sub}} submatrix of \math{\mtxS} whose
+/// upper-left corner sits at \math{(\ttt{ro_s},\ttt{co_s})}, without ever materializing
+/// the full operator. This is the sparse analog of submatrix_as_blackbox().
+///
+/// The returned COOMatrix has dimensions \math{(\ttt{n_rows_sub},\ttt{n_cols_sub})},
+/// zero-based indexing, and indices that have already been shifted to local coordinates.
+/// Because its dimensions exactly match the submatrix, passing it to left_spmm/right_spmm
+/// with offsets (0,0) takes the no-extract fast path. The returned object owns its memory
+/// (own_memory == true); its destructor frees the buffers.
+///
+template <typename SparseSkOp, typename T = typename SparseSkOp::scalar_t, typename sint_t = typename SparseSkOp::index_t>
+COOMatrix<T, sint_t> submatrix_as_coo(
+    const SparseSkOp &S, int64_t n_rows_sub, int64_t n_cols_sub, int64_t ro_s, int64_t co_s
+) {
+    randblas_require(ro_s + n_rows_sub <= S.n_rows);
+    randblas_require(co_s + n_cols_sub <= S.n_cols);
+    const SparseDist &D = S.dist;
+
+    // Worst-case nnz of the submatrix = vec_nnz * (number of major-axis vectors that
+    // intersect the submatrix). num_major_sub is that count; derive it via the same axis
+    // mapping used in fill_sparse_unpacked.
+    bool short_is_rows = (D.n_rows <= D.n_cols);
+    int64_t short_sub = short_is_rows ? n_rows_sub : n_cols_sub;
+    int64_t long_sub  = short_is_rows ? n_cols_sub : n_rows_sub;
+    int64_t num_major_sub = (D.major_axis == Axis::Short) ? long_sub : short_sub;
+    int64_t cap = D.vec_nnz * num_major_sub;
+
+    // Allocate the worst-case buffers, sample only the requested submatrix, and attach
+    // the buffers to an owning COOMatrix. We use the standard ctor + manual attach
+    // (rather than reserve()) because the submatrix may be empty (cap or actual nnz == 0)
+    // and reserve() rejects arg_nnz <= 0.
+    T*      vals = new T[cap];
+    sint_t* rows = new sint_t[cap];
+    sint_t* cols = new sint_t[cap];
+    int64_t nnz = 0;
+    fill_sparse_unpacked(D, n_rows_sub, n_cols_sub, ro_s, co_s, nnz, vals, rows, cols, S.seed_state);
+
+    COOMatrix<T, sint_t> A(n_rows_sub, n_cols_sub); // own_memory == true, null arrays.
+    A.vals = vals;
+    A.rows = rows;
+    A.cols = cols;
+    A.nnz  = nnz;
+    A.sort = RandBLAS::sparse_data::NonzeroSort::None;
     return A;
 }
 

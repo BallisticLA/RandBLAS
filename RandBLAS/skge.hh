@@ -481,9 +481,14 @@ void lskges(
     int64_t ldb
 ) {
     if (S.nnz < 0) {
-        SparseSkOp<T,RNG,sint_t> shallowcopy(S.dist, S.seed_state); // shallowcopy.own_memory = true.
-        fill_sparse(shallowcopy);
-        lskges(layout, opS, opA, d, n, m, alpha, shallowcopy, ro_s, co_s, A, lda, beta, B, ldb);
+        // The operator hasn't been sampled yet. Generate ONLY the needed submatrix of S
+        // (op(submat(S)) is d-by-m). submat(S) is d-by-m if opS == NoTrans, else m-by-d.
+        // We then call left_spmm with offsets (0,0); it applies opS itself.
+        auto Ssub = submatrix_as_coo(S,
+            (opS == blas::Op::NoTrans) ? d : m,
+            (opS == blas::Op::NoTrans) ? m : d,
+            ro_s, co_s);
+        left_spmm(layout, opS, opA, d, n, m, alpha, Ssub, 0, 0, A, lda, beta, B, ldb);
         return;
     }
     auto Scoo = coo_view_of_skop(S);
@@ -614,9 +619,14 @@ inline void rskges(
     int64_t ldb
 ) { 
     if (S.nnz < 0) {
-        SparseSkOp<T,RNG,sint_t> shallowcopy(S.dist, S.seed_state); // shallowcopy.own_memory = true.
-        fill_sparse(shallowcopy);
-        rskges(layout, opA, opS, m, d, n, alpha, A, lda, shallowcopy, ro_s, co_s, beta, B, ldb);
+        // The operator hasn't been sampled yet. Generate ONLY the needed submatrix of S
+        // (op(submat(S)) is n-by-d). submat(S) is n-by-d if opS == NoTrans, else d-by-n.
+        // We then call right_spmm with offsets (0,0); it applies opS itself.
+        auto Ssub = submatrix_as_coo(S,
+            (opS == blas::Op::NoTrans) ? n : d,
+            (opS == blas::Op::NoTrans) ? d : n,
+            ro_s, co_s);
+        right_spmm(layout, opA, opS, m, d, n, alpha, A, lda, Ssub, 0, 0, beta, B, ldb);
         return;
     }
     auto Scoo = coo_view_of_skop(S);
