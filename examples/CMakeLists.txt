@@ -102,5 +102,15 @@ target_link_libraries(
     spmm_performance PUBLIC RandBLAS blaspp lapackpp
 )
 
+add_executable(
+    sketch_general_performance simple-kernel-benchmarks/sketch_general_performance.cc
+)
+target_include_directories(
+    sketch_general_performance PUBLIC ${Random123_DIR}
+)
+target_link_libraries(
+    sketch_general_performance PUBLIC RandBLAS blaspp lapackpp
+)
+
 
 
