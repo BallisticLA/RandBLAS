@@ -680,6 +680,24 @@ state_t fill_sparse_unpacked(
             end_state = sample_indices_iid_uniform(dim_major, vec_nnz, im, v, end_state);
             laso_merge_long_axis_vector_coo_data(vec_nnz, v, im, in, i, loc2count, loc2scale);
             int64_t count = (int64_t) loc2count.size();
+            // Emit this major-axis vector in ascending major-coordinate order, exactly as
+            // the SASO branch does. The merge leaves the (<= vec_nnz) survivors in hash /
+            // sample order; sorting the block by its major coordinate makes a wide LASO
+            // CSR-sorted (cols ascending within each row) and a tall LASO CSC-sorted. That
+            // natural order also matches the ColMajor dispatch preference (CSR for wide),
+            // so apply_coo_via_csc skips its per-apply re-sort. idxs_minor is constant
+            // within the block. The block length varies, so insertion-sort (count is small).
+            for (int64_t a = 1; a < count; ++a) {
+                sint_t key = im[a];
+                T      vv  = v[a];
+                int64_t c = a - 1;
+                for (; c >= 0 && im[c] > key; --c) {
+                    im[c+1] = im[c];
+                    v[c+1]  = v[c];
+                }
+                im[c+1] = key;
+                v[c+1]  = vv;
+            }
             im += count; in += count; v += count; total += count;
         }
     }
