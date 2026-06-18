@@ -467,6 +467,96 @@ void run_scaling(int64_t d, int64_t m, int64_t n, const std::vector<OpSpec>& spe
     }
 }
 
+// ---------------------------------------------------------------------------
+// CSR-vs-CSC KERNEL PROBE (left-sketch). Builds the operator's CSC and CSR
+// representations once and times left_spmm DIRECTLY on each (no per-call COO
+// re-sort), in both layouts, to isolate the kernel. The question: does the CSR
+// jik path -- whose ColMajor outer loop runs over d rows (all non-empty for a
+// wide LASO) -- recover the gap vs the CSC jki path, whose outer loop runs over
+// m mostly-empty columns? CSC kib (RowMajor) is the already-fast baseline.
+//
+// Finding: CSR jik (ColMajor) beats CSC jki (ColMajor) 1.1-2x for BOTH SASO and
+// LASO with no regression, motivating the ColMajor "prefer CSR for wide
+// operators" routing now in apply_coo_via_csc (coo_spmm_impl.hh). (A strided-axpy
+// "ColMajor kib" kernel was also tried and rejected -- it regressed dense-column
+// SASO ~3x.) The probe times the kernels directly, so it is unaffected by that
+// routing change and remains the A/B harness for it.
+// ---------------------------------------------------------------------------
+void run_csr_probe(int64_t d, int64_t m, int64_t n,
+                   const std::vector<OpSpec>& specs, int num_trials) {
+    using T = double;
+    namespace rb = RandBLAS;
+    uint64_t seed = 12345;
+
+    std::cout << "=== CSR-vs-CSC KERNEL PROBE (left-sketch)  d=" << d << " m=" << m
+              << " n=" << n << ",  trials=" << num_trials << " ===\n";
+    std::cout << "  kernels timed directly via left_spmm on prebuilt CSC/CSR (no COO re-sort)\n\n";
+
+    std::vector<T> A_cm(m * n), A_rm(m * n);
+    rb::DenseDist DA(m, n);
+    auto st = rb::fill_dense(DA, A_cm.data(), rb::RNGState<>(seed));
+    for (int64_t i = 0; i < m; ++i)
+        for (int64_t j = 0; j < n; ++j)
+            A_rm[i * n + j] = A_cm[i + j * m];
+    std::vector<T> C_cm(d * n), C_rm(d * n), B_ref(d * n), S_dense(d * m), result(d * n);
+
+    for (const auto& spec : specs) {
+        SparseDist dist(d, m, spec.vec_nnz, spec.axis);
+        SparseSkOp<T> S(dist, st);
+        rb::fill_sparse(S);
+        auto view = rb::sparse::coo_view_of_skop(S);
+        int64_t nnz = S.nnz;
+        auto S_csc = view.as_owning_csc();
+        auto S_csr = view.as_owning_csr();
+        int64_t a_read = std::min(nnz, m) * n;
+
+        // Oracle: densify(S) + GEMM (also the correctness reference).
+        rb::sparse_data::coo::coo_to_dense(view, Layout::ColMajor, S_dense.data());
+        std::fill(B_ref.begin(), B_ref.end(), 0.0);
+        blas::gemm(Layout::ColMajor, Op::NoTrans, Op::NoTrans, d, n, m,
+                   1.0, S_dense.data(), d, A_cm.data(), m, 0.0, B_ref.data(), d);
+
+        std::vector<Row> rows;
+        auto probe = [&](const std::string& label, const auto& Sp, Layout lay) {
+            const T* Bp = (lay == Layout::ColMajor) ? A_cm.data() : A_rm.data();
+            int64_t ldb = (lay == Layout::ColMajor) ? m : n;
+            T*      Cp  = (lay == Layout::ColMajor) ? C_cm.data() : C_rm.data();
+            int64_t ldc = (lay == Layout::ColMajor) ? d : n;
+            auto [mn, md] = run_trials([&]() {
+                std::fill(Cp, Cp + d * n, 0.0);
+                rb::sparse_data::left_spmm(lay, Op::NoTrans, Op::NoTrans, d, n, m,
+                                           1.0, Sp, 0, 0, Bp, ldb, 0.0, Cp, ldc);
+            }, num_trials);
+            std::fill(result.begin(), result.end(), 0.0);
+            rb::sparse_data::left_spmm(lay, Op::NoTrans, Op::NoTrans, d, n, m,
+                                       1.0, Sp, 0, 0, Bp, ldb, 0.0, result.data(), ldc);
+            double maxdiff = 0;
+            if (lay == Layout::ColMajor)
+                for (int64_t i = 0; i < d * n; ++i)
+                    maxdiff = std::max(maxdiff, std::abs(result[i] - B_ref[i]));
+            else
+                for (int64_t i = 0; i < d; ++i)
+                    for (int64_t j = 0; j < n; ++j)
+                        maxdiff = std::max(maxdiff, std::abs(result[i * n + j] - B_ref[i + j * d]));
+            if (maxdiff > 1e-9)
+                std::cout << "  FAIL " << label << " max|diff|=" << std::scientific
+                          << maxdiff << std::fixed << "\n";
+            Row r; r.label = label; r.min_us = mn; r.med_us = md;
+            fill_metrics(r, mn, nnz, n, a_read, d * n);
+            r.notes = std::string(sort_name(view.sort)) + " nnz=" + std::to_string(nnz);
+            rows.push_back(r);
+        };
+
+        print_metric_header(spec.label);
+        probe("CSC jki  ColMajor", S_csc, Layout::ColMajor);
+        probe("CSR jik  ColMajor", S_csr, Layout::ColMajor);
+        probe("CSC kib  RowMajor", S_csc, Layout::RowMajor);
+        probe("CSR ikb  RowMajor", S_csr, Layout::RowMajor);
+        for (auto& r : rows) print_metric_row(r);
+        std::cout << "\n";
+    }
+}
+
 std::vector<OpSpec> sweep_specs() {
     return {
         {"Wide SASO  k=2",  2, Axis::Short},
@@ -491,13 +581,14 @@ static std::vector<int> parse_threads(const std::string& csv) {
 }
 
 int main(int argc, char** argv) {
-    bool no_stream = false, scaling = false;
+    bool no_stream = false, scaling = false, csr_probe = false;
     std::vector<int> threads = {1, 2, 4, 8};
     std::vector<std::string> pos;
     for (int i = 1; i < argc; ++i) {
         std::string s = argv[i];
         if (s == "--no-stream")      no_stream = true;
         else if (s == "--scaling")   scaling = true;
+        else if (s == "--csr-probe") csr_probe = true;
         else if (s.rfind("--threads=", 0) == 0) threads = parse_threads(s.substr(10));
         else pos.push_back(s);
     }
@@ -534,6 +625,14 @@ int main(int argc, char** argv) {
         std::cout << "STREAM calibration skipped (--no-stream); %STR shows '-'\n";
     }
     std::cout << "\n";
+
+    if (csr_probe) {
+        std::vector<OpSpec> specs = have_cfg
+            ? std::vector<OpSpec>{{"single", k, axis}} : sweep_specs();
+        int64_t sd = have_cfg ? d : 200, sm = have_cfg ? m : 2000, sn = have_cfg ? n : 2000;
+        run_csr_probe(sd, sm, sn, specs, trials);
+        return 0;
+    }
 
     if (have_cfg) {
         std::vector<OpSpec> specs = {{"single", k, axis}};
