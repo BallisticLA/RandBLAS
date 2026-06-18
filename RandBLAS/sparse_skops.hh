@@ -645,6 +645,27 @@ state_t fill_sparse_unpacked(
             work_state, vec_nnz, dim_major, num_major_sub, idxs_major, idxs_minor, vals
         );
         total = vec_nnz * num_major_sub;
+        // Emit each major-axis vector in ascending major-coordinate order. Fisher-Yates
+        // draws the vec_nnz nonzeros in shuffle order; sorting each contiguous block by
+        // its major coordinate (rows for a wide SASO, cols for a tall one) makes the COO
+        // natively CSC- (wide) / CSR- (tall) sorted, so apply_coo_via_csc skips its
+        // per-apply deepcopy + re-sort. idxs_minor is constant within a block, so only
+        // (idxs_major, vals) move. vec_nnz is small, so a no-alloc insertion sort is best.
+        for (int64_t b = 0; b < num_major_sub; ++b) {
+            sint_t* blk_major = idxs_major + b * vec_nnz;
+            T*      blk_vals  = vals       + b * vec_nnz;
+            for (int64_t a = 1; a < vec_nnz; ++a) {
+                sint_t key = blk_major[a];
+                T      v   = blk_vals[a];
+                int64_t c = a - 1;
+                for (; c >= 0 && blk_major[c] > key; --c) {
+                    blk_major[c+1] = blk_major[c];
+                    blk_vals[c+1]  = blk_vals[c];
+                }
+                blk_major[c+1] = key;
+                blk_vals[c+1]  = v;
+            }
+        }
     } else {
         // LASO: each major-axis vector is sampled with replacement and merged in place,
         // advancing through the output buffers exactly as the full operator does.
