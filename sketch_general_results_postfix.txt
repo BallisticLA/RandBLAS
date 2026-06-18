@@ -1,0 +1,219 @@
+# POST-FIX run with work-normalized metrics (ns/elt, GB/s, %STR).
+#   Sampling fix: within-vector sort in fill_sparse_unpacked SASO branch
+#   (RandBLAS/sparse_skops.hh) -> wide SASO vec_nnz>=2 emits CSC-sorted COO
+#   (tall SASO -> CSR), so apply_coo_via_csc skips its per-apply re-sort.
+#   ns/elt = us*1000/(nnz*work_mult); work_mult = n (left) or m (right).
+#   GB/s = model bytes / time; %STR = GB/s as a fraction of the STREAM triad
+#   below. Byte model bounds A traffic by min(nnz, contract_dim); STREAM is a
+#   DRAM ceiling, so tiny cache-resident LASO cases can exceed 100% %STR.
+#   Pre-fix baseline (no metric columns): sketch_general_results.txt
+# Environment: Apple M3, OMP_NUM_THREADS=4, Release build (MKL off)
+# RandBLAS commit: 705f09e + uncommitted sampling fix | Correctness: 0 FAIL
+
+============================================================
+SKETCH_GENERAL PERFORMANCE BENCHMARK (sparse operators)
+============================================================
+Threads (OMP_NUM_THREADS/max): 4
+Calibrating STREAM triad... 85.4 GB/s  (= 100% on the %STR column)
+
+########## SECTION 1: vary sketch size d (m=n=2000) ##########
+
+=== LEFT-SKETCH  B(40x2000) = S(40x2000) * A(2000x2000),  trials=10 ===
+
+  warm apply, ColMajor dense  (jik/jki kernels)
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                 1097     1111    0.137    30.4     36  CSC nnz=4000 cold=1153 cvt=7
+  Wide SASO  k=4                 2223     2332    0.139    15.0     18  CSC nnz=8000 cold=2308 cvt=14
+  Wide SASO  k=8                 3934     3988    0.123     8.5     10  CSC nnz=16000 cold=4423 cvt=26
+  CountSketch k=1                 834      844    0.208    39.9     47  CSC nnz=2000 cold=852 cvt=3
+  Wide LASO  k=2                  420      597    2.625     6.1      7  None nnz=80 cold=689 cvt=0
+  Wide LASO  k=4                  401      414    1.253     9.6     11  None nnz=160 cold=464 cvt=1
+  Wide LASO  k=8                  485      501    0.763    13.1     15  None nnz=318 cold=517 cvt=3
+  densify(S)+GEMM                1574     1599        -       -      -  dense oracle
+
+  warm apply, RowMajor dense  (ikb/kib kernels)
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                  740      754    0.092    45.1     53  CSC nnz=4000
+  Wide SASO  k=4                 1073     1112    0.067    31.1     36  CSC nnz=8000
+  Wide SASO  k=8                 1539     1839    0.048    21.8     26  CSC nnz=16000
+  CountSketch k=1                 497      523    0.124    67.0     78  CSC nnz=2000
+  Wide LASO  k=2                   30       32    0.188    85.4    100  None nnz=80
+  Wide LASO  k=4                   36       38    0.113   106.7    125  None nnz=160
+  Wide LASO  k=8                   57       63    0.090   111.8    131  None nnz=318
+
+=== RIGHT-SKETCH  B(2000x40) = A(2000x2000) * S(2000x40),  trials=10 ===
+
+  warm apply, ColMajor dense
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                  649      719    0.081    51.4     60  CSR nnz=4000
+  Wide SASO  k=4                 1103     1138    0.069    30.3     35  CSR nnz=8000
+  Wide SASO  k=8                 1505     1849    0.047    22.3     26  CSR nnz=16000
+  CountSketch k=1                 474      509    0.118    70.3     82  CSR nnz=2000
+  Wide LASO  k=2                   28       31    0.175    91.5    107  None nnz=80
+  Wide LASO  k=4                   37       39    0.116   103.9    122  None nnz=160
+  Wide LASO  k=8                   53       55    0.083   120.9    141  None nnz=320
+
+  warm apply, RowMajor dense
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                 1095     1104    0.137    30.5     36  CSR nnz=4000
+  Wide SASO  k=4                 2197     2206    0.137    15.2     18  CSR nnz=8000
+  Wide SASO  k=8                 3938     4008    0.123     8.5     10  CSR nnz=16000
+  CountSketch k=1                 833      843    0.208    40.0     47  CSR nnz=2000
+  Wide LASO  k=2                  528      857    3.300     4.9      6  None nnz=80
+  Wide LASO  k=4                  458      463    1.431     8.4     10  None nnz=160
+  Wide LASO  k=8                  496      505    0.775    12.9     15  None nnz=320
+
+=== LEFT-SKETCH  B(200x2000) = S(200x2000) * A(2000x2000),  trials=10 ===
+
+  warm apply, ColMajor dense  (jik/jki kernels)
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                 1134     1193    0.142    33.9     40  CSC nnz=4000 cold=1180 cvt=6
+  Wide SASO  k=4                 2134     2349    0.133    18.1     21  CSC nnz=8000 cold=3055 cvt=15
+  Wide SASO  k=8                 3752     3956    0.117    10.3     12  CSC nnz=16000 cold=4091 cvt=26
+  CountSketch k=1                 875      884    0.219    43.9     51  CSC nnz=2000 cold=893 cvt=3
+  Wide LASO  k=2                  571      607    0.714    22.4     26  None nnz=400 cold=606 cvt=4
+  Wide LASO  k=4                  880     1047    0.550    21.8     26  None nnz=800 cold=847 cvt=10
+  Wide LASO  k=8                 1356     1436    0.425    23.6     28  None nnz=1597 cold=1465 cvt=22
+  densify(S)+GEMM                4726     4855        -       -      -  dense oracle
+
+  warm apply, RowMajor dense  (ikb/kib kernels)
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                  717      859    0.090    53.6     63  CSC nnz=4000
+  Wide SASO  k=4                 1074     1230    0.067    35.9     42  CSC nnz=8000
+  Wide SASO  k=8                 1785     1908    0.056    21.7     25  CSC nnz=16000
+  CountSketch k=1                 560      573    0.140    68.6     80  CSC nnz=2000
+  Wide LASO  k=2                  101      107    0.126   126.8    148  None nnz=400
+  Wide LASO  k=4                  174      211    0.109   110.4    129  None nnz=800
+  Wide LASO  k=8                  406      414    0.127    78.8     92  None nnz=1597
+
+=== RIGHT-SKETCH  B(2000x200) = A(2000x2000) * S(2000x200),  trials=10 ===
+
+  warm apply, ColMajor dense
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                  769      782    0.096    50.0     59  CSR nnz=4000
+  Wide SASO  k=4                 1133     1174    0.071    34.0     40  CSR nnz=8000
+  Wide SASO  k=8                 1657     1903    0.052    23.3     27  CSR nnz=16000
+  CountSketch k=1                 563      656    0.141    68.3     80  CSR nnz=2000
+  Wide LASO  k=2                  105      114    0.131   122.0    143  None nnz=400
+  Wide LASO  k=4                  166      171    0.104   115.5    135  None nnz=798
+  Wide LASO  k=8                  417      458    0.131    76.7     90  None nnz=1597
+
+  warm apply, RowMajor dense
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                 1134     1153    0.142    33.9     40  CSR nnz=4000
+  Wide SASO  k=4                 2111     2175    0.132    18.3     21  CSR nnz=8000
+  Wide SASO  k=8                 3727     4065    0.116    10.4     12  CSR nnz=16000
+  CountSketch k=1                 881      913    0.220    43.6     51  CSR nnz=2000
+  Wide LASO  k=2                  584      600    0.730    21.9     26  None nnz=400
+  Wide LASO  k=4                  801      836    0.502    23.9     28  None nnz=798
+  Wide LASO  k=8                 1259     1326    0.394    25.4     30  None nnz=1597
+
+=== LEFT-SKETCH  B(500x2000) = S(500x2000) * A(2000x2000),  trials=10 ===
+
+  warm apply, ColMajor dense  (jik/jki kernels)
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                 1242     1281    0.155    38.7     45  CSC nnz=4000 cold=1281 cvt=7
+  Wide SASO  k=4                 2193     2391    0.137    21.9     26  CSC nnz=8000 cold=2314 cvt=14
+  Wide SASO  k=8                 3854     4161    0.120    12.5     15  CSC nnz=16000 cold=4149 cvt=26
+  CountSketch k=1                 997     1400    0.249    48.2     56  CSC nnz=2000 cold=997 cvt=3
+  Wide LASO  k=2                 1032     1104    0.516    31.0     36  None nnz=1000 cold=1089 cvt=13
+  Wide LASO  k=4                 1580     1767    0.395    30.4     36  None nnz=1999 cold=2217 cvt=30
+  Wide LASO  k=8                 2173     2294    0.272    22.1     26  None nnz=3994 cold=2408 cvt=65
+  densify(S)+GEMM               11199    11712        -       -      -  dense oracle
+
+  warm apply, RowMajor dense  (ikb/kib kernels)
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                  945      979    0.118    50.9     60  CSC nnz=4000
+  Wide SASO  k=4                 1307     1493    0.082    36.8     43  CSC nnz=8000
+  Wide SASO  k=8                 1995     2040    0.062    24.2     28  CSC nnz=16000
+  CountSketch k=1                 708      807    0.177    67.8     79  CSC nnz=2000
+  Wide LASO  k=2                  411      418    0.205    77.9     91  None nnz=1000
+  Wide LASO  k=4                  650      742    0.163    73.9     86  None nnz=1999
+  Wide LASO  k=8                  977     1113    0.122    49.2     58  None nnz=3994
+
+=== RIGHT-SKETCH  B(2000x500) = A(2000x2000) * S(2000x500),  trials=10 ===
+
+  warm apply, ColMajor dense
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                  926     1070    0.116    51.9     61  CSR nnz=4000
+  Wide SASO  k=4                 1272     1357    0.080    37.8     44  CSR nnz=8000
+  Wide SASO  k=8                 1973     2116    0.062    24.5     29  CSR nnz=16000
+  CountSketch k=1                 773      787    0.193    62.1     73  CSR nnz=2000
+  Wide LASO  k=2                  434      453    0.217    73.7     86  None nnz=998
+  Wide LASO  k=4                  668      699    0.167    71.9     84  None nnz=1998
+  Wide LASO  k=8                  979     1088    0.123    49.1     57  None nnz=3993
+
+  warm apply, RowMajor dense
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                 1241     1333    0.155    38.7     45  CSR nnz=4000
+  Wide SASO  k=4                 2179     2255    0.136    22.1     26  CSR nnz=8000
+  Wide SASO  k=8                 3595     3936    0.112    13.4     16  CSR nnz=16000
+  CountSketch k=1                1003     1010    0.251    47.9     56  CSR nnz=2000
+  Wide LASO  k=2                 1047     1168    0.525    30.5     36  None nnz=998
+  Wide LASO  k=4                 1575     1607    0.394    30.5     36  None nnz=1998
+  Wide LASO  k=8                 2112     2255    0.264    22.8     27  None nnz=3993
+
+########## SECTION 2: narrow n (SpMV-ish) ##########
+
+=== LEFT-SKETCH  B(200x1) = S(200x2000) * A(2000x1),  trials=10 ===
+
+  warm apply, ColMajor dense  (jik/jki kernels)
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                   16       30    4.000     5.2      6  CSC nnz=4000 cold=75 cvt=7
+  Wide SASO  k=4                   23       36    2.875     6.4      7  CSC nnz=8000 cold=119 cvt=14
+  Wide SASO  k=8                   39       40    2.438     7.1      8  CSC nnz=16000 cold=245 cvt=26
+  CountSketch k=1                  13       15    6.500     3.9      5  CSC nnz=2000 cold=34 cvt=3
+  Wide LASO  k=2                   17       21   42.500     0.8      1  None nnz=400 cold=42 cvt=4
+  Wide LASO  k=4                   25       33   31.250     0.9      1  None nnz=800 cold=75 cvt=10
+  Wide LASO  k=8                   37       47   23.139     1.1      1  None nnz=1599 cold=139 cvt=22
+  densify(S)+GEMM                  13       14        -       -      -  dense oracle
+
+  warm apply, RowMajor dense  (ikb/kib kernels)
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                   77       80   19.250     1.1      1  CSC nnz=4000
+  Wide SASO  k=4                   89       91   11.125     1.7      2  CSC nnz=8000
+  Wide SASO  k=8                  172      246   10.750     1.6      2  CSC nnz=16000
+  CountSketch k=1                  35       36   17.500     1.5      2  CSC nnz=2000
+  Wide LASO  k=2                   22       23   55.000     0.6      1  None nnz=400
+  Wide LASO  k=4                   38       47   47.500     0.6      1  None nnz=800
+  Wide LASO  k=8                   65       81   40.650     0.6      1  None nnz=1599
+
+=== LEFT-SKETCH  B(200x10) = S(200x2000) * A(2000x10),  trials=10 ===
+
+  warm apply, ColMajor dense  (jik/jki kernels)
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                   26       29    0.650     9.8     12  CSC nnz=4000 cold=74 cvt=7
+  Wide SASO  k=4                   41       43    0.512     7.8      9  CSC nnz=8000 cold=138 cvt=14
+  Wide SASO  k=8                   64       65    0.400     7.0      8  CSC nnz=16000 cold=269 cvt=25
+  CountSketch k=1                  21       22    1.050    10.7     12  CSC nnz=2000 cold=38 cvt=3
+  Wide LASO  k=2                   21       24    5.250     3.4      4  None nnz=400 cold=47 cvt=4
+  Wide LASO  k=4                   29       32    3.625     3.8      4  None nnz=800 cold=78 cvt=10
+  Wide LASO  k=8                   45       55    2.820     4.1      5  None nnz=1596 cold=143 cvt=22
+  densify(S)+GEMM                  35       35        -       -      -  dense oracle
+
+  warm apply, RowMajor dense  (ikb/kib kernels)
+  Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
+  ----------------------------------------------------------------------------
+  Wide SASO  k=2                   54       56    1.350     4.7      6  CSC nnz=4000
+  Wide SASO  k=4                   94      100    1.175     3.4      4  CSC nnz=8000
+  Wide SASO  k=8                  169      174    1.056     2.7      3  CSC nnz=16000
+  CountSketch k=1                  44       44    2.200     5.1      6  CSC nnz=2000
+  Wide LASO  k=2                   21       23    5.250     3.4      4  None nnz=400
+  Wide LASO  k=4                   36       43    4.500     3.0      4  None nnz=800
+  Wide LASO  k=8                   58       64    3.634     3.2      4  None nnz=1596
+

@@ -1,0 +1,209 @@
+# Environment: Apple M3, OMP_NUM_THREADS=4, Release build (MKL off)
+# RandBLAS commit: 705f09e | Date: 2026-05-31 | Binary: build-randblas-examples/sketch_general_performance
+# Correctness: all configs PASS (0 FAIL lines)
+
+============================================================
+SKETCH_GENERAL PERFORMANCE BENCHMARK (sparse operators)
+============================================================
+
+########## SECTION 1: vary sketch size d (m=n=2000) ##########
+
+=== LEFT-SKETCH  B(40x2000) = S(40x2000) * A(2000x2000),  trials=10 ===
+
+  warm apply, ColMajor dense  (jik/jki kernels)
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                  1453      1469      3.29x   nnz=4000 coo-sort=None  cold=1483 convert=28
+  Wide SASO  k=4                  2279      2337      5.16x   nnz=8000 coo-sort=None  cold=2357 convert=77
+  Wide SASO  k=8                  4418      4528     10.00x   nnz=16000 coo-sort=None  cold=4363 convert=180
+  CountSketch k=1                  832       838      1.88x   nnz=2000 coo-sort=CSC  cold=859 convert=3
+  Wide LASO  k=2                   553       757      1.25x   nnz=78 coo-sort=None  cold=483 convert=0
+  Wide LASO  k=4                   442       450      1.00x   nnz=158 coo-sort=None  cold=460 convert=1
+  Wide LASO  k=8                   477       488      1.08x   nnz=318 coo-sort=None  cold=506 convert=3
+  densify(S)+GEMM                 1566      1566      3.54x   dense oracle
+
+  warm apply, RowMajor dense  (ikb/kib kernels)
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                   767       779     27.39x   nnz=4000 coo-sort=None
+  Wide SASO  k=4                  1173      1185     41.89x   nnz=8000 coo-sort=None
+  Wide SASO  k=8                  2003      2063     71.54x   nnz=16000 coo-sort=None
+  CountSketch k=1                  515       518     18.39x   nnz=2000 coo-sort=CSC
+  Wide LASO  k=2                    28        31      1.00x   nnz=78 coo-sort=None
+  Wide LASO  k=4                    35        39      1.25x   nnz=158 coo-sort=None
+  Wide LASO  k=8                    53        57      1.89x   nnz=318 coo-sort=None
+
+=== RIGHT-SKETCH  B(2000x40) = A(2000x2000) * S(2000x40),  trials=10 ===
+
+  warm apply, ColMajor dense
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                   733       758     23.65x   nnz=4000 coo-sort=None
+  Wide SASO  k=4                  1174      1203     37.87x   nnz=8000 coo-sort=None
+  Wide SASO  k=8                  2107      2217     67.97x   nnz=16000 coo-sort=None
+  CountSketch k=1                  472       550     15.23x   nnz=2000 coo-sort=CSR
+  Wide LASO  k=2                    31        34      1.00x   nnz=80 coo-sort=None
+  Wide LASO  k=4                    37        39      1.19x   nnz=160 coo-sort=None
+  Wide LASO  k=8                    57        66      1.84x   nnz=320 coo-sort=None
+
+  warm apply, RowMajor dense
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                  1443      1452      3.06x   nnz=4000 coo-sort=None
+  Wide SASO  k=4                  2277      2317      4.83x   nnz=8000 coo-sort=None
+  Wide SASO  k=8                  4158      4459      8.83x   nnz=16000 coo-sort=None
+  CountSketch k=1                  852      1287      1.81x   nnz=2000 coo-sort=CSR
+  Wide LASO  k=2                   471       517      1.00x   nnz=80 coo-sort=None
+  Wide LASO  k=4                   471       495      1.00x   nnz=160 coo-sort=None
+  Wide LASO  k=8                   495       500      1.05x   nnz=320 coo-sort=None
+
+=== LEFT-SKETCH  B(200x2000) = S(200x2000) * A(2000x2000),  trials=10 ===
+
+  warm apply, ColMajor dense  (jik/jki kernels)
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                  1491      1552      2.62x   nnz=4000 coo-sort=None  cold=1524 convert=28
+  Wide SASO  k=4                  2183      2211      3.84x   nnz=8000 coo-sort=None  cold=2259 convert=76
+  Wide SASO  k=8                  4189      4240      7.36x   nnz=16000 coo-sort=None  cold=4202 convert=178
+  CountSketch k=1                  875       886      1.54x   nnz=2000 coo-sort=CSC  cold=897 convert=3
+  Wide LASO  k=2                   569       590      1.00x   nnz=398 coo-sort=None  cold=606 convert=4
+  Wide LASO  k=4                   798       826      1.40x   nnz=797 coo-sort=None  cold=859 convert=10
+  Wide LASO  k=8                  1247      1364      2.19x   nnz=1594 coo-sort=None  cold=1400 convert=23
+  densify(S)+GEMM                 4670      4670      8.21x   dense oracle
+
+  warm apply, RowMajor dense  (ikb/kib kernels)
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                   772       827      7.64x   nnz=4000 coo-sort=None
+  Wide SASO  k=4                  1149      1245     11.38x   nnz=8000 coo-sort=None
+  Wide SASO  k=8                  1780      2121     17.62x   nnz=16000 coo-sort=None
+  CountSketch k=1                  514       559      5.09x   nnz=2000 coo-sort=CSC
+  Wide LASO  k=2                   101       106      1.00x   nnz=398 coo-sort=None
+  Wide LASO  k=4                   167       180      1.65x   nnz=797 coo-sort=None
+  Wide LASO  k=8                   400       407      3.96x   nnz=1594 coo-sort=None
+
+=== RIGHT-SKETCH  B(2000x200) = A(2000x2000) * S(2000x200),  trials=10 ===
+
+  warm apply, ColMajor dense
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                   786       814      7.63x   nnz=4000 coo-sort=None
+  Wide SASO  k=4                  1241      1300     12.05x   nnz=8000 coo-sort=None
+  Wide SASO  k=8                  2087      2309     20.26x   nnz=16000 coo-sort=None
+  CountSketch k=1                  558       560      5.42x   nnz=2000 coo-sort=CSR
+  Wide LASO  k=2                   103       114      1.00x   nnz=400 coo-sort=None
+  Wide LASO  k=4                   153       163      1.49x   nnz=800 coo-sort=None
+  Wide LASO  k=8                   397       448      3.85x   nnz=1599 coo-sort=None
+
+  warm apply, RowMajor dense
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                  1496      1539      2.62x   nnz=4000 coo-sort=None
+  Wide SASO  k=4                  2186      2228      3.83x   nnz=8000 coo-sort=None
+  Wide SASO  k=8                  4064      4135      7.12x   nnz=16000 coo-sort=None
+  CountSketch k=1                  876       883      1.53x   nnz=2000 coo-sort=CSR
+  Wide LASO  k=2                   571       601      1.00x   nnz=400 coo-sort=None
+  Wide LASO  k=4                   779       802      1.36x   nnz=800 coo-sort=None
+  Wide LASO  k=8                  1178      1319      2.06x   nnz=1599 coo-sort=None
+
+=== LEFT-SKETCH  B(500x2000) = S(500x2000) * A(2000x2000),  trials=10 ===
+
+  warm apply, ColMajor dense  (jik/jki kernels)
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                  1592      1615      1.63x   nnz=4000 coo-sort=None  cold=1632 convert=29
+  Wide SASO  k=4                  2323      2434      2.38x   nnz=8000 coo-sort=None  cold=2329 convert=76
+  Wide SASO  k=8                  4163      4279      4.26x   nnz=16000 coo-sort=None  cold=4201 convert=184
+  CountSketch k=1                  978       985      1.00x   nnz=2000 coo-sort=CSC  cold=999 convert=3
+  Wide LASO  k=2                  1035      1084      1.06x   nnz=998 coo-sort=None  cold=1083 convert=14
+  Wide LASO  k=4                  1652      1735      1.69x   nnz=1996 coo-sort=None  cold=1759 convert=29
+  Wide LASO  k=8                  2117      2150      2.16x   nnz=3990 coo-sort=None  cold=2326 convert=66
+  densify(S)+GEMM                11075     11075     11.32x   dense oracle
+
+  warm apply, RowMajor dense  (ikb/kib kernels)
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                   923       985      2.19x   nnz=4000 coo-sort=None
+  Wide SASO  k=4                  1343      1374      3.19x   nnz=8000 coo-sort=None
+  Wide SASO  k=8                  2141      2220      5.09x   nnz=16000 coo-sort=None
+  CountSketch k=1                  776       786      1.84x   nnz=2000 coo-sort=CSC
+  Wide LASO  k=2                   421       456      1.00x   nnz=998 coo-sort=None
+  Wide LASO  k=4                   616       657      1.46x   nnz=1996 coo-sort=None
+  Wide LASO  k=8                   990      1097      2.35x   nnz=3990 coo-sort=None
+
+=== RIGHT-SKETCH  B(2000x500) = A(2000x2000) * S(2000x500),  trials=10 ===
+
+  warm apply, ColMajor dense
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                   927       957      2.26x   nnz=4000 coo-sort=None
+  Wide SASO  k=4                  1352      1398      3.30x   nnz=8000 coo-sort=None
+  Wide SASO  k=8                  2190      2356      5.34x   nnz=16000 coo-sort=None
+  CountSketch k=1                  713       917      1.74x   nnz=2000 coo-sort=CSR
+  Wide LASO  k=2                   410       452      1.00x   nnz=1000 coo-sort=None
+  Wide LASO  k=4                   626       683      1.53x   nnz=2000 coo-sort=None
+  Wide LASO  k=8                   944      1044      2.30x   nnz=3993 coo-sort=None
+
+  warm apply, RowMajor dense
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                  1600      1705      1.58x   nnz=4000 coo-sort=None
+  Wide SASO  k=4                  2258      2333      2.23x   nnz=8000 coo-sort=None
+  Wide SASO  k=8                  4047      4176      4.00x   nnz=16000 coo-sort=None
+  CountSketch k=1                 1012      1446      1.00x   nnz=2000 coo-sort=CSR
+  Wide LASO  k=2                  1014      1028      1.00x   nnz=1000 coo-sort=None
+  Wide LASO  k=4                  1557      1635      1.54x   nnz=2000 coo-sort=None
+  Wide LASO  k=8                  2096      2229      2.07x   nnz=3993 coo-sort=None
+
+########## SECTION 2: narrow n (SpMV-ish) ##########
+
+=== LEFT-SKETCH  B(200x1) = S(200x2000) * A(2000x1),  trials=10 ===
+
+  warm apply, ColMajor dense  (jik/jki kernels)
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                    46        50      3.29x   nnz=4000 coo-sort=None  cold=83 convert=29
+  Wide SASO  k=4                   100       115      7.14x   nnz=8000 coo-sort=None  cold=167 convert=78
+  Wide SASO  k=8                   216       266     15.43x   nnz=16000 coo-sort=None  cold=339 convert=176
+  CountSketch k=1                   14        15      1.00x   nnz=2000 coo-sort=CSC  cold=37 convert=3
+  Wide LASO  k=2                    16        22      1.14x   nnz=400 coo-sort=None  cold=40 convert=4
+  Wide LASO  k=4                    27        37      1.93x   nnz=799 coo-sort=None  cold=75 convert=10
+  Wide LASO  k=8                    44        60      3.14x   nnz=1595 coo-sort=None  cold=135 convert=22
+  densify(S)+GEMM                   13        13      0.93x   dense oracle
+
+  warm apply, RowMajor dense  (ikb/kib kernels)
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                    85        86      3.86x   nnz=4000 coo-sort=None
+  Wide SASO  k=4                   174       176      7.91x   nnz=8000 coo-sort=None
+  Wide SASO  k=8                   355       437     16.14x   nnz=16000 coo-sort=None
+  CountSketch k=1                   35        35      1.59x   nnz=2000 coo-sort=CSC
+  Wide LASO  k=2                    22        24      1.00x   nnz=400 coo-sort=None
+  Wide LASO  k=4                    34        36      1.55x   nnz=799 coo-sort=None
+  Wide LASO  k=8                    62        73      2.82x   nnz=1595 coo-sort=None
+
+=== LEFT-SKETCH  B(200x10) = S(200x2000) * A(2000x10),  trials=10 ===
+
+  warm apply, ColMajor dense  (jik/jki kernels)
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                    55        59      2.75x   nnz=4000 coo-sort=None  cold=89 convert=29
+  Wide SASO  k=4                   125       161      6.25x   nnz=8000 coo-sort=None  cold=182 convert=76
+  Wide SASO  k=8                   261       357     13.05x   nnz=16000 coo-sort=None  cold=364 convert=182
+  CountSketch k=1                   20        21      1.00x   nnz=2000 coo-sort=CSC  cold=42 convert=3
+  Wide LASO  k=2                    21        23      1.05x   nnz=400 coo-sort=None  cold=47 convert=4
+  Wide LASO  k=4                    30        33      1.50x   nnz=800 coo-sort=None  cold=77 convert=10
+  Wide LASO  k=8                    45        54      2.25x   nnz=1599 coo-sort=None  cold=139 convert=22
+  densify(S)+GEMM                   35        35      1.75x   dense oracle
+
+  warm apply, RowMajor dense  (ikb/kib kernels)
+  Operator                    Min (us)  Med (us)    vs best   notes
+  --------------------------------------------------------------------
+  Wide SASO  k=2                    79        84      3.59x   nnz=4000 coo-sort=None
+  Wide SASO  k=4                   170       228      7.73x   nnz=8000 coo-sort=None
+  Wide SASO  k=8                   334       345     15.18x   nnz=16000 coo-sort=None
+  CountSketch k=1                   33        35      1.50x   nnz=2000 coo-sort=CSC
+  Wide LASO  k=2                    22        24      1.00x   nnz=400 coo-sort=None
+  Wide LASO  k=4                    35        36      1.59x   nnz=800 coo-sort=None
+  Wide LASO  k=8                    59        60      2.68x   nnz=1599 coo-sort=None
+
