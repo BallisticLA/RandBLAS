@@ -547,11 +547,51 @@ void run_csr_probe(int64_t d, int64_t m, int64_t n,
             rows.push_back(r);
         };
 
+        // Regular-vs-general INNER-kernel A/B on the SAME (regular) CSR, ColMajor only.
+        // Every sketching operator is now stored regular (fixed nnz per major-axis vector),
+        // so this isolates the ONLY difference between the two CSR SpMV kernels: implicit
+        // row indexing (i*row_nnz) vs rowptr[i]/rowptr[i+1] loads. Run back-to-back to
+        // cancel cross-run noise -- this is the definitive "does the regular kernel pay
+        // off?" measurement. Both mirror apply_csr_jik_p11's parallel-over-columns shape.
+        int64_t row_nnz = (d > 0) ? S_csr.rowptr[1] : 0;
+        bool is_regular = (d > 0) && (nnz == row_nnz * d);
+        auto probe_inner = [&](const std::string& label, bool regular_kernel) {
+            auto [mn, md] = run_trials([&]() {
+                std::fill(C_cm.begin(), C_cm.end(), 0.0);
+                #pragma omp parallel for schedule(static)
+                for (int64_t j = 0; j < n; ++j) {
+                    const T* B_col = &A_cm[(size_t) j * m];
+                    T*       C_col = &C_cm[(size_t) j * d];
+                    if (regular_kernel)
+                        rb::sparse_data::csr::apply_regular_csr_to_vector_ik(
+                            1.0, S_csr.vals, row_nnz, S_csr.colidxs, B_col, 1, d, C_col, 1);
+                    else
+                        rb::sparse_data::csr::apply_csr_to_vector_ik(
+                            1.0, S_csr.vals, S_csr.rowptr, S_csr.colidxs, B_col, 1, d, C_col, 1);
+                }
+            }, num_trials);
+            double maxdiff = 0;
+            for (int64_t i = 0; i < d * n; ++i)
+                maxdiff = std::max(maxdiff, std::abs(C_cm[i] - B_ref[i]));
+            if (maxdiff > 1e-9)
+                std::cout << "  FAIL " << label << " max|diff|=" << std::scientific
+                          << maxdiff << std::fixed << "\n";
+            Row r; r.label = label; r.min_us = mn; r.med_us = md;
+            fill_metrics(r, mn, nnz, n, a_read, d * n);
+            r.notes = std::string("regular=") + (regular_kernel ? "Y" : "N")
+                    + " row_nnz=" + std::to_string(row_nnz);
+            rows.push_back(r);
+        };
+
         print_metric_header(spec.label);
         probe("CSC jki  ColMajor", S_csc, Layout::ColMajor);
         probe("CSR jik  ColMajor", S_csr, Layout::ColMajor);
         probe("CSC kib  RowMajor", S_csc, Layout::RowMajor);
         probe("CSR ikb  RowMajor", S_csr, Layout::RowMajor);
+        if (is_regular) {
+            probe_inner("CSR REG  ColMajor*", true);
+            probe_inner("CSR GEN  ColMajor*", false);
+        }
         for (auto& r : rows) print_metric_row(r);
         std::cout << "\n";
     }
