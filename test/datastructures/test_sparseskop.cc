@@ -106,9 +106,10 @@ class TestSparseSkOpConstruction : public ::testing::Test
     }
 
     template <SignedInteger sint_t>
-    void proper_laso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
+    void proper_laso_construction(int64_t d, int64_t m, int64_t key_index) {
         using RNG = SparseSkOp<float>::state_t::generator;
-        SparseDist D0(d, m, vec_nnzs[nnz_index], Axis::Long);
+        int64_t vec_nnz = 1;
+        SparseDist D0(d, m, vec_nnz, Axis::Long);
         SparseSkOp<float, RNG, sint_t> S0(D0, keys[key_index]);
         fill_sparse(S0);
         if (d < m) {
@@ -300,54 +301,6 @@ class TestSparseSkOpConstruction : public ::testing::Test
         return;
     }
 
-    // Regularizing a LASO is a storage-only change: for a given seed, the regular form
-    // (exactly vec_nnz records per major-axis vector, with collided coordinates split into
-    // duplicate records) must densify to the SAME operator as the merged form. This checks
-    // (a) the regular structure -- nnz == full_nnz and every minor-axis vector index occurs
-    // exactly vec_nnz times -- and (b) operator preservation via densify-and-compare.
-    template <typename T, SignedInteger sint_t = int64_t>
-    void regular_laso_preserves_operator(int64_t d, int64_t m, int64_t vec_nnz, uint32_t key) {
-        SparseDist D {d, m, vec_nnz, Axis::Long};
-        RNGState<RandBLAS::DefaultRNG> seed(key);
-        int64_t cap = D.full_nnz;
-
-        // Merged form (regular=false) and regular form (regular=true), SAME seed.
-        vector<T> mvals(cap); vector<sint_t> mrows(cap), mcols(cap); int64_t mnnz = -1;
-        RandBLAS::fill_sparse_unpacked(
-            D, d, m, 0, 0, mnnz, mvals.data(), mrows.data(), mcols.data(), seed, false
-        );
-        vector<T> rvals(cap); vector<sint_t> rrows(cap), rcols(cap); int64_t rnnz = -1;
-        RandBLAS::fill_sparse_unpacked(
-            D, d, m, 0, 0, rnnz, rvals.data(), rrows.data(), rcols.data(), seed, true
-        );
-
-        // (a) Regular structure.
-        ASSERT_EQ(rnnz, D.full_nnz);
-        ASSERT_LE(mnnz, D.full_nnz);
-        bool short_is_rows = (d <= m);
-        bool major_is_rows = !short_is_rows;                 // Axis::Long
-        const sint_t* minor = major_is_rows ? rcols.data() : rrows.data();
-        int64_t num_major = D.dim_minor;                     // count of major-axis vectors
-        vector<int64_t> hist(num_major, 0);
-        for (int64_t i = 0; i < rnnz; ++i) {
-            ASSERT_GE(minor[i], (sint_t) 0); ASSERT_LT(minor[i], (sint_t) num_major);
-            hist[minor[i]] += 1;
-        }
-        for (int64_t g = 0; g < num_major; ++g)
-            ASSERT_EQ(hist[g], vec_nnz) << "minor vector " << g << " holds " << hist[g] << " records";
-
-        // (b) Operator preservation: densify both (summing duplicates) and compare.
-        vector<T> dm(d * m, (T) 0), dr(d * m, (T) 0);
-        for (int64_t i = 0; i < mnnz; ++i) dm[mrows[i] * m + mcols[i]] += mvals[i];
-        for (int64_t i = 0; i < rnnz; ++i) dr[rrows[i] * m + rcols[i]] += rvals[i];
-        T atol = (T) (vec_nnz * 16) * std::numeric_limits<T>::epsilon();
-        T rtol = (T) (vec_nnz)      * std::numeric_limits<T>::epsilon();
-        auto msg = RandBLAS::testing::buffs_approx_equal(
-            dr.data(), dm.data(), d * m, __PRETTY_FUNCTION__, __FILE__, __LINE__, atol, rtol
-        );
-        if (msg.size() > 0) FAIL() << msg;
-        return;
-    }
 };
 
 TEST_F(TestSparseSkOpConstruction, respect_ownership) {
@@ -397,22 +350,6 @@ TEST_F(TestSparseSkOpConstruction, fill_unpacked_sub_laso_int32) {
     for (int64_t vnz : {(int64_t) 1, (int64_t) 2, (int64_t) 4, (int64_t) 7}) {
         fill_unpacked_sub<float, int>(Axis::Long, vnz, 7, 13);
         fill_unpacked_sub<float, int>(Axis::Long, vnz, 13, 7);
-    }
-}
-
-TEST_F(TestSparseSkOpConstruction, regular_laso_preserves_operator) {
-    // Small dim_major (7) with vec_nnz up to 7 guarantees frequent collisions, so the
-    // regular split path (duplicate records) is heavily exercised, not just the no-op
-    // vec_nnz==1 case. Cover wide and tall, double and float, int64 and int32 indices.
-    for (auto key : keys) {
-        for (int64_t vnz : {(int64_t) 2, (int64_t) 3, (int64_t) 7}) {
-            regular_laso_preserves_operator<double, int64_t>(7, 20, vnz, key);   // wide
-            regular_laso_preserves_operator<double, int64_t>(20, 7, vnz, key);   // tall
-            regular_laso_preserves_operator<float,  int64_t>(7, 20, vnz, key);
-            regular_laso_preserves_operator<float,  int>(    20, 7, vnz, key);
-        }
-        // vec_nnz==1 degenerate case: regular and merged must be identical.
-        regular_laso_preserves_operator<double, int64_t>(7, 20, 1, key);
     }
 }
 
@@ -488,71 +425,29 @@ TEST_F(TestSparseSkOpConstruction, SASO_Dim_15by7_int32) {
 
 TEST_F(TestSparseSkOpConstruction, LASO_Dim_7by20) {
     // vec_nnz=1
-    proper_laso_construction<int64_t>(7, 20, 0, 0);
-    proper_laso_construction<int64_t>(7, 20, 1, 0);
-    proper_laso_construction<int64_t>(7, 20, 2, 0);
-    // // vec_nnz=2
-    // proper_laso_construction<int64_t>(7, 20, 0, 1);
-    // proper_laso_construction<int64_t>(7, 20, 1, 1);
-    // proper_laso_construction<int64_t>(7, 20, 2, 1);
-    // // vec_nnz=3
-    // proper_laso_construction<int64_t>(7, 20, 0, 2);
-    // proper_laso_construction<int64_t>(7, 20, 1, 2);
-    // proper_laso_construction<int64_t>(7, 20, 2, 2);
-    // // vec_nnz=7
-    // proper_laso_construction<int64_t>(7, 20, 0, 3);
-    // proper_laso_construction<int64_t>(7, 20, 1, 3);
-    // proper_laso_construction<int64_t>(7, 20, 2, 3);
+    proper_laso_construction<int64_t>(7, 20, 0);
+    proper_laso_construction<int64_t>(7, 20, 1);
+    proper_laso_construction<int64_t>(7, 20, 2);
 }
 
 
 TEST_F(TestSparseSkOpConstruction, LASO_Dim_15by7) {
     // vec_nnz=1
-    proper_laso_construction<int64_t>(15, 7, 0, 0);
-    proper_laso_construction<int64_t>(15, 7, 1, 0);
-    // // vec_nnz=2
-    // proper_laso_construction<int64_t>(15, 7, 0, 1);
-    // proper_laso_construction<int64_t>(15, 7, 1, 1);
-    // // vec_nnz=3
-    // proper_laso_construction<int64_t>(15, 7, 0, 2);
-    // proper_laso_construction<int64_t>(15, 7, 1, 2);
-    // // vec_nnz=7
-    // proper_laso_construction<int64_t>(15, 7, 0, 3);
-    // proper_laso_construction<int64_t>(15, 7, 1, 3);
+    proper_laso_construction<int64_t>(15, 7, 0);
+    proper_laso_construction<int64_t>(15, 7, 1);
 }
 
 
 TEST_F(TestSparseSkOpConstruction, LASO_Dim_7by20_int32) {
     // vec_nnz=1
-    proper_laso_construction<int>(7, 20, 0, 0);
-    proper_laso_construction<int>(7, 20, 1, 0);
-    proper_laso_construction<int>(7, 20, 2, 0);
-    // // vec_nnz=2
-    // proper_laso_construction<int>(7, 20, 0, 1);
-    // proper_laso_construction<int>(7, 20, 1, 1);
-    // proper_laso_construction<int>(7, 20, 2, 1);
-    // // vec_nnz=3
-    // proper_laso_construction<int>(7, 20, 0, 2);
-    // proper_laso_construction<int>(7, 20, 1, 2);
-    // proper_laso_construction<int>(7, 20, 2, 2);
-    // // vec_nnz=7
-    // proper_laso_construction<int>(7, 20, 0, 3);
-    // proper_laso_construction<int>(7, 20, 1, 3);
-    // proper_laso_construction<int>(7, 20, 2, 3);
+    proper_laso_construction<int>(7, 20, 0);
+    proper_laso_construction<int>(7, 20, 1);
+    proper_laso_construction<int>(7, 20, 2);
 }
 
 
 TEST_F(TestSparseSkOpConstruction, LASO_Dim_15by7_int32) {
     // vec_nnz=1
-    proper_laso_construction<int>(15, 7, 0, 0);
-    proper_laso_construction<int>(15, 7, 1, 0);
-    // // vec_nnz=2
-    // proper_laso_construction<int>(15, 7, 0, 1);
-    // proper_laso_construction<int>(15, 7, 1, 1);
-    // // vec_nnz=3
-    // proper_laso_construction<int>(15, 7, 0, 2);
-    // proper_laso_construction<int>(15, 7, 1, 2);
-    // // vec_nnz=7
-    // proper_laso_construction<int>(15, 7, 0, 3);
-    // proper_laso_construction<int>(15, 7, 1, 3);
+    proper_laso_construction<int>(15, 7, 0);
+    proper_laso_construction<int>(15, 7, 1);
 }

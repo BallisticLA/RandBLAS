@@ -72,29 +72,3 @@ From there, we'll do the following.
     Note that the ``l`` and ``r`` in the ``[l/r]sksp3`` function names
     get matched to opposite sides for ``[left/right]_spmm``! This is because all the fancy abstractions in ``S`` have been stripped away by this point in the call sequence, so the "side" that we emphasize in function names changes
     from emphasizing ``S`` to emphasizing ``A``.
-
-
-
-## Regular (fixed-nnz) operators and duplicate COO records
-
-Both short-axis-major (SASO) and long-axis-major (LASO) sketching operators are stored with
-exactly ``vec_nnz`` structural records per major-axis vector ("regular" layout). For SASO the
-``vec_nnz`` nonzeros are distinct. For LASO, with-replacement sampling can draw a coordinate
-several times; rather than merge those into one entry, we keep them as duplicate ``(row, col)``
-records, each scaled so they sum to the merged value (see ``laso_merge_long_axis_vector_coo_data``
-in ``sparse_skops.hh``). This regular structure lets the wide ColMajor dispatch reach the
-fixed-nnz fast-path kernels (``apply_regular_csr_to_vector_ik`` for CSR, ``apply_regular_csc_to_vector_ki``
-for CSC), which skip the ``rowptr``/``colptr`` loads.
-
-Consequences for anyone touching these code paths:
-
- * **SpMM and densify accumulate duplicates.** The CSR/CSC kernels sum ``vals[ell]*v[...]`` over a
-   row/column, so duplicate column/row indices add correctly. ``coo_to_dense`` was made to use
-   ``+=`` (not ``=``) for the same reason. Any new densification path must accumulate, not overwrite.
- * **Conversions preserve duplicates.** ``coo_to_csr`` / ``coo_to_csc`` and the counting-sort
-   transpose in ``coo_spmm_impl.hh`` keep all ``nnz`` records (no de-duplication), which is what the
-   kernels expect.
- * **Do not route a regular operator through ``trsm``.** ``trsm_dispatch.hh`` validates structure
-   with ``compressed_indices_are_increasing``, which rejects duplicate indices within a major-axis
-   vector. Triangular solve is unrelated to sketching, so this is not a real constraint in practice,
-   but it is a trap worth noting.

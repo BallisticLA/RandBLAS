@@ -198,14 +198,6 @@ struct SparseDist {
     ///  \math{\mtxx_j} will equal \math{\sqrt{\ell}} with probability 1/2 and
     ///  \math{-\sqrt{\ell}} with probability 1/2.
     ///
-    ///  Note: while \math{\mtxx} has at most \math{\vecnnz} *distinct* nonzero coordinates, it is
-    ///  *stored* with exactly \math{\vecnnz} structural entries per major-axis vector. A coordinate
-    ///  \math{j} sampled \math{\ell} times is held as \math{\ell} duplicate records each equal to
-    ///  \math{\mtxx_j/\ell = \pm 1/\sqrt{\ell}}, which sum to \math{\mtxx_j.} This "regular" layout
-    ///  (a fixed number of records per major-axis vector) lets long-axis-major operators reach the
-    ///  same fixed-nnz fast-path kernels as short-axis-major operators, without changing the operator
-    ///  that \math{\mtxx} represents.
-    ///
     const Axis major_axis;
 
     // ---------------------------------------------------------------------------
@@ -491,8 +483,7 @@ template <typename T, SignedInteger sint_t>
 void laso_merge_long_axis_vector_coo_data(
     int64_t vec_nnz, T* vals, sint_t* idxs_lax, sint_t *idxs_sax, int64_t i,
     std::unordered_map<sint_t, T> &loc2count,
-    std::unordered_map<sint_t, T> &loc2scale,
-    bool regular
+    std::unordered_map<sint_t, T> &loc2scale
 ) {
     loc2count.clear();
     // ^ Used to count the number of times each long-axis index
@@ -514,19 +505,7 @@ void laso_merge_long_axis_vector_coo_data(
             loc2count[ell] = 1.0;
         }
     }
-    if (regular) {
-        // Operator-preserving regularization (storage only): keep all vec_nnz draws,
-        // but rescale so the c copies stored at a collided location ell each carry
-        // s/sqrt(c) (s = loc2scale[ell], the canonical sign). The c copies then sum to
-        // c * (s/sqrt(c)) = sqrt(c)*s -- the exact value the merge branch below would
-        // store as a single entry. So the densified operator is identical; we simply
-        // leave duplicate (idxs_lax, idxs_sax) records in place to give a fixed-vec_nnz
-        // "regular" layout (every major-axis vector has exactly vec_nnz records).
-        for (int64_t j = 0; j < vec_nnz; ++j) {
-            sint_t ell = idxs_lax[j];
-            vals[j] = loc2scale[ell] / std::sqrt(loc2count[ell]);
-        }
-    } else if ((int64_t) loc2scale.size() < vec_nnz) {
+    if ((int64_t) loc2scale.size() < vec_nnz) {
         // Then we have duplicates. We need to overwrite some of the values
         // of (idxs_lax, vals, idxs_sax) and implicitly
         // shift them backward to remove duplicates;
@@ -592,8 +571,7 @@ state_t fill_sparse_unpacked(
     int64_t n_rows_sub, int64_t n_cols_sub,
     int64_t ro_s, int64_t co_s,
     int64_t &nnz, T* vals, sint_t* rows, sint_t* cols,
-    const state_t &seed_state,
-    bool regular = true
+    const state_t &seed_state
 ) {
     randblas_require(D.n_rows >= n_rows_sub + ro_s);
     randblas_require(D.n_cols >= n_cols_sub + co_s);
@@ -700,20 +678,11 @@ state_t fill_sparse_unpacked(
         end_state = work_state;
         for (int64_t i = 0; i < num_major_sub; ++i) {
             end_state = sample_indices_iid_uniform(dim_major, vec_nnz, im, v, end_state);
-            laso_merge_long_axis_vector_coo_data(vec_nnz, v, im, in, i, loc2count, loc2scale, regular);
-            // In regular mode every major-axis vector keeps exactly vec_nnz records (with
-            // duplicates rescaled to preserve the operator); otherwise the merge compacts to
-            // the (<= vec_nnz) distinct survivors.
-            int64_t count = regular ? vec_nnz : (int64_t) loc2count.size();
+            laso_merge_long_axis_vector_coo_data(vec_nnz, v, im, in, i, loc2count, loc2scale);
+            // The merge compacts to the (<= vec_nnz) distinct survivors.
+            int64_t count = (int64_t) loc2count.size();
             // Emit this major-axis vector in ascending major-coordinate order, exactly as
-            // the SASO branch does. The (merge or regular rescale) leaves the survivors in
-            // hash / sample order; sorting the block by its major coordinate makes a wide
-            // LASO CSR-sorted (cols ascending within each row) and a tall LASO CSC-sorted.
-            // That natural order also matches the ColMajor dispatch preference (CSR for
-            // wide), so apply_coo_via_csc skips its per-apply re-sort. idxs_minor is constant
-            // within the block. In regular mode duplicate major coordinates stay adjacent
-            // (the comparison is strict), so the block is still CSC-/CSR-sorted with
-            // duplicates allowed. The block length is small, so insertion-sort is best.
+            // the SASO branch does. The blocks are handled with insertion-sort.
             for (int64_t a = 1; a < count; ++a) {
                 sint_t key = im[a];
                 T      vv  = v[a];

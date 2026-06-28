@@ -64,9 +64,6 @@ void sparseskop_to_dense(
         sint_t row = S0.rows[i];
         sint_t col = S0.cols[i];
         T val = S0.vals[i];
-        // Accumulate: a regular long-axis-major operator stores collided coordinates as
-        // duplicate records that must sum (matches coo_to_dense). The buffer is zeroed
-        // above, so += equals = for a deduplicated operator.
         mat[idx(row, col)] += val;
     }
 }
@@ -103,9 +100,7 @@ class TestCOO : public ::testing::Test {
 
     template <typename T = double>
     void test_dense_sums_duplicates() {
-        // coo_to_dense must ACCUMULATE duplicate (row, col) records (not overwrite), so
-        // that a "regular" sketching operator -- which stores a collided coordinate as
-        // several records that sum to its true value -- densifies correctly.
+        // coo_to_dense must ACCUMULATE duplicate (row, col) records (not overwrite).
         COOMatrix<T> A(3, 3);
         A.reserve(4);
         // Two records at (0, 1) that must sum: 1.5 + (-0.5) = 1.0.

@@ -1,4 +1,4 @@
-# RandBLAS Project Guide for Claude
+# RandBLAS Project Guide for Codex
 
 ## Project Overview
 
@@ -244,7 +244,7 @@ GitHub Actions workflows test:
 
 All CI tests must pass before merging.
 
-## Working with Claude on RandBLAS
+## Working with Codex on RandBLAS
 
 ### Preferred Workflow
 
@@ -319,4 +319,4 @@ All CI tests must pass before merging.
 
 ---
 
-*This CLAUDE.md file was created to help Claude Code understand the RandBLAS project structure, conventions, and workflows. Update it as the project evolves.*
+*This AGENTS.md file was created to help Codex understand the RandBLAS project structure, conventions, and workflows. Update it as the project evolves.*
