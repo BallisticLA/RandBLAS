@@ -148,8 +148,8 @@ void left_spmm(
 
     // Fallback: hand-rolled sparse kernels.
     if constexpr (is_coo) {
-        using RandBLAS::sparse_data::coo::apply_coo_via_csc;
-        apply_coo_via_csc(alpha, layout_opB, layout_C, d, n, m, A, ro_a, co_a, B, ldb, C, ldc);
+        using RandBLAS::sparse_data::coo::apply_coo_via_csx;
+        apply_coo_via_csx(alpha, layout_opB, layout_C, d, n, m, A, ro_a, co_a, B, ldb, C, ldc);
     } else if constexpr (is_csc) {
         if (layout_opB == Layout::RowMajor && layout_C == Layout::RowMajor) {
             using RandBLAS::sparse_data::csc::apply_csc_kib_1p1_rowmajor;

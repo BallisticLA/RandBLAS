@@ -41,7 +41,7 @@
 //
 // The cost of a sparse sketch has three phases; we time them separately:
 //   1. SAMPLE   fill_sparse(S): populate (rows, cols, vals).
-//   2. CONVERT  the COO->CSC sort inside apply_coo_via_csc (deepcopy + re-sort,
+//   2. CONVERT  the COO->CSC sort inside apply_coo_via_csx (deepcopy + re-sort,
 //               incurred every apply when the operator's COO is not CSC-sorted).
 //   3. KERNEL   apply_csc_jki_p11 (ColMajor) / apply_csc_kib_1p1_rowmajor (RowMajor).
 // WARM apply (S pre-sampled; phases 2+3) is the primary number; COLD (1+2+3) and
@@ -477,7 +477,7 @@ void run_scaling(int64_t d, int64_t m, int64_t n, const std::vector<OpSpec>& spe
 //
 // Finding: CSR jik (ColMajor) beats CSC jki (ColMajor) 1.1-2x for BOTH SASO and
 // LASO with no regression, motivating the ColMajor "prefer CSR for wide
-// operators" routing now in apply_coo_via_csc (coo_spmm_impl.hh). (A strided-axpy
+// operators" routing now in apply_coo_via_csx (coo_spmm_impl.hh). (A strided-axpy
 // "ColMajor kib" kernel was also tried and rejected -- it regressed dense-column
 // SASO ~3x.) The probe times the kernels directly, so it is unaffected by that
 // routing change and remains the A/B harness for it.

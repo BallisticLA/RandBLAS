@@ -648,7 +648,7 @@ state_t fill_sparse_unpacked(
         // Emit each major-axis vector in ascending major-coordinate order. Fisher-Yates
         // draws the vec_nnz nonzeros in shuffle order; sorting each contiguous block by
         // its major coordinate (rows for a wide SASO, cols for a tall one) makes the COO
-        // natively CSC- (wide) / CSR- (tall) sorted, so apply_coo_via_csc skips its
+        // natively CSC- (wide) / CSR- (tall) sorted, so apply_coo_via_csx skips its
         // per-apply deepcopy + re-sort. idxs_minor is constant within a block, so only
         // (idxs_major, vals) move. vec_nnz is small, so a no-alloc insertion sort is best.
         for (int64_t b = 0; b < num_major_sub; ++b) {
@@ -884,7 +884,10 @@ COOMatrix<T, sint_t> submatrix_as_coo(
     A.rows = rows;
     A.cols = cols;
     A.nnz  = nnz;
-    A.sort = RandBLAS::sparse_data::NonzeroSort::None;
+    // fill_sparse_unpacked emits each major-axis vector in sorted order, so the sampled
+    // submatrix is CSR- or CSC-sorted; label it as such (rather than None) so downstream
+    // conversions can take an O(nnz) fast path.
+    A.sort = RandBLAS::sparse_data::coo_arrays_determine_sort(A.nnz, A.rows, A.cols);
     return A;
 }
 

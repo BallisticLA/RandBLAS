@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include <cmath>
 #include <typeinfo>
@@ -359,6 +360,80 @@ void rskge3(
 
 namespace RandBLAS::sparse {
 
+// Apply the ENTIRETY of a sparse sketching operator on the LEFT by explicitly instantiating
+// it in the compressed format (CSR or CSC) chosen by a heuristic, then handing that operand
+// to left_spmm. op(submat(S)) is S if opS == NoTrans, else S^T; we normalize opS away with a
+// share-memory transpose view (which flips the CSR<->CSC sort) so the operator is always a
+// d-by-m NoTrans operand.
+//
+// Assumes S has no residual offsets and is in CSC or CSR sort order (never None).
+//
+template <typename T, SignedInteger sint_t>
+void _lskges_compress_and_apply(
+    blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m,
+    T alpha, const sparse_data::COOMatrix<T, sint_t> &S,
+    const T *A, int64_t lda, T beta, T *B, int64_t ldb
+) {
+    using namespace RandBLAS::sparse_data;
+    using blas::Layout; using blas::Op;
+    if (opS == Op::Trans) {
+        // op(submat(S)) = S^T (d-by-m); the transpose view shares S's buffers.
+        auto St = transpose_as_coo(S, true);
+        _lskges_compress_and_apply(layout, Op::NoTrans, opA, d, n, m, alpha, St, A, lda, beta, B, ldb);
+        return;
+    }
+    // left_spmm sees opB = opA (the dense operand's op); recover its post-op layout.
+    Layout layout_opB = (opA == Op::NoTrans) ? layout : flipped_layout(layout);
+    NonzeroSort fmt = coo::coo_spmm_target_format(layout_opB, layout, d, m);
+    // The view borrows S's buffers; S and "ptr" outlive the left_spmm call.
+    std::vector<sint_t> ptr;
+    if (fmt == NonzeroSort::CSR) {
+        auto M = coo_to_csr_view_or_copy(S, ptr);
+        left_spmm(layout, Op::NoTrans, opA, d, n, m, alpha, M, 0, 0, A, lda, beta, B, ldb);
+    } else {
+        auto M = coo_to_csc_view_or_copy(S, ptr);
+        left_spmm(layout, Op::NoTrans, opA, d, n, m, alpha, M, 0, 0, A, lda, beta, B, ldb);
+    }
+}
+
+// Apply the ENTIRETY of a sparse sketching operator on the RIGHT, analogous to
+// _lskges_compress_and_apply. op(submat(S)) is the n-by-d operator (S if opS == NoTrans, else
+// S^T). right_spmm reduces to a transposed left_spmm, which flips the operand CSR<->CSC; so to
+// make that transpose land on the format the heuristic wants (computed in the reduced NoTrans
+// frame, where the operator is S^T of shape d-by-n under the transposed layout) we instantiate
+// in the OPPOSITE format.
+//
+// Assumes S has no residual offsets and is in CSC or CSR sort order (never None).
+//
+template <typename T, SignedInteger sint_t>
+void _rskges_compress_and_apply(
+    blas::Layout layout, blas::Op opS, blas::Op opA, int64_t m, int64_t d, int64_t n,
+    T alpha, const T *A, int64_t lda, const sparse_data::COOMatrix<T, sint_t> &S,
+    T beta, T *B, int64_t ldb
+) {
+    using namespace RandBLAS::sparse_data;
+    using blas::Layout; using blas::Op;
+    if (opS == Op::Trans) {
+        // op(submat(S)) = S^T (n-by-d); the transpose view shares S's buffers.
+        auto St = transpose_as_coo(S, true);
+        _rskges_compress_and_apply(layout, Op::NoTrans, opA, m, d, n, alpha, A, lda, St, beta, B, ldb);
+        return;
+    }
+    Layout trans_layout = flipped_layout(layout);
+    Layout layout_opB   = (opA == Op::NoTrans) ? trans_layout : layout;
+    NonzeroSort reduced = coo::coo_spmm_target_format(layout_opB, trans_layout, d, n);
+    NonzeroSort fmt = (reduced == NonzeroSort::CSR) ? NonzeroSort::CSC : NonzeroSort::CSR;
+    // The view borrows S's buffers; S and "ptr" outlive the right_spmm call.
+    std::vector<sint_t> ptr;
+    if (fmt == NonzeroSort::CSR) {
+        auto M = coo_to_csr_view_or_copy(S, ptr);
+        right_spmm(layout, opA, Op::NoTrans, m, d, n, alpha, A, lda, M, 0, 0, beta, B, ldb);
+    } else {
+        auto M = coo_to_csc_view_or_copy(S, ptr);
+        right_spmm(layout, opA, Op::NoTrans, m, d, n, alpha, A, lda, M, 0, 0, beta, B, ldb);
+    }
+}
+
 // MARK: LSKGES
 
 // =============================================================================
@@ -469,7 +544,7 @@ void lskges(
     blas::Op opA,
     int64_t d, // B is d-by-n
     int64_t n, // \op(A) is m-by-n
-    int64_t m, // \op(\mtxS) is d-by-m
+    int64_t m, // \op(submat(S)) is d-by-m
     T alpha,
     const SparseSkOp<T,RNG,sint_t> &S,
     int64_t ro_s,
@@ -480,19 +555,20 @@ void lskges(
     T *B,
     int64_t ldb
 ) {
+    auto [n_rows, n_cols] = dims_before_op(d, m, opS);
     if (S.nnz < 0) {
-        // The operator hasn't been sampled yet. Generate ONLY the needed submatrix of S
-        // (op(submat(S)) is d-by-m). submat(S) is d-by-m if opS == NoTrans, else m-by-d.
-        // We then call left_spmm with offsets (0,0); it applies opS itself.
-        auto Ssub = submatrix_as_coo(S,
-            (opS == blas::Op::NoTrans) ? d : m,
-            (opS == blas::Op::NoTrans) ? m : d,
-            ro_s, co_s);
-        left_spmm(layout, opS, opA, d, n, m, alpha, Ssub, 0, 0, A, lda, beta, B, ldb);
+        auto Ssub = submatrix_as_coo(S, n_rows, n_cols, ro_s, co_s);
+        _lskges_compress_and_apply(layout, opS, opA, d, n, m, alpha, Ssub, A, lda, beta, B, ldb);
         return;
     }
+    bool full_operator = (S.n_rows == n_rows && S.n_cols == n_cols);
     auto Scoo = coo_view_of_skop(S);
-    left_spmm(layout, opS, opA, d, n, m, alpha, Scoo, ro_s, co_s, A, lda, beta, B, ldb);
+    if (full_operator) {
+        _lskges_compress_and_apply(layout, opS, opA, d, n, m, alpha, Scoo, A, lda, beta, B, ldb);
+    } else {
+        // A proper submatrix of an already-sampled operator: let left_spmm handle the offsets.
+        left_spmm(layout, opS, opA, d, n, m, alpha, Scoo, ro_s, co_s, A, lda, beta, B, ldb);
+    }
     return;
 }
 
@@ -606,7 +682,7 @@ inline void rskges(
     blas::Op opA,
     blas::Op opS,
     int64_t m, // B is m-by-d
-    int64_t d, // op(S) is n-by-d
+    int64_t d, // op(submat(S)) is n-by-d
     int64_t n, // op(A) is m-by-n
     T alpha,
     const T *A,
@@ -618,21 +694,20 @@ inline void rskges(
     T *B,
     int64_t ldb
 ) { 
+    auto [n_rows, n_cols] = dims_before_op(n, d, opS);
     if (S.nnz < 0) {
-        // The operator hasn't been sampled yet. Generate ONLY the needed submatrix of S
-        // (op(submat(S)) is n-by-d). submat(S) is n-by-d if opS == NoTrans, else d-by-n.
-        // We then call right_spmm with offsets (0,0); it applies opS itself.
-        auto Ssub = submatrix_as_coo(S,
-            (opS == blas::Op::NoTrans) ? n : d,
-            (opS == blas::Op::NoTrans) ? d : n,
-            ro_s, co_s);
-        right_spmm(layout, opA, opS, m, d, n, alpha, A, lda, Ssub, 0, 0, beta, B, ldb);
+        auto Ssub = submatrix_as_coo(S, n_rows, n_cols, ro_s, co_s);
+        _rskges_compress_and_apply(layout, opS, opA, m, d, n, alpha, A, lda, Ssub, beta, B, ldb);
         return;
     }
+    bool full_operator = (S.n_rows == n_rows && S.n_cols == n_cols);
     auto Scoo = coo_view_of_skop(S);
-    right_spmm(
-        layout, opA, opS, m, d, n, alpha, A, lda, Scoo, ro_s, co_s, beta, B, ldb
-    );
+    if (full_operator) {
+        _rskges_compress_and_apply(layout, opS, opA, m, d, n, alpha, A, lda, Scoo, beta, B, ldb);
+    } else {
+        // A proper submatrix of an already-sampled operator: let right_spmm handle the offsets.
+        right_spmm(layout, opA, opS, m, d, n, alpha, A, lda, Scoo, ro_s, co_s, beta, B, ldb);
+    }
     return;
 }
 

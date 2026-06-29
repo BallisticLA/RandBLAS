@@ -12,7 +12,7 @@
 //
 //   ColMajor dense -> apply_csr_jik_p11          / apply_csc_jki_p11
 //   RowMajor dense -> apply_csr_ikb_p1b_rowmajor / apply_csc_kib_1p1_rowmajor
-//   (COO delegates to the CSC kernels in both layouts, via apply_coo_via_csc)
+//   (COO delegates to the CSC kernels in both layouts, via apply_coo_via_csx)
 //
 // A fourth combination -- op(B)=Trans (computing C = A * B^T, the dense operand
 // fed transposed) -- also routes to apply_csr_jik_p11 / apply_csc_jki_p11, but
