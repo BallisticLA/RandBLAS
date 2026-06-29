@@ -188,6 +188,11 @@ std::ostream &operator<<(
     return out;
 }
 
+inline blas::Layout flipped_layout(const blas::Layout &layout_before) {
+    using blas::Layout;
+    return (layout_before == Layout::RowMajor) ? Layout::ColMajor : Layout::RowMajor;
+}
+
 /**
  * Stores stride information for a matrix represented as a buffer.
  * The intended semantics for a buffer "A" and the conceptualized
