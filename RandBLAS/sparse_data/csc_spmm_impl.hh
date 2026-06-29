@@ -71,30 +71,6 @@ static void apply_csc_to_vector_ki(
     }
 }
 
-template <typename T, SignedInteger sint_t = int64_t>
-static void apply_regular_csc_to_vector_ki(
-    T alpha,
-    // data for "regular CSC": CSC with fixed nnz per col,
-    // which obviates the requirement for colptr.
-    const T *vals,
-    const sint_t *rowidxs,
-    int64_t col_nnz,
-    // input-output vector data
-    int64_t len_v,
-    const T *v,
-    int64_t incv,   // stride between elements of v
-    T *Av,          // Av += A * v.
-    int64_t incAv   // stride between elements of Av
-) {
-    for (int64_t c = 0; c < len_v; ++c) {
-        T scale = alpha * v[c * incv];
-        for (int64_t j = c * col_nnz; j < (c + 1) * col_nnz; ++j) {
-            int64_t row = rowidxs[j];
-            Av[row * incAv] += (vals[j] * scale);
-        }
-    }
-}
-
 template <typename T, SignedInteger sint_t>
 static void apply_csc_jki_p11(
     T alpha,
@@ -111,10 +87,6 @@ static void apply_csc_jki_p11(
 
     auto m = A.n_cols;
 
-    bool fixed_nnz_per_col = true;
-    for (int64_t ell = 2; (ell < m + 1) && fixed_nnz_per_col; ++ell)
-        fixed_nnz_per_col = (A.colptr[1] + A.colptr[ell-1]) == A.colptr[ell];
-
     auto s = layout_to_strides(layout_B, ldb);
     auto B_inter_col_stride = s.inter_col_stride;
     auto B_inter_row_stride = s.inter_row_stride;
@@ -127,21 +99,12 @@ static void apply_csc_jki_p11(
     for (int64_t j = 0; j < n; j++) {
         const T* B_col = &B[B_inter_col_stride * j];
               T* C_col = &C[C_inter_col_stride * j];
-        if (fixed_nnz_per_col) {
-            apply_regular_csc_to_vector_ki<T>(
-                alpha,
-                A.vals, A.rowidxs, A.colptr[1],
-                m, B_col, B_inter_row_stride,
-                C_col, C_inter_row_stride
-            );
-        } else {
-            apply_csc_to_vector_ki<T>(
-                alpha,
-                A.vals, A.rowidxs, A.colptr,
-                m, B_col, B_inter_row_stride,
-                C_col, C_inter_row_stride
-            ); 
-        }
+        apply_csc_to_vector_ki<T>(
+            alpha,
+            A.vals, A.rowidxs, A.colptr,
+            m, B_col, B_inter_row_stride,
+            C_col, C_inter_row_stride
+        );
     }
     return;
 }

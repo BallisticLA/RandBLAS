@@ -396,10 +396,9 @@ void coo_to_dense(const COOMatrix<T> &spmat, int64_t stride_row, int64_t stride_
             j -= 1;
         }
         // Accumulate (not overwrite): a COO may carry several records at the same
-        // (i, j) -- e.g. a "regular" long-axis-major sketching operator stores a
-        // collided coordinate as duplicate entries that must sum to its true value.
-        // The matrix was zeroed above, so += is correct, and for a deduplicated COO
-        // (each (i,j) once) it is identical to an assignment.
+        // (i, j), which must sum to that entry's true value. The matrix was zeroed
+        // above, so += is correct, and for a deduplicated COO (each (i,j) once) it
+        // is identical to an assignment.
         MAT(i, j) += spmat.vals[ell];
     }
     return;

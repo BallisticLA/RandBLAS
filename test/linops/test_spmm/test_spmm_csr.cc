@@ -473,17 +473,14 @@ TEST_F(TestPublicAPI_DenseTimesSparse_double, nontrivial_alpha_beta_rowmajor) {
 ////////////////////////////////////////////////////////////////////////
 //
 //
-//   Regular-CSR fast path (fixed nnz per row), including duplicate colidxs
+//   CSR SpMM reference checks (duplicate-colidx accumulation, variable nnz/row)
 //
 //
 ////////////////////////////////////////////////////////////////////////
 
-// Compare C = alpha * A @ B against a hand-computed dense reference, where a duplicated
-// column index within a row must be accumulated. We check both (1) the public dispatch
-// apply_csr_jik_p11 (which uses the general kernel by default; the regular kernel only
-// when RandBLAS_ENABLE_REGULAR_CSR_KERNEL is defined) and, (2) when the matrix is regular,
-// apply_regular_csr_to_vector_ik directly -- so the regular kernel stays covered regardless
-// of the off-by-default dispatch gate.
+// Compare C = alpha * A @ B against a hand-computed dense reference via the public dispatch
+// apply_csr_jik_p11, exercising in particular the accumulation of a column index that is
+// duplicated within a row.
 static void check_csr_jik_against_reference(
     int64_t d, int64_t m, int64_t n,
     const std::vector<int64_t>& rowptr,
@@ -513,28 +510,15 @@ static void check_csr_jik_against_reference(
         if (msg.size() > 0) FAIL() << msg;
     };
 
-    // (1) Public dispatch (general kernel unless the regular-CSR macro is enabled).
     std::fill(C.begin(), C.end(), 0.0);
     apply_csr_jik_p11(alpha, Layout::ColMajor, Layout::ColMajor,
                       d, n, m, A, B.data(), m, C.data(), d);
     compare("apply_csr_jik_p11");
-
-    // (2) Directly exercise the regular kernel when the matrix has a constant nnz-per-row.
-    bool regular = (d > 0);
-    int64_t row_nnz = (d > 0) ? (rowptr[1] - rowptr[0]) : 0;
-    for (int64_t i = 1; i <= d && regular; ++i) regular = (rowptr[i] - rowptr[i-1] == row_nnz);
-    if (regular) {
-        std::fill(C.begin(), C.end(), 0.0);
-        for (int64_t j = 0; j < n; ++j)
-            apply_regular_csr_to_vector_ik(alpha, A.vals, row_nnz, A.colidxs,
-                &B[(size_t) j * m], 1, d, &C[(size_t) j * d], 1);
-        compare("apply_regular_csr_to_vector_ik");
-    }
 }
 
-TEST(TestRegularCSR, fixed_nnz_per_row_with_duplicate_colidx) {
-    // d=4 rows, each with exactly 2 nonzeros -> regular branch. Row 1 has a duplicated
-    // column index (2, 2): the two records (0.5, 0.5) must accumulate to 1.0 at column 2.
+TEST(TestCSRSpMMReference, duplicate_colidx_accumulates) {
+    // d=4 rows, each with exactly 2 nonzeros. Row 1 has a duplicated column index (2, 2):
+    // the two records (0.5, 0.5) must accumulate to 1.0 at column 2.
     check_csr_jik_against_reference(
         4, 5, 3,
         {0, 2, 4, 6, 8},
@@ -543,9 +527,8 @@ TEST(TestRegularCSR, fixed_nnz_per_row_with_duplicate_colidx) {
     );
 }
 
-TEST(TestRegularCSR, variable_nnz_per_row_falls_back) {
-    // Rows have 1, 2, 1, 2 nonzeros -> NOT regular, so the general branch runs. Same
-    // dense reference must hold (guards the detection's fallback path).
+TEST(TestCSRSpMMReference, variable_nnz_per_row) {
+    // Rows have 1, 2, 1, 2 nonzeros. The same hand-computed dense reference must hold.
     check_csr_jik_against_reference(
         4, 5, 3,
         {0, 1, 3, 4, 6},

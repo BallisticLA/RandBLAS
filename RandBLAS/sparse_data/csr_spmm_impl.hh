@@ -107,55 +107,6 @@ static void apply_csr_to_vector_ik(
     }
 }
 
-// Regular-CSR SpMV: every row has the same nnz (row_nnz), so rowptr is implicit
-// (rowptr[i] == i*row_nnz) and need not be read. This is the CSR analogue of
-// apply_regular_csc_to_vector_ki and is reached by short-axis-major operators (wide
-// SASO, exactly vec_nnz per row) and by "regular" long-axis-major operators. Mirrors
-// apply_csr_to_vector_ik_impl: UnitStride drops index multiplies in the hot ColMajor
-// case and the simd reduction breaks the serial accumulator dependence.
-template <bool UnitStride, typename T, SignedInteger sint_t>
-static void apply_regular_csr_to_vector_ik_impl(
-    T alpha,
-    const T *vals, const int64_t row_nnz, const sint_t *colidxs,
-    const T *v, int64_t incv,
-    int64_t len_Av, T *Av, int64_t incAv
-) {
-    UNUSED(incv); UNUSED(incAv);
-    for (int64_t i = 0; i < len_Av; ++i) {
-        T Av_i_diff = 0.0;
-        #pragma omp simd reduction(+:Av_i_diff)
-        for (int64_t ell = i * row_nnz; ell < (i + 1) * row_nnz; ++ell) {
-            int64_t j = colidxs[ell];
-            if constexpr (UnitStride) {
-                Av_i_diff += vals[ell] * v[j];
-            } else {
-                Av_i_diff += vals[ell] * v[j*incv];
-            }
-        }
-        if constexpr (UnitStride) {
-            Av[i] += alpha * Av_i_diff;
-        } else {
-            Av[i*incAv] += alpha * Av_i_diff;
-        }
-    }
-}
-
-template <typename T, SignedInteger sint_t = int64_t>
-static void apply_regular_csr_to_vector_ik(
-    T alpha,
-    const T *vals, int64_t row_nnz, const sint_t *colidxs,
-    const T *v, int64_t incv,
-    int64_t len_Av, T *Av, int64_t incAv
-) {
-    if (incv == 1 && incAv == 1) {
-        apply_regular_csr_to_vector_ik_impl<true>(
-            alpha, vals, row_nnz, colidxs, v, incv, len_Av, Av, incAv);
-    } else {
-        apply_regular_csr_to_vector_ik_impl<false>(
-            alpha, vals, row_nnz, colidxs, v, incv, len_Av, Av, incAv);
-    }
-}
-
 template <typename T, SignedInteger sint_t>
 static void apply_csr_jik_p11(
     T alpha,
@@ -175,22 +126,6 @@ static void apply_csr_jik_p11(
     randblas_require(d == A.n_rows);
     randblas_require(m == A.n_cols);
 
-#if defined(RandBLAS_ENABLE_REGULAR_CSR_KERNEL)
-    // OPT-IN regular-CSR fast path (OFF by default). rowptr is an arithmetic progression
-    // iff every row has the same nnz; then we index nonzeros as i*row_nnz and skip the
-    // rowptr loads (mirrors fixed_nnz_per_col in apply_csc_jki_p11). Benchmarked
-    // NEUTRAL-to-SLOWER on Apple M3 / NEON -- the eliminated rowptr loads are sequential
-    // and cache-resident (never the bottleneck), and 2-wide doubles can't exploit the
-    // fixed inner trip count, so it is gated off. Left in-tree (define this macro to
-    // enable) for evaluation on wide-vector Arm (SVE), where a known-length predicated
-    // inner loop may pay off. See apply_regular_csr_to_vector_ik above and the --csr-probe
-    // mode of examples/.../sketch_general_performance.cc for the A/B harness.
-    bool fixed_nnz_per_row = (d > 0);
-    for (int64_t i = 2; (i < d + 1) && fixed_nnz_per_row; ++i)
-        fixed_nnz_per_row = (A.rowptr[1] + A.rowptr[i-1]) == A.rowptr[i];
-    int64_t row_nnz = (d > 0) ? A.rowptr[1] : 0;
-#endif
-
     auto s = layout_to_strides(layout_B, ldb);
     auto B_inter_col_stride = s.inter_col_stride;
     auto B_inter_row_stride = s.inter_row_stride;
@@ -203,22 +138,11 @@ static void apply_csr_jik_p11(
     for (int64_t j = 0; j < n; j++) {
         const T *B_col = &B[B_inter_col_stride * j];
               T *C_col = &C[C_inter_col_stride * j];
-#if defined(RandBLAS_ENABLE_REGULAR_CSR_KERNEL)
-        if (fixed_nnz_per_row) {
-            apply_regular_csr_to_vector_ik(alpha,
-                    vals, row_nnz, A.colidxs,
-                    B_col, B_inter_row_stride,
-                d, C_col, C_inter_row_stride
-            );
-        } else
-#endif
-        {
-            apply_csr_to_vector_ik(alpha,
-                    vals, A.rowptr, A.colidxs,
-                    B_col, B_inter_row_stride,
-                d, C_col, C_inter_row_stride
-            );
-        }
+        apply_csr_to_vector_ik(alpha,
+                vals, A.rowptr, A.colidxs,
+                B_col, B_inter_row_stride,
+            d, C_col, C_inter_row_stride
+        );
     }
     return;
 }

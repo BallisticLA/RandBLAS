@@ -3,16 +3,6 @@
 #      wide SASO -> CSC-sorted COO, wide LASO -> CSR-sorted COO.
 #   2. ColMajor wide operators routed through the CSR jik kernel (coo_spmm_impl.hh).
 #   3. O(nnz) counting-sort transpose when the COO's sorted order != the chosen format.
-#   4. LASO now stored "regular": exactly vec_nnz records per major-axis vector, with
-#      collided coordinates split into duplicates scaled to preserve the operator
-#      (sparse_skops.hh). Correctness-neutral; nnz becomes full_nnz (e.g. wide LASO k=8
-#      318 -> 320 here -- collisions are rare at large dim_major).
-#   5. A regular-CSR SpMV kernel (apply_regular_csr_to_vector_ik) was added but is GATED
-#      OFF by default (#if RandBLAS_ENABLE_REGULAR_CSR_KERNEL). The back-to-back A/B at
-#      the bottom of this file shows it is NEUTRAL-to-SLOWER than the general CSR kernel
-#      on this M3 (NEON), so the default build still uses the general kernel here -- the
-#      numbers below are therefore unchanged from item 1-3 state (deltas are run-to-run
-#      noise). The kernel is kept in-tree for evaluation on wide-vector Arm (SVE).
 #   ns/elt = us*1000/(nnz*work_mult); GB/s = model bytes/time; %STR vs STREAM below.
 # Environment: Apple M3, OMP_NUM_THREADS=4, Release (MKL off) | Correctness: 0 FAIL
 
@@ -226,10 +216,8 @@ Calibrating STREAM triad... 88.7 GB/s  (= 100% on the %STR column)
 
 
 ############################################################
-# CSR REGULAR-vs-GENERAL KERNEL A/B (--csr-probe)
-# 'CSR REG ColMajor*' = apply_regular_csr_to_vector_ik (gated off by default)
-# 'CSR GEN ColMajor*' = apply_csr_to_vector_ik (the default). Same regular operator,
-# same process, back-to-back -> isolates the kernel. REG is NOT faster on M3/NEON.
+# CSR-vs-CSC KERNEL PROBE (--csr-probe): per-format SpMM timed directly
+# on prebuilt CSC/CSR operands, isolating the kernel from COO conversion.
 ############################################################
 
 ============================================================
@@ -280,8 +268,6 @@ Calibrating STREAM triad... 88.1 GB/s  (= 100% on the %STR column)
   CSR jik  ColMajor               585      652    0.731    21.9     25  CSR nnz=400
   CSC kib  RowMajor                98      122    0.122   130.7    148  CSR nnz=400
   CSR ikb  RowMajor                96       97    0.120   133.4    151  CSR nnz=400
-  CSR REG  ColMajor*              468      568    0.585    27.4     31  regular=Y row_nnz=2
-  CSR GEN  ColMajor*              441      463    0.551    29.0     33  regular=N row_nnz=2
 
   Wide LASO  k=4
   Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
@@ -290,8 +276,6 @@ Calibrating STREAM triad... 88.1 GB/s  (= 100% on the %STR column)
   CSR jik  ColMajor               543      575    0.339    35.4     40  CSR nnz=800
   CSC kib  RowMajor               153      163    0.096   125.6    143  CSR nnz=800
   CSR ikb  RowMajor               146      168    0.091   131.6    149  CSR nnz=800
-  CSR REG  ColMajor*              602      626    0.376    31.9     36  regular=Y row_nnz=4
-  CSR GEN  ColMajor*              535      562    0.334    35.9     41  regular=N row_nnz=4
 
   Wide LASO  k=8
   Operator                    Min(us)  Med(us)   ns/elt    GB/s   %STR  notes
@@ -300,6 +284,4 @@ Calibrating STREAM triad... 88.1 GB/s  (= 100% on the %STR column)
   CSR jik  ColMajor               542      653    0.169    59.1     67  CSR nnz=1600
   CSC kib  RowMajor               380      388    0.119    84.3     96  CSR nnz=1600
   CSR ikb  RowMajor               410      422    0.128    78.1     89  CSR nnz=1600
-  CSR REG  ColMajor*              592      624    0.185    54.1     61  regular=Y row_nnz=8
-  CSR GEN  ColMajor*              528      555    0.165    60.7     69  regular=N row_nnz=8
 
