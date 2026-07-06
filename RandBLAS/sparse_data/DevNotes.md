@@ -46,17 +46,23 @@ Sketching dense data with a sparse operator is typically handled with ``sketch_g
 which is defined in ``skge.hh``.
 
 If we call this function with a SparseSkOp object, ``S``, we'd immediately get routed to
-either ``lskges`` or ``rskges``. Here's what would happen after we entered one of those functions:
+either ``lskges`` or ``rskges``. Both are defined in ``skge.hh``. Here's what happens once
+we're inside one of those functions.
 
- 1. If necessary, we'd sample the defining data of ``S`` with ``RandBLAS::fill_sparse(S)``.
+ 1. We get a COO view of ``S`` (sampling its defining data first, if that hasn't happened yet).
 
- 2. We'd obtain a lightweight view of ``S`` as a COOMatrix, and we'd pass that matrix to ``left_spmm``
-    (if inside ``lskges``) or ``right_spmm`` (if inside ``rskges``).
+ 2. If we've been asked for a *proper submatrix* of an already-sampled operator, we hand the
+    COO view and the ``(ro_s, co_s)`` offsets straight to ``[left/right]_spmm`` and let that
+    function deal with the offsets. Otherwise, we have the full operator, and we proceed to compress it.
 
+ 3. Compression and application happens in ``_[l/r]skges_compress_and_apply_coo``. These functions
+    normalize-away the transposition and use a heuristic to choose the compressed format (CSR or CSC).
+    This heuristic can differ from that used if we had called `[left/right]_spmm` directly on
+    a COO matrix.
 
 ## Sketching sparse data with dense operators
 
-If we call ``sketch_sparse`` with a DenseSkOp, ``S``, and a sparse matrix, ``A``, then  we'll get routed to either
+If we call ``sketch_sparse`` with a DenseSkOp, ``S``, and a sparse matrix, ``A``, then we'll get routed to either
 ``lsksp3`` or ``rsksp3``.
 
 From there, we'll do the following.
