@@ -64,7 +64,7 @@ void sparseskop_to_dense(
         sint_t row = S0.rows[i];
         sint_t col = S0.cols[i];
         T val = S0.vals[i];
-        mat[idx(row, col)] += val;
+        mat[idx(row, col)] = val;
     }
 }
 
