@@ -45,8 +45,7 @@ The effective layout for reading the dense operand B (`layout_opB`) is determine
 From there, our next steps are format-dependent.
 
 COO format ([spmm_dispatch.hh:124-126](../../../RandBLAS/sparse_data/spmm_dispatch.hh#L124-L126)):
-- Always uses `apply_coo_via_csc` (converts to CSC internally)
-- 1 kernel handles all 4 (layout × opB) combinations
+- Always uses `apply_coo_via_csx` (converts to CSR or CSC internally, at its own discretion).
 
 CSC format ([spmm_dispatch.hh:128-134](../../../RandBLAS/sparse_data/spmm_dispatch.hh#L128-L134)):
 - If `layout_opB == RowMajor && layout_C == RowMajor`: `apply_csc_kib_1p1_rowmajor`
@@ -114,7 +113,7 @@ For completeness, here's a grouping of tests based on the kernel they hit.
 
 | Kernel | Direct Tests | Via Transformation |
 |--------|--------------|-------------------|
-| `apply_coo_via_csc` | All COO tests | CSR/CSC transpose_self |
+| `apply_coo_via_csx` | All COO tests | CSR/CSC transpose_self |
 | `apply_csc_jki_p11` | CSC ColMajor (both opB), CSC RowMajor + opB=Trans | CSR transpose_self |
 | `apply_csc_kib_1p1_rowmajor` | CSC RowMajor + opB=NoTrans | CSR transpose_self + RowMajor |
 | `apply_csr_jik_p11` | CSR ColMajor (both opB), CSR RowMajor + opB=Trans | CSC transpose_self |

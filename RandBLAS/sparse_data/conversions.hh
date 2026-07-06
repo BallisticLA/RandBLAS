@@ -34,6 +34,7 @@
 #include "RandBLAS/sparse_data/coo_matrix.hh"
 #include "RandBLAS/sparse_data/csr_matrix.hh"
 #include "RandBLAS/sparse_data/csc_matrix.hh"
+#include <vector>
 
 
 namespace RandBLAS::sparse_data {
@@ -90,6 +91,12 @@ auto coo_to_csc( const COOMatrix<T, sint_t1> &coo, CSCMatrix<T,sint_t2> &csc ) {
         std::copy( coo.vals, coo.vals + coo.nnz, csc.vals    );
         std::copy( coo.rows, coo.rows + coo.nnz, csc.rowidxs );
         return;
+    } else if (coo.sort == NonzeroSort::CSR) {
+        csc.reserve(coo.nnz);
+        counting_sort_transpose(
+            coo.nnz, coo.cols, coo.rows, coo.vals, coo.n_cols, csc.colptr, csc.rowidxs, csc.vals
+        );
+        return;
     } else {
         auto coo_copy = coo.deepcopy();
         coo_copy.sort_arrays(NonzeroSort::CSC);
@@ -112,12 +119,51 @@ void coo_to_csr( const COOMatrix<T, sint_t1> &coo, CSRMatrix<T,sint_t2> &csr ) {
         std::copy( coo.vals, coo.vals + coo.nnz, csr.vals    );
         std::copy( coo.cols, coo.cols + coo.nnz, csr.colidxs );
         return;
+    } else if (coo.sort == NonzeroSort::CSC) {
+        // Opposing order: group the CSC-sorted records by row with an O(nnz)
+        // counting-sort transpose instead of a comparison re-sort.
+        csr.reserve(coo.nnz);
+        counting_sort_transpose(
+            coo.nnz, coo.rows, coo.cols, coo.vals, coo.n_rows, csr.rowptr, csr.colidxs, csr.vals
+        );
+        return;
     } else {
         auto coo_copy = coo.deepcopy();
         coo_copy.sort_arrays(NonzeroSort::CSR);
         coo_to_csr(coo_copy, csr);
         return;
     }
+}
+
+// Represent `coo` as a CSR matrix without copying its structural nonzeros when possible.
+//
+//  If coo is already CSR-sorted (or empty), the result `csr` is a ZERO-COPY view that shares
+//  coo's vals and cols arrays, and has `csr.rowptr` backed by the input `rowptr` std::vector.
+//  If coo is not CSR-sorted, the result `csr` is a new matrix from coo_to_csr.
+//
+template <typename T, SignedInteger sint_t>
+CSRMatrix<T, sint_t> coo_to_csr_view_or_copy(const COOMatrix<T, sint_t> &coo, std::vector<sint_t> &rowptr) {
+    if (coo.nnz == 0 || coo.sort == NonzeroSort::CSR) {
+        rowptr.resize(coo.n_rows + 1);
+        sorted_idxs_to_compressed_ptr(coo.nnz, coo.rows, coo.n_rows, rowptr.data());
+        return CSRMatrix<T, sint_t>(coo.n_rows, coo.n_cols, coo.nnz, coo.vals, rowptr.data(), coo.cols, coo.index_base);
+    }
+    CSRMatrix<T, sint_t> csr(coo.n_rows, coo.n_cols);
+    coo_to_csr(coo, csr);
+    return csr;
+}
+
+// CSC analog of coo_to_csr_view_or_copy.
+template <typename T, SignedInteger sint_t>
+CSCMatrix<T, sint_t> coo_to_csc_view_or_copy(const COOMatrix<T, sint_t> &coo, std::vector<sint_t> &colptr) {
+    if (coo.nnz == 0 || coo.sort == NonzeroSort::CSC) {
+        colptr.resize(coo.n_cols + 1);
+        sorted_idxs_to_compressed_ptr(coo.nnz, coo.cols, coo.n_cols, colptr.data());
+        return CSCMatrix<T, sint_t>(coo.n_rows, coo.n_cols, coo.nnz, coo.vals, coo.rows, colptr.data(), coo.index_base);
+    }
+    CSCMatrix<T, sint_t> csc(coo.n_rows, coo.n_cols);
+    coo_to_csc(coo, csc);
+    return csc;
 }
 
 // MARK: transposes

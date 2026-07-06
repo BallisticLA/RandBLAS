@@ -33,6 +33,8 @@
 #include "RandBLAS/testing/comparison.hh"
 #include <gtest/gtest.h>
 #include <cmath>
+#include <limits>
+#include <vector>
 
 using std::vector;
 using RandBLAS::RNGState;
@@ -104,9 +106,10 @@ class TestSparseSkOpConstruction : public ::testing::Test
     }
 
     template <SignedInteger sint_t>
-    void proper_laso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
+    void proper_laso_construction(int64_t d, int64_t m, int64_t key_index) {
         using RNG = SparseSkOp<float>::state_t::generator;
-        SparseDist D0(d, m, vec_nnzs[nnz_index], Axis::Long);
+        int64_t vec_nnz = 1;
+        SparseDist D0(d, m, vec_nnz, Axis::Long);
         SparseSkOp<float, RNG, sint_t> S0(D0, keys[key_index]);
         fill_sparse(S0);
         if (d < m) {
@@ -297,6 +300,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
         }
         return;
     }
+
 };
 
 TEST_F(TestSparseSkOpConstruction, respect_ownership) {
@@ -421,71 +425,29 @@ TEST_F(TestSparseSkOpConstruction, SASO_Dim_15by7_int32) {
 
 TEST_F(TestSparseSkOpConstruction, LASO_Dim_7by20) {
     // vec_nnz=1
-    proper_laso_construction<int64_t>(7, 20, 0, 0);
-    proper_laso_construction<int64_t>(7, 20, 1, 0);
-    proper_laso_construction<int64_t>(7, 20, 2, 0);
-    // // vec_nnz=2
-    // proper_laso_construction<int64_t>(7, 20, 0, 1);
-    // proper_laso_construction<int64_t>(7, 20, 1, 1);
-    // proper_laso_construction<int64_t>(7, 20, 2, 1);
-    // // vec_nnz=3
-    // proper_laso_construction<int64_t>(7, 20, 0, 2);
-    // proper_laso_construction<int64_t>(7, 20, 1, 2);
-    // proper_laso_construction<int64_t>(7, 20, 2, 2);
-    // // vec_nnz=7
-    // proper_laso_construction<int64_t>(7, 20, 0, 3);
-    // proper_laso_construction<int64_t>(7, 20, 1, 3);
-    // proper_laso_construction<int64_t>(7, 20, 2, 3);
+    proper_laso_construction<int64_t>(7, 20, 0);
+    proper_laso_construction<int64_t>(7, 20, 1);
+    proper_laso_construction<int64_t>(7, 20, 2);
 }
 
 
 TEST_F(TestSparseSkOpConstruction, LASO_Dim_15by7) {
     // vec_nnz=1
-    proper_laso_construction<int64_t>(15, 7, 0, 0);
-    proper_laso_construction<int64_t>(15, 7, 1, 0);
-    // // vec_nnz=2
-    // proper_laso_construction<int64_t>(15, 7, 0, 1);
-    // proper_laso_construction<int64_t>(15, 7, 1, 1);
-    // // vec_nnz=3
-    // proper_laso_construction<int64_t>(15, 7, 0, 2);
-    // proper_laso_construction<int64_t>(15, 7, 1, 2);
-    // // vec_nnz=7
-    // proper_laso_construction<int64_t>(15, 7, 0, 3);
-    // proper_laso_construction<int64_t>(15, 7, 1, 3);
+    proper_laso_construction<int64_t>(15, 7, 0);
+    proper_laso_construction<int64_t>(15, 7, 1);
 }
 
 
 TEST_F(TestSparseSkOpConstruction, LASO_Dim_7by20_int32) {
     // vec_nnz=1
-    proper_laso_construction<int>(7, 20, 0, 0);
-    proper_laso_construction<int>(7, 20, 1, 0);
-    proper_laso_construction<int>(7, 20, 2, 0);
-    // // vec_nnz=2
-    // proper_laso_construction<int>(7, 20, 0, 1);
-    // proper_laso_construction<int>(7, 20, 1, 1);
-    // proper_laso_construction<int>(7, 20, 2, 1);
-    // // vec_nnz=3
-    // proper_laso_construction<int>(7, 20, 0, 2);
-    // proper_laso_construction<int>(7, 20, 1, 2);
-    // proper_laso_construction<int>(7, 20, 2, 2);
-    // // vec_nnz=7
-    // proper_laso_construction<int>(7, 20, 0, 3);
-    // proper_laso_construction<int>(7, 20, 1, 3);
-    // proper_laso_construction<int>(7, 20, 2, 3);
+    proper_laso_construction<int>(7, 20, 0);
+    proper_laso_construction<int>(7, 20, 1);
+    proper_laso_construction<int>(7, 20, 2);
 }
 
 
 TEST_F(TestSparseSkOpConstruction, LASO_Dim_15by7_int32) {
     // vec_nnz=1
-    proper_laso_construction<int>(15, 7, 0, 0);
-    proper_laso_construction<int>(15, 7, 1, 0);
-    // // vec_nnz=2
-    // proper_laso_construction<int>(15, 7, 0, 1);
-    // proper_laso_construction<int>(15, 7, 1, 1);
-    // // vec_nnz=3
-    // proper_laso_construction<int>(15, 7, 0, 2);
-    // proper_laso_construction<int>(15, 7, 1, 2);
-    // // vec_nnz=7
-    // proper_laso_construction<int>(15, 7, 0, 3);
-    // proper_laso_construction<int>(15, 7, 1, 3);
+    proper_laso_construction<int>(15, 7, 0);
+    proper_laso_construction<int>(15, 7, 1);
 }

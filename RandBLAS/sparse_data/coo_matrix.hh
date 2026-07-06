@@ -395,7 +395,11 @@ void coo_to_dense(const COOMatrix<T> &spmat, int64_t stride_row, int64_t stride_
             i -= 1;
             j -= 1;
         }
-        MAT(i, j) = spmat.vals[ell];
+        // Accumulate (not overwrite): a COO may carry several records at the same
+        // (i, j), which must sum to that entry's true value. The matrix was zeroed
+        // above, so += is correct, and for a deduplicated COO (each (i,j) once) it
+        // is identical to an assignment.
+        MAT(i, j) += spmat.vals[ell];
     }
     return;
 }

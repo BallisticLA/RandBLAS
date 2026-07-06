@@ -469,3 +469,70 @@ TEST_F(TestPublicAPI_DenseTimesSparse_double, nontrivial_alpha_beta_rowmajor) {
     test_dense_times_sparse(50, 30, 40, 2.5, -1.0, Layout::RowMajor, 0.80);
 }
 
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//   CSR SpMM reference checks (duplicate-colidx accumulation, variable nnz/row)
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+// Compare C = alpha * A @ B against a hand-computed dense reference via the public dispatch
+// apply_csr_jik_p11, exercising in particular the accumulation of a column index that is
+// duplicated within a row.
+static void check_csr_jik_against_reference(
+    int64_t d, int64_t m, int64_t n,
+    const std::vector<int64_t>& rowptr,
+    const std::vector<int64_t>& colidxs,
+    const std::vector<double>&  vals
+) {
+    CSRMatrix<double> A(d, m);
+    A.reserve((int64_t) vals.size());
+    for (int64_t i = 0; i <= d; ++i) A.rowptr[i] = rowptr[i];
+    for (size_t e = 0; e < vals.size(); ++e) { A.colidxs[e] = colidxs[e]; A.vals[e] = vals[e]; }
+
+    std::vector<double> B(m * n), C(d * n, 0.0), Cref(d * n, 0.0);
+    for (int64_t k = 0; k < m; ++k)
+        for (int64_t j = 0; j < n; ++j)
+            B[k + j*m] = (double)(k + 1) - 0.3 * (double) j;
+
+    double alpha = 2.0;
+    for (int64_t i = 0; i < d; ++i)
+        for (int64_t e = rowptr[i]; e < rowptr[i+1]; ++e)
+            for (int64_t j = 0; j < n; ++j)
+                Cref[i + j*d] += alpha * vals[e] * B[colidxs[e] + j*m];
+
+    auto compare = [&](const char* which) {
+        auto msg = RandBLAS::testing::buffs_approx_equal(
+            C.data(), Cref.data(), d * n, which, __FILE__, __LINE__
+        );
+        if (msg.size() > 0) FAIL() << msg;
+    };
+
+    std::fill(C.begin(), C.end(), 0.0);
+    apply_csr_jik_p11(alpha, Layout::ColMajor, Layout::ColMajor,
+                      d, n, m, A, B.data(), m, C.data(), d);
+    compare("apply_csr_jik_p11");
+}
+
+TEST(TestCSRSpMMReference, duplicate_colidx_accumulates) {
+    // d=4 rows, each with exactly 2 nonzeros. Row 1 has a duplicated column index (2, 2):
+    // the two records (0.5, 0.5) must accumulate to 1.0 at column 2.
+    check_csr_jik_against_reference(
+        4, 5, 3,
+        {0, 2, 4, 6, 8},
+        {0, 3,  2, 2,  1, 4,  0, 2},
+        {1.0, -2.0,  0.5, 0.5,  3.0, -1.0,  2.0, 1.0}
+    );
+}
+
+TEST(TestCSRSpMMReference, variable_nnz_per_row) {
+    // Rows have 1, 2, 1, 2 nonzeros. The same hand-computed dense reference must hold.
+    check_csr_jik_against_reference(
+        4, 5, 3,
+        {0, 1, 3, 4, 6},
+        {2,  0, 4,  3,  1, 2},
+        {1.5,  -0.5, 2.0,  4.0,  -1.0, 0.25}
+    );
+}

@@ -194,7 +194,7 @@ struct SparseDist {
     ///  If \math{\ttt{major_axis} = \ttt{Long}}, then \math{\mtxx} has *at most* \math{\vecnnz} nonzero
     ///  entries. The locations of the nonzeros are determined by sampling uniformly
     ///  with replacement from \math{\\{0,\ldots,k-1\\}.}
-    ///  If index \math{j} occurs in the sample \math{\ell} times, then 
+    ///  If index \math{j} occurs in the sample \math{\ell} times, then
     ///  \math{\mtxx_j} will equal \math{\sqrt{\ell}} with probability 1/2 and
     ///  \math{-\sqrt{\ell}} with probability 1/2.
     ///
@@ -634,6 +634,24 @@ state_t fill_sparse_unpacked(
     sint_t* idxs_major = major_is_rows ? rows : cols;
     sint_t* idxs_minor = major_is_rows ? cols : rows;
 
+    // Sort a contiguous block of "len" nonzeros into ascending major-coordinate order,
+    // moving the parallel (major, vals) pair together. len is at most vec_nnz, which is
+    // small, so use a no-alloc insertion sort. The idxs_minor array is constant across
+    // these blocks, so the helper doesn't need to look at it.
+    auto sort_block_by_major = [](sint_t* blk_major, T* blk_vals, int64_t len) {
+        for (int64_t a = 1; a < len; ++a) {
+            sint_t key = blk_major[a];
+            T      v   = blk_vals[a];
+            int64_t c = a - 1;
+            for (; c >= 0 && blk_major[c] > key; --c) {
+                blk_major[c+1] = blk_major[c];
+                blk_vals[c+1]  = blk_vals[c];
+            }
+            blk_major[c+1] = key;
+            blk_vals[c+1]  = v;
+        }
+    };
+
     // Phase 1: sample the num_major_sub requested major-axis vectors directly into the
     // output buffers, using the same helpers (and hence the same RNG stream) as the full
     // operator. On exit, the first "total" entries carry full major coordinates and local
@@ -645,6 +663,9 @@ state_t fill_sparse_unpacked(
             work_state, vec_nnz, dim_major, num_major_sub, idxs_major, idxs_minor, vals
         );
         total = vec_nnz * num_major_sub;
+        for (int64_t b = 0; b < num_major_sub; ++b) {
+            sort_block_by_major(idxs_major + b * vec_nnz, vals + b * vec_nnz, vec_nnz);
+        }
     } else {
         // LASO: each major-axis vector is sampled with replacement and merged in place,
         // advancing through the output buffers exactly as the full operator does.
@@ -658,7 +679,9 @@ state_t fill_sparse_unpacked(
         for (int64_t i = 0; i < num_major_sub; ++i) {
             end_state = sample_indices_iid_uniform(dim_major, vec_nnz, im, v, end_state);
             laso_merge_long_axis_vector_coo_data(vec_nnz, v, im, in, i, loc2count, loc2scale);
+            // The merge compacts to the (<= vec_nnz) distinct survivors.
             int64_t count = (int64_t) loc2count.size();
+            sort_block_by_major(im, v, count);
             im += count; in += count; v += count; total += count;
         }
     }
@@ -849,7 +872,15 @@ COOMatrix<T, sint_t> submatrix_as_coo(
     A.rows = rows;
     A.cols = cols;
     A.nnz  = nnz;
-    A.sort = RandBLAS::sparse_data::NonzeroSort::None;
+    // fill_sparse_unpacked emits each major-axis vector in sorted order, so the sampled
+    // submatrix is CSR- or CSC-sorted; label it as such.
+    if (D.dim_major == D.dim_minor) {
+        // degenerate case; recompute sort order with another scan over the data.
+        A.sort = RandBLAS::sparse_data::coo_arrays_determine_sort(A.nnz, A.rows, A.cols);
+    } else {
+        using RandBLAS::sparse_data::NonzeroSort;
+        A.sort = (D.dim_major == D.n_rows) ? NonzeroSort::CSC : NonzeroSort::CSR;
+    }
     return A;
 }
 

@@ -99,6 +99,30 @@ class TestCOO : public ::testing::Test {
     }
 
     template <typename T = double>
+    void test_dense_sums_duplicates() {
+        // coo_to_dense must ACCUMULATE duplicate (row, col) records (not overwrite).
+        COOMatrix<T> A(3, 3);
+        A.reserve(4);
+        // Two records at (0, 1) that must sum: 1.5 + (-0.5) = 1.0.
+        A.rows[0] = 0; A.cols[0] = 1; A.vals[0] = (T) 1.5;
+        A.rows[1] = 0; A.cols[1] = 1; A.vals[1] = (T) -0.5;
+        // Three-way duplicate at (2, 2): 0.25 + 0.25 + 0.5 = 1.0  (only 2 here + 1 below).
+        A.rows[2] = 2; A.cols[2] = 2; A.vals[2] = (T) 0.25;
+        A.rows[3] = 2; A.cols[3] = 2; A.vals[3] = (T) 0.75;
+
+        std::vector<T> dense(9, (T) -7); // sentinel; must be overwritten to 0 then summed.
+        coo_to_dense(A, Layout::RowMajor, dense.data());
+        EXPECT_EQ(dense[0*3 + 1], (T) 1.0); // (0,1): 1.5 - 0.5
+        EXPECT_EQ(dense[2*3 + 2], (T) 1.0); // (2,2): 0.25 + 0.75
+        // Every other cell is exactly zero (sentinel cleared, no records).
+        for (int64_t i = 0; i < 3; ++i)
+            for (int64_t j = 0; j < 3; ++j)
+                if (!((i==0 && j==1) || (i==2 && j==2)))
+                    EXPECT_EQ((dense[i*3 + j]), (T) 0.0) << "cell (" << i << "," << j << ")";
+        return;
+    }
+
+    template <typename T = double>
     void test_sort_order(int64_t n) {
         COOMatrix<T> A(n, n);
         std::vector<T> mat(n * n);
@@ -249,6 +273,11 @@ TEST_F(TestCOO, to_from_dense) {
     test_to_from_dense(3);
     test_to_from_dense(4);
     test_to_from_dense(10);
+}
+
+TEST_F(TestCOO, dense_sums_duplicates) {
+    test_dense_sums_duplicates<double>();
+    test_dense_sums_duplicates<float>();
 }
 
 TEST_F(TestCOO, sort_order) {
