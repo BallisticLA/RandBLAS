@@ -244,7 +244,7 @@ GitHub Actions workflows test:
 
 All CI tests must pass before merging.
 
-## Working with Codex on RandBLAS
+## Working on RandBLAS with agents
 
 ### Preferred Workflow
 
@@ -316,7 +316,3 @@ All CI tests must pass before merging.
 - GitHub Issues: https://github.com/BallisticLA/RandBLAS/issues
 - Documentation: https://randblas.readthedocs.io/
 - Contact: Project maintainers listed in repository
-
----
-
-*This AGENTS.md file was created to help Codex understand the RandBLAS project structure, conventions, and workflows. Update it as the project evolves.*
