@@ -92,8 +92,6 @@ auto coo_to_csc( const COOMatrix<T, sint_t1> &coo, CSCMatrix<T,sint_t2> &csc ) {
         std::copy( coo.rows, coo.rows + coo.nnz, csc.rowidxs );
         return;
     } else if (coo.sort == NonzeroSort::CSR) {
-        // Opposing order: group the CSR-sorted records by column with an O(nnz)
-        // counting-sort transpose instead of a comparison re-sort.
         csc.reserve(coo.nnz);
         counting_sort_transpose(
             coo.nnz, coo.cols, coo.rows, coo.vals, coo.n_cols, csc.colptr, csc.rowidxs, csc.vals
@@ -137,14 +135,12 @@ void coo_to_csr( const COOMatrix<T, sint_t1> &coo, CSRMatrix<T,sint_t2> &csr ) {
     }
 }
 
-// Represent "coo" as a CSR matrix without copying its structural nonzeros when possible.
-// If coo is already CSR-sorted (or empty), the result is a ZERO-COPY view that shares coo's
-// vals and cols arrays; its rowptr is written into the caller-provided "rowptr" scratch buffer
-// (resized as needed). In that case the returned matrix borrows memory: it is valid only while
-// BOTH coo and rowptr stay alive, and should be treated as const (like the transpose_as_* views
-// above). Otherwise -- opposite (CSC) sort order, taking the O(nnz) counting-sort transpose, or
-// an unsorted COO -- the result is a freshly converted, memory-owning matrix and rowptr is
-// left untouched.
+// Represent `coo` as a CSR matrix without copying its structural nonzeros when possible.
+//
+//  If coo is already CSR-sorted (or empty), the result `csr` is a ZERO-COPY view that shares
+//  coo's vals and cols arrays, and has `csr.rowptr` backed by the input `rowptr` std::vector.
+//  If coo is not CSR-sorted, the result `csr` is a new matrix from coo_to_csr.
+//
 template <typename T, SignedInteger sint_t>
 CSRMatrix<T, sint_t> coo_to_csr_view_or_copy(const COOMatrix<T, sint_t> &coo, std::vector<sint_t> &rowptr) {
     if (coo.nnz == 0 || coo.sort == NonzeroSort::CSR) {
@@ -157,8 +153,7 @@ CSRMatrix<T, sint_t> coo_to_csr_view_or_copy(const COOMatrix<T, sint_t> &coo, st
     return csr;
 }
 
-// CSC analog of coo_to_csr_view_or_copy: the zero-copy view shares coo's vals and rows arrays,
-// and writes its colptr into the caller-provided "colptr" scratch buffer. Same lifetime contract.
+// CSC analog of coo_to_csr_view_or_copy.
 template <typename T, SignedInteger sint_t>
 CSCMatrix<T, sint_t> coo_to_csc_view_or_copy(const COOMatrix<T, sint_t> &coo, std::vector<sint_t> &colptr) {
     if (coo.nnz == 0 || coo.sort == NonzeroSort::CSC) {

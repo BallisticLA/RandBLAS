@@ -1,4 +1,4 @@
-# RandBLAS Project Guide for Codex
+# RandBLAS Project Guide for coding agents
 
 ## Project Overview
 

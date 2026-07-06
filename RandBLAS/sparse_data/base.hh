@@ -312,24 +312,22 @@ void compressed_ptr_to_sorted_idxs(int64_t num_comp, sint_t1* ptr, int64_t len_i
 }
 
 // Build a compressed layout (CSR or CSC) from a COO that is already sorted in the
-// OPPOSITE compressed order, via an O(nnz + dim) counting-sort transpose -- cheaper
-// than the O(nnz log nnz) comparison re-sort that COOMatrix::sort_arrays would do.
-// Because the source is iterated in its (oppositely-)sorted order, the companion
-// index comes out ascending within each group, so the result is properly sorted in
-// the target order too.
-//   group_idx : axis to compress on (rows for a CSR target, cols for CSC); length nnz
-//   other_idx : the companion axis (cols for CSR, rows for CSC);            length nnz
-//   dim       : number of groups (n_rows for CSR, n_cols for CSC)
-// Outputs (caller-allocated): ptr[dim+1], out_other[nnz], out_vals[nnz].
+// OPPOSITE compressed order, via an O(nnz + n_groups) counting-sort transpose.
+//
+//   group_idx[nnz] : axis to compress   (rows for a CSR target, cols for CSC)
+//   other_idx[nnz] : the companion axis (cols for CSR, rows for CSC)
+//   n_groups       : number of groups (n_rows for CSR, n_cols for CSC)
+//
+// Outputs (caller-allocated): ptr[n_groups+1], out_other[nnz], out_vals[nnz].
 template <typename T, SignedInteger sint_t>
 void counting_sort_transpose(
     int64_t nnz, const sint_t* group_idx, const sint_t* other_idx, const T* vals,
-    int64_t dim, sint_t* ptr, sint_t* out_other, T* out_vals
+    int64_t n_groups, sint_t* ptr, sint_t* out_other, T* out_vals
 ) {
-    for (int64_t g = 0; g <= dim; ++g) ptr[g] = 0;
-    for (int64_t e = 0; e < nnz; ++e)  ptr[group_idx[e] + 1] += 1;
-    for (int64_t g = 0; g < dim; ++g)  ptr[g + 1] += ptr[g];
-    std::vector<sint_t> cursor(ptr, ptr + dim);   // running write position per group
+    for (int64_t g = 0; g <= n_groups; ++g) ptr[g] = 0;
+    for (int64_t e = 0; e < nnz;       ++e) ptr[group_idx[e] + 1] += 1;
+    for (int64_t g = 1; g <= n_groups; ++g) ptr[g] += ptr[g-1];
+    std::vector<sint_t> cursor(ptr, ptr + n_groups);   // running write position per group
     for (int64_t e = 0; e < nnz; ++e) {
         sint_t g = group_idx[e];
         sint_t pos = cursor[g]++;
