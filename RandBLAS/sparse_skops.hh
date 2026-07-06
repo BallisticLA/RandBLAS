@@ -873,9 +873,14 @@ COOMatrix<T, sint_t> submatrix_as_coo(
     A.cols = cols;
     A.nnz  = nnz;
     // fill_sparse_unpacked emits each major-axis vector in sorted order, so the sampled
-    // submatrix is CSR- or CSC-sorted; label it as such (rather than None) so downstream
-    // conversions can take an O(nnz) fast path.
-    A.sort = RandBLAS::sparse_data::coo_arrays_determine_sort(A.nnz, A.rows, A.cols);
+    // submatrix is CSR- or CSC-sorted; label it as such.
+    if (D.dim_major == D.dim_minor) {
+        // degenerate case; recompute sort order with another scan over the data.
+        A.sort = RandBLAS::sparse_data::coo_arrays_determine_sort(A.nnz, A.rows, A.cols);
+    } else {
+        using RandBLAS::sparse_data::NonzeroSort;
+        A.sort = (D.dim_major == D.n_rows) ? NonzeroSort::CSC : NonzeroSort::CSR;
+    }
     return A;
 }
 
