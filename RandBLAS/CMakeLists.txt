@@ -32,10 +32,13 @@ endif()
 target_link_libraries(RandBLAS INTERFACE ${RandBLAS_libs})
 
 # Build-time only: warning and sanitizer flags should not leak into the installed target.
+# Use each compiler family's warning options without passing Unix-style flags
+# to MSVC. Keep -Wno-comment for GNU/Clang builds.
 target_compile_options(RandBLAS INTERFACE
-    $<BUILD_INTERFACE:-Wall>
-    $<BUILD_INTERFACE:-Wextra>
-    $<BUILD_INTERFACE:-Wno-comment>)
+    $<BUILD_INTERFACE:$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall>>
+    $<BUILD_INTERFACE:$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wextra>>
+    $<BUILD_INTERFACE:$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wno-comment>>
+    $<BUILD_INTERFACE:$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/W4>>)
 
 if (SANITIZE_ADDRESS)
     target_compile_options(RandBLAS INTERFACE $<BUILD_INTERFACE:-fsanitize=address>)
