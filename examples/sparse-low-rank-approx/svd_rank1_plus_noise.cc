@@ -32,7 +32,6 @@
 #include <lapack.hh>
 #include <omp.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <iostream>
 #include <cmath>
 #include <time.h>

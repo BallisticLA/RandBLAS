@@ -33,12 +33,12 @@
 
 #include <omp.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <iostream>
 #include <cmath>
 #include <time.h>
 #include <stdlib.h>
 #include <chrono>
+#include <vector>
 
 using std::chrono::high_resolution_clock;
 using std::chrono::duration_cast;
@@ -49,8 +49,8 @@ using std::chrono::milliseconds;
 //TODO: Have the user choose between dense and sketch sketching operator (4 nnz per col)
 
 void init_noisy_data(int64_t m, int64_t n, int64_t d, double* AB){
-    double target_x[n*d];
-    double eps[m*d];
+    std::vector<double> target_x(n*d);
+    std::vector<double> eps(m*d);
     for (int i = 0; i < n; i++) {  
         target_x[i] = 1;   // Target X is the vector of 1's
     }
@@ -61,9 +61,9 @@ void init_noisy_data(int64_t m, int64_t n, int64_t d, double* AB){
     RandBLAS::RNGState state1(1);
 
     RandBLAS::fill_dense(Dist_A, AB, state);  //Fill A to be a random gaussian
-    RandBLAS::fill_dense(Dist_eps, eps, state1);  //Fill A to be a random gaussian
+    RandBLAS::fill_dense(Dist_eps, eps.data(), state1);  //Fill A to be a random gaussian
 
-    blas::gemm(blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans, m, d, n, 1, AB, m, target_x, n, 0, &AB[m*n], m);
+    blas::gemm(blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans, m, d, n, 1, AB, m, target_x.data(), n, 0, &AB[m*n], m);
 
     for (int i = 0; i < m*d; i++){
         AB[m*n + i] += eps[i];   // Add Gaussian Noise to right hand side
