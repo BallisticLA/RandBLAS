@@ -238,3 +238,35 @@ jobs:
         shell: bash
         working-directory: ${{ github.workspace }}/../RandBLAS-build
         run: ctest --output-on-failure
+
+  windows-build:
+    name: windows-msvc-mkl-ilp64-${{ matrix.label }}
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: openmp-release
+            openmp: true
+          - label: serial-release
+            openmp: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: initialize MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: setup native Windows dependencies
+        uses: ./.github/actions/setup-randblas-deps-windows
+
+      - name: run native Windows core validation
+        shell: pwsh
+        run: |
+          $openmp = '${{ matrix.openmp }}' -eq 'true'
+          $task = if ($openmp) { "CoreOpenMP" } else { "CoreSerial" }
+          & "$env:GITHUB_WORKSPACE/.github/scripts/windows/run-ci.ps1" `
+            -Task $task `
+            -WorkRoot "$env:GITHUB_WORKSPACE/../RandBLAS-windows-ci-$task"
