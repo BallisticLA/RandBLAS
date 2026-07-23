@@ -159,7 +159,7 @@ switch ($Task) {
 
         # Deliberately omit blaspp_DIR and Random123_DIR. This makes the smoke
         # test exercise the native-backslash dependency paths recorded by
-        # RandBLASConfig.cmake and currently reproduce the known \U parse bug.
+        # RandBLASConfig.cmake and guards their generated-path normalization.
         Invoke-Checked -Program "cmake" -Arguments @(
             "-S", (Join-Path $SourceRoot "test\downstream"),
             "-B", $build,

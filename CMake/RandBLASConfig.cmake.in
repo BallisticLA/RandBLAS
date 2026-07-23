@@ -10,13 +10,13 @@ set(RandBLAS_COMMIT_HASH "@RandBLAS_COMMIT_HASH@")
 
 # BLAS++
 if (NOT blaspp_DIR)
-    set(blaspp_DIR @blaspp_DIR@)
+    set(blaspp_DIR "@RandBLAS_CONFIG_BLASPP_DIR@")
 endif ()
 find_dependency(blaspp)
 
 # Random123
 if (NOT Random123_DIR)
-    set(Random123_DIR @Random123_DIR@)
+    set(Random123_DIR "@RandBLAS_CONFIG_RANDOM123_DIR@")
 endif ()
 find_dependency(Random123)
 
