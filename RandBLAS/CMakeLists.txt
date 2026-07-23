@@ -25,6 +25,12 @@ target_compile_options(RandBLAS INTERFACE
   $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/EHsc>
   $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/Zc:__cplusplus>)
 
+# Random123's boxmuller.hpp otherwise calls the nonstandard sincos/sincosf
+# functions, which are unavailable in the MSVC runtime. Select Random123's
+# portable separate-sine-and-cosine fallback for native MSVC consumers.
+target_compile_definitions(RandBLAS INTERFACE
+  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:R123_NO_SINCOS=1>)
+
 
 target_include_directories(RandBLAS INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
