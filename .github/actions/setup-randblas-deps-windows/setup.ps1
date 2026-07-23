@@ -62,24 +62,6 @@ function Clone-Head {
     Invoke-Checked -Program "git" -Arguments $arguments
 }
 
-function Add-IncludeIfMissing {
-    param(
-        [Parameter(Mandatory = $true)][string] $Path,
-        [Parameter(Mandatory = $true)][string] $Include,
-        [Parameter(Mandatory = $true)][string] $After
-    )
-
-    $content = [IO.File]::ReadAllText($Path)
-    if ($content.Contains($Include)) {
-        return
-    }
-    if (-not $content.Contains($After)) {
-        throw "Could not locate insertion point '$After' in $Path."
-    }
-    $content = $content.Replace($After, "$After`r`n$Include")
-    [IO.File]::WriteAllText($Path, $content)
-}
-
 function Export-GitHubValue {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
@@ -199,8 +181,10 @@ $blasppConfig = Get-ChildItem -LiteralPath $blasppInstall -Recurse -File `
     -Filter "blasppConfig.cmake" -ErrorAction SilentlyContinue |
     Select-Object -First 1
 if (-not $blasppConfig) {
-    Clone-Head -Url "https://github.com/icl-utk-edu/blaspp.git" `
-        -Destination $blasppSource
+    Clone-Head `
+        -Url "https://github.com/RaphaelArkadyMeyerNYU/blaspp.git" `
+        -Destination $blasppSource `
+        -Branch "windows-portability"
     $blasLibraryArgument = ($mklLibraries | ForEach-Object {
         Convert-ToCMakePath $_
     }) -join ";"
@@ -235,19 +219,10 @@ if ($InstallLapackpp) {
         -Filter "lapackppConfig.cmake" -ErrorAction SilentlyContinue |
         Select-Object -First 1
     if (-not $lapackppConfig) {
-        Clone-Head -Url "https://github.com/icl-utk-edu/lapackpp.git" `
-            -Destination $lapackppSource
-
-        # Temporary upstream compatibility patches. These are no-ops once the
-        # corresponding direct includes are present in LAPACK++ itself.
-        Add-IncludeIfMissing `
-            -Path (Join-Path $lapackppSource "include\lapack\config.h") `
-            -Include "#include <stdint.h>" `
-            -After '#include "lapack/defines.h"'
-        Add-IncludeIfMissing `
-            -Path (Join-Path $lapackppSource "src\lartg.cc") `
-            -Include "#include <complex>" `
-            -After '#include "lapack/fortran.h"'
+        Clone-Head `
+            -Url "https://github.com/RaphaelArkadyMeyerNYU/lapackpp.git" `
+            -Destination $lapackppSource `
+            -Branch "msvc-compatibility"
 
         Invoke-Checked -Program "cmake" -Arguments @(
             "-S", $lapackppSource,
@@ -258,8 +233,7 @@ if ($InstallLapackpp) {
             "-Dblaspp_DIR=$(Convert-ToCMakePath $blasppDir)",
             "-DBUILD_SHARED_LIBS=ON",
             "-Dgpu_backend=none",
-            "-Dbuild_tests=OFF",
-            "-DCMAKE_CXX_FLAGS=/EHsc /D__PRETTY_FUNCTION__=__FUNCSIG__"
+            "-Dbuild_tests=OFF"
         )
         Invoke-Checked -Program "cmake" -Arguments @(
             "--build", $lapackppBuild, "--target", "install"

@@ -29,29 +29,6 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: resolve dependency revisions
-      id: revisions
-      shell: pwsh
-      run: |
-        $ErrorActionPreference = "Stop"
-
-        function Get-RemoteHead([string] $url) {
-          $line = (& git ls-remote $url HEAD | Select-Object -First 1)
-          if ($LASTEXITCODE -ne 0 -or -not $line) {
-            throw "Could not resolve HEAD for $url"
-          }
-          return ($line -split "\s+")[0]
-        }
-
-        "blaspp=$(Get-RemoteHead 'https://github.com/icl-utk-edu/blaspp.git')" |
-          Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-        "random123=$(Get-RemoteHead 'https://github.com/DEShawResearch/Random123.git')" |
-          Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-        if ('${{ inputs.install-lapackpp }}' -eq 'true') {
-          "lapackpp=$(Get-RemoteHead 'https://github.com/icl-utk-edu/lapackpp.git')" |
-            Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-        }
-
     - name: cache vcpkg oneMKL installation
       uses: actions/cache@v4
       with:
@@ -68,20 +45,20 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}\..\windows-deps\blaspp-install
-        key: windows-msvc-blaspp-ilp64-sequential-1-${{ steps.revisions.outputs.blaspp }}-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+        key: windows-msvc-blaspp-windows-portability-ilp64-sequential-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: cache Random123 installation
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}\..\windows-deps\Random123-install
-        key: windows-random123-1-${{ steps.revisions.outputs.random123 }}
+        key: windows-random123-2-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: cache LAPACK++ installation
       if: inputs.install-lapackpp == 'true'
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}\..\windows-deps\lapackpp-install
-        key: windows-msvc-lapackpp-ilp64-sequential-1-${{ steps.revisions.outputs.blaspp }}-${{ steps.revisions.outputs.lapackpp }}-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+        key: windows-msvc-lapackpp-msvc-compatibility-blaspp-windows-portability-ilp64-sequential-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: build missing Windows dependencies
       id: setup
