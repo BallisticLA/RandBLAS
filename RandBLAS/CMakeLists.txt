@@ -29,7 +29,10 @@ target_compile_options(RandBLAS INTERFACE
 # functions, which are unavailable in the MSVC runtime. Select Random123's
 # portable separate-sine-and-cosine fallback for native MSVC consumers.
 target_compile_definitions(RandBLAS INTERFACE
-  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:R123_NO_SINCOS=1>)
+  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:R123_NO_SINCOS=1>
+  # BLAS++ currently uses GCC/Clang's __PRETTY_FUNCTION__ in a public header.
+  # Map it to the equivalent MSVC function-signature intrinsic.
+  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:__PRETTY_FUNCTION__=__FUNCSIG__>)
 
 
 target_include_directories(RandBLAS INTERFACE
