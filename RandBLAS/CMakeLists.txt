@@ -17,6 +17,14 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/config.h
 add_library(RandBLAS INTERFACE)
 target_compile_features(RandBLAS INTERFACE cxx_std_20)
 
+# RandBLAS is header-only, so these MSVC requirements must propagate to every
+# translation unit that includes its headers. /Zc:__cplusplus makes MSVC report
+# the selected language standard correctly (which Random123 inspects), while
+# /EHsc enables standard C++ exception-unwind semantics for code using the API.
+target_compile_options(RandBLAS INTERFACE
+  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/EHsc>
+  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/Zc:__cplusplus>)
+
 
 target_include_directories(RandBLAS INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
