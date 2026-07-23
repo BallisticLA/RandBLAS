@@ -25,6 +25,7 @@ if (GTest_FOUND)
     )
     add_executable(densedata_tests ${DENSEDATA_SOURCES})
     target_link_libraries(densedata_tests RandBLAS GTest::GTest GTest::Main)
+    randblas_stage_runtime_dlls(densedata_tests)
     gtest_discover_tests(densedata_tests)
 
     #####################################################################
@@ -49,6 +50,7 @@ if (GTest_FOUND)
     )
     add_executable(sparsedata_tests ${SPARSEDATA_SOURCES})
     target_link_libraries(sparsedata_tests RandBLAS GTest::GTest GTest::Main)
+    randblas_stage_runtime_dlls(sparsedata_tests)
     gtest_discover_tests(sparsedata_tests)
 
     #####################################################################
@@ -68,6 +70,7 @@ if (GTest_FOUND)
     # Bake the KAT vector path in at compile time so the test is cwd-independent.
     target_compile_definitions(stat_tests PRIVATE
         KAT_VECTORS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/basic_rng/r123_kat_vectors.txt")
+    randblas_stage_runtime_dlls(stat_tests)
     gtest_discover_tests(stat_tests)
 
     #####################################################################
@@ -79,6 +82,7 @@ if (GTest_FOUND)
     set(META_SOURCES meta/test_lapack_like.cc meta/test_sparse_data_generators.cc meta/test_comparison.cc)
     add_executable(meta_tests ${META_SOURCES})
     target_link_libraries(meta_tests RandBLAS GTest::GTest GTest::Main)
+    randblas_stage_runtime_dlls(meta_tests)
     gtest_discover_tests(meta_tests)
 
     #####################################################################
@@ -90,6 +94,7 @@ if (GTest_FOUND)
     set(MISC_SOURCES test_io.cc test_exceptions.cc)
     add_executable(misc_tests ${MISC_SOURCES})
     target_link_libraries(misc_tests RandBLAS GTest::GTest GTest::Main)
+    randblas_stage_runtime_dlls(misc_tests)
     gtest_discover_tests(misc_tests)
 
     #####################################################################
@@ -104,9 +109,11 @@ if (GTest_FOUND)
         ${MISC_SOURCES}
     )
     target_link_libraries(all_correctness_tests RandBLAS GTest::GTest GTest::Main)
+    randblas_stage_runtime_dlls(all_correctness_tests)
 
 endif()
 message(STATUS "Checking for regression tests ... ${tmp}")
 
 add_executable(test_rng_speed basic_rng/benchmark_speed.cc)
 target_link_libraries(test_rng_speed RandBLAS)
+randblas_stage_runtime_dlls(test_rng_speed)
