@@ -29,10 +29,7 @@ target_compile_options(RandBLAS INTERFACE
 # functions, which are unavailable in the MSVC runtime. Select Random123's
 # portable separate-sine-and-cosine fallback for native MSVC consumers.
 target_compile_definitions(RandBLAS INTERFACE
-  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:R123_NO_SINCOS=1>
-  # BLAS++ currently uses GCC/Clang's __PRETTY_FUNCTION__ in a public header.
-  # Map it to the equivalent MSVC function-signature intrinsic.
-  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:__PRETTY_FUNCTION__=__FUNCSIG__>)
+  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:R123_NO_SINCOS=1>)
 
 
 target_include_directories(RandBLAS INTERFACE
@@ -58,8 +55,32 @@ target_compile_options(RandBLAS INTERFACE
     $<BUILD_INTERFACE:$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/W4>>)
 
 if (SANITIZE_ADDRESS)
-    target_compile_options(RandBLAS INTERFACE $<BUILD_INTERFACE:-fsanitize=address>)
-    target_link_options(RandBLAS    INTERFACE $<BUILD_INTERFACE:-fsanitize=address>)
+    if (MSVC)
+        include(CheckCXXCompilerFlag)
+        check_cxx_compiler_flag(
+            "/fsanitize=address"
+            RANDBLAS_MSVC_ADDRESS_SANITIZER_SUPPORTED)
+        if (NOT RANDBLAS_MSVC_ADDRESS_SANITIZER_SUPPORTED)
+            message(FATAL_ERROR
+                "SANITIZE_ADDRESS=ON requires an MSVC toolchain with "
+                "/fsanitize=address support and its AddressSanitizer runtime "
+                "libraries installed.")
+        endif()
+        # MSVC records the required AddressSanitizer runtime in each
+        # instrumented object, so /fsanitize=address is a compile option rather
+        # than a raw link.exe option.
+        target_compile_options(RandBLAS INTERFACE
+            $<BUILD_INTERFACE:/fsanitize=address>)
+    elseif (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(RandBLAS INTERFACE
+            $<BUILD_INTERFACE:-fsanitize=address>)
+        target_link_options(RandBLAS INTERFACE
+            $<BUILD_INTERFACE:-fsanitize=address>)
+    else()
+        message(FATAL_ERROR
+            "SANITIZE_ADDRESS=ON is not supported with "
+            "${CMAKE_CXX_COMPILER_ID}.")
+    endif()
 endif()
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../RandBLAS.hh"

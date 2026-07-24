@@ -63,7 +63,7 @@ class TestSparseTranspose : public ::testing::Test
         std::string msg;
         msg = RandBLAS::testing::matrices_approx_equal(
             layout, blas::Op::Trans, m, n, A_dense.data(), m, At_dense.data(), n,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
+            RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;
@@ -75,7 +75,7 @@ class TestSparseTranspose : public ::testing::Test
         csc_to_dense(At_csc_copy, layout, At_dense.data());
         msg = RandBLAS::testing::matrices_approx_equal(
             layout, blas::Op::Trans, m, n, A_dense.data(), m, At_dense.data(), n,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
+            RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;
@@ -97,7 +97,7 @@ class TestSparseTranspose : public ::testing::Test
         csr_to_dense(At_csr_view, layout, At_dense.data());
         msg = RandBLAS::testing::matrices_approx_equal(
             layout, blas::Op::Trans, m, n, A_dense.data(), m, At_dense.data(), n,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
+            RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;
@@ -110,7 +110,7 @@ class TestSparseTranspose : public ::testing::Test
         csr_to_dense(At_csr_copy, layout, At_dense.data());
         msg = RandBLAS::testing::matrices_approx_equal(
             layout, blas::Op::Trans, m, n, A_dense.data(), m, At_dense.data(), n,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
+            RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;

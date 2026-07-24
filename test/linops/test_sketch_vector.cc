@@ -74,7 +74,7 @@ class TestSketchVector : public ::testing::Test
         blas::gemv(S.layout, blas::Op::NoTrans, d, m, (T)1.0, S.buff, lds, x, incx, (T)0.0, y_expect, incy); 
  
         auto msg = RandBLAS::testing::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
-                __PRETTY_FUNCTION__, __FILE__, __LINE__
+                RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;
@@ -110,7 +110,7 @@ class TestSketchVector : public ::testing::Test
         
         // Compare entrywise results of sketching with sketch_vector and using gemv
         auto msg = RandBLAS::testing::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
-                __PRETTY_FUNCTION__, __FILE__, __LINE__
+                RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;
@@ -147,7 +147,7 @@ class TestSketchVector : public ::testing::Test
         RandBLAS::sketch_vector(blas::Op::Trans, m, d, (T)1.0, S_tall, 0, 0, x, incx, (T)0.0, y_tall, incy);
         
         auto msg = RandBLAS::testing::buffs_approx_equal(d, y_wide, incy, y_tall, incy,
-                __PRETTY_FUNCTION__, __FILE__, __LINE__
+                RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;
@@ -183,7 +183,7 @@ class TestSketchVector : public ::testing::Test
 
         // Compare entrywise results of sketching with sketch_vector and using gemv
         auto msg = RandBLAS::testing::buffs_approx_equal(d, y_actual, incy, y_expect, incy,
-                __PRETTY_FUNCTION__, __FILE__, __LINE__
+                RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;

@@ -323,7 +323,7 @@ class TestSampleIndices : public ::testing::Test
         auto ctr_onecall = t.counter.v[0];
         EXPECT_EQ( ctr_onecall, ctr_twocall );
 
-        auto msg = RandBLAS::testing::buffs_approx_equal(onecall.data(), twocall.data(), r_total*k, __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        auto msg = RandBLAS::testing::buffs_approx_equal(onecall.data(), twocall.data(), r_total*k, RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__);
         if (msg.size() > 0) {
             FAIL() << msg;
         }

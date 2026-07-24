@@ -135,15 +135,15 @@ class TestSparseSkOpConstruction : public ::testing::Test
         auto S = new SparseSkOp(sd, state, next_state, -1, vals.data(), rows.data(), cols.data());
         // check that nothing has changed
         std::string msg;
-        msg = RandBLAS::testing::buffs_approx_equal(rows.data(), rows_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
+        msg = RandBLAS::testing::buffs_approx_equal(rows.data(), rows_copy.data(), sd.full_nnz, RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
         if (msg.size() > 0) {
             FAIL() << msg;
         }
-        msg = RandBLAS::testing::buffs_approx_equal(cols.data(), cols_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
+        msg = RandBLAS::testing::buffs_approx_equal(cols.data(), cols_copy.data(), sd.full_nnz, RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
         if (msg.size() > 0) {
             FAIL() << msg;
         }
-        msg = RandBLAS::testing::buffs_approx_equal(vals.data(), vals_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (T) 0, (T) 0);
+        msg = RandBLAS::testing::buffs_approx_equal(vals.data(), vals_copy.data(), sd.full_nnz, RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__, (T) 0, (T) 0);
         if (msg.size() > 0) {
             FAIL() << msg;
         }
@@ -159,15 +159,15 @@ class TestSparseSkOpConstruction : public ::testing::Test
         }
         // delete S, and make sure the rows,cols,vals are unchanged from before the deletion.
         delete S;
-        msg = RandBLAS::testing::buffs_approx_equal(rows.data(), rows_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
+        msg = RandBLAS::testing::buffs_approx_equal(rows.data(), rows_copy.data(), sd.full_nnz, RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
         if (msg.size() > 0) {
             FAIL() << msg;
         }
-        msg = RandBLAS::testing::buffs_approx_equal(cols.data(), cols_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
+        msg = RandBLAS::testing::buffs_approx_equal(cols.data(), cols_copy.data(), sd.full_nnz, RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__, (sint_t) 0, (sint_t) 0);
         if (msg.size() > 0) {
             FAIL() << msg;
         }
-        msg = RandBLAS::testing::buffs_approx_equal(vals.data(), vals_copy.data(), sd.full_nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__, (T) 0, (T) 0);
+        msg = RandBLAS::testing::buffs_approx_equal(vals.data(), vals_copy.data(), sd.full_nnz, RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__, (T) 0, (T) 0);
         if (msg.size() > 0) {
             FAIL() << msg;
         }
@@ -190,19 +190,19 @@ class TestSparseSkOpConstruction : public ::testing::Test
         EXPECT_TRUE(actual_next == expect_next);
         std::string msg;
         msg = RandBLAS::testing::buffs_approx_equal(
-            vals.data(), S.vals, nnz, __PRETTY_FUNCTION__, __FILE__, __LINE__
+            vals.data(), S.vals, nnz, RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;
         }
         msg = RandBLAS::testing::buffs_approx_equal(
-            rows.data(), S.rows, nnz,  __PRETTY_FUNCTION__, __FILE__, __LINE__
+            rows.data(), S.rows, nnz,  RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;
         }
         msg = RandBLAS::testing::buffs_approx_equal(
-            cols.data(), S.cols, nnz,  __PRETTY_FUNCTION__, __FILE__, __LINE__
+            cols.data(), S.cols, nnz,  RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;
@@ -270,7 +270,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
         }
         std::string msg = RandBLAS::testing::buffs_approx_equal(
             dense_sub.data(), dense_oracle.data(), n_rows_sub * n_cols_sub,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
+            RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;
