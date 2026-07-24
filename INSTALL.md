@@ -1,13 +1,13 @@
 
 # Installing and using RandBLAS
 
-This guide has five sections.
+This guide has four main sections and a native-Windows appendix.
 
 Sections 1 through 3 describe how to build and install RandBLAS using CMake.
 
 Section 4 explains how to use RandBLAS in other CMake projects.
 
-Section 5 concludes with extra tips.
+Appendix A follows the same general flow for a native Windows build with MSVC.
 
 If you want a TL;DR version of this guide, refer to one of the following.
  * Our GitHub Actions to [workflow files](https://github.com/BallisticLA/RandBLAS/tree/main/.github/workflows).
@@ -41,7 +41,7 @@ mkdir blaspp-build
 cd blaspp-build
 cmake -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=`pwd`/../blaspp-install \
-    -DCMAKE_BINARY_DIR=`pwd` \ 
+    -DCMAKE_BINARY_DIR=`pwd` \
     -Dbuild_tests=OFF \
     ../blaspp
 make -j install
@@ -66,9 +66,9 @@ RandBLAS does not strictly require OpenMP, but it needs OpenMP to quickly
 sample dense sketching operators and to quickly perform any sparse matrix computations.
 
 RandBLAS' CMake configuration step should automatically detect if OpenMP is available.
-Sometimes the CMake configuration will fail to recognize OpenMP even if it's 
+Sometimes the CMake configuration will fail to recognize OpenMP even if it's
 on your system. This is especially common with the default system compilers on macOS
-(you can execute ``gcc`` or ``g++`` on macOS, but those are just aliased to 
+(you can execute ``gcc`` or ``g++`` on macOS, but those are just aliased to
 limited versions of ``clang`` and ``clang++``). See [this GitHub issue comment](https://github.com/BallisticLA/RandBLAS/issues/86#issue-2248281376)
 for more info.
 
@@ -143,4 +143,198 @@ set(myproject_cxx_source my_project.cc)
 add_executable(my_project ${myproject_cxx_source})
 target_include_directories(myproject PUBLIC ${Random123_DIR})
 target_link_libraries(myproject PUBLIC RandBLAS blaspp lapackpp)
+```
+
+
+## Appendix A. Native Windows installation with MSVC
+
+This appendix gives a native Windows recipe; it does not use WSL. It follows
+the same dependency, build, and downstream-use flow as the main guide. The
+commands use `C:/randblas-work` as a replaceable workspace root and keep source,
+build, and install directories separate.
+
+Run the commands from an **x64 Native Tools Command Prompt for Visual Studio**.
+The recipe uses the NMake generator, so `cmake --build` is serial and does not
+need `--parallel`.
+
+### A.1. Required dependencies: MSVC, oneMKL, BLAS++, and Random123
+
+Install the following tools first:
+
+* Visual Studio 2022 or Build Tools with **Desktop development with C++**;
+* Git;
+* CMake 3.24 or later;
+* vcpkg.
+
+Create the workspace directories:
+
+```bat
+mkdir C:\randblas-work
+mkdir C:\randblas-work\src
+mkdir C:\randblas-work\build
+mkdir C:\randblas-work\install
+```
+
+The following command assumes vcpkg is installed at `C:\vcpkg`. Adjust that
+path if necessary. Install the oneMKL port into a dedicated dependency prefix:
+
+```bat
+C:\vcpkg\vcpkg.exe install intel-mkl:x64-windows ^
+  --x-install-root=C:\randblas-work\vcpkg-installed
+
+set "MKLROOT=C:\randblas-work\vcpkg-installed\x64-windows"
+set "PATH=%MKLROOT%\bin;%PATH%"
+```
+
+Build a shared, sequential, ILP64 BLAS++:
+
+```bat
+git clone --branch windows-portability ^
+  https://github.com/RaphaelArkadyMeyerNYU/blaspp.git ^
+  C:\randblas-work\src\blaspp
+
+cmake --fresh ^
+  -S C:/randblas-work/src/blaspp ^
+  -B C:/randblas-work/build/blaspp ^
+  -G "NMake Makefiles" ^
+  -DCMAKE_BUILD_TYPE=Release ^
+  -DCMAKE_INSTALL_PREFIX=C:/randblas-work/install/blaspp ^
+  -DBUILD_SHARED_LIBS=ON ^
+  -Duse_cmake_find_blas=false ^
+  -DBLAS_LIBRARIES="C:/randblas-work/vcpkg-installed/x64-windows/lib/mkl_intel_ilp64_dll.lib;C:/randblas-work/vcpkg-installed/x64-windows/lib/mkl_sequential_dll.lib;C:/randblas-work/vcpkg-installed/x64-windows/lib/mkl_core_dll.lib" ^
+  -Dblas_int=ilp64 ^
+  -Dblas_threaded=false ^
+  -Duse_openmp=false ^
+  -Dgpu_backend=none ^
+  -Dbuild_tests=OFF
+
+cmake --build C:/randblas-work/build/blaspp --target install
+```
+
+Random123 is header-only. Copy its public headers into a stable installation
+prefix so the installed RandBLAS package does not depend on retaining the
+Random123 source checkout:
+
+```bat
+git clone https://github.com/DEShawResearch/Random123.git ^
+  C:\randblas-work\src\Random123
+
+cmake -E make_directory C:/randblas-work/install/Random123/include
+cmake -E copy_directory ^
+  C:/randblas-work/src/Random123/include/Random123 ^
+  C:/randblas-work/install/Random123/include/Random123
+```
+
+### A.2. Optional dependencies: GoogleTest and OpenMP
+
+GoogleTest is needed only to build and run the RandBLAS test suite. A minimal
+installation can omit GoogleMock:
+
+```bat
+git clone --branch v1.17.0 ^
+  https://github.com/google/googletest.git ^
+  C:\randblas-work\src\googletest
+
+cmake --fresh ^
+  -S C:/randblas-work/src/googletest ^
+  -B C:/randblas-work/build/googletest ^
+  -G "NMake Makefiles" ^
+  -DCMAKE_BUILD_TYPE=Release ^
+  -DCMAKE_INSTALL_PREFIX=C:/randblas-work/install/googletest ^
+  -DBUILD_GMOCK=OFF ^
+  -DINSTALL_GTEST=ON
+
+cmake --build C:/randblas-work/build/googletest --target install
+```
+
+MSVC supplies OpenMP support. RandBLAS's CMake configuration automatically
+selects `/openmp:experimental` under MSVC because its sparse kernels use
+`#pragma omp simd`. No OpenMP flag needs to be added manually.
+
+OpenMP is optional. To request a serial build explicitly, add
+`-DCMAKE_DISABLE_FIND_PACKAGE_OpenMP=TRUE` to the RandBLAS configuration
+command in the next section.
+
+### A.3. Building, installing, and testing RandBLAS
+
+Clone RandBLAS, configure it against the installed BLAS++ and the Random123
+headers, and enable the test suite:
+
+```bat
+git clone https://github.com/BallisticLA/RandBLAS.git ^
+  C:\randblas-work\src\RandBLAS
+
+cmake --fresh ^
+  -S C:/randblas-work/src/RandBLAS ^
+  -B C:/randblas-work/build/RandBLAS ^
+  -G "NMake Makefiles" ^
+  -DCMAKE_BUILD_TYPE=Release ^
+  -DCMAKE_INSTALL_PREFIX=C:/randblas-work/install/RandBLAS ^
+  -Dblaspp_DIR=C:/randblas-work/install/blaspp/blaspp ^
+  -DRandom123_DIR=C:/randblas-work/install/Random123/include ^
+  -DCMAKE_PREFIX_PATH=C:/randblas-work/install/googletest ^
+  -DBUILD_TESTS=ON
+
+cmake --build C:/randblas-work/build/RandBLAS --target install
+
+ctest --test-dir C:/randblas-work/build/RandBLAS --output-on-failure
+```
+
+The exact location of `blasppConfig.cmake` can vary between BLAS++ revisions.
+The value of `blaspp_DIR` must be the directory containing that file. If the
+path above does not exist, locate the installed file with:
+
+```bat
+dir C:\randblas-work\install\blaspp\blasppConfig.cmake /s /b
+```
+
+Similarly, `CMAKE_PREFIX_PATH` points at the GoogleTest installation prefix,
+not directly at `GTestConfig.cmake`.
+
+AddressSanitizer is optional. Add `-DSANITIZE_ADDRESS=ON` to configure an
+instrumented build. This requires the optional **C++ AddressSanitizer**
+component from the Visual Studio Installer.
+
+### A.4. Using the installed package
+
+The CMake target remains the same on every platform:
+
+```cmake
+cmake_minimum_required(VERSION 3.24)
+project(my_randblas_project LANGUAGES CXX)
+
+find_package(RandBLAS REQUIRED)
+
+add_executable(myexec main.cc)
+target_link_libraries(myexec PRIVATE RandBLAS)
+```
+
+Configure and build that consumer by pointing `CMAKE_PREFIX_PATH` at the
+RandBLAS installation:
+
+```bat
+cmake --fresh ^
+  -S C:/path/to/my_randblas_project ^
+  -B C:/path/to/my_randblas_project-build ^
+  -G "NMake Makefiles" ^
+  -DCMAKE_BUILD_TYPE=Release ^
+  -DCMAKE_PREFIX_PATH=C:/randblas-work/install/RandBLAS
+
+cmake --build C:/path/to/my_randblas_project-build
+```
+
+The installed `RandBLASConfig.cmake` records the BLAS++ and Random123 locations
+used to build RandBLAS, so ordinary consumers should not need to supply those
+paths again.
+
+Repository-owned tests copy imported dependency DLLs beside their executables.
+An arbitrary downstream application is responsible for its own deployment.
+When running the example consumer above from the build tree, ensure that the
+oneMKL and BLAS++ runtime directories are on `PATH`, or copy the required DLLs
+beside the executable:
+
+```bat
+set "PATH=C:\randblas-work\vcpkg-installed\x64-windows\bin;C:\randblas-work\install\blaspp\bin;%PATH%"
+
+C:\path\to\my_randblas_project-build\myexec.exe
 ```
