@@ -293,7 +293,11 @@ not directly at `GTestConfig.cmake`.
 
 AddressSanitizer is optional. Add `-DSANITIZE_ADDRESS=ON` to configure an
 instrumented build. This requires the optional **C++ AddressSanitizer**
-component from the Visual Studio Installer.
+component from the Visual Studio Installer. When tests are enabled, configure
+and install a separate ASan-enabled copy of GoogleTest by adding
+`-DCMAKE_CXX_FLAGS="/fsanitize=address /Zi"` to the GoogleTest CMake command.
+Then set `CMAKE_PREFIX_PATH` to that GoogleTest installation when configuring
+the sanitized RandBLAS build.
 
 ### A.4. Using the installed package
 

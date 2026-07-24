@@ -70,7 +70,10 @@ if (SANITIZE_ADDRESS)
         # instrumented object, so /fsanitize=address is a compile option rather
         # than a raw link.exe option.
         target_compile_options(RandBLAS INTERFACE
-            $<BUILD_INTERFACE:/fsanitize=address>)
+            $<BUILD_INTERFACE:/fsanitize=address>
+            $<BUILD_INTERFACE:/Zi>)
+        target_link_options(RandBLAS INTERFACE
+            $<BUILD_INTERFACE:/DEBUG>)
     elseif (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(RandBLAS INTERFACE
             $<BUILD_INTERFACE:-fsanitize=address>)
