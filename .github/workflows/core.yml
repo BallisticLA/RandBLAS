@@ -248,8 +248,13 @@ jobs:
         include:
           - label: openmp-release
             openmp: true
+            sanitize_address: false
           - label: serial-release
             openmp: false
+            sanitize_address: false
+          - label: serial-release-asan
+            openmp: false
+            sanitize_address: true
 
     steps:
       - uses: actions/checkout@v4
@@ -266,7 +271,10 @@ jobs:
         shell: pwsh
         run: |
           $openmp = '${{ matrix.openmp }}' -eq 'true'
+          $sanitizeAddress = '${{ matrix.sanitize_address }}' -eq 'true'
           $task = if ($openmp) { "CoreOpenMP" } else { "CoreSerial" }
+          $workName = if ($sanitizeAddress) { "$task-ASan" } else { $task }
           & "$env:GITHUB_WORKSPACE/.github/scripts/windows/run-ci.ps1" `
             -Task $task `
-            -WorkRoot "$env:GITHUB_WORKSPACE/../RandBLAS-windows-ci-$task"
+            -WorkRoot "$env:GITHUB_WORKSPACE/../RandBLAS-windows-ci-$workName" `
+            -SanitizeAddress:$sanitizeAddress

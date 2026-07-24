@@ -8,7 +8,8 @@ param(
     [string] $WorkRoot = "",
     [string] $DependencyRoot = "",
     [string] $VcpkgExecutable = "",
-    [switch] $SetupDependencies
+    [switch] $SetupDependencies,
+    [switch] $SanitizeAddress
 )
 
 $ErrorActionPreference = "Stop"
@@ -89,7 +90,8 @@ function Install-RandBLAS {
         [Parameter(Mandatory = $true)][string] $Name,
         [Parameter(Mandatory = $true)][bool] $BuildTests,
         [Parameter(Mandatory = $true)][bool] $UseOpenMP,
-        [bool] $UseNativeDependencyPaths = $false
+        [bool] $UseNativeDependencyPaths = $false,
+        [bool] $SanitizeAddress = $false
     )
 
     $build = Join-Path $WorkRoot "$Name-build"
@@ -117,6 +119,9 @@ function Install-RandBLAS {
     if (-not $UseOpenMP) {
         $arguments += "-DCMAKE_DISABLE_FIND_PACKAGE_OpenMP=TRUE"
     }
+    if ($SanitizeAddress) {
+        $arguments += "-DSANITIZE_ADDRESS=ON"
+    }
 
     Invoke-Checked -Program "cmake" -Arguments $arguments
     Invoke-Checked -Program "cmake" -Arguments @(
@@ -131,7 +136,8 @@ function Install-RandBLAS {
 switch ($Task) {
     "CoreOpenMP" {
         $randblas = Install-RandBLAS `
-            -Name "core-openmp" -BuildTests $true -UseOpenMP $true
+            -Name "core-openmp" -BuildTests $true -UseOpenMP $true `
+            -SanitizeAddress:$SanitizeAddress
         $env:OMP_NUM_THREADS = "1"
         Invoke-Checked -Program "ctest" -Arguments @(
             "--test-dir", $randblas.Build, "--output-on-failure"
@@ -144,7 +150,8 @@ switch ($Task) {
 
     "CoreSerial" {
         $randblas = Install-RandBLAS `
-            -Name "core-serial" -BuildTests $true -UseOpenMP $false
+            -Name "core-serial" -BuildTests $true -UseOpenMP $false `
+            -SanitizeAddress:$SanitizeAddress
         Remove-Item Env:OMP_NUM_THREADS -ErrorAction SilentlyContinue
         Invoke-Checked -Program "ctest" -Arguments @(
             "--test-dir", $randblas.Build, "--output-on-failure"
