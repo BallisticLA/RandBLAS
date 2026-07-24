@@ -8,6 +8,10 @@ inputs:
     description: "Build and install LAPACK++ for the examples workflow."
     required: false
     default: "false"
+  sanitize-address:
+    description: "Build GoogleTest with the MSVC AddressSanitizer enabled."
+    required: false
+    default: "false"
 
 outputs:
   blaspp-dir:
@@ -36,10 +40,18 @@ runs:
         key: windows-vcpkg-intel-mkl-2025.2.0-1-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: cache GoogleTest installation
+      if: inputs.sanitize-address != 'true'
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}\..\windows-deps\googletest-install
         key: windows-msvc-googletest-1.17.0-1
+
+    - name: cache AddressSanitizer GoogleTest installation
+      if: inputs.sanitize-address == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}\..\windows-deps\googletest-asan-install
+        key: windows-msvc-googletest-asan-1.17.0-1-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: cache BLAS++ installation
       uses: actions/cache@v4
@@ -65,6 +77,8 @@ runs:
       shell: pwsh
       run: |
         $installLapackpp = '${{ inputs.install-lapackpp }}' -eq 'true'
+        $sanitizeAddress = '${{ inputs.sanitize-address }}' -eq 'true'
         & "${env:GITHUB_ACTION_PATH}\setup.ps1" `
           -DependencyRoot "${env:GITHUB_WORKSPACE}\..\windows-deps" `
-          -InstallLapackpp:$installLapackpp
+          -InstallLapackpp:$installLapackpp `
+          -SanitizeAddress:$sanitizeAddress

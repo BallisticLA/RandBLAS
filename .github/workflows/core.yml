@@ -266,6 +266,8 @@ jobs:
 
       - name: setup native Windows dependencies
         uses: ./.github/actions/setup-randblas-deps-windows
+        with:
+          sanitize-address: ${{ matrix.sanitize_address }}
 
       - name: run native Windows core validation
         shell: pwsh

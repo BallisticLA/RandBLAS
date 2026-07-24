@@ -2,7 +2,8 @@
 param(
     [string] $DependencyRoot = "",
     [string] $VcpkgExecutable = "",
-    [switch] $InstallLapackpp
+    [switch] $InstallLapackpp,
+    [switch] $SanitizeAddress
 )
 
 $ErrorActionPreference = "Stop"
@@ -144,12 +145,13 @@ $env:MKLROOT = $mklRoot
 $env:PATH = "$mklBin;$env:PATH"
 
 $gtestSource = Join-Path $DependencyRoot "googletest"
-$gtestBuild = Join-Path $DependencyRoot "googletest-build"
-$gtestInstall = Join-Path $DependencyRoot "googletest-install"
+$gtestVariant = if ($SanitizeAddress) { "googletest-asan" } else { "googletest" }
+$gtestBuild = Join-Path $DependencyRoot "$gtestVariant-build"
+$gtestInstall = Join-Path $DependencyRoot "$gtestVariant-install"
 if (-not (Test-Path -LiteralPath (Join-Path $gtestInstall "lib\cmake\GTest\GTestConfig.cmake"))) {
     Clone-Head -Url "https://github.com/google/googletest.git" `
         -Destination $gtestSource -Branch "v1.17.0"
-    Invoke-Checked -Program "cmake" -Arguments @(
+    $gtestArguments = @(
         "-S", $gtestSource,
         "-B", $gtestBuild,
         "-G", "NMake Makefiles",
@@ -158,6 +160,13 @@ if (-not (Test-Path -LiteralPath (Join-Path $gtestInstall "lib\cmake\GTest\GTest
         "-DBUILD_GMOCK=OFF",
         "-DINSTALL_GTEST=ON"
     )
+    if ($SanitizeAddress) {
+        # MSVC's STL container-annotation mode must agree across every object
+        # linked into a process. Build a separate instrumented GoogleTest
+        # installation for the ASan job instead of disabling those checks.
+        $gtestArguments += "-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi"
+    }
+    Invoke-Checked -Program "cmake" -Arguments $gtestArguments
     Invoke-Checked -Program "cmake" -Arguments @(
         "--build", $gtestBuild, "--target", "install"
     )

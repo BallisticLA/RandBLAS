@@ -69,6 +69,7 @@ if ($SetupDependencies) {
     $setupArguments = @{
         DependencyRoot = $DependencyRoot
         InstallLapackpp = ($Task -eq "Examples")
+        SanitizeAddress = $SanitizeAddress
     }
     if ($VcpkgExecutable) {
         $setupArguments["VcpkgExecutable"] = $VcpkgExecutable
