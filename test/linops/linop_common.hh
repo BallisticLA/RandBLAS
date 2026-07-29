@@ -87,7 +87,7 @@ void test_left_apply_to_random(
     // check the result
     auto msg = RandBLAS::testing::buffs_approx_equal<T>(
         B0.data(), B1.data(), E.data(), d * n,
-        RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
     );
     if (msg.size() > 0) {
         FAIL() << msg;
@@ -142,7 +142,7 @@ void test_left_apply_submatrix_to_eye(
         d1, m1,
         B.data(), ldb,
         &expect[offset], ld_expect,
-        RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
     );
     if (msg.size() > 0) {
         FAIL() << msg;
@@ -177,7 +177,7 @@ void test_left_apply_transpose_to_eye(
     auto msg = RandBLAS::testing::matrices_approx_equal(
         layout, Op::Trans, d, m,
         B.data(), ldb, S_dense.data(), lds,
-        RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
     );
     if (msg.size() > 0) {
         FAIL() << msg;
@@ -222,7 +222,7 @@ void test_left_apply_to_submatrix(
     );
     auto msg = RandBLAS::testing::buffs_approx_equal(
         B0.data(), B1.data(), E.data(), d * n,
-        RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
     );
     if (msg.size() > 0) {
         FAIL() << msg;
@@ -263,7 +263,7 @@ void test_left_apply_to_transposed(
     );
     auto msg = RandBLAS::testing::buffs_approx_equal(
         B0.data(), B1.data(), E.data(), d * n,
-        RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
     );
     if (msg.size() > 0) {
         FAIL() << msg;
@@ -304,7 +304,7 @@ void test_right_apply_to_random(
 
     auto msg = RandBLAS::testing::buffs_approx_equal<T>(
         B0.data(), B1.data(), E.data(), m * d,
-        RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
     );
     if (msg.size() > 0) {
         FAIL() << msg;
@@ -344,7 +344,7 @@ void test_right_apply_submatrix_to_eye(
 
     auto msg = RandBLAS::testing::matrices_approx_equal(
         layout, Op::NoTrans, n, d, B.data(), ldb, &expect[offset], ld_expect,
-        RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
     );
     if (msg.size() > 0) {
         FAIL() << msg;
@@ -372,7 +372,7 @@ void test_right_apply_transpose_to_eye(
     auto msg = RandBLAS::testing::matrices_approx_equal(
         layout, Op::Trans, n, d,
         B.data(), ldb, S_dense.data(), lds,
-        RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
     );
     if (msg.size() > 0) {
         FAIL() << msg;
@@ -409,7 +409,7 @@ void test_right_apply_to_submatrix(
     );
     auto msg = RandBLAS::testing::buffs_approx_equal(
         B0.data(), B1.data(), E.data(), d * m,
-        RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
     );
     if (msg.size() > 0) {
         FAIL() << msg;
@@ -441,7 +441,7 @@ void test_right_apply_to_transposed(
     );
     auto msg = RandBLAS::testing::buffs_approx_equal(
         B0.data(), B1.data(), E.data(), m * d,
-        RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
     );
     if (msg.size() > 0) {
         FAIL() << msg;

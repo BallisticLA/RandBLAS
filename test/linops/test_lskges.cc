@@ -624,7 +624,7 @@ class TestLSKGES_SubmatrixPath : public ::testing::Test {
             (T) 1.0, S_new, S_ro, S_co, A.data(), lda, (T) 0.0, B_new.data(), ldb);
 
         auto msg = RandBLAS::testing::buffs_approx_equal(
-            B_new.data(), B_old.data(), d1 * n, RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+            B_new.data(), B_old.data(), d1 * n, __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;

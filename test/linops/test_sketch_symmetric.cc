@@ -110,7 +110,7 @@ class TestSketchSymmetric : public ::testing::Test {
 
         auto msg = RandBLAS::testing::matrices_approx_equal(
             S.layout, blas::Op::NoTrans, rows_out, cols_out, B_actual.data(), ldb, B_expect.data(), ldb,
-            RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+            __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;
@@ -152,7 +152,7 @@ class TestSketchSymmetric : public ::testing::Test {
 
         auto msg = RandBLAS::testing::matrices_approx_equal(
             layout_B, blas::Op::NoTrans, rows_out, cols_out, B_actual.data(), ldb, B_expect.data(), ldb,
-            RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+            __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;

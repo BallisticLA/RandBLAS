@@ -40,11 +40,11 @@
 // failure diagnostics. Keep this test utility out of the installed RandBLAS
 // target's compiler definitions.
 #if defined(_MSC_VER)
-    #define RANDBLAS_TEST_FUNCTION_SIGNATURE __FUNCSIG__
+    #define __RANDBLAS_PRETTY_FUNCTION__ __FUNCSIG__
 #elif defined(__GNUC__) || defined(__clang__)
-    #define RANDBLAS_TEST_FUNCTION_SIGNATURE __PRETTY_FUNCTION__
+    #define __RANDBLAS_PRETTY_FUNCTION__ __PRETTY_FUNCTION__
 #else
-    #define RANDBLAS_TEST_FUNCTION_SIGNATURE __func__
+    #define __RANDBLAS_PRETTY_FUNCTION__ __func__
 #endif
 
 namespace RandBLAS::testing {

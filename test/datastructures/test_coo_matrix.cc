@@ -88,7 +88,7 @@ class TestCOO : public ::testing::Test {
         coo_to_dense(A, 1, n, expect.data());
 
         auto msg = RandBLAS::testing::buffs_approx_equal(actual.data(), expect.data(), n * n,
-            RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+            __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;
@@ -331,7 +331,7 @@ class Test_SkOp_to_COO : public ::testing::Test {
         coo_to_dense(A, Layout::ColMajor, A_dense.data());
     
         auto msg = RandBLAS::testing::buffs_approx_equal(S_dense.data(), A_dense.data(), d * m,
-            RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__
+            __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;

@@ -438,7 +438,7 @@ protected:
         T rtol = std::sqrt(std::numeric_limits<T>::epsilon());
         auto msg = RandBLAS::testing::buffs_approx_equal(
             C_actual.data(), C_ref.data(), m * n,
-            RANDBLAS_TEST_FUNCTION_SIGNATURE, __FILE__, __LINE__,
+            __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__,
             atol, rtol
         );
         if (msg.size() > 0) {
