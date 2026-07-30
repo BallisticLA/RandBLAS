@@ -1,0 +1,84 @@
+name: setup-randblas-deps-windows
+description: >
+  Provisions oneMKL through vcpkg and builds the native-MSVC dependencies used
+  by RandBLAS's Windows CI jobs.
+
+inputs:
+  install-lapackpp:
+    description: "Build and install LAPACK++ for the examples workflow."
+    required: false
+    default: "false"
+  sanitize-address:
+    description: "Build GoogleTest with the MSVC AddressSanitizer enabled."
+    required: false
+    default: "false"
+
+outputs:
+  blaspp-dir:
+    description: "Directory containing blasppConfig.cmake."
+    value: ${{ steps.setup.outputs.blaspp-dir }}
+  random123-dir:
+    description: "Directory containing the installed Random123 headers."
+    value: ${{ steps.setup.outputs.random123-dir }}
+  googletest-prefix:
+    description: "GoogleTest installation prefix."
+    value: ${{ steps.setup.outputs.googletest-prefix }}
+  lapackpp-dir:
+    description: "Directory containing lapackppConfig.cmake, when requested."
+    value: ${{ steps.setup.outputs.lapackpp-dir }}
+  mkl-root:
+    description: "Root of the vcpkg oneMKL installation."
+    value: ${{ steps.setup.outputs.mkl-root }}
+
+runs:
+  using: composite
+  steps:
+    - name: cache vcpkg oneMKL installation
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}\..\windows-deps\vcpkg-installed
+        key: windows-vcpkg-intel-mkl-2025.2.0-1-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+
+    - name: cache GoogleTest installation
+      if: inputs.sanitize-address != 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}\..\windows-deps\googletest-install
+        key: windows-msvc-googletest-1.17.0-1
+
+    - name: cache AddressSanitizer GoogleTest installation
+      if: inputs.sanitize-address == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}\..\windows-deps\googletest-asan-install
+        key: windows-msvc-googletest-asan-1.17.0-1-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+
+    - name: cache BLAS++ installation
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}\..\windows-deps\blaspp-install
+        key: windows-msvc-blaspp-windows-portability-ilp64-sequential-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+
+    - name: cache Random123 installation
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}\..\windows-deps\Random123-install
+        key: windows-random123-2-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+
+    - name: cache LAPACK++ installation
+      if: inputs.install-lapackpp == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}\..\windows-deps\lapackpp-install
+        key: windows-msvc-lapackpp-msvc-compatibility-blaspp-windows-portability-ilp64-sequential-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+
+    - name: build missing Windows dependencies
+      id: setup
+      shell: pwsh
+      run: |
+        $installLapackpp = '${{ inputs.install-lapackpp }}' -eq 'true'
+        $sanitizeAddress = '${{ inputs.sanitize-address }}' -eq 'true'
+        & "${env:GITHUB_ACTION_PATH}\setup.ps1" `
+          -DependencyRoot "${env:GITHUB_WORKSPACE}\..\windows-deps" `
+          -InstallLapackpp:$installLapackpp `
+          -SanitizeAddress:$sanitizeAddress

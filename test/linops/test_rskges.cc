@@ -435,7 +435,7 @@ class TestRSKGES_SubmatrixPath : public ::testing::Test {
             (T) 1.0, A.data(), lda, S_new, S_ro, S_co, (T) 0.0, B_new.data(), ldb);
 
         auto msg = RandBLAS::testing::buffs_approx_equal(
-            B_new.data(), B_old.data(), m * d1, __PRETTY_FUNCTION__, __FILE__, __LINE__
+            B_new.data(), B_old.data(), m * d1, __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;

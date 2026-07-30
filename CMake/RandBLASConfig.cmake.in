@@ -10,20 +10,35 @@ set(RandBLAS_COMMIT_HASH "@RandBLAS_COMMIT_HASH@")
 
 # BLAS++
 if (NOT blaspp_DIR)
-    set(blaspp_DIR @blaspp_DIR@)
+    set(blaspp_DIR "@RandBLAS_CONFIG_BLASPP_DIR@")
 endif ()
 find_dependency(blaspp)
 
 # Random123
 if (NOT Random123_DIR)
-    set(Random123_DIR @Random123_DIR@)
+    set(Random123_DIR "@RandBLAS_CONFIG_RANDOM123_DIR@")
 endif ()
 find_dependency(Random123)
 
 # OpenMP
 set(RandBLAS_HAS_OpenMP @RandBLAS_HAS_OpenMP@)
 if (RandBLAS_HAS_OpenMP)
+    # MSVC's standard /openmp mode does not support the omp simd directive
+    # used by RandBLAS's sparse kernels.
+    if (MSVC AND NOT DEFINED OpenMP_CXX_FLAGS)
+        set(OpenMP_CXX_FLAGS "/openmp:experimental" CACHE STRING
+            "OpenMP compiler flags for C++")
+    endif()
+
     find_dependency(OpenMP COMPONENTS CXX)
+
+    # FindOpenMP may retain a previously detected /openmp setting. Ensure that
+    # consumers of the installed package receive the SIMD-capable MSVC mode.
+    if (MSVC AND OpenMP_CXX_FOUND AND TARGET OpenMP::OpenMP_CXX)
+        set_property(TARGET OpenMP::OpenMP_CXX PROPERTY
+            INTERFACE_COMPILE_OPTIONS "/openmp:experimental")
+        set(OpenMP_CXX_FLAGS "/openmp:experimental")
+    endif()
 endif()
 
 # MKL sparse BLAS

@@ -32,7 +32,6 @@
 #include <lapack.hh>
 #include <omp.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <iostream>
 #include <cmath>
 #include <time.h>
@@ -282,7 +281,7 @@ void qb_to_svd(int64_t m, int64_t n, int64_t k, T* Q, T* svals, int64_t ldq, T* 
     lapack::gesdd(Job::OverwriteVec, k, n, B, ldb, svals, U, k, nullptr, k);
 
     // update Q = Q U.
-    T* more_work = work + k*(k+1);
+    T* more_work = work + k*k;
     bool allocate_more_work = extra_work_size < m*k;
     if (allocate_more_work)
         more_work = new T[m*k];

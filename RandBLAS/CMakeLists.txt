@@ -17,6 +17,20 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/config.h
 add_library(RandBLAS INTERFACE)
 target_compile_features(RandBLAS INTERFACE cxx_std_20)
 
+# RandBLAS is header-only, so these MSVC requirements must propagate to every
+# translation unit that includes its headers. /Zc:__cplusplus makes MSVC report
+# the selected language standard correctly (which Random123 inspects), while
+# /EHsc enables standard C++ exception-unwind semantics for code using the API.
+target_compile_options(RandBLAS INTERFACE
+  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/EHsc>
+  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/Zc:__cplusplus>)
+
+# Random123's boxmuller.hpp otherwise calls the nonstandard sincos/sincosf
+# functions, which are unavailable in the MSVC runtime. Select Random123's
+# portable separate-sine-and-cosine fallback for native MSVC consumers.
+target_compile_definitions(RandBLAS INTERFACE
+  $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:R123_NO_SINCOS=1>)
+
 
 target_include_directories(RandBLAS INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -32,14 +46,44 @@ endif()
 target_link_libraries(RandBLAS INTERFACE ${RandBLAS_libs})
 
 # Build-time only: warning and sanitizer flags should not leak into the installed target.
+# Use each compiler family's warning options without passing Unix-style flags
+# to MSVC. Keep -Wno-comment for GNU/Clang builds.
 target_compile_options(RandBLAS INTERFACE
-    $<BUILD_INTERFACE:-Wall>
-    $<BUILD_INTERFACE:-Wextra>
-    $<BUILD_INTERFACE:-Wno-comment>)
+    $<BUILD_INTERFACE:$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall>>
+    $<BUILD_INTERFACE:$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wextra>>
+    $<BUILD_INTERFACE:$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wno-comment>>
+    $<BUILD_INTERFACE:$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/W4>>)
 
 if (SANITIZE_ADDRESS)
-    target_compile_options(RandBLAS INTERFACE $<BUILD_INTERFACE:-fsanitize=address>)
-    target_link_options(RandBLAS    INTERFACE $<BUILD_INTERFACE:-fsanitize=address>)
+    if (MSVC)
+        include(CheckCXXCompilerFlag)
+        check_cxx_compiler_flag(
+            "/fsanitize=address"
+            RANDBLAS_MSVC_ADDRESS_SANITIZER_SUPPORTED)
+        if (NOT RANDBLAS_MSVC_ADDRESS_SANITIZER_SUPPORTED)
+            message(FATAL_ERROR
+                "SANITIZE_ADDRESS=ON requires an MSVC toolchain with "
+                "/fsanitize=address support and its AddressSanitizer runtime "
+                "libraries installed.")
+        endif()
+        # MSVC records the required AddressSanitizer runtime in each
+        # instrumented object, so /fsanitize=address is a compile option rather
+        # than a raw link.exe option.
+        target_compile_options(RandBLAS INTERFACE
+            $<BUILD_INTERFACE:/fsanitize=address>
+            $<BUILD_INTERFACE:/Zi>)
+        target_link_options(RandBLAS INTERFACE
+            $<BUILD_INTERFACE:/DEBUG>)
+    elseif (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(RandBLAS INTERFACE
+            $<BUILD_INTERFACE:-fsanitize=address>)
+        target_link_options(RandBLAS INTERFACE
+            $<BUILD_INTERFACE:-fsanitize=address>)
+    else()
+        message(FATAL_ERROR
+            "SANITIZE_ADDRESS=ON is not supported with "
+            "${CMAKE_CXX_COMPILER_ID}.")
+    endif()
 endif()
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../RandBLAS.hh"

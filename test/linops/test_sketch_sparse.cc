@@ -71,7 +71,7 @@ void test_left_transposed_sketch_of_eye(
     auto msg = RandBLAS::testing::matrices_approx_equal(
         layout, Op::Trans, d, m,
         B.data(), ldb, S_dense.data(), lds,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
     );
     if (msg.size() > 0) {
         FAIL() << msg;
@@ -121,7 +121,7 @@ void test_left_submat_sketch_of_eye(
         d1, m1,
         B.data(), ldb,
         &expect[offset], ld_expect,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
     );
     if (msg.size() > 0) {
         FAIL() << msg;
@@ -150,7 +150,7 @@ void test_right_transposed_sketch_of_eye(
     auto msg = RandBLAS::testing::matrices_approx_equal(
         layout, Op::Trans, n, d,
         B.data(), ldb, S_dense.data(), lds,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
     );
     if (msg.size() > 0) {
         FAIL() << msg;
@@ -191,7 +191,7 @@ void test_right_submat_sketch_of_eye(
 
     auto msg = RandBLAS::testing::matrices_approx_equal(
         layout, Op::NoTrans, n, d, B.data(), ldb, &expect[offset], ld_expect,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
     );
     if (msg.size() > 0) {
         FAIL() << msg;

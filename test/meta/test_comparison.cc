@@ -54,13 +54,13 @@ TEST_F(TestApproxEqualScalar, bool_fail_outside_tols) {
 // string-returning overload
 
 TEST_F(TestApproxEqualScalar, string_pass_returns_empty) {
-    auto msg = approx_equal(1.0, 1.0, __PRETTY_FUNCTION__, __FILE__, __LINE__);
+    auto msg = approx_equal(1.0, 1.0, __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_TRUE(msg.empty());
 }
 
 TEST_F(TestApproxEqualScalar, string_fail_returns_nonempty) {
     int line = __LINE__ + 1;
-    auto msg = approx_equal(1.0, 2.0, __PRETTY_FUNCTION__, __FILE__, line);
+    auto msg = approx_equal(1.0, 2.0, __RANDBLAS_PRETTY_FUNCTION__, __FILE__, line);
     EXPECT_FALSE(msg.empty());
     // error string should reference the file and line number
     EXPECT_NE(msg.find(__FILE__), std::string::npos);
@@ -71,14 +71,14 @@ TEST_F(TestApproxEqualScalar, string_respects_custom_atol) {
     // 0.0 and 1e-4 are far apart by default tolerances but within a large atol
     double A = 0.0, B = 1e-4;
     double large_atol = 1.0;
-    auto msg = approx_equal(A, B, __PRETTY_FUNCTION__, __FILE__, __LINE__, large_atol);
+    auto msg = approx_equal(A, B, __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__, large_atol);
     EXPECT_TRUE(msg.empty());
 }
 
 TEST_F(TestApproxEqualScalar, string_respects_custom_rtol) {
     double A = 1.0, B = 1.1;   // 10% relative difference
     double large_rtol = 0.5;   // 50% rtol → should pass
-    auto msg = approx_equal(A, B, __PRETTY_FUNCTION__, __FILE__, __LINE__,
+    auto msg = approx_equal(A, B, __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__,
         std::numeric_limits<double>::epsilon(), large_rtol);
     EXPECT_TRUE(msg.empty());
 }
@@ -91,14 +91,14 @@ class TestBuffsApproxEqualContiguous : public ::testing::Test {};
 TEST_F(TestBuffsApproxEqualContiguous, pass_all_equal) {
     std::vector<double> a = {1.0, 2.0, 3.0, 4.0};
     auto msg = buffs_approx_equal(a.data(), a.data(), (int64_t)a.size(),
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_TRUE(msg.empty());
 }
 
 TEST_F(TestBuffsApproxEqualContiguous, pass_empty_buffer) {
     std::vector<double> a = {};
     auto msg = buffs_approx_equal(a.data(), a.data(), (int64_t)0,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_TRUE(msg.empty());
 }
 
@@ -106,7 +106,7 @@ TEST_F(TestBuffsApproxEqualContiguous, fail_first_element) {
     std::vector<double> actual = {99.0, 2.0, 3.0, 4.0};
     std::vector<double> expect = { 1.0, 2.0, 3.0, 4.0};
     auto msg = buffs_approx_equal(actual.data(), expect.data(), (int64_t)actual.size(),
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_FALSE(msg.empty());
     EXPECT_NE(msg.find("index 0"), std::string::npos);
 }
@@ -115,7 +115,7 @@ TEST_F(TestBuffsApproxEqualContiguous, fail_middle_element) {
     std::vector<double> actual = {1.0, 2.0, 99.0, 4.0};
     std::vector<double> expect = {1.0, 2.0,  3.0, 4.0};
     auto msg = buffs_approx_equal(actual.data(), expect.data(), (int64_t)actual.size(),
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_FALSE(msg.empty());
     EXPECT_NE(msg.find("index 2"), std::string::npos);
 }
@@ -126,7 +126,7 @@ TEST_F(TestBuffsApproxEqualContiguous, pass_custom_atol) {
     std::vector<double> expect = {1.0, 1.0};
     double large_atol = 1.0;
     auto msg = buffs_approx_equal(actual.data(), expect.data(), (int64_t)actual.size(),
-        __PRETTY_FUNCTION__, __FILE__, __LINE__, large_atol);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__, large_atol);
     EXPECT_TRUE(msg.empty());
 }
 
@@ -138,7 +138,7 @@ class TestBuffsApproxEqualStrided : public ::testing::Test {};
 TEST_F(TestBuffsApproxEqualStrided, pass_all_equal_stride1) {
     std::vector<double> a = {1.0, 2.0, 3.0};
     auto msg = buffs_approx_equal((int64_t)3, a.data(), (int64_t)1, a.data(), (int64_t)1,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_TRUE(msg.empty());
 }
 
@@ -149,7 +149,7 @@ TEST_F(TestBuffsApproxEqualStrided, pass_stride2_ignored_odd_elements) {
     // size=3, inc_actual=2, inc_expect=2: accesses indices 0,2,4 in each
     auto msg = buffs_approx_equal((int64_t)3,
         actual.data(), (int64_t)2, expect.data(), (int64_t)2,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_TRUE(msg.empty());
 }
 
@@ -159,7 +159,7 @@ TEST_F(TestBuffsApproxEqualStrided, fail_strided_element_mentions_logical_index)
     std::vector<double> expect = {1.0, 0.0, 2.0, 0.0,  3.0, 0.0};
     auto msg = buffs_approx_equal((int64_t)3,
         actual.data(), (int64_t)2, expect.data(), (int64_t)2,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_FALSE(msg.empty());
     EXPECT_NE(msg.find("index 2"), std::string::npos);
 }
@@ -170,7 +170,7 @@ TEST_F(TestBuffsApproxEqualStrided, fail_different_inc_actual_and_inc_expect) {
     std::vector<double> expect = {1.0, 2.0};           // logical: 1.0, 2.0
     auto msg = buffs_approx_equal((int64_t)2,
         actual.data(), (int64_t)2, expect.data(), (int64_t)1,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_FALSE(msg.empty());
     EXPECT_NE(msg.find("index 1"), std::string::npos);
 }
@@ -185,7 +185,7 @@ TEST_F(TestBuffsApproxEqualBounded, pass_all_within_bounds) {
     std::vector<double> expect = {1.0, 2.0, 3.0};
     std::vector<double> bounds = {0.2, 0.3, 0.4};   // all errors < bounds
     auto msg = buffs_approx_equal(actual.data(), expect.data(), bounds.data(),
-        (int64_t)actual.size(), __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        (int64_t)actual.size(), __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_TRUE(msg.empty());
 }
 
@@ -194,7 +194,7 @@ TEST_F(TestBuffsApproxEqualBounded, fail_at_index_1) {
     std::vector<double> expect = {1.0,  2.0, 3.0};
     std::vector<double> bounds = {0.5,  0.5, 0.5};   // index 1 error = 97, far exceeds bound
     auto msg = buffs_approx_equal(actual.data(), expect.data(), bounds.data(),
-        (int64_t)actual.size(), __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        (int64_t)actual.size(), __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_FALSE(msg.empty());
     EXPECT_NE(msg.find("index 1"), std::string::npos);
 }
@@ -205,7 +205,7 @@ TEST_F(TestBuffsApproxEqualBounded, pass_heterogeneous_bounds) {
     std::vector<double> expect = {1.0,  2.0,   3.0};
     std::vector<double> bounds = {0.02, 0.002, 0.0002};
     auto msg = buffs_approx_equal(actual.data(), expect.data(), bounds.data(),
-        (int64_t)actual.size(), __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        (int64_t)actual.size(), __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_TRUE(msg.empty());
 }
 
@@ -236,7 +236,7 @@ TEST_F(TestMatricesApproxEqual, pass_colmajor_notrans) {
     auto msg = matrices_approx_equal(
         blas::Layout::ColMajor, blas::Op::NoTrans,
         M, N, A.data(), M, A.data(), M,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_TRUE(msg.empty());
 }
 
@@ -245,7 +245,7 @@ TEST_F(TestMatricesApproxEqual, pass_rowmajor_notrans) {
     auto msg = matrices_approx_equal(
         blas::Layout::RowMajor, blas::Op::NoTrans,
         M, N, A.data(), N, A.data(), N,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_TRUE(msg.empty());
 }
 
@@ -257,7 +257,7 @@ TEST_F(TestMatricesApproxEqual, fail_colmajor_notrans_mentions_index) {
     auto msg = matrices_approx_equal(
         blas::Layout::ColMajor, blas::Op::NoTrans,
         M, N, A.data(), M, B.data(), M,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_FALSE(msg.empty());
     EXPECT_NE(msg.find("(1, 2)"), std::string::npos);
 }
@@ -271,7 +271,7 @@ TEST_F(TestMatricesApproxEqual, pass_colmajor_trans) {
     auto msg = matrices_approx_equal(
         blas::Layout::ColMajor, blas::Op::Trans,
         M, N, A.data(), M, B.data(), N,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_TRUE(msg.empty());
 }
 
@@ -286,7 +286,7 @@ TEST_F(TestMatricesApproxEqual, fail_colmajor_trans) {
     auto msg = matrices_approx_equal(
         blas::Layout::ColMajor, blas::Op::Trans,
         M, N, A.data(), M, B.data(), N,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_FALSE(msg.empty());
 }
 
@@ -298,7 +298,7 @@ TEST_F(TestMatricesApproxEqual, pass_mixed_layouts) {
         blas::Layout::ColMajor, blas::Layout::RowMajor,
         blas::Op::NoTrans,
         M, N, A.data(), M, B.data(), N,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_TRUE(msg.empty());
 }
 
@@ -311,7 +311,7 @@ TEST_F(TestMatricesApproxEqual, fail_mixed_layouts) {
         blas::Layout::ColMajor, blas::Layout::RowMajor,
         blas::Op::NoTrans,
         M, N, A.data(), M, B.data(), N,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_FALSE(msg.empty());
 }
 
@@ -321,7 +321,7 @@ TEST_F(TestMatricesApproxEqual, pass_single_layout_delegates) {
     auto msg = matrices_approx_equal(
         blas::Layout::ColMajor, blas::Op::NoTrans,
         M, N, A.data(), M, A.data(), M,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_TRUE(msg.empty());
 }
 
@@ -332,6 +332,6 @@ TEST_F(TestMatricesApproxEqual, fail_single_layout_delegates) {
     auto msg = matrices_approx_equal(
         blas::Layout::ColMajor, blas::Op::NoTrans,
         M, N, A.data(), M, B.data(), M,
-        __PRETTY_FUNCTION__, __FILE__, __LINE__);
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);
     EXPECT_FALSE(msg.empty());
 }

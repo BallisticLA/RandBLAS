@@ -371,7 +371,7 @@ class TestFillAxis : public::testing::Test
         auto msg = RandBLAS::testing::matrices_approx_equal(
             S_wide.layout, S_tall.layout, blas::Op::Trans, short_dim, long_dim,
             S_wide.buff, lds_wide, S_tall.buff, lds_tall,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
+            __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;

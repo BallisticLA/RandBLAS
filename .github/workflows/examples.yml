@@ -54,3 +54,26 @@ jobs:
             -DRandom123_DIR="${Random123_DIR}" \
             ..
           make -j"$(nproc)"
+
+  windows-build-examples:
+    name: windows-msvc-mkl-ilp64-examples
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: initialize MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: setup native Windows dependencies (with LAPACK++)
+        uses: ./.github/actions/setup-randblas-deps-windows
+        with:
+          install-lapackpp: "true"
+
+      - name: build examples
+        shell: pwsh
+        run: |
+          & "$env:GITHUB_WORKSPACE/.github/scripts/windows/run-ci.ps1" `
+            -Task Examples `
+            -WorkRoot "$env:GITHUB_WORKSPACE/../RandBLAS-windows-ci-examples"

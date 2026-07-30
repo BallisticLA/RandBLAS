@@ -68,7 +68,7 @@ class TestCSC_Conversions : public ::testing::Test {
 
         // check equivalence of dn_mat and dn_mat_recon
         auto msg = RandBLAS::testing::buffs_approx_equal(dn_mat, dn_mat_recon, m * n,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
+            __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;
@@ -104,7 +104,7 @@ class TestCSC_Conversions : public ::testing::Test {
         auto msg = RandBLAS::testing::matrices_approx_equal(
             Layout::ColMajor, Layout::ColMajor, blas::Op::NoTrans,
             m, n, mat_expect, m, mat_actual, m,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
+            __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;
@@ -131,7 +131,7 @@ class TestCSC_Conversions : public ::testing::Test {
         auto msg = RandBLAS::testing::matrices_approx_equal(
             Layout::ColMajor, Layout::ColMajor, blas::Op::NoTrans,
             n, n, A_dense_csc.data(), n, A_dense_coo.data(), n,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__
+            __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
         );
         if (msg.size() > 0) {
             FAIL() << msg;

@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.12)
 
 project(examples)
 
+include("${CMAKE_CURRENT_LIST_DIR}/../CMake/RuntimeDLLs.cmake")
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
@@ -34,7 +36,7 @@ target_include_directories(
     tls_dense_skop PUBLIC ${Random123_DIR}
 )
 target_link_libraries(
-    tls_dense_skop PUBLIC RandBLAS blaspp lapackpp 
+    tls_dense_skop PUBLIC RandBLAS blaspp lapackpp
 )
 
 set(
@@ -47,7 +49,7 @@ target_include_directories(
     tls_sparse_skop PUBLIC ${Random123_DIR}
 )
 target_link_libraries(
-    tls_sparse_skop PUBLIC RandBLAS blaspp lapackpp 
+    tls_sparse_skop PUBLIC RandBLAS blaspp lapackpp
 )
 
 add_executable(
@@ -112,5 +114,14 @@ target_link_libraries(
     sketch_general_performance PUBLIC RandBLAS blaspp lapackpp
 )
 
-
-
+foreach(example_target IN ITEMS
+    tls_dense_skop
+    tls_sparse_skop
+    slra_svd_synthetic
+    slra_svd_fmm
+    slra_qrcp
+    spmm_performance
+    sketch_general_performance
+)
+    randblas_stage_runtime_dlls(${example_target})
+endforeach()

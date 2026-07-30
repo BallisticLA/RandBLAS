@@ -8,6 +8,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake")
 enable_testing()
 include(rb_build_options)
 include(rb_version)
+include(RuntimeDLLs)
 
 # find dependencies
 find_package(blaspp REQUIRED)

@@ -36,6 +36,16 @@
 #include <string>
 #include "RandBLAS.hh"
 
+// Compiler-specific spellings for the function signature printed in test
+// failure diagnostics. Keep this test utility out of the installed RandBLAS
+// target's compiler definitions.
+#if defined(_MSC_VER)
+    #define __RANDBLAS_PRETTY_FUNCTION__ __FUNCSIG__
+#elif defined(__GNUC__) || defined(__clang__)
+    #define __RANDBLAS_PRETTY_FUNCTION__ __PRETTY_FUNCTION__
+#else
+    #define __RANDBLAS_PRETTY_FUNCTION__ __func__
+#endif
 
 namespace RandBLAS::testing {
 

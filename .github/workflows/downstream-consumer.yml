@@ -53,3 +53,24 @@ jobs:
             ..
           make -j"$(nproc)"
           ./smoke
+
+  windows-find-package-smoke:
+    name: windows-msvc-find-package
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: initialize MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: setup native Windows dependencies
+        uses: ./.github/actions/setup-randblas-deps-windows
+
+      - name: run installed-package smoke test
+        shell: pwsh
+        run: |
+          & "$env:GITHUB_WORKSPACE/.github/scripts/windows/run-ci.ps1" `
+            -Task Downstream `
+            -WorkRoot "$env:GITHUB_WORKSPACE/../RandBLAS-windows-ci-downstream"
