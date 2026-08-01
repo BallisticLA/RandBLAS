@@ -21,11 +21,9 @@ RandBLAS algorithms will consume state-like objects. The provided
 while `RepackedOutput<Engine, OutputWord>` will expose the same random block as a
 larger number of narrower output words.
 
-This change will ship Philox only. It will not ship Squares or another modern
-post-Random123 generator while the licensing of the Squares reference material
-is unresolved. The engine, counter, seed-mapping, and output-adaptor boundaries
-will nevertheless allow a future Squares or Squares-like engine to be added
-without changing RandBLAS samplers or `RNGState`.
+This change ships Philox only. The engine, counter, seed-mapping, and
+output-adaptor boundaries remain separate so that generic RandBLAS code does not
+depend on Philox-specific representations.
 
 The migration will land atomically. RandBLAS source, tests, examples,
 documentation, CI, installation, and installed CMake packages will all work when
@@ -53,8 +51,7 @@ Random123 is absent.
 - Implement and test `RepackedOutput` for power-of-two subdivisions of native
   output words.
 - Make counter advancement, key construction, and result shape engine-owned
-  choices so a future Squares-like engine does not require changes to generic
-  RandBLAS code.
+  choices rather than assumptions embedded in generic RandBLAS code.
 - Match current performance within normal benchmark variation on supported
   platforms.
 - Document the RNG design and its relationship to the C++ standard random
@@ -62,10 +59,6 @@ Random123 is absent.
 
 ## Non-goals
 
-- Squares, Collatz-Weyl generators, or any other post-Random123 generator in
-  this change.
-- Partial-width modular counter arithmetic not used by Philox. A future engine
-  that needs an early wrap period will provide its own `ctr_t`.
 - Native Threefry, `MicroURNG`, `Engine`, AES, ARS, or other Random123 APIs.
 - Requiring every current RandBLAS sampler to consume 8- or 16-bit result words.
   `RepackedOutput` is implemented at the engine and state levels in this change;
@@ -110,8 +103,8 @@ contract to the current transformation algorithms.
 
 Every engine defines a copyable `ctr_t` with `advance(uint64_t)`. `RNGState`
 delegates modular advancement to that value type. Philox uses a full-width word
-array; a future Squares-like engine can use a counter with a different logical
-width and wrap period.
+array, while the contract permits other counter representations and wrap
+periods.
 
 ### Universal partial-width counter
 
@@ -256,10 +249,9 @@ initialization to zero, indexed const observation, equality, copying, and
 carry-propagating advancement from lower- to higher-indexed words. Overflow of
 the most-significant word wraps.
 
-This change does not implement a general partial-width counter. A future
-`Squares<N>` could define a `ctr_t` whose logical width is
-`64 - log2(N)` and whose `advance` wraps at that width without altering
-`RNGState`, `RepackedOutput`, or any sampler.
+The provided word-array counter is full-width. This change does not implement a
+general partial-width counter, and the state contract does not require the
+logical counter width to equal its storage width.
 
 Counters and keys may be exposed by const accessors for construction, testing,
 and diagnostics. Mutable storage is not part of either public concept.
@@ -528,12 +520,6 @@ retain applicable D. E. Shaw Research copyright and BSD-3-Clause notices. The
 developer notes identify adapted Random123 algorithms and vectors and cite the
 Philox paper.
 
-No Squares or Collatz-Weyl source is incorporated. A future Squares-like engine
-requires a separate design and a BSD-compatible implementation basis. The
-current design makes no commitment to a Squares key mapping. Any future mapping
-from `uint64_t` seeds to constrained Squares keys must be stable, documented,
-and covered by inter-key statistical tests.
-
 User and API documentation explains:
 
 - `DefaultRNGState` and `RNGState<>`;
@@ -585,7 +571,64 @@ The work is complete when all of the following hold:
 11. Supported CI configurations, including CUDA-aware host builds, pass.
 12. Before/after benchmarks show no material regression.
 13. RNG developer notes document the design, provenance, STL comparison, and
-    future-engine extension points.
+    engine extension points.
 14. Build files, package metadata, CI, examples, and current documentation
     contain no functional Random123 dependency; remaining references are limited
     to attribution, provenance, or historical context.
+
+## Possible future work
+
+The items in this section are not part of this change or its acceptance
+criteria. They record how the approved extension points could support additional
+generator work without distracting from the Philox migration above.
+
+### Squares engine shape
+
+A future `Squares<N>` engine could expose the same output-only `generate`
+interface as Philox. `N` would be a power of two, and one call would fill an
+`N`-word `res_t`. For block counter `b`, output lane `j` would equal the
+reference Squares result for scalar counter `N * b + j`. This changes the call
+sequence rather than the generated bits and permits a multi-word,
+Random123-style engine interface.
+
+The engine would provide its own `ctr_t`, `key_t`, and `res_t`, so neither
+`RNGState` nor RandBLAS samplers would acquire Squares-specific code.
+
+### Squares counter semantics
+
+The Squares counter would represent a block index, and `advance(1)` would add
+one to that integer just as it does for Philox. For `Squares<N>`, the logical
+counter width would be `64 - log2(N)` and the counter would wrap after
+`2^64 / N` blocks. Across that period, its lanes would cover all `2^64`
+reference scalar counter values exactly once.
+
+That counter can be implemented as a Squares-owned partial-width `ctr_t` when
+the engine is added. Counter-owned advancement means no change is needed in
+`RNGState`, `RepackedOutput`, or sampler offset calculations.
+
+### Squares key construction, licensing, and validation
+
+Squares keys are constrained rather than arbitrary 64-bit values. A future
+engine could use the optional `make_key(uint64_t)` hook for a deterministic
+many-to-one mapping from scalar seeds to valid keys while retaining explicit
+raw-key construction for reference vectors. The mapping must be stable,
+documented, and covered by inter-key statistical tests.
+
+The published Squares software, including its key utility, is GPL-licensed.
+No such source will be incorporated without a BSD-3-Clause grant or another
+BSD-compatible implementation basis. Key-selection work therefore remains
+deferred until both the technical mapping and its licensing basis are settled.
+
+### Squares repacking and sampler coverage
+
+`RepackedOutput` would apply to a Squares result block without knowing its
+algorithm, counter width, or key constraints. This would expose 64-bit Squares
+words as 32-, 16-, or 8-bit lanes, or 32-bit Squares words as 16- or 8-bit lanes,
+while retaining one-block advancement.
+
+Any modern engine added to RandBLAS should be usable by every sampler. A Squares
+addition must therefore provide a block shape accepted by all samplers or make
+the samplers' multi-block consumption rules explicit and deterministic. Support
+for narrower repacked lanes would require a separately designed bit-assembly
+policy in samplers that currently consume 32- or 64-bit words.
+
