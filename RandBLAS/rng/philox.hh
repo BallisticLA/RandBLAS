@@ -52,31 +52,29 @@ namespace RandBLAS::rng {
 namespace detail {
 
 template <std::unsigned_integral Word>
-struct MulHiLo {
-    Word high;
-    Word low;
-};
-
-template <std::unsigned_integral Word>
-[[nodiscard]] constexpr MulHiLo<Word> mulhilo(Word left,
-                                              Word right) noexcept {
+[[nodiscard]] constexpr Word mulhilo(Word left, Word right,
+                                     Word* high) noexcept {
     static_assert(sizeof(Word) == 4 || sizeof(Word) == 8);
 
     if constexpr (sizeof(Word) == 4) {
         auto product = static_cast<std::uint64_t>(left) *
                        static_cast<std::uint64_t>(right);
-        return {static_cast<Word>(product >> 32), static_cast<Word>(product)};
+        *high = static_cast<Word>(product >> 32);
+        return static_cast<Word>(product);
     } else {
 #if defined(_MSC_VER) && defined(_M_X64)
-        unsigned __int64 high;
+        unsigned __int64 native_high;
         auto low = _umul128(static_cast<unsigned __int64>(left),
-                            static_cast<unsigned __int64>(right), &high);
-        return {static_cast<Word>(high), static_cast<Word>(low)};
+                            static_cast<unsigned __int64>(right),
+                            &native_high);
+        *high = static_cast<Word>(native_high);
+        return static_cast<Word>(low);
 #elif defined(__SIZEOF_INT128__)
         using double_word_t = unsigned __int128;
         auto product = static_cast<double_word_t>(left) *
                        static_cast<double_word_t>(right);
-        return {static_cast<Word>(product >> 64), static_cast<Word>(product)};
+        *high = static_cast<Word>(product >> 64);
+        return static_cast<Word>(product);
 #else
         static_assert(sizeof(Word) != 8,
                       "64-bit Philox requires unsigned __int128 or _umul128");
@@ -119,7 +117,7 @@ public:
 
         key_t round_key = key;
         for (std::size_t round = 0; round < R; ++round) {
-            block = apply_round(block, round_key);
+            apply_round(block, round_key);
             if (round + 1 < R) {
                 bump_key(round_key);
             }
@@ -164,20 +162,25 @@ private:
         }
     }
 
-    [[nodiscard]] static constexpr res_t apply_round(
-        res_t const& input, key_t const& key) noexcept {
-        auto product_0 = detail::mulhilo(multiplier_0(), input[0]);
+    static constexpr void apply_round(res_t& block,
+                                      key_t const& key) noexcept {
+        auto input_0 = block[0];
+        auto input_1 = block[1];
+        word_t high_0;
+        auto low_0 = detail::mulhilo(multiplier_0(), input_0, &high_0);
 
         if constexpr (N == 2) {
-            return {static_cast<word_t>(product_0.high ^ key[0] ^ input[1]),
-                    product_0.low};
+            block[0] = static_cast<word_t>(high_0 ^ key[0] ^ input_1);
+            block[1] = low_0;
         } else {
-            auto product_1 = detail::mulhilo(multiplier_1(), input[2]);
-            return {
-                static_cast<word_t>(product_1.high ^ input[1] ^ key[0]),
-                product_1.low,
-                static_cast<word_t>(product_0.high ^ input[3] ^ key[1]),
-                product_0.low};
+            auto input_2 = block[2];
+            auto input_3 = block[3];
+            word_t high_1;
+            auto low_1 = detail::mulhilo(multiplier_1(), input_2, &high_1);
+            block[0] = static_cast<word_t>(high_1 ^ input_1 ^ key[0]);
+            block[1] = low_1;
+            block[2] = static_cast<word_t>(high_0 ^ input_3 ^ key[1]);
+            block[3] = low_0;
         }
     }
 
