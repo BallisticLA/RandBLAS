@@ -51,8 +51,8 @@ Update this table as work lands; record benchmark medians and links to any CI ru
 | Task | Status | Commit | Notes |
 |---|---|---|---|
 | 1. Characterize behavior and record baseline | Complete | `8fdb96b` | LLVM/Clang 19.1.3, Release, one thread. Dense 8192x1024 median 16,561,709 ticks; range 16,430,125–31,743,500. Sparse left/ColMajor warm min/median 4,226/4,280 us; COLD min 4,390 us. |
-| 2. Add full-width word arrays | Complete | This commit | Nine focused tests; full suite 452/452 passing. |
-| 3. Add native Philox and static KATs | Not started | — | — |
+| 2. Add full-width word arrays | Complete | `ed7f13f` | Nine focused tests; full suite 452/452 passing. |
+| 3. Add native Philox and static KATs | Complete | This commit | 204 static vectors from pinned Random123 `9545ff6`; 68 compile-time specializations; full suite 452/452 passing. |
 | 4. Add `RepackedOutput` | Not started | — | — |
 | 5. Add native floating-point transforms | Not started | — | — |
 | 6. Migrate state and sampler APIs atomically | Not started | — | — |
@@ -304,7 +304,7 @@ git commit -m "feat: add native RNG word arrays"
 
 **Interfaces produced:** `RandBLAS::rng::Philox<N, W, R>` for `N in {2,4}`, `W in {32,64}`, and `R in [0,16]`, with aliases `ctr_t`, `key_t`, `res_t`, `generate`, and `make_key`.
 
-- [ ] **Step 1: Generate and check in independent static vectors**
+- [x] **Step 1: Generate and check in independent static vectors**
 
 Use `/Users/riley/randnla/dev/repo-deps/random123` outside the RandBLAS build to generate three nontrivial `(counter, key, result)` rows for every one of the 68 engine specializations. Include round zero and rounds 1 through 16. The three inputs per specialization must include:
 
@@ -320,7 +320,7 @@ git -C /Users/riley/randnla/dev/repo-deps/random123 rev-parse HEAD
 
 The generator is a temporary offline tool and must not be added to RandBLAS. Confirm the fixture contains `4 families * 17 rounds * 3 inputs = 204` data rows.
 
-- [ ] **Step 2: Replace the inherited Random123 test with failing native tests**
+- [x] **Step 2: Replace the inherited Random123 test with failing native tests**
 
 Replace `test_r123.cc` in `STAT_SOURCES` with `test_philox.cc`; change the baked path definition to:
 
@@ -365,7 +365,7 @@ cmake --build build-randblas -j --target stat_tests
 
 Expected: compilation fails because `rng::Philox` does not exist.
 
-- [ ] **Step 3: Implement portable Philox multiplication and rounds**
+- [x] **Step 3: Implement portable Philox multiplication and rounds**
 
 Implement the public form:
 
@@ -393,7 +393,7 @@ Match Random123's constants, multiply-high/low operation, round permutation, XOR
 
 For each round, transform the block with the current key; bump the key only when another round follows. For `R == 0`, write the input counter words directly. Include the applicable D. E. Shaw Research notice in this adapted header.
 
-- [ ] **Step 4: Run KATs and compile-time API checks**
+- [x] **Step 4: Run KATs and compile-time API checks**
 
 Run:
 
@@ -407,7 +407,7 @@ ctest --test-dir build-randblas --output-on-failure -R 'SamplerRegression|WordAr
 
 Expected: all 204 vectors and all API tests pass; the still-Random123-backed sampler characterization remains unchanged.
 
-- [ ] **Step 5: Scan the new tests for accidental dependency leakage and commit**
+- [x] **Step 5: Scan the new tests for accidental dependency leakage and commit**
 
 Run:
 
