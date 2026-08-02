@@ -32,6 +32,7 @@
 /// @file
 
 #include "compilers.hh"
+#include "rng/word_array.hh"
 #include <Random123/features/compilerfeatures.h>
 #include <Random123/array.h>
 #include <Random123/philox.h>
@@ -166,4 +167,3 @@ struct uneg11
 /// @}
 
 } // end of namespace r123ext
-

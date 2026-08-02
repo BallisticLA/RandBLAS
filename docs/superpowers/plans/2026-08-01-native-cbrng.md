@@ -50,8 +50,8 @@ Update this table as work lands; record benchmark medians and links to any CI ru
 
 | Task | Status | Commit | Notes |
 |---|---|---|---|
-| 1. Characterize behavior and record baseline | Complete | This commit | LLVM/Clang 19.1.3, Release, one thread. Dense 8192x1024 median 16,561,709 ticks; range 16,430,125–31,743,500. Sparse left/ColMajor warm min/median 4,226/4,280 us; COLD min 4,390 us. |
-| 2. Add full-width word arrays | Not started | — | — |
+| 1. Characterize behavior and record baseline | Complete | `8fdb96b` | LLVM/Clang 19.1.3, Release, one thread. Dense 8192x1024 median 16,561,709 ticks; range 16,430,125–31,743,500. Sparse left/ColMajor warm min/median 4,226/4,280 us; COLD min 4,390 us. |
+| 2. Add full-width word arrays | Complete | This commit | Nine focused tests; full suite 452/452 passing. |
 | 3. Add native Philox and static KATs | Not started | — | — |
 | 4. Add `RepackedOutput` | Not started | — | — |
 | 5. Add native floating-point transforms | Not started | — | — |
@@ -204,7 +204,7 @@ git commit -m "test: characterize Random123-backed sampling"
 
 **Interfaces produced:** `RandBLAS::rng::WordArray<Word, WordCount>`, used as Philox `ctr_t` and `key_t`.
 
-- [ ] **Step 1: Write failing counter arithmetic and value-semantics tests**
+- [x] **Step 1: Write failing counter arithmetic and value-semantics tests**
 
 Add `test/basic_rng/test_word_array.cc` to `STAT_SOURCES`. Its core cases must be equivalent to:
 
@@ -236,7 +236,7 @@ cmake --build build-randblas -j --target stat_tests
 
 Expected: compilation fails because `RandBLAS/rng/word_array.hh` and `WordArray` do not exist.
 
-- [ ] **Step 2: Implement the minimal full-width value type**
+- [x] **Step 2: Implement the minimal full-width value type**
 
 Implement the public shape:
 
@@ -262,7 +262,7 @@ struct WordArray {
 
 `advance` treats word zero as least significant, adds all bits of the 64-bit amount, propagates carry toward higher indices, and discards carry beyond `WordCount`. Avoid signed overflow and byte-order-dependent code. Include this header from `RandBLAS/random_gen.hh` without changing the default engine yet.
 
-- [ ] **Step 3: Verify the focused and statistical suites**
+- [x] **Step 3: Verify the focused and statistical suites**
 
 Run:
 
@@ -276,7 +276,7 @@ ctest --test-dir build-randblas --output-on-failure -R 'SamplerRegression|WordAr
 
 Expected: all listed tests pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd /Users/riley/randnla/dev/repo-randblas
