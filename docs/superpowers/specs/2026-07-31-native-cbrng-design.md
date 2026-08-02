@@ -631,4 +631,3 @@ addition must therefore provide a block shape accepted by all samplers or make
 the samplers' multi-block consumption rules explicit and deterministic. Support
 for narrower repacked lanes would require a separately designed bit-assembly
 policy in samplers that currently consume 32- or 64-bit words.
-
