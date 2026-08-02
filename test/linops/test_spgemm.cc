@@ -36,6 +36,7 @@
 #include "RandBLAS/testing/comparison.hh"
 #include <gtest/gtest.h>
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 using namespace RandBLAS::sparse_data;
@@ -122,15 +123,15 @@ class TestSpGEMM : public ::testing::Test {
         // Error model: |C_actual - C_ref| <= |alpha| * k * 2*eps * |A_dense| * |B_dense| + |beta| * eps * |C_orig|
         // We compute the error bound via gemm on absolute values.
         T eps = std::numeric_limits<T>::epsilon();
-        T err_alpha = abs(alpha) * k * 2 * eps;
-        T err_beta = abs(beta) * eps;
+        T err_alpha = std::abs(alpha) * k * 2 * eps;
+        T err_beta = std::abs(beta) * eps;
 
         std::vector<T> A_abs(rows_A * cols_A);
         std::vector<T> B_abs(k * n);
         for (int64_t i = 0; i < (int64_t)A_abs.size(); ++i)
-            A_abs[i] = abs(A_dense[i]);
+            A_abs[i] = std::abs(A_dense[i]);
         for (int64_t i = 0; i < (int64_t)B_abs.size(); ++i)
-            B_abs[i] = abs(B_dense[i]);
+            B_abs[i] = std::abs(B_dense[i]);
 
         // Start error bound with |beta| * eps * |C_orig|
         std::vector<T> E(m * n, 0.0);
@@ -140,7 +141,7 @@ class TestSpGEMM : public ::testing::Test {
             // we need |C_orig|. Re-generate it.
             auto C_orig = std::get<0>(random_matrix<T>(m, n, RandBLAS::RNGState(42)));
             for (int64_t i = 0; i < m * n; ++i)
-                E[i] = abs(C_orig[i]);
+                E[i] = std::abs(C_orig[i]);
         }
 
         blas::gemm(layout, opA, Op::NoTrans, m, n, k,

@@ -42,6 +42,7 @@
 #   include <cxxabi.h>
 #endif
 #include <memory>
+#include <cmath>
 #include <string>
 #include <sstream>
 #include <numeric>
@@ -134,8 +135,8 @@ void require_symmetric(blas::Layout layout, const T* A, int64_t n, int64_t lda, 
         for (int64_t j = i+1; j < n; ++j) {
             T Aij = matA(i,j);
             T Aji = matA(j,i);
-            T viol = abs(Aij - Aji);
-            T rel_tol = (abs(Aij) +  abs(Aji) + 1)*tol;
+            T viol = std::abs(Aij - Aji);
+            T rel_tol = (std::abs(Aij) + std::abs(Aji) + 1)*tol;
             if (viol > rel_tol) {
                 std::string message = "Symmetry check failed. |A(%i,%i) - A(%i,%i)| was %e, which exceeds tolerance of %e.";
                 auto _message = message.c_str();
