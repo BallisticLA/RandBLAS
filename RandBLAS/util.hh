@@ -33,8 +33,6 @@
 #include <RandBLAS/exceptions.hh>
 #include <RandBLAS/compilers.hh>
 #include <blas.hh>
-#include <Random123/philox.h>
-#include <Random123/uniform.hpp>
 
 #include <iostream>
 #include <iomanip>
@@ -48,6 +46,8 @@
 #include <sstream>
 #include <numeric>
 #include <cstdlib>
+#include <limits>
+#include <tuple>
 
 
 namespace RandBLAS::util {
@@ -490,13 +490,12 @@ static inline TO uneg11_to_u01(TI in) {
 /// be used for the next call to a random sampling function whose output should be statistically
 /// independent from :math:`\ttt{samples}.`
 /// @endverbatim
-template <typename T, SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
+template <typename T, SignedInteger sint_t,
+          CounterBasedRNGState state_t = DefaultRNGState>
 state_t sample_indices_iid(int64_t n, const T* cdf, int64_t k, sint_t* samples, const state_t &state) {
-    auto [ctr, key] = state;
-    using RNG = typename state_t::generator;
-    RNG gen;
-    auto rv_array = r123ext::uneg11::generate(gen, ctr, key);
-    int64_t len_c = (int64_t) state.len_c;
+    state_t work = state;
+    auto rv_array = rng::uneg11::generate(work);
+    constexpr int64_t len_c = std::tuple_size_v<typename state_t::res_t>;
     int64_t rv_index = 0;
     for (int64_t i = 0; i < k; ++i) {
         auto random_unif01 = uneg11_to_u01<T>(rv_array[rv_index]);
@@ -504,41 +503,63 @@ state_t sample_indices_iid(int64_t n, const T* cdf, int64_t k, sint_t* samples, 
         samples[i] = sample_index;
         rv_index += 1;
         if (rv_index == len_c) {
-            ctr.incr(1);
-            rv_array = r123ext::uneg11::generate(gen, ctr, key);
+            work.advance(1);
+            if (i + 1 < k) {
+                rv_array = rng::uneg11::generate(work);
+            }
             rv_index = 0;
         }
     }
-    if (0 < rv_index) ctr.incr(1);
-    return state_t(ctr, key);
+    if (0 < rv_index) {
+        work.advance(1);
+    }
+    return work;
 }
  
 inline std::uint64_t promote_uint_pair(std::uint32_t a, std::uint32_t b) {
     return static_cast<std::uint64_t>(a) + (static_cast<std::uint64_t>(b) << 32);
 }
 
-template <typename T, SignedInteger sint_t, bool WriteRademachers = true, typename state_t = RNGState<DefaultRNG>>
+template <typename T, SignedInteger sint_t, bool WriteRademachers = true,
+          CounterBasedRNGState state_t = DefaultRNGState>
 state_t sample_indices_iid_uniform(int64_t n, int64_t k, sint_t* samples, T* rademachers, const state_t &state) {
-    if constexpr (WriteRademachers) {
-        randblas_require(state.len_c >= 4);
-    } else {
-        randblas_require(state.len_c >= 2);
+    using res_t = typename state_t::res_t;
+    using word_t = typename res_t::value_type;
+    constexpr std::size_t block_size = std::tuple_size_v<res_t>;
+    constexpr auto word_bits = std::numeric_limits<word_t>::digits;
+    static_assert(word_bits == 32 || word_bits == 64,
+                  "uniform index sampling requires 32- or 64-bit result words");
+    if constexpr (word_bits == 32) {
+        static_assert(block_size >= 2,
+                      "32-bit index sampling requires at least two result words");
+        if constexpr (WriteRademachers) {
+            static_assert(block_size >= 3,
+                          "32-bit Rademacher sampling requires a third result word");
+        }
+    } else if constexpr (WriteRademachers) {
+        static_assert(block_size >= 2,
+                      "64-bit Rademacher sampling requires two result words");
     }
-    using RNG = typename state_t::generator;
-    RNG gen;
-    auto ctr = state.counter;
-    auto key = state.key;
+
+    state_t work = state;
     std::uint64_t n_64 = static_cast<std::uint64_t>(n);
     for (int64_t i = 0; i < k; ++i) {
-        auto rv = gen(ctr, key);
-        ctr.incr();
-        std::uint64_t s = promote_uint_pair(rv[0], rv[1]);
+        res_t rv{};
+        work.generate(rv);
+        work.advance(1);
+        std::uint64_t s;
+        if constexpr (word_bits == 32) {
+            s = promote_uint_pair(rv[0], rv[1]);
+        } else {
+            s = rv[0];
+        }
         samples[i] = static_cast<sint_t>(s % n_64);
         if constexpr (WriteRademachers) {
-            rademachers[i] = (rv[2] % 2 == 0) ? (T) 1 : (T) -1;
+            constexpr std::size_t sign_lane = word_bits == 32 ? 2 : 1;
+            rademachers[i] = (rv[sign_lane] % 2 == 0) ? (T) 1 : (T) -1;
         }
     }
-    return state_t(ctr, key);
+    return work;
 }
 
 
@@ -550,11 +571,11 @@ state_t sample_indices_iid_uniform(int64_t n, int64_t k, sint_t* samples, T* rad
 /// independent from :math:`\ttt{samples}.`
 /// 
 /// @endverbatim
-template <SignedInteger sint_t = int64_t, typename state_t = RNGState<DefaultRNG>>
+template <SignedInteger sint_t = int64_t,
+          CounterBasedRNGState state_t = DefaultRNGState>
 state_t sample_indices_iid_uniform(int64_t n,  int64_t k, sint_t* samples, const state_t &state) {
     return sample_indices_iid_uniform<float,sint_t,false,state_t>(n, k, samples, (float*) nullptr, state);
 }
 
 
 } // end namespace RandBLAS
-

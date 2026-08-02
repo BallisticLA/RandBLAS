@@ -39,42 +39,41 @@
 #include <cmath>
 #include <numeric>
 #include <thread>
+#include <tuple>
 
 // Fill a random matrix and truncate at the end of each row so that each row starts with a fresh counter.
-template<typename T, typename RNG, typename OP>
+template<typename T, RandBLAS::CounterBasedRNGState State, typename OP>
 static void fill_dense_rmat_trunc(
     T* mat,
     int64_t n_rows,
     int64_t n_cols,
-    const RandBLAS::RNGState<RNG> & seed
+    const State &seed
 ) {
-
-    RNG rng;
-    typename RNG::ctr_type c = seed.counter;
-    typename RNG::key_type k = seed.key;
+    State work = seed;
+    constexpr int block_size = std::tuple_size_v<typename State::res_t>;
     
     int ind = 0;
-    int cts = n_cols / RNG::ctr_type::static_size;
+    int cts = n_cols / block_size;
     // ^ number of counters per row, where all the random numbers are to be filled in the array.
-    int res = n_cols % RNG::ctr_type::static_size;
+    int res = n_cols % block_size;
     // ^ Number of random numbers to be filled at the end of each row the the last counter of the row
 
     for (int i = 0; i < n_rows; i++) {
         for (int ctr = 0; ctr < cts; ctr++){
-            auto rv = OP::generate(rng, c, k);
-            for (int j = 0; j < RNG::ctr_type::static_size; j++) {
+            auto rv = OP::generate(work);
+            for (int j = 0; j < block_size; j++) {
                 mat[ind] = rv[j];
                 ind++;
             }
-            c.incr();
+            work.advance(1);
         }
         if (res != 0) { 
             for (int j = 0; j < res; j++) {
-                auto rv = OP::generate(rng, c, k);
+                auto rv = OP::generate(work);
                 mat[ind] = rv[j];
                 ind++;
             }
-            c.incr();
+            work.advance(1);
         }
     }
 }
@@ -168,23 +167,23 @@ class TestSubmatGeneration : public ::testing::Test
 
     virtual void TearDown(){};
 
-    template<typename T, typename RNG, typename OP>
+    template<typename T, RandBLAS::CounterBasedRNGState State, typename OP>
     static void test_colwise_smat_gen(
         int64_t n_cols,
         int64_t n_rows, 
         int64_t n_scols,
         int64_t n_srows,
         int64_t ptr,
-        const RandBLAS::RNGState<RNG> &seed
+        const State &seed
     ) {
         int stride = n_cols / 50; 
         T* mat  = new T[n_rows * n_cols];      
         T* smat = new T[n_srows * n_scols];
-        fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
+        fill_dense_rmat_trunc<T,State,OP>(mat, n_rows, n_cols, seed);
         int ind = 0; // used for indexing smat when comparing to rmat
         for (int nptr = ptr; nptr < n_cols*(n_rows-n_srows-1); nptr += stride*n_cols) {
             // ^ Loop through various pointer locations.- goes down the random matrix by amount stride.
-            RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(n_cols, smat, n_srows, n_scols, nptr, seed);
+            RandBLAS::dense::fill_dense_submat_impl<T,State,OP>(n_cols, smat, n_srows, n_scols, nptr, seed);
             ind = 0;
             for (int i = 0; i<n_srows; i++) {
                 // ^ Loop through entries of the submatrix
@@ -198,23 +197,23 @@ class TestSubmatGeneration : public ::testing::Test
         delete[] smat;
     }
 
-    template<typename T, typename RNG, typename OP>
+    template<typename T, RandBLAS::CounterBasedRNGState State, typename OP>
     static void test_rowwise_smat_gen(
         int64_t n_cols,
         int64_t n_rows, 
         int64_t n_scols,
         int64_t n_srows,
         int64_t ptr,
-        const RandBLAS::RNGState<RNG> &seed
+        const State &seed
     ) {
         int stride = n_cols / 50;
         T* mat  = new T[n_rows * n_cols];      
         T* smat = new T[n_srows * n_scols];
-        fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
+        fill_dense_rmat_trunc<T,State,OP>(mat, n_rows, n_cols, seed);
         int ind = 0; // variable used for indexing smat when comparing to rmat
         for (int nptr = ptr; nptr < (n_cols - n_scols - 1); nptr += stride) {
             // ^ Loop through various pointer locations.- goes across the random matrix by amount stride.
-            RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(n_cols, smat, n_srows, n_scols, nptr, seed);
+            RandBLAS::dense::fill_dense_submat_impl<T,State,OP>(n_cols, smat, n_srows, n_scols, nptr, seed);
             ind = 0;
             for (int i = 0; i<n_srows; i++) {
                 // ^ Loop through entries of the submatrix
@@ -228,21 +227,21 @@ class TestSubmatGeneration : public ::testing::Test
         delete[] smat;
     }
 
-    template<typename T, typename RNG, typename OP>
+    template<typename T, RandBLAS::CounterBasedRNGState State, typename OP>
     static void test_diag_smat_gen(
         int64_t n_cols,
         int64_t n_rows,
-        const RandBLAS::RNGState<RNG> &seed
+        const State &seed
     ) {
         T* mat  = new T[n_rows * n_cols];
         T* smat = new T[n_rows * n_cols]{};
-        fill_dense_rmat_trunc<T,RNG,OP>(mat, n_rows, n_cols, seed);
+        fill_dense_rmat_trunc<T,State,OP>(mat, n_rows, n_cols, seed);
         int ind = 0;
         int64_t n_scols = 1;
         int64_t n_srows = 1;
         for (int ptr = 0; ptr + n_scols + n_cols*n_srows < n_cols*n_rows; ptr += n_rows+1) { // Loop through the diagonal of the matrix
             RandBLAS::util::safe_scal(n_srows * n_scols, (T) 0.0, smat);
-            RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(n_cols, smat, n_srows, n_scols, ptr, seed);
+            RandBLAS::dense::fill_dense_submat_impl<T,State,OP>(n_cols, smat, n_srows, n_scols, ptr, seed);
             ind = 0;
             for (int i = 0; i<n_srows; i++) { // Loop through entries of the submatrix
                 for (int j = 0; j<n_scols; j++) {
@@ -267,8 +266,8 @@ TEST_F(TestSubmatGeneration, col_wise)
     int64_t n_scols = 97;
     int64_t ptr = n_rows + 2;
     for (int k = 0; k < 3; k++) {
-        RandBLAS::RNGState<r123::Philox4x32> seed(k);
-        test_colwise_smat_gen<float, r123::Philox4x32, r123ext::uneg11>(n_cols, n_rows, n_scols, n_srows, ptr, seed);
+        RandBLAS::DefaultRNGState seed(k);
+        test_colwise_smat_gen<float, RandBLAS::DefaultRNGState, RandBLAS::rng::uneg11>(n_cols, n_rows, n_scols, n_srows, ptr, seed);
     }
 }
 
@@ -280,8 +279,8 @@ TEST_F(TestSubmatGeneration, row_wise)
     int64_t n_scols = 100;
     int64_t ptr = n_rows + 2;
     for (int k = 0; k < 3; k++) {
-        RandBLAS::RNGState<r123::Philox4x32> seed(k);
-        test_rowwise_smat_gen<float, r123::Philox4x32, r123ext::uneg11>(n_cols, n_rows, n_scols, n_srows, ptr, seed);
+        RandBLAS::DefaultRNGState seed(k);
+        test_rowwise_smat_gen<float, RandBLAS::DefaultRNGState, RandBLAS::rng::uneg11>(n_cols, n_rows, n_scols, n_srows, ptr, seed);
     }
 }
 
@@ -290,14 +289,14 @@ TEST_F(TestSubmatGeneration, diag)
     int64_t n_rows = 100;
     int64_t n_cols = 2000;
     for (int k = 0; k < 3; k++) {
-        RandBLAS::RNGState<r123::Philox4x32> seed(k);
-        test_diag_smat_gen<float, r123::Philox4x32, r123ext::uneg11>(n_cols, n_rows, seed);
+        RandBLAS::DefaultRNGState seed(k);
+        test_diag_smat_gen<float, RandBLAS::DefaultRNGState, RandBLAS::rng::uneg11>(n_cols, n_rows, seed);
     }
 }
 
 
 #if defined(RandBLAS_HAS_OpenMP)
-template <typename T, typename RNG, typename OP>
+template <typename T, RandBLAS::CounterBasedRNGState State, typename OP>
 void DenseThreadTest(int64_t m, int64_t n) {
     int64_t d = m*n;
 
@@ -306,8 +305,8 @@ void DenseThreadTest(int64_t m, int64_t n) {
 
     // generate the base state with 1 thread.
     omp_set_num_threads(1);
-    RandBLAS::RNGState<RNG> state(0);
-    RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(n, base.data(), m, n, 0, state);
+    State state(0);
+    RandBLAS::dense::fill_dense_submat_impl<T,State,OP>(n, base.data(), m, n, 0, state);
     std::cerr << "with 1 thread: " << base << std::endl;
 
     // run with different numbers of threads, and check that the result is the same
@@ -315,7 +314,7 @@ void DenseThreadTest(int64_t m, int64_t n) {
     for (int i = 2; i <= n_threads; ++i) {
         std::fill(test.begin(), test.end(), (T) 0.0);
         omp_set_num_threads(i);
-        RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(n, test.data(), m, n, 0, state);
+        RandBLAS::dense::fill_dense_submat_impl<T,State,OP>(n, test.data(), m, n, 0, state);
         std::cerr << "with " << i << " threads: " << test << std::endl;
         for (int64_t i = 0; i < d; ++i) {
             EXPECT_FLOAT_EQ( base[i], test[i] );
@@ -325,17 +324,17 @@ void DenseThreadTest(int64_t m, int64_t n) {
 
 TEST(TestDenseThreading, UniformPhilox) {
     for (int i = 0; i < 10; ++i) {
-        DenseThreadTest<float,r123::Philox4x32,r123ext::uneg11>(32, 8);
-        DenseThreadTest<float,r123::Philox4x32,r123ext::uneg11>(1, 5);
-        DenseThreadTest<float,r123::Philox4x32,r123ext::uneg11>(5, 1);
+        DenseThreadTest<float,RandBLAS::DefaultRNGState,RandBLAS::rng::uneg11>(32, 8);
+        DenseThreadTest<float,RandBLAS::DefaultRNGState,RandBLAS::rng::uneg11>(1, 5);
+        DenseThreadTest<float,RandBLAS::DefaultRNGState,RandBLAS::rng::uneg11>(5, 1);
     }
 }
 
 TEST(TestDenseThreading, GaussianPhilox) {
     for (int i = 0; i < 10; ++i) {
-        DenseThreadTest<float,r123::Philox4x32,r123ext::boxmul>(32, 8);
-        DenseThreadTest<float,r123::Philox4x32,r123ext::boxmul>(1, 5);
-        DenseThreadTest<float,r123::Philox4x32,r123ext::boxmul>(5, 1);
+        DenseThreadTest<float,RandBLAS::DefaultRNGState,RandBLAS::rng::boxmul>(32, 8);
+        DenseThreadTest<float,RandBLAS::DefaultRNGState,RandBLAS::rng::boxmul>(1, 5);
+        DenseThreadTest<float,RandBLAS::DefaultRNGState,RandBLAS::rng::boxmul>(5, 1);
     }
 }
 #endif
@@ -352,12 +351,14 @@ class TestFillAxis : public::testing::Test
     
         // make the wide sketching operator
         RandBLAS::DenseDist D_wide(short_dim, long_dim, distname, major_axis);
-        RandBLAS::DenseSkOp<T> S_wide(D_wide, seed);
+        RandBLAS::DenseSkOp<T> S_wide(
+            D_wide, RandBLAS::DefaultRNGState{seed});
         RandBLAS::fill_dense(S_wide);
 
         // make the tall sketching operator
         RandBLAS::DenseDist D_tall(long_dim, short_dim, distname, major_axis);
-        RandBLAS::DenseSkOp<T> S_tall(D_tall, seed);
+        RandBLAS::DenseSkOp<T> S_tall(
+            D_tall, RandBLAS::DefaultRNGState{seed});
         RandBLAS::fill_dense(S_tall);
 
         // Sanity check: layouts are opposite.
@@ -442,7 +443,7 @@ class TestDenseSkOpStates : public ::testing::Test
         }
     }
 
-    template<typename RNG>
+    template<RandBLAS::CounterBasedRNGState State = RandBLAS::DefaultRNGState>
     static void test_compute_next_state(
         uint32_t key,
         int64_t n_rows,
@@ -455,12 +456,12 @@ class TestDenseSkOpStates : public ::testing::Test
         RandBLAS::DenseDist D(n_rows, n_cols, sd);
 
         auto actual_final_state = RandBLAS::fill_dense(D, buff, state);
-        auto actual_c = actual_final_state.counter;
+        auto actual_c = actual_final_state.counter();
 
         auto expect_final_state = RandBLAS::dense::compute_next_state(D, state);
-        auto expect_c = expect_final_state.counter;
+        auto expect_c = expect_final_state.counter();
 
-        for (int i = 0; i < RNG::ctr_type::static_size; i++) {
+        for (std::size_t i = 0; i < std::tuple_size_v<typename State::res_t>; i++) {
             ASSERT_EQ(actual_c[i], expect_c[i]);
         }
 
@@ -483,10 +484,10 @@ TEST_F(TestDenseSkOpStates, concat_tall_with_long_major_axis) {
 TEST_F(TestDenseSkOpStates, compare_skopless_fill_dense_to_compute_next_state) {
     for (uint32_t key : {0, 1, 2}) {
         auto sd = RandBLAS::ScalarDist::Gaussian;
-        test_compute_next_state<r123::Philox4x32>(key, 13, 7, sd);
-        test_compute_next_state<r123::Philox4x32>(key, 11, 5, sd);
-        test_compute_next_state<r123::Philox4x32>(key, 131, 71, sd);
-        test_compute_next_state<r123::Philox4x32>(key, 80, 40, sd);
-        test_compute_next_state<r123::Philox4x32>(key, 91, 43, sd);
+        test_compute_next_state(key, 13, 7, sd);
+        test_compute_next_state(key, 11, 5, sd);
+        test_compute_next_state(key, 131, 71, sd);
+        test_compute_next_state(key, 80, 40, sd);
+        test_compute_next_state(key, 91, 43, sd);
     }
 }

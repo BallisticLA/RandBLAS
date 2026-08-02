@@ -63,6 +63,7 @@ if (GTest_FOUND)
         basic_rng/test_philox.cc
         basic_rng/test_repacked_output.cc
         basic_rng/test_distributions.cc
+        basic_rng/test_rng_state.cc
         basic_rng/test_discrete.cc
         basic_rng/test_continuous.cc
         basic_rng/test_distortion.cc

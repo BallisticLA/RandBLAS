@@ -58,12 +58,12 @@ std::ostream &operator<<(std::ostream &os, std::vector<T> &v)
 
 
 
-template <typename T, typename RNG, typename OP>
+template <typename T, RandBLAS::CounterBasedRNGState State, typename OP>
 auto run_test(RandBLAS::DenseDist D, T *mat)
 {
     auto t0 = std::chrono::high_resolution_clock::now();
-    RNGState<RNG> seed;
-    RandBLAS::dense::fill_dense_submat_impl<T,RNG,OP>(D.n_cols, mat, D.n_rows, D.n_cols, 0, seed);
+    State seed;
+    RandBLAS::dense::fill_dense_submat_impl<T,State,OP>(D.n_cols, mat, D.n_rows, D.n_cols, 0, seed);
     auto t1 = std::chrono::high_resolution_clock::now();
     return (t1 - t0).count();
 }
@@ -74,8 +74,8 @@ int main(int argc, char **argv)
     (void) argc;
 
     using T = float;
-    using RNG = r123::Philox4x32;
-    using OP = r123ext::uneg11;
+    using State = RandBLAS::DefaultRNGState;
+    using OP = RandBLAS::rng::uneg11;
 
     int64_t m = atoi(argv[1]);
     int64_t n = atoi(argv[2]);
@@ -84,9 +84,9 @@ int main(int argc, char **argv)
 
     std::vector<T> mat(d);
 
-    auto dt = run_test<T,RNG,OP>(dist, mat.data());
+    auto dt = run_test<T,State,OP>(dist, mat.data());
 
-    std::cerr << "[" << typeid(RNG).name() << ", "
+    std::cerr << "[" << typeid(State).name() << ", "
         << typeid(OP).name() << "] dt = " << dt << std::endl;
 
     if (d < 100)
@@ -94,4 +94,3 @@ int main(int argc, char **argv)
 
     return 0;
 }
-

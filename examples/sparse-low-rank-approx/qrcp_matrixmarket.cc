@@ -387,7 +387,7 @@ int run(SpMat &A, int64_t k, int64_t power_iteration_steps, StabilizationMethod 
     T *Q  = new T[m*k]{};
     T *R = new T[k*n]{};
     int64_t *piv = new int64_t[n]{};
-    RandBLAS::RNGState<r123::Philox4x32> state(0);
+    RandBLAS::DefaultRNGState state(0);
 
     auto start_timer = std_clock::now();
     TIMED_LINE(

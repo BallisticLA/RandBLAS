@@ -53,7 +53,7 @@ class TestSubspaceDistortion : public ::testing::Test {
         DenseDist D(d, N, name);
         std::vector<T> S(d*N);
         std::cout << "(d, N) = ( " << d << ", " << N << " )\n";
-        RandBLAS::RNGState<r123::Philox4x32> state(key);
+        RandBLAS::DefaultRNGState state(key);
         auto next_state = RandBLAS::fill_dense(D, S.data(), state);
         T inv_stddev = (name == ScalarDist::Gaussian) ? (T) 1.0 : (T) 1.0;
         blas::scal(d*N, inv_stddev / std::sqrt(d), S.data(), 1);

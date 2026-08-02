@@ -46,12 +46,12 @@ using State = RandBLAS::RNGState<>;
 constexpr std::uint64_t seed = 0x0123456789abcdefULL;
 
 void expect_state(State const& actual, std::uint32_t counter_word_zero) {
-    EXPECT_EQ(actual.counter[0], counter_word_zero);
-    EXPECT_EQ(actual.counter[1], 0u);
-    EXPECT_EQ(actual.counter[2], 0u);
-    EXPECT_EQ(actual.counter[3], 0u);
-    EXPECT_EQ(actual.key[0], 0x89abcdefu);
-    EXPECT_EQ(actual.key[1], 0x01234567u);
+    EXPECT_EQ(actual.counter()[0], counter_word_zero);
+    EXPECT_EQ(actual.counter()[1], 0u);
+    EXPECT_EQ(actual.counter()[2], 0u);
+    EXPECT_EQ(actual.counter()[3], 0u);
+    EXPECT_EQ(actual.key()[0], 0x89abcdefu);
+    EXPECT_EQ(actual.key()[1], 0x01234567u);
 }
 
 template <std::size_t N>

@@ -212,7 +212,7 @@ class TestLSKSP3 : public ::testing::Test
     template <typename T>
     static void sketch_eye(uint32_t seed, int64_t m, int64_t d, bool preallocate, Layout layout) {
         DenseDist D(d, m);
-        DenseSkOp<T> S0(D, seed);
+        DenseSkOp<T> S0(D, RandBLAS::DefaultRNGState{seed});
         if (preallocate)
             RandBLAS::fill_dense(S0);
         test_left_submat_sketch_of_eye<T>(1.0, S0, d, m, 0, 0, layout, 0.0);
@@ -221,7 +221,7 @@ class TestLSKSP3 : public ::testing::Test
     template <typename T>
     static void transpose_S(uint32_t seed, int64_t m, int64_t d, Layout layout) {
         DenseDist Dt(m, d);
-        DenseSkOp<T> S0(Dt, seed);
+        DenseSkOp<T> S0(Dt, RandBLAS::DefaultRNGState{seed});
         RandBLAS::fill_dense(S0);
         test_left_transposed_sketch_of_eye<T>(S0, layout);
     }
@@ -240,7 +240,7 @@ class TestLSKSP3 : public ::testing::Test
         randblas_require(d0 > d);
         randblas_require(m0 > m);
         DenseDist D(d0, m0);
-        DenseSkOp<T> S0(D, seed);
+        DenseSkOp<T> S0(D, RandBLAS::DefaultRNGState{seed});
         test_left_submat_sketch_of_eye<T>(1.0, S0, d, m, S_ro, S_co, layout, 0.0);
     }
 
@@ -388,7 +388,7 @@ class TestRSKSP3 : public ::testing::Test
     template <typename T>
     static void sketch_eye(uint32_t seed, int64_t m, int64_t d, bool preallocate, Layout layout) {
         DenseDist D(m, d);
-        DenseSkOp<T> S0(D, seed);
+        DenseSkOp<T> S0(D, RandBLAS::DefaultRNGState{seed});
         if (preallocate)
             RandBLAS::fill_dense(S0);
         test_right_submat_sketch_of_eye<T>(1.0, S0, m, d, 0, 0, layout, 0.0);
@@ -397,7 +397,7 @@ class TestRSKSP3 : public ::testing::Test
     template <typename T>
     static void transpose_S(uint32_t seed, int64_t m, int64_t d, Layout layout) {
         DenseDist Dt(d, m);
-        DenseSkOp<T> S0(Dt, seed);
+        DenseSkOp<T> S0(Dt, RandBLAS::DefaultRNGState{seed});
         test_right_transposed_sketch_of_eye<T>(S0, layout);
     }
 
@@ -413,7 +413,7 @@ class TestRSKSP3 : public ::testing::Test
         Layout layout
     ) {
         DenseDist D(m0, d0);
-        DenseSkOp<T> S0(D, seed);
+        DenseSkOp<T> S0(D, RandBLAS::DefaultRNGState{seed});
         test_right_submat_sketch_of_eye<T>(1.0, S0, m, d, S_ro, S_co, layout, 0.0);
     }
 

@@ -36,137 +36,117 @@
 #include "rng/philox.hh"
 #include "rng/repacked_output.hh"
 #include "rng/word_array.hh"
-#include <Random123/features/compilerfeatures.h>
-#include <Random123/array.h>
-#include <Random123/philox.h>
-#include <Random123/threefry.h>
-// NOTE: we do not support Random123's AES or ARS generators.
 
-// Host-side shim for sincospi / sincospif. Random123/boxmuller.hpp calls these
-// unqualified; its own fallback definitions are gated behind
-//     `!defined(CUDART_VERSION) || CUDART_VERSION < 5000`
-// and are therefore skipped on host compiles where any dependency leaks
-// <cuda_runtime.h> into the include chain (notably blaspp's CMake config
-// transitively exports CUDA_INCLUDE_DIRS when blaspp was built with CUDA
-// support, which then poisons RandBLAS's host test compiles). Without these
-// definitions the host-compiled code fails to link.
-//
-// An earlier version of this shim was removed in PR #156 (9b73a25, 2026-03-05)
-// on the theory that CI green = unused. RandBLAS CI does not currently
-// exercise the Linux + CUDA-aware blaspp configuration where the failure
-// manifests; restoring the shim so host builds succeed on that config.
-#if !defined(__CUDACC__)
-#include <cmath>
-static inline void sincospif(float x, float *s, float *c) {
-    const float PIf = 3.1415926535897932f;
-    *s = std::sin(PIf * x);
-    *c = std::cos(PIf * x);
-}
-static inline void sincospi(double x, double *s, double *c) {
-    const double PI = 3.1415926535897932;
-    *s = std::sin(PI * x);
-    *c = std::cos(PI * x);
-}
-#endif
+#include <concepts>
+#include <cstddef>
+#include <cstdint>
+#include <tuple>
+#include <utility>
 
-#include <Random123/boxmuller.hpp>
-#include <Random123/uniform.hpp>
+namespace RandBLAS::rng {
 
-/// our extensions to random123
-namespace r123ext
-{
-/** Apply boxmuller transform to all elements of ri. The number of elements of r
- * must be evenly divisible by 2. See also r123::uneg11all.
- *
- * @tparam CTR a random123 CBRNG ctr_type
- * @tparam T the return element type. The default return type is dictated by
- *           the RNG's ctr_type's value_type : float for 32 bit counter elements
- *           and double for 64.
- *
- * @param[in] ri a sequence of N random values generated using random123 CBRNG
- *               type RNG. The transform is applied pair wise to the sequence.
- *
- * @returns a std::array<T,N> of transformed floating point values.
- */
-template <typename CTR, typename T = typename std::conditional
-    <sizeof(typename CTR::value_type) == sizeof(uint32_t), float, double>::type>
-auto boxmulall(
-    CTR const &ri
-) {
-    std::array<T, CTR::static_size> ro;
-    int nit = CTR::static_size / 2;
-    for (int i = 0; i < nit; ++i)
-    {
-        auto [v0, v1] = r123::boxmuller(ri[2*i], ri[2*i + 1]);
-        ro[2*i    ] = v0;
-        ro[2*i + 1] = v1;
-    }
-    return ro;
-}
+namespace detail {
 
-/** @defgroup generators
- * Generators take CBRNG, counter,and key instances and return a sequence of
- * random floating point numbers in a std::array. The length of the squence is
- * the length of the counter and the precision is float for 32 bit counters and
- * double for 64.
- */
-/// @{
-
-/// Generate a sequence of random values and apply a Box-Muller transform.
-struct boxmul
-{
-    /** Generate a sequence of random values and apply a Box-Muller transform.
-     *
-     * @tparam RNG a random123 CBRNG type
-     *
-     * @param[in] rng: a random123 CBRNG instance used to generate the sequence
-     * @param[in] c: the CBRNG counter
-     * @param[in] k: the CBRNG key
-     *
-     * @returns a std::array<N,T> where N is the CBRNG's ctr_type::static_size
-     *          and T is deduced from the RNG's counter element type : float
-     *          for 32 bit counter elements and double for 64. For example when
-     *          RNG is Philox4x32 the return is a std::array<float,4>.
-     */
-    template <typename RNG>
-    static
-    auto generate(
-        RNG &rng,
-        typename RNG::ctr_type const &c,
-        typename RNG::key_type const &k
-    ) {
-        return boxmulall(rng(c,k));
-    }
+template <class Block>
+concept FixedUnsignedBlock = requires {
+    typename Block::value_type;
+    requires std::unsigned_integral<typename Block::value_type>;
+    requires(std::tuple_size_v<Block> > 0);
 };
 
-/// Generate a sequence of random values and transform to -1.0 to 1.0.
-struct uneg11
-{
-    /** Generate a sequence of random values and transform to -1.0 to 1.0.
-     *
-     * @tparam RNG a random123 CBRNG type
-     *
-     * @param[in] rng: a random123 CBRNG instance used to generate the sequence
-     * @param[in] c: CBRNG counter
-     * @param[in] k: CBRNG key
-     *
-     * @returns a std::array<N,T> where N is the CBRNG's ctr_type::static_size
-     *          and T is deduced from the RNG's counter element type : float
-     *          for 32 bit counter elements and double for 64. For example when
-     *          RNG is Philox4x32 the return is a std::array<float,4>.
-     */
-    template <typename RNG, typename T = typename std::conditional
-        <sizeof(typename RNG::ctr_type::value_type) == sizeof(uint32_t), float, double>::type>
-    static
-    auto generate(
-        RNG &rng,
-        typename RNG::ctr_type const &c,
-        typename RNG::key_type const &k
-    ) {
-        return r123::uneg11all<T>(rng(c,k));
+} // namespace detail
+
+/// Stateless counter-based engine producing one fixed-size result block.
+template <class Engine>
+concept CounterBasedEngine =
+    std::semiregular<Engine> && requires {
+        typename Engine::ctr_t;
+        typename Engine::key_t;
+        typename Engine::res_t;
+        requires std::regular<typename Engine::ctr_t>;
+        requires std::regular<typename Engine::key_t>;
+        requires detail::FixedUnsignedBlock<typename Engine::res_t>;
+    } && requires(Engine const& engine, typename Engine::ctr_t& counter,
+                  typename Engine::ctr_t const& const_counter,
+                  typename Engine::key_t const& key,
+                  typename Engine::res_t& output, std::uint64_t blocks) {
+        { counter.advance(blocks) } -> std::same_as<void>;
+        { engine.generate(const_counter, key, output) } -> std::same_as<void>;
+    };
+
+template <class Engine>
+concept SeedMappableEngine =
+    CounterBasedEngine<Engine> && requires(std::uint64_t seed) {
+        { Engine::make_key(seed) } -> std::same_as<typename Engine::key_t>;
+    };
+
+} // namespace RandBLAS::rng
+
+namespace RandBLAS {
+
+using DefaultRNG = rng::Philox<4, 32, 10>;
+
+/// Copyable state that binds an engine to one counter and one key.
+template <rng::CounterBasedEngine Engine = DefaultRNG>
+class RNGState {
+public:
+    using engine_t = Engine;
+    using ctr_t = typename Engine::ctr_t;
+    using key_t = typename Engine::key_t;
+    using res_t = typename Engine::res_t;
+
+    constexpr RNGState() = default;
+
+    explicit constexpr RNGState(std::uint64_t seed) noexcept(
+        noexcept(Engine::make_key(seed)))
+        requires rng::SeedMappableEngine<Engine>
+        : key_(Engine::make_key(seed)) {}
+
+    explicit constexpr RNGState(key_t const& key) : key_(key) {}
+
+    constexpr RNGState(ctr_t const& counter, key_t const& key)
+        : counter_(counter), key_(key) {}
+
+    constexpr void generate(res_t& output) const noexcept(
+        noexcept(engine_.generate(counter_, key_, output))) {
+        engine_.generate(counter_, key_, output);
     }
+
+    constexpr void advance(std::uint64_t blocks) noexcept(
+        noexcept(counter_.advance(blocks))) {
+        counter_.advance(blocks);
+    }
+
+    [[nodiscard]] constexpr ctr_t const& counter() const noexcept {
+        return counter_;
+    }
+
+    [[nodiscard]] constexpr key_t const& key() const noexcept {
+        return key_;
+    }
+
+    friend constexpr bool operator==(RNGState const& left,
+                                     RNGState const& right) {
+        return left.counter_ == right.counter_ && left.key_ == right.key_;
+    }
+
+private:
+    ctr_t counter_{};
+    key_t key_{};
+    [[no_unique_address]] Engine engine_{};
 };
 
-/// @}
+template <class State>
+concept CounterBasedRNGState =
+    std::copyable<State> && requires {
+        typename State::res_t;
+        requires rng::detail::FixedUnsignedBlock<typename State::res_t>;
+    } && requires(State& state, State const& const_state,
+                  typename State::res_t& output, std::uint64_t blocks) {
+        { const_state.generate(output) } -> std::same_as<void>;
+        { state.advance(blocks) } -> std::same_as<void>;
+    };
 
-} // end of namespace r123ext
+using DefaultRNGState = RNGState<DefaultRNG>;
+
+} // namespace RandBLAS

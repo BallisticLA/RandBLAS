@@ -535,7 +535,7 @@ void _rskges_compress_and_apply_coo(
 ///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
 ///    - Refer to documentation for \math{\lda} for details. 
 ///
-template <typename T, typename RNG, SignedInteger sint_t>
+template <typename T, typename State, SignedInteger sint_t>
 void lskges(
     blas::Layout layout,
     blas::Op opS,
@@ -544,7 +544,7 @@ void lskges(
     int64_t n, // \op(A) is m-by-n
     int64_t m, // \op(submat(S)) is d-by-m
     T alpha,
-    const SparseSkOp<T,RNG,sint_t> &S,
+    const SparseSkOp<T,State,sint_t> &S,
     int64_t ro_s,
     int64_t co_s,
     const T *A,
@@ -674,7 +674,7 @@ void lskges(
 ///    - Leading dimension of \math{\mat(B)} when reading from \math{B}.
 ///    - Refer to documentation for \math{\lda} for details. 
 ///
-template <typename T, typename RNG, SignedInteger sint_t>
+template <typename T, typename State, SignedInteger sint_t>
 inline void rskges(
     blas::Layout layout,
     blas::Op opA,
@@ -685,7 +685,7 @@ inline void rskges(
     T alpha,
     const T *A,
     int64_t lda,
-    const SparseSkOp<T,RNG,sint_t> &S,
+    const SparseSkOp<T,State,sint_t> &S,
     int64_t ro_s,
     int64_t co_s,
     T beta,
@@ -856,7 +856,7 @@ inline void sketch_general(
     int64_t ldb
 );
 
-template <typename T, typename RNG>
+template <typename T, typename State>
 inline void sketch_general(
     blas::Layout layout,
     blas::Op opS,
@@ -865,7 +865,7 @@ inline void sketch_general(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(submat(\mtxS)) is d-by-m
     T alpha,
-    const SparseSkOp<T, RNG> &S,
+    const SparseSkOp<T, State> &S,
     int64_t ro_s,
     int64_t co_s,
     const T *A,
@@ -880,7 +880,7 @@ inline void sketch_general(
     );
 }
 
-template <typename T, typename RNG>
+template <typename T, typename State>
 inline void sketch_general(
     blas::Layout layout,
     blas::Op opS,
@@ -889,7 +889,7 @@ inline void sketch_general(
     int64_t n, // op(A) is m-by-n
     int64_t m, // op(submat(\mtxS)) is d-by-m
     T alpha,
-    const DenseSkOp<T, RNG> &S,
+    const DenseSkOp<T, State> &S,
     int64_t ro_s,
     int64_t co_s,
     const T *A,
@@ -1028,7 +1028,7 @@ inline void sketch_general(
     int64_t ldb
 );
 
-template <typename T, typename RNG>
+template <typename T, typename State>
 inline void sketch_general(
     blas::Layout layout,
     blas::Op opA,
@@ -1039,7 +1039,7 @@ inline void sketch_general(
     T alpha,
     const T *A,
     int64_t lda,
-    const DenseSkOp<T, RNG> &S,
+    const DenseSkOp<T, State> &S,
     int64_t ro_s,
     int64_t co_s,
     T beta,
@@ -1052,7 +1052,7 @@ inline void sketch_general(
 }
 
 
-template <typename T, typename RNG>
+template <typename T, typename State>
 inline void sketch_general(
     blas::Layout layout,
     blas::Op opA,
@@ -1063,7 +1063,7 @@ inline void sketch_general(
     T alpha,
     const T *A,
     int64_t lda,
-    const SparseSkOp<T, RNG> &S,
+    const SparseSkOp<T, State> &S,
     int64_t ro_s,
     int64_t co_s,
     T beta,

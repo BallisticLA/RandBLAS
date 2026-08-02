@@ -146,7 +146,8 @@ int main(int argc, char* argv[]){
         RandBLAS::Axis::Short    // A "SASO" (aka SJLT, aka OSNAP, aka generalized CountSketch)
     );
     uint32_t seed = 1997;
-    RandBLAS::SparseSkOp<double> S(Dist, seed);  
+    RandBLAS::SparseSkOp<double> S(
+        Dist, RandBLAS::DefaultRNGState{seed});
     RandBLAS::fill_sparse(S);
     auto time_constructsketch2 = high_resolution_clock::now();
     double sampling_time = (double) duration_cast<milliseconds>(time_constructsketch2 - time_constructsketch1).count()/1000;

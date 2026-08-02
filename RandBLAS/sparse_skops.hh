@@ -40,17 +40,21 @@
 #include <cstdio>
 #include <cmath>
 #include <algorithm>
+#include <cstdint>
+#include <limits>
 #include <unordered_map>
 #include <numeric>
+#include <tuple>
 
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 namespace RandBLAS::sparse {
 
-template <typename T, SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
+template <typename T, SignedInteger sint_t,
+          CounterBasedRNGState State = DefaultRNGState>
 void _considerate_fisher_yates(
-    const state_t &state,
+    const State &state,
     int64_t k,
     int64_t n,
     sint_t* samples,
@@ -63,25 +67,37 @@ void _considerate_fisher_yates(
     //  indices  = {0, 1, 2, ..., n - 1}; input-output; not const.
     //  work_piv = buffer of length k; output-only.
     randblas_require( k <= n );
-    if (vals != nullptr) {
-        randblas_require(state.len_c >= 4);
-    }
-    typename state_t::generator gen;
-    auto ctr = state.counter;
+    using res_t = typename State::res_t;
+    using word_t = typename res_t::value_type;
+    constexpr std::size_t block_size = std::tuple_size_v<res_t>;
+    constexpr auto word_bits = std::numeric_limits<word_t>::digits;
+    static_assert(word_bits == 32 || word_bits == 64,
+                  "sparse Fisher-Yates sampling requires 32- or 64-bit result words");
+    static_assert((word_bits == 32 && block_size >= 3) ||
+                      (word_bits == 64 && block_size >= 2),
+                  "sparse Fisher-Yates sampling requires enough result words for an index and sign");
+    State work = state;
     for (sint_t j = 0; j < k; ++j) {
-        auto rv = gen(ctr, state.key);
-        // ^ Array of uint32's, sampled uniformly at random.
-        ctr.incr();
+        res_t rv{};
+        work.generate(rv);
+        // ^ Array of unsigned words, sampled uniformly at random.
+        work.advance(1);
         // ^ The counter is incremented every loop, even if this means
         //   we aren't being super efficient in terms of samples.
-        auto s = promote_uint_pair(rv[0], rv[1]);
+        std::uint64_t s;
+        if constexpr (word_bits == 32) {
+            s = promote_uint_pair(rv[0], rv[1]);
+        } else {
+            s = rv[0];
+        }
         sint_t p = j + static_cast<sint_t>(s % (n - j));
         // ^ sample from {j, j+1, ...., n - 1}
         work_piv[j] = p;
         std::swap(indices[p], indices[j]);
         samples[j] = indices[j];
         if (vals != nullptr) {
-            vals[j] = (rv[2] % 2 == 0) ? 1.0 : -1.0;
+            constexpr std::size_t sign_lane = word_bits == 32 ? 2 : 1;
+            vals[j] = (rv[sign_lane] % 2 == 0) ? 1.0 : -1.0;
         }
     }
     for (sint_t j = 1; j <= k; ++j) {
@@ -94,9 +110,10 @@ void _considerate_fisher_yates(
     return;
 }
 
-template <typename T, SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
-static state_t repeated_fisher_yates(
-    const state_t &state,
+template <typename T, SignedInteger sint_t,
+          CounterBasedRNGState State = DefaultRNGState>
+static State repeated_fisher_yates(
+    const State &state,
     int64_t vec_nnz,
     int64_t dim_major,
     int64_t dim_minor,
@@ -121,14 +138,13 @@ static state_t repeated_fisher_yates(
     std::vector<sint_t> vec_work(dim_major);
     std::iota(vec_work.begin(), vec_work.end(), 0);
     std::vector<sint_t> pivots(vec_nnz);
-    auto [ctr, key] = state;
+    State work = state;
     for (sint_t i = 0; i < dim_minor; ++i) {
-        state_t state_work{ctr, state.key};
         _considerate_fisher_yates(
-            state_work, vec_nnz, dim_major,
+            work, vec_nnz, dim_major,
             idxs_major, vec_work.data(), pivots.data(), vals
         );
-        ctr.incr(vec_nnz);
+        work.advance(vec_nnz);
         idxs_major += vec_nnz;
         if (idxs_minor != nullptr) {
             std::fill(idxs_minor, idxs_minor + vec_nnz, i);
@@ -138,7 +154,7 @@ static state_t repeated_fisher_yates(
             vals += vec_nnz;
         }
     }
-    return state_t {ctr, key};
+    return work;
 }
 
 inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t dim_major, int64_t dim_minor) {
@@ -155,7 +171,8 @@ namespace RandBLAS {
 
 // Forward declaration of SparseSkOp. It's returnable by
 // SparseDist.sample(), but its definition involves SparseDist.
-template<typename T, typename RNG, SignedInteger sint_t>
+template<typename T, CounterBasedRNGState State = DefaultRNGState,
+         SignedInteger sint_t = int64_t>
 struct SparseSkOp;
 
 // =============================================================================
@@ -261,8 +278,9 @@ struct SparseDist {
 
     // -------------------------------------------------------------------------------------
     ///  Construct a SparseSkOp with this distribution and the provided seed_state.
-    template <typename T, typename RNG = DefaultRNG, SignedInteger sint_t = int64_t>
-    SparseSkOp<T,RNG,sint_t> sample(RNGState<RNG> &seed_state) {
+    template <typename T, CounterBasedRNGState State = DefaultRNGState,
+              SignedInteger sint_t = int64_t>
+    SparseSkOp<T,State,sint_t> sample(State &seed_state) {
         return {*this, seed_state};
     }
 
@@ -292,22 +310,23 @@ struct SparseDist {
 /// be used for the next call to a random sampling function whose output should be statistically
 /// independent from \math{\ttt{samples}.}
 ///
-template <SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
-inline state_t repeated_fisher_yates(
-    int64_t k, int64_t n, int64_t r, sint_t *samples, const state_t &state
+template <SignedInteger sint_t,
+          CounterBasedRNGState State = DefaultRNGState>
+inline State repeated_fisher_yates(
+    int64_t k, int64_t n, int64_t r, sint_t *samples, const State &state
 ) {
     return sparse::repeated_fisher_yates(state, k, n, r, samples, (sint_t*) nullptr, (double*) nullptr);
 }
 
-template <typename RNG = DefaultRNG>
-RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
+template <CounterBasedRNGState State = DefaultRNGState>
+State compute_next_state(SparseDist dist, State state) {
     // Both _considerate_fisher_yates (SASO with vec_nnz > 1) and
     // sample_indices_iid_uniform (SASO with vec_nnz == 1, and LASO) consume
     // exactly one CBRNG counter increment per nonzero.
     int64_t num_major_axis_vec = (dist.major_axis == Axis::Short)
         ? std::max(dist.n_rows, dist.n_cols)
         : std::min(dist.n_rows, dist.n_cols);
-    state.counter.incr(num_major_axis_vec * dist.vec_nnz);
+    state.advance(num_major_axis_vec * dist.vec_nnz);
     return state;
 }
 
@@ -315,7 +334,7 @@ RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
 /// A sample from a distribution over structured sparse matrices with either
 /// independent rows or independent columns. This type conforms to the
 /// SketchingOperator concept.
-template <typename T, typename RNG = DefaultRNG, SignedInteger sint_t = int64_t>
+template <typename T, CounterBasedRNGState State, SignedInteger sint_t>
 struct SparseSkOp {
 
     // ---------------------------------------------------------------------------
@@ -324,7 +343,7 @@ struct SparseSkOp {
 
     // ---------------------------------------------------------------------------
     /// Type alias.
-    using state_t = RNGState<RNG>;
+    using state_t = State;
 
     // ---------------------------------------------------------------------------
     /// Real scalar type used for nonzeros in matrix representations of this operator.
@@ -457,7 +476,7 @@ struct SparseSkOp {
         nnz(nnz), vals(vals), rows(rows), cols(cols){ };
 
     //  Move constructor
-    SparseSkOp(SparseSkOp<T,RNG,sint_t> &&S
+    SparseSkOp(SparseSkOp<T,State,sint_t> &&S
     ) : dist(S.dist), seed_state(S.seed_state), next_state(S.next_state),
         n_rows(dist.n_rows), n_cols(dist.n_cols), own_memory(S.own_memory),
         nnz(S.nnz), rows(S.rows), cols(S.cols), vals(S.vals)
@@ -565,13 +584,13 @@ void laso_merge_long_axis_vector_coo_data(
 ///      - A CBRNG state used to define :math:`\mtxS.`
 ///
 /// @endverbatim
-template <typename T, typename sint_t, typename state_t>
-state_t fill_sparse_unpacked(
+template <typename T, typename sint_t, CounterBasedRNGState State>
+State fill_sparse_unpacked(
     const SparseDist &D,
     int64_t n_rows_sub, int64_t n_cols_sub,
     int64_t ro_s, int64_t co_s,
     int64_t &nnz, T* vals, sint_t* rows, sint_t* cols,
-    const state_t &seed_state
+    const State &seed_state
 ) {
     randblas_require(D.n_rows >= n_rows_sub + ro_s);
     randblas_require(D.n_cols >= n_cols_sub + co_s);
@@ -624,8 +643,8 @@ state_t fill_sparse_unpacked(
     // Both the Fisher-Yates path (vec_nnz > 1) and the i.i.d.-uniform path (vec_nnz == 1
     // and LASO) consume exactly vec_nnz counter increments per major-axis vector, so the
     // skip amount is uniform.
-    state_t work_state = seed_state;
-    work_state.counter.incr(num_major_off * vec_nnz);
+    State work_state = seed_state;
+    work_state.advance(num_major_off * vec_nnz);
 
     // Identify which output array holds the major-axis coordinate and which holds the
     // minor-axis coordinate (the index of the major-axis vector). We sample directly
@@ -657,7 +676,7 @@ state_t fill_sparse_unpacked(
     // operator. On exit, the first "total" entries carry full major coordinates and local
     // minor coordinates (0..num_major_sub-1); "total" is the pre-filter nnz.
     int64_t total;
-    state_t end_state;
+    State end_state;
     if (D.major_axis == Axis::Short) {
         end_state = sparse::repeated_fisher_yates(
             work_state, vec_nnz, dim_major, num_major_sub, idxs_major, idxs_minor, vals
@@ -709,11 +728,11 @@ state_t fill_sparse_unpacked(
 // ro_s = co_s = 0 and the full operator dimensions instead. It writes the COO data for
 // the operator (D, seed_state) into the first nnz entries of (vals, rows, cols), which
 // must have length at least D.full_nnz.
-template <typename T, typename sint_t, typename state_t>
-state_t fill_sparse_unpacked_nosub(
+template <typename T, typename sint_t, CounterBasedRNGState State>
+State fill_sparse_unpacked_nosub(
     const SparseDist &D,
     int64_t &nnz, T* vals, sint_t* rows, sint_t *cols,
-    const state_t &seed_state
+    const State &seed_state
 ) {
     randblas_require( vals != nullptr );
     randblas_require( rows != nullptr );

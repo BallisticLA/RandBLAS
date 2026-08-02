@@ -68,9 +68,11 @@ auto parse_dimension_args(int argc, char** argv) {
     return std::make_tuple(m, n, vec_nnz);
 }
 
-template <typename T, typename RNG = r123::Philox4x32>
+template <typename T,
+          RandBLAS::CounterBasedRNGState State = RandBLAS::DefaultRNGState>
 void iid_sparsify_random_dense(
-    int64_t n_rows, int64_t n_cols, int64_t stride_row, int64_t stride_col, T* mat, T prob_of_zero, RandBLAS::RNGState<RNG> state
+    int64_t n_rows, int64_t n_cols, int64_t stride_row,
+    int64_t stride_col, T* mat, T prob_of_zero, State state
 ) { 
     auto spar = new T[n_rows * n_cols];
     auto dist = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::ScalarDist::Uniform);

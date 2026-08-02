@@ -54,8 +54,8 @@ Update this table as work lands; record benchmark medians and links to any CI ru
 | 2. Add full-width word arrays | Complete | `ed7f13f` | Nine focused tests; full suite 452/452 passing. |
 | 3. Add native Philox and static KATs | Complete | `f58a47b` | 204 static vectors from pinned Random123 `9545ff6`; 68 compile-time specializations; full suite 452/452 passing. |
 | 4. Add `RepackedOutput` | Complete | `1e7614c` | Direct, nested, identity, forwarding, and rejection coverage; full suite 458/458 passing. |
-| 5. Add native floating-point transforms | Complete | This commit | Retained endpoint and Box--Muller references plus policy coverage; full suite 467/467 passing. |
-| 6. Migrate state and sampler APIs atomically | Not started | — | — |
+| 5. Add native floating-point transforms | Complete | `25e6852` | Retained endpoint and Box--Muller references plus policy coverage; full suite 467/467 passing. |
+| 6. Migrate state and sampler APIs atomically | Complete | This commit | Expected structural compile failure observed; inventory found 131 matches across 19 files. All test executables build, focused 37/37 and full 472/472 pass, and the functional Random123 scan is empty. |
 | 7. Remove the build/package dependency | Not started | — | — |
 | 8. Remove Random123 from CI | Not started | — | — |
 | 9. Finish user and developer documentation | Not started | — | — |
@@ -622,20 +622,27 @@ Pause for Checkpoint A review if requested.
 - Modify: `test/datastructures/test_denseskop.cc`
 - Modify: `test/datastructures/test_sparseskop.cc`
 - Modify: `test/datastructures/test_coo_matrix.cc`
+- Modify: `test/linops/test_lskge3.cc`
 - Modify: `test/linops/test_lskges.cc`
+- Modify: `test/linops/test_rskge3.cc`
 - Modify: `test/linops/test_rskges.cc`
+- Modify: `test/linops/test_sketch_sparse.cc`
+- Modify: `test/linops/test_sketch_symmetric.cc`
+- Modify: `test/linops/test_sketch_vector.cc`
 - Modify: `test/meta/test_sparse_data_generators.cc`
 - Modify: `test/test_io.cc`
 - Modify: `examples/sparse-low-rank-approx/qrcp_matrixmarket.cc`
 - Modify: `examples/sparse-low-rank-approx/svd_matrixmarket.cc`
 - Modify: `examples/sparse-low-rank-approx/svd_rank1_plus_noise.cc`
+- Modify: `examples/total-least-squares/tls_dense_skop.cc`
+- Modify: `examples/total-least-squares/tls_sparse_skop.cc`
 - Modify: `test/CMakeLists.txt`
 
 **Interfaces consumed:** Native `Philox`, `RepackedOutput`, transforms, and `WordArray`.
 
 **Interfaces produced:** `RandBLAS::rng::CounterBasedEngine`, `RandBLAS::CounterBasedRNGState`, `RNGState<Engine>`, `DefaultRNG`, `DefaultRNGState`, state-templated samplers and sketching operators.
 
-- [ ] **Step 1: Write failing structural engine/state tests**
+- [x] **Step 1: Write failing structural engine/state tests**
 
 Add `test_rng_state.cc` to `STAT_SOURCES`. Define a test-only engine whose counter's representation is private and unrelated to `WordArray`:
 
@@ -672,7 +679,7 @@ Test:
 
 Run `stat_tests`. Expected: compilation fails because the concepts and final state API do not exist.
 
-- [ ] **Step 2: Inventory every old representation dependency immediately before editing**
+- [x] **Step 2: Inventory every old representation dependency immediately before editing**
 
 Run and save the output in the task notes:
 
@@ -683,7 +690,7 @@ rg -n 'r123::|r123ext::|Random123/|ctr_type|key_type|counter\.incr|key\.incr|\.c
 
 Every functional match must be migrated in this task or be one of the already-deleted legacy test files. Do not hide a match with a compatibility namespace.
 
-- [ ] **Step 3: Implement concepts, state, and default aliases in the umbrella**
+- [x] **Step 3: Implement concepts, state, and default aliases in the umbrella**
 
 Replace Random123 includes and `r123ext` definitions in `RandBLAS/random_gen.hh` with native includes and structural concepts. Define the engine concept in `RandBLAS::rng` and the state concept in `RandBLAS`; keep any low-level header constraints structurally equivalent without introducing an umbrella-header include cycle. The public state shape is:
 
@@ -721,7 +728,7 @@ using DefaultRNGState = RNGState<DefaultRNG>;
 
 The engine concept must check copy/value semantics, unsigned fixed-extent `res_t`, counter advancement, and the exact output-only call. The state concept must require copyability, unsigned fixed-extent `res_t`, nonmutating `generate`, and mutating `advance`, without requiring counter/key access. Keep `RNGState<>` as the default spelling. Equality compares counter and key only, so a stateless engine need not add meaningless equality state. Move the old state definition and its manual destructor/copy/memcpy implementation out of `base.hh`; retain stream output using only const accessors.
 
-- [ ] **Step 4: Migrate dense sampling without changing block addresses**
+- [x] **Step 4: Migrate dense sampling without changing block addresses**
 
 Change `DenseSkOp<T, RNG>` to `DenseSkOp<T, State = DefaultRNGState>` and store `State` directly. Change `DenseDist::sample`, `fill_dense_submat_impl`, `compute_next_state`, `fill_dense_unpacked`, and `fill_dense` similarly. Propagate the state template through dense/sparse overloads in `RandBLAS/skge.hh` without adding engine assumptions there.
 
@@ -738,7 +745,7 @@ Use `std::tuple_size_v<typename State::res_t>` for block length. Preserve curren
 
 Dispatch `ScalarDist::Gaussian` through `rng::boxmul` and uniform through `rng::uneg11`. Add compile-time diagnostics that dense sampling requires an even result length and 32- or 64-bit result words.
 
-- [ ] **Step 5: Migrate index and sparse sampling without changing default consumption**
+- [x] **Step 5: Migrate index and sparse sampling without changing default consumption**
 
 In `util.hh`, replace destructuring and raw generator calls with a copied state:
 
@@ -753,7 +760,7 @@ For `sample_indices_iid`, consume all lanes of each block before advancing to th
 
 In `sparse_skops.hh`, change `SparseSkOp<T, RNG, sint_t>` to `SparseSkOp<T, State = DefaultRNGState, sint_t>` and update `SparseDist::sample`, `compute_next_state`, `fill_sparse_unpacked`, helpers, and state members to use only `generate`/`advance`. Propagate that state parameter through `RandBLAS/skge.hh` and relevant `RandBLAS/sparse_data/sksp.hh` declarations/documentation. Preserve the default reservation of one 4x32 block per nonzero and all submatrix skip arithmetic.
 
-- [ ] **Step 6: Migrate testing helpers, tests, benchmark, and examples**
+- [x] **Step 6: Migrate testing helpers, tests, benchmark, and examples**
 
 Use composition in `RandBLAS/testing/sparse_data.hh` instead of inheriting from `RNGState`. Its scalar stream owns a `State`, a `State::res_t` buffer, and a lane index; it refills with `state.generate(buffer)` followed by `state.advance(1)`. Replace `r123::u01` and `r123::boxmuller` with native transforms.
 
@@ -772,7 +779,7 @@ RNG::ctr_type::static_size    -> std::tuple_size_v<typename State::res_t>
 
 Do not apply the first mapping inside an algorithm template: public algorithms take `State`, not `DefaultRNG` or `Engine`.
 
-- [ ] **Step 7: Observe the structural failure, then build all local test executables**
+- [x] **Step 7: Observe the structural failure, then build all local test executables**
 
 After adding the tests but before production changes, record the expected compile failure. After Steps 3–6, run:
 
@@ -786,7 +793,7 @@ ctest --test-dir build-randblas --output-on-failure
 
 Expected: all tests pass. In particular, sparse characterization is bitwise unchanged, dense characterization passes, state-advance tests pass, and thread-count/full-submatrix tests pass.
 
-- [ ] **Step 8: Prove source and tests no longer functionally use Random123**
+- [x] **Step 8: Prove source and tests no longer functionally use Random123**
 
 Run:
 
@@ -797,7 +804,7 @@ rg -n 'Random123/|r123::|r123ext::|ctr_type|key_type|counter\.incr|key\.incr' Ra
 
 Expected: no functional matches. Attribution comments may mention the name `Random123` but must not contain includes, namespaces, old aliases, or calls.
 
-- [ ] **Step 9: Commit Checkpoint B**
+- [x] **Step 9: Commit Checkpoint B**
 
 ```bash
 git diff --check
