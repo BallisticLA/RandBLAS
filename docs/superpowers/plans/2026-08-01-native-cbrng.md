@@ -58,8 +58,8 @@ Update this table as work lands; record benchmark medians and links to any CI ru
 | 6. Migrate state and sampler APIs atomically | Complete | `e2eba75` | Expected structural compile failure observed; inventory found 131 matches across 19 files. All test executables build, focused 37/37 and full 472/472 pass, and the functional Random123 scan is empty. |
 | 7. Remove the build/package dependency | Complete | `a4d8e0e` | Disabled-package failure observed before cleanup. Clean build `/private/tmp/randblas-native-cbrng-build.AkjYv6`, install `/private/tmp/randblas-native-cbrng-install.87Bsis`, downstream, and examples all pass with Random123 disabled; full clean suite 472/472. The clean build also needed the existing non-Random123 `blaspp_DIR`. |
 | 8. Remove Random123 from CI | Complete | `d3ae3c0` | Unix/Windows setup, caches, outputs, scripts, and workflow arguments removed; CI scan empty and local suite 472/472. Neither `actionlint` nor `pwsh` is installed locally. |
-| 9. Finish user and developer documentation | Complete | This commit | Installation, API, tutorial, RNG developer, and test notes now describe the native state API; documentation scan leaves only reviewed attribution, compatibility, and release-history mentions. |
-| 10. Run final validation and performance comparison | Not started | — | — |
+| 9. Finish user and developer documentation | Complete | `949f887` | Installation, API, tutorial, RNG developer, and test notes now describe the native state API; documentation scan leaves only reviewed attribution, compatibility, and release-history mentions. |
+| 10. Run final validation and performance comparison | Awaiting remote CI | — | Local build/package/example validation and review are complete. The remote PR still points to `25f0cf7`, so its green CI matrix does not yet cover the implementation through `7b81ecb`. |
 
 ---
 
@@ -1041,7 +1041,7 @@ git commit -m "docs: document native counter-based RNGs"
 
 **Interfaces produced:** Evidence that all acceptance criteria hold and a final reviewable plan record.
 
-- [ ] **Step 1: Re-run the complete clean local build and test suite**
+- [x] **Step 1: Re-run the complete clean local build and test suite**
 
 Use a new temporary build and install prefix so cached Random123 paths cannot participate. Run Steps 1–3 in one shell, or record the concrete temporary paths in the execution log and restore the variables when resuming:
 
@@ -1058,7 +1058,7 @@ cmake --build "$final_build" -j --target install
 
 Expected: clean configure/build/install and all tests pass.
 
-- [ ] **Step 2: Re-run downstream and examples from the clean install**
+- [x] **Step 2: Re-run downstream and examples from the clean install**
 
 ```bash
 downstream_final=$(mktemp -d /private/tmp/randblas-native-cbrng-downstream.XXXXXX)
@@ -1071,7 +1071,7 @@ cmake --build "$examples_final" -j
 
 Expected: downstream and all examples compile with no Random123 variable or installation.
 
-- [ ] **Step 3: Re-run matching performance measurements**
+- [x] **Step 3: Re-run matching performance measurements**
 
 Use the same compiler, build type, dimensions, thread count, and trial counts recorded in Task 1:
 
@@ -1084,7 +1084,7 @@ OMP_NUM_THREADS=1 "$examples_final/sketch_general_performance" --no-stream 200 2
 
 Record native median/range and sparse warm/COLD fields beside the baseline. Treat a shift outside ordinary baseline run-to-run variation as a failure to investigate, not as an accepted consequence. Any optimization beyond parity needs its own test and before/after evidence.
 
-- [ ] **Step 4: Perform the final dependency, placeholder, and type-consistency scans**
+- [x] **Step 4: Perform the final dependency, placeholder, and type-consistency scans**
 
 Run:
 
@@ -1105,9 +1105,40 @@ Expected:
 - remaining Random123 mentions are reviewed BSD attribution/provenance/history only;
 - only the plan log or an explicitly understood user file is dirty.
 
-- [ ] **Step 5: Review acceptance criteria one by one**
+- [x] **Step 5: Review acceptance criteria one by one**
 
 Cross-check all 14 acceptance criteria in the approved design. In particular, verify the 204 KAT row count, opaque-counter state test, direct/nested repacking tests, bitwise sparse characterization, dense tolerance boundary, thread tests, package consumer, examples, and benchmark comparison. If any criterion lacks direct evidence, add the smallest test or documentation change and rerun its owning suite.
+
+#### Local validation record (2026-08-02)
+
+- Final source head: `7b81ecb`; Clang 19.1.3, Release, OpenMP enabled.
+- Clean build: `/private/tmp/randblas-native-cbrng-final2.sVeWeF`.
+- Clean install: `/private/tmp/randblas-native-cbrng-install-final2.8cSdjW`.
+- Downstream consumer: `/private/tmp/randblas-native-cbrng-downstream-final2.c5uzZA`.
+- Examples: `/private/tmp/randblas-native-cbrng-examples-final2.K7b5on`.
+- Configuration, compilation, installation, all 472 tests, the downstream
+  executable, and all example targets passed with Random123 discovery disabled.
+  The examples additionally needed the workspace's existing `lapackpp_DIR`.
+- The first native dense measurement exposed a genuine regression. Alternating
+  runs against a detached `8fdb96b` build isolated redundant products in each
+  native Philox round. Commit `93962bb` made the private round update its local
+  block in place; all 204 KAT rows and the full suite remained passing.
+- Final dense 8192x1024 native median: 15,125,333 ticks; range
+  14,767,417--20,604,000. Baseline median: 16,561,709; range
+  16,430,125--31,743,500. The native median is 8.7% faster.
+- Final sparse left/ColMajor warm min/median: 4,370/4,542 us; COLD 4,719 us.
+  Baseline warm min/median: 4,226/4,280 us; COLD 4,390 us. This is within
+  ordinary run-to-run variation for the end-to-end sparse benchmark.
+- The final dependency scan found stale Random123 provisioning in the TSAN
+  Docker tooling and old instructions in `AGENTS.md`; commit `811ac55` removed
+  them. Functional dependency, old type spelling, placeholder, whitespace, and
+  KAT-count scans now pass. `bash -n docker/tsan/run.sh` also passes.
+- An inline full-branch review found and resolved the performance and TSAN
+  cleanup issues above. Acceptance criteria 1--10 and 12--14 have direct local
+  evidence. Criterion 11 remains pending on CI for the implementation head.
+- `sphinx-build` is not installed in the local Spack environment. The PR's docs
+  job is green at the older remote head, so the edited documentation still
+  needs the post-push docs run.
 
 - [ ] **Step 6: Request code review, address findings, and make the final plan-record commit**
 
