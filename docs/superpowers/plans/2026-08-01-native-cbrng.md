@@ -52,8 +52,8 @@ Update this table as work lands; record benchmark medians and links to any CI ru
 |---|---|---|---|
 | 1. Characterize behavior and record baseline | Complete | `8fdb96b` | LLVM/Clang 19.1.3, Release, one thread. Dense 8192x1024 median 16,561,709 ticks; range 16,430,125–31,743,500. Sparse left/ColMajor warm min/median 4,226/4,280 us; COLD min 4,390 us. |
 | 2. Add full-width word arrays | Complete | `ed7f13f` | Nine focused tests; full suite 452/452 passing. |
-| 3. Add native Philox and static KATs | Complete | This commit | 204 static vectors from pinned Random123 `9545ff6`; 68 compile-time specializations; full suite 452/452 passing. |
-| 4. Add `RepackedOutput` | Not started | — | — |
+| 3. Add native Philox and static KATs | Complete | `f58a47b` | 204 static vectors from pinned Random123 `9545ff6`; 68 compile-time specializations; full suite 452/452 passing. |
+| 4. Add `RepackedOutput` | Complete | This commit | Direct, nested, identity, forwarding, and rejection coverage; full suite 458/458 passing. |
 | 5. Add native floating-point transforms | Not started | — | — |
 | 6. Migrate state and sampler APIs atomically | Not started | — | — |
 | 7. Remove the build/package dependency | Not started | — | — |
@@ -439,7 +439,7 @@ git commit -m "feat: add bit-compatible native Philox"
 
 **Interfaces produced:** `RandBLAS::rng::RepackedOutput<Engine, OutputWord>`.
 
-- [ ] **Step 1: Write failing direct, nested, forwarding, and rejection tests**
+- [x] **Step 1: Write failing direct, nested, forwarding, and rejection tests**
 
 Use a deterministic test engine returning:
 
@@ -471,7 +471,7 @@ The state-level repacking test belongs to Task 6, after the final `RNGState` API
 
 Run the `stat_tests` target. Expected: compilation fails because `RepackedOutput` does not exist.
 
-- [ ] **Step 2: Implement shift-and-mask repacking**
+- [x] **Step 2: Implement shift-and-mask repacking**
 
 Implement:
 
@@ -495,7 +495,7 @@ Generate once into `Engine::res_t`, then emit each source word's chunks from lea
 
 `ValidRepacking` requires an unsigned output word, no widening, an exact bit-width division, and a power-of-two width ratio. Equal-width adaptation may either be accepted as an identity adaptor or rejected consistently; choose identity because it composes naturally and document/test it.
 
-- [ ] **Step 3: Verify repacking and native KAT regressions**
+- [x] **Step 3: Verify repacking and native KAT regressions**
 
 Run:
 
@@ -508,7 +508,7 @@ ctest --test-dir build-randblas --output-on-failure -R 'RepackedOutput|Philox'
 
 Expected: direct/nested outputs and compile-time contract checks pass; Philox KATs remain green.
 
-- [ ] **Step 4: Commit Checkpoint A's engine-adaptor portion**
+- [x] **Step 4: Commit Checkpoint A's engine-adaptor portion**
 
 ```bash
 cd /Users/riley/randnla/dev/repo-randblas

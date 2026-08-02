@@ -61,6 +61,7 @@ if (GTest_FOUND)
 
     set(STAT_SOURCES
         basic_rng/test_philox.cc
+        basic_rng/test_repacked_output.cc
         basic_rng/test_discrete.cc
         basic_rng/test_continuous.cc
         basic_rng/test_distortion.cc

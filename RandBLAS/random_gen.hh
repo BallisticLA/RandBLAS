@@ -33,6 +33,7 @@
 
 #include "compilers.hh"
 #include "rng/philox.hh"
+#include "rng/repacked_output.hh"
 #include "rng/word_array.hh"
 #include <Random123/features/compilerfeatures.h>
 #include <Random123/array.h>
