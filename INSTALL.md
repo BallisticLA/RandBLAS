@@ -14,7 +14,7 @@ If you want a TL;DR version of this guide, refer to one of the following.
  * The [examples folder](https://github.com/BallisticLA/RandBLAS/tree/main/examples).
 
 
-## 1. Required dependencies: a C++20 compatible compiler, BLAS++, and Random123
+## 1. Required dependencies: a C++20 compatible compiler and BLAS++
 
 RandBLAS uses C++20 [concepts](https://en.cppreference.com/w/cpp/language/constraints).
 Make sure your compiler supports these. We test gcc ≥13 on Linux, and both Apple Clang
@@ -26,10 +26,11 @@ It can be installed with GNU make or CMake.
 If you want to use RandBLAS' CMake build system,
 then it will be necessary to have built and installed BLAS++ via CMake.
 
-Random123 is a header-only library of counter-based random number generators.
+RandBLAS includes its header-only counter-based random-number generators. There
+is no separate random-number package to install or configure.
 
-We give recipes for installing BLAS++ and Random123 below.
-Later on, we'll assume these recipes were executed from a directory
+We give a recipe for installing BLAS++ below.
+Later on, we'll assume this recipe was executed from a directory
 that contains (or will contain) the ``RandBLAS`` project directory as a subdirectory.
 
 One can compile and install BLAS++ from
@@ -45,14 +46,6 @@ cmake -DCMAKE_BUILD_TYPE=Release \
     -Dbuild_tests=OFF \
     ../blaspp
 make -j install
-```
-
-One can install Random123 from
-[source](https://github.com/DEShawResearch/random123) by running
-```shell
-git clone git@github.com:DEShawResearch/random123.git
-cd random123/
-make prefix=`pwd`/../random123-install install-include
 ```
 
 ## 2. Optional dependencies: GTest and OpenMP
@@ -81,7 +74,6 @@ The following CMake variables influence the RandBLAS build.
 |------------------|-------------------------------------------|
 | CMAKE_BUILD_TYPE | Release or Debug. The default is Release. |
 | blaspp_DIR       | The path to your local BLAS++ install     |
-| Random123_DIR    | The path to your local random123 install  |
 
 Assuming you used the recipes from Section 1 to get RandBLAS' dependencies,
 you can download, build, and install RandBLAS as follows:
@@ -92,7 +84,6 @@ mkdir RandBLAS-build
 cd RandBLAS-build
 cmake -DCMAKE_BUILD_TYPE=Release \
     -Dblaspp_DIR=`pwd`/../blaspp-install/lib/cmake/blaspp/ \
-    -DRandom123_DIR=`pwd`/../random123-install/include/ \
     -DCMAKE_BINARY_DIR=`pwd` \
     -DCMAKE_INSTALL_PREFIX=`pwd`/../RandBLAS-install \
     ../RandBLAS/
@@ -103,9 +94,6 @@ ctest  # run unit tests (only if GTest was found by CMake)
 Here are the conceptual meanings of the recipe's other build flags:
 
 * `-Dblaspp_DIR=X` means `X` is the directory containing the file `blasppConfig.cmake`.
-
-* `-DRandom123_DIR=Y` means `Y` is the directory containing the Random123
-  header files.
 
 * `-DCMAKE_INSTALL_PREFIX=Z` means subdirectories within `Z` will contain
    the RandBLAS binaries, header files, and CMake configuration files needed
@@ -141,7 +129,6 @@ find_package(lapackpp REQUIRED)
 
 set(myproject_cxx_source my_project.cc)
 add_executable(my_project ${myproject_cxx_source})
-target_include_directories(myproject PUBLIC ${Random123_DIR})
 target_link_libraries(myproject PUBLIC RandBLAS blaspp lapackpp)
 ```
 
@@ -157,7 +144,7 @@ Run the commands from an **x64 Native Tools Command Prompt for Visual Studio**.
 The recipe uses the NMake generator, so `cmake --build` is serial and does not
 need `--parallel`.
 
-### A.1. Required dependencies: MSVC, oneMKL, BLAS++, and Random123
+### A.1. Required dependencies: MSVC, oneMKL, and BLAS++
 
 Install the following tools first:
 
@@ -211,20 +198,6 @@ cmake --fresh ^
 cmake --build C:/randblas-work/build/blaspp --target install
 ```
 
-Random123 is header-only. Copy its public headers into a stable installation
-prefix so the installed RandBLAS package does not depend on retaining the
-Random123 source checkout:
-
-```bat
-git clone https://github.com/DEShawResearch/Random123.git ^
-  C:\randblas-work\src\Random123
-
-cmake -E make_directory C:/randblas-work/install/Random123/include
-cmake -E copy_directory ^
-  C:/randblas-work/src/Random123/include/Random123 ^
-  C:/randblas-work/install/Random123/include/Random123
-```
-
 ### A.2. Optional dependencies: GoogleTest and OpenMP
 
 GoogleTest is needed only to build and run the RandBLAS test suite. A minimal
@@ -257,8 +230,8 @@ command in the next section.
 
 ### A.3. Building, installing, and testing RandBLAS
 
-Clone RandBLAS, configure it against the installed BLAS++ and the Random123
-headers, and enable the test suite:
+Clone RandBLAS, configure it against the installed BLAS++, and enable the test
+suite:
 
 ```bat
 git clone https://github.com/BallisticLA/RandBLAS.git ^
@@ -271,7 +244,6 @@ cmake --fresh ^
   -DCMAKE_BUILD_TYPE=Release ^
   -DCMAKE_INSTALL_PREFIX=C:/randblas-work/install/RandBLAS ^
   -Dblaspp_DIR=C:/randblas-work/install/blaspp/blaspp ^
-  -DRandom123_DIR=C:/randblas-work/install/Random123/include ^
   -DCMAKE_PREFIX_PATH=C:/randblas-work/install/googletest ^
   -DBUILD_TESTS=ON
 
@@ -327,9 +299,8 @@ cmake --fresh ^
 cmake --build C:/path/to/my_randblas_project-build
 ```
 
-The installed `RandBLASConfig.cmake` records the BLAS++ and Random123 locations
-used to build RandBLAS, so ordinary consumers should not need to supply those
-paths again.
+The installed `RandBLASConfig.cmake` records the BLAS++ location used to build
+RandBLAS, so ordinary consumers should not need to supply that path again.
 
 Repository-owned tests copy imported dependency DLLs beside their executables.
 An arbitrary downstream application is responsible for its own deployment.

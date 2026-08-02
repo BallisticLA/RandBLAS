@@ -2,9 +2,10 @@ Installation
 ============
 
 
-RandBLAS is a header-only C++20 library with two required dependencies. One of these
-dependencies (`Random123 <https://github.com/DEShawResearch/random123>`_) is header-only,
-while the other (`BLAS++ <https://github.com/icl-utk-edu/blaspp>`_) needs to be compiled.
+RandBLAS is a header-only C++20 library with one required library dependency:
+`BLAS++ <https://github.com/icl-utk-edu/blaspp>`_, which needs to be compiled.
+The counter-based random-number engines are headers included with RandBLAS;
+there is no separate random-number package to install or configure.
 
 Having a compiled dependency makes setting up RandBLAS a little more complicated than
 setting up other header-only libraries. RandBLAS also has OpenMP and GoogleTest as 
@@ -63,14 +64,12 @@ MKL sparse features, pass ``-DRandBLAS_USE_MKL_SPARSE=OFF`` at configure time::
 
 Everyone else
 -------------
-Strictly speaking, we only need three things to use RandBLAS in other projects.
+Strictly speaking, we only need two things to use RandBLAS in other projects.
 
 1. ``RandBLAS/config.h``, filled according to the instructions in ``RandBLAS/config.h.in``.
 
-2. The locations of Random123 header files.
-
-3. The locations of the header files and compiled binary for BLAS++ (which will
-   referred to as "blaspp" when installed on your system).
+2. The locations of the header files and compiled binary for BLAS++ (which will
+   be referred to as "blaspp" when installed on your system).
 
 If you have these things at hand, then compiling a RandBLAS-dependent
 program is just a matter of specifying standard compiler flags. 

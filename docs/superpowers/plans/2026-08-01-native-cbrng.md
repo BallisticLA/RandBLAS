@@ -57,8 +57,8 @@ Update this table as work lands; record benchmark medians and links to any CI ru
 | 5. Add native floating-point transforms | Complete | `25e6852` | Retained endpoint and Box--Muller references plus policy coverage; full suite 467/467 passing. |
 | 6. Migrate state and sampler APIs atomically | Complete | `e2eba75` | Expected structural compile failure observed; inventory found 131 matches across 19 files. All test executables build, focused 37/37 and full 472/472 pass, and the functional Random123 scan is empty. |
 | 7. Remove the build/package dependency | Complete | `a4d8e0e` | Disabled-package failure observed before cleanup. Clean build `/private/tmp/randblas-native-cbrng-build.AkjYv6`, install `/private/tmp/randblas-native-cbrng-install.87Bsis`, downstream, and examples all pass with Random123 disabled; full clean suite 472/472. The clean build also needed the existing non-Random123 `blaspp_DIR`. |
-| 8. Remove Random123 from CI | Complete | This commit | Unix/Windows setup, caches, outputs, scripts, and workflow arguments removed; CI scan empty and local suite 472/472. Neither `actionlint` nor `pwsh` is installed locally. |
-| 9. Finish user and developer documentation | Not started | — | — |
+| 8. Remove Random123 from CI | Complete | `d3ae3c0` | Unix/Windows setup, caches, outputs, scripts, and workflow arguments removed; CI scan empty and local suite 472/472. Neither `actionlint` nor `pwsh` is installed locally. |
+| 9. Finish user and developer documentation | Complete | This commit | Installation, API, tutorial, RNG developer, and test notes now describe the native state API; documentation scan leaves only reviewed attribution, compatibility, and release-history mentions. |
 | 10. Run final validation and performance comparison | Not started | — | — |
 
 ---
@@ -976,11 +976,11 @@ Pause for Checkpoint C review if requested.
 
 **Interfaces produced:** Current installation/API/tutorial documentation and complete permanent RNG developer notes.
 
-- [ ] **Step 1: Remove obsolete installation directions**
+- [x] **Step 1: Remove obsolete installation directions**
 
 Delete Random123 from dependency tables, manual install steps, Windows setup, CMake examples, and troubleshooting in `INSTALL.md` and `rtd/source/installation/index.rst`. State that the RNG is header-only and included with RandBLAS; do not make users configure an RNG package path.
 
-- [ ] **Step 2: Update public API and tutorial spellings**
+- [x] **Step 2: Update public API and tutorial spellings**
 
 Replace old engine-template examples with state-template examples. Document:
 
@@ -995,7 +995,7 @@ state.advance(1);
 
 Also document `DefaultRNGState`, output-only generation, `ctr_t`/`key_t`/`res_t`, const raw accessors, seed mapping, `RepackedOutput` ordering, thread independence, exact Philox integer compatibility, dense math-library reproducibility limits, and non-cryptographic status. Do not imply current samplers accept repacked 8-/16-bit outputs.
 
-- [ ] **Step 3: Finalize developer notes and test notes**
+- [x] **Step 3: Finalize developer notes and test notes**
 
 Remove the “in progress” language from `RandBLAS/rng/DevNotes.md`. Include:
 
@@ -1011,7 +1011,7 @@ Remove the “in progress” language from `RandBLAS/rng/DevNotes.md`. Include:
 
 Update `test/DevNotes.md` to describe `test_philox.cc`, static offline vectors, `test_repacked_output.cc`, `test_rng_state.cc`, transform tests, and sampler characterization. Historical Random123 mentions are allowed only when they explain provenance or migration.
 
-- [ ] **Step 4: Scan documentation and commit**
+- [x] **Step 4: Scan documentation and commit**
 
 Run:
 

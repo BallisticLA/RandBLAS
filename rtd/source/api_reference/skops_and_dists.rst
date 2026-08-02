@@ -77,7 +77,7 @@ Dense sketching, with Gaussians *et al.*
   .. doxygenfunction:: RandBLAS::fill_dense(DenseSkOp &S)
       :project: RandBLAS
 
-  .. doxygenfunction:: RandBLAS::fill_dense_unpacked(blas::Layout layout, const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t S_ro, int64_t S_co, T *buff, const RNGState<RNG> &seed)
+  .. doxygenfunction:: RandBLAS::fill_dense_unpacked(blas::Layout layout, const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t S_ro, int64_t S_co, T *buff, const State &seed)
       :project: RandBLAS
 
 
@@ -127,4 +127,3 @@ The unifying (C++20) concepts
   
     .. doxygenconcept:: RandBLAS::SketchingOperator
         :project: RandBLAS
-

@@ -122,7 +122,7 @@ This makes it possible to sample from a templated
 
   .. code:: c++
      
-     RNGState seed_state(8675309);
+     DefaultRNGState seed_state(8675309);
      auto S = D.sample<double>(seed_state); 
 
 In RandBLAS 1.0 it was necessary to construct a sketching operator by calling

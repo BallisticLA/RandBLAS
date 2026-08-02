@@ -132,7 +132,7 @@ narrow circumstances where one of these might be preferred in practice. We'll ex
 
     // Assume previous code defined integers (d1, d2, n) where 0 < d1 < d2 < n,
     // and "family" variable equal to ScalarDist::Gaussian or ScalarDist::Uniform,
-    // and a "state" variable of type RNGState.
+    // and a "state" variable satisfying CounterBasedRNGState.
     DenseDist D1(d1, n, family, Axis::Long);
     DenseDist D2(d2, n, family, Axis::Long);
     DenseSkOp S1(D1, state);

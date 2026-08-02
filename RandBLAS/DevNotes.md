@@ -4,8 +4,7 @@ This file reviews aspects of RandBLAS' implementation that aren't (currently) su
 for our user guide.
 
 
- * The random-number subsystem and its in-progress migration from Random123 to
-   native counter-based engines are documented in
+ * The native counter-based random-number subsystem is documented in
    [``RandBLAS/rng/DevNotes.md``](rng/DevNotes.md).
   
  * ``RandBLAS/dense_skops.hh`` has code for representing and sampling dense sketching operators.

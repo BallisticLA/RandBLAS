@@ -1,10 +1,8 @@
 # Random-number generation developer notes
 
-RandBLAS is migrating from Random123 to native, header-only counter-based
-random-number generation. The target API and invariants are recorded here while
-the implementation is in progress. Until the migration commit lands,
-`RandBLAS/random_gen.hh` and `RandBLAS/base.hh` still expose the Random123-backed
-implementation.
+RandBLAS provides native, header-only counter-based random-number generation.
+This document records its public contracts, reproducibility guarantees, and
+validation requirements.
 
 ## Public engine and state contracts
 
@@ -54,6 +52,11 @@ Each engine chooses its `ctr_t`, including the counter's period and the meaning
 of `advance(1)`. The counter type implements modular `advance(uint64_t)`;
 generic state and sampler code delegates to that operation.
 
+Native Philox uses `WordArray<word_t, N>` for `ctr_t`. Lane zero is the least
+significant word of an `N * W`-bit unsigned integer, and `advance(k)` adds `k`
+to that integer modulo `2^(N * W)`. One call to `generate` produces exactly one
+`N`-word block at the current counter without mutating the counter or key.
+
 An engine may provide `static key_t make_key(uint64_t)`. Only engines with that
 hook support `RNGState(uint64_t)`. Explicit key and counter/key construction
 remains available for known-answer tests and expert use. Native Philox preserves
@@ -99,20 +102,29 @@ variable-consumption behavior.
 
 ## Algorithm provenance and licensing
 
-The Philox algorithm, floating-point transformations, and known-answer material
+The Philox algorithm is described by Salmon, Moraes, Dror, and Shaw in
+[Parallel Random Numbers: As Easy as 1, 2, 3](https://doi.org/10.1145/2063384.2063405).
+The implementation, floating-point transformations, and known-answer material
 are adapted from D. E. Shaw Research's Random123 project. Files containing
 adapted implementation or test material retain the applicable D. E. Shaw
-Research BSD-3-Clause notice. Developer documentation will cite the Philox
-paper and the exact pinned Random123 revision used to generate static vectors.
+Research BSD-3-Clause notice. Static vectors were generated from Random123
+commit [`9545ff6413f258be2f04c1d319d99aaef7521150`](https://github.com/DEShawResearch/random123/commit/9545ff6413f258be2f04c1d319d99aaef7521150).
 
 Native Philox is a statistical counter-based generator, not a cryptographic
 random-number generator.
+
+The default engine is `rng::Philox<4, 32, 10>`. Its integer blocks are bitwise
+identical to Random123 Philox4x32-10 for the same counter and key. This guarantee
+also covers the default sparse sketch stream. Dense Gaussian sampling preserves
+the same formulas and block assignment, subject to the host-math limitation
+described above.
 
 ## Known-answer and statistical testing
 
 Static known-answer vectors cover each supported Philox word count, word width,
 and round count. Those vectors are generated once from the pinned Random123
-checkout; normal builds and tests never locate Random123. Separate tests cover
+commit `9545ff6413f258be2f04c1d319d99aaef7521150`; normal builds and tests never
+locate Random123. Separate tests cover
 counter carries and wraparound, engine/state concepts, seed mapping, output
 repacking, floating-point endpoints, Box--Muller reference values, statistical
 behavior, sampler state advancement, full/submatrix agreement, and OpenMP
@@ -121,6 +133,14 @@ thread-count independence.
 Characterization fixtures captured before the migration protect the default
 dense and sparse streams. Installed-package and example builds protect the
 absence of a transitive Random123 dependency.
+
+Dense samplers require 32- or 64-bit result words and an even number of lanes.
+`sample_indices_iid_uniform` requires at least two 32-bit lanes (three when
+also producing Rademacher signs), or at least one 64-bit lane (two with signs).
+Sparse Fisher--Yates sampling requires at least three 32-bit lanes or two
+64-bit lanes. These constraints are sampler contracts, not requirements of the
+base engine and state concepts. In particular, current samplers do not accept
+8- or 16-bit `RepackedOutput` results.
 
 ## Adding another engine
 

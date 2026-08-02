@@ -29,17 +29,31 @@ Tests of wrapper functions.
   * sketch_symmetric. It reduces to the same sketch_general no matter the type of the sketching operator.
 
 
-### test_basic_rng
+### basic_rng
 
 Relies on RandBLAS/testing/stats.hh.
 
-  * test_r123.cc has deterministic tests for Random123. The tests compare generated values
-    to reference values computed ahead of time. The tests are __extremely__ messy, since they're
-    adapted from tests in the official Random123 repository, and Random123 needs to handle a far wider
-    range of compilers and languages than we assume for RandBLAS.
+  * `test_philox.cc` validates the native Philox implementation against 204
+    static vectors generated offline from a pinned Random123 revision. The test
+    suite never locates or executes Random123.
+  * `test_word_array.cc` covers modular carry propagation and wraparound.
+  * `test_rng_state.cc` checks engine/state concepts, scalar seed mapping,
+    output-only block generation, explicit advancement, const raw accessors,
+    and compatibility with an engine whose counter representation is opaque.
+  * `test_repacked_output.cc` checks direct and nested repacking, including
+    least-significant-chunk-first ordering.
+  * `test_distributions.cc` checks the native integer-to-floating transforms,
+    Box--Muller reference values, endpoints, and word assignment.
+  * `test_sampler_regression.cc` protects the pre-migration dense and sparse
+    streams. Sparse outputs are bitwise exact; dense comparisons use the narrow
+    floating-point tolerance required for host math-library differences.
 
   * test_discrete.cc includes statistical tests for sampling from an index set with or without
     replacement.
+
+Sampler tests elsewhere cover state advancement, full/submatrix agreement, and
+OpenMP thread-count independence. Downstream-package and example builds verify
+that no external random-number package is required.
 
 
 # OLD
