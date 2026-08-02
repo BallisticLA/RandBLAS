@@ -17,9 +17,6 @@ outputs:
   blaspp-dir:
     description: "Directory containing blasppConfig.cmake."
     value: ${{ steps.setup.outputs.blaspp-dir }}
-  random123-dir:
-    description: "Directory containing the installed Random123 headers."
-    value: ${{ steps.setup.outputs.random123-dir }}
   googletest-prefix:
     description: "GoogleTest installation prefix."
     value: ${{ steps.setup.outputs.googletest-prefix }}
@@ -58,12 +55,6 @@ runs:
       with:
         path: ${{ github.workspace }}\..\windows-deps\blaspp-install
         key: windows-msvc-blaspp-windows-portability-ilp64-sequential-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
-
-    - name: cache Random123 installation
-      uses: actions/cache@v4
-      with:
-        path: ${{ github.workspace }}\..\windows-deps\Random123-install
-        key: windows-random123-2-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: cache LAPACK++ installation
       if: inputs.install-lapackpp == 'true'

@@ -172,17 +172,6 @@ if (-not (Test-Path -LiteralPath (Join-Path $gtestInstall "lib\cmake\GTest\GTest
     )
 }
 
-$random123Source = Join-Path $DependencyRoot "Random123"
-$random123Install = Join-Path $DependencyRoot "Random123-install"
-$random123Include = Join-Path $random123Install "include"
-if (-not (Test-Path -LiteralPath (Join-Path $random123Include "Random123\philox.h"))) {
-    Clone-Head -Url "https://github.com/DEShawResearch/Random123.git" `
-        -Destination $random123Source
-    New-Item -ItemType Directory -Force -Path $random123Include | Out-Null
-    Copy-Item -LiteralPath (Join-Path $random123Source "include\Random123") `
-        -Destination $random123Include -Recurse
-}
-
 $blasppSource = Join-Path $DependencyRoot "blaspp"
 $blasppBuild = Join-Path $DependencyRoot "blaspp-build"
 $blasppInstall = Join-Path $DependencyRoot "blaspp-install"
@@ -254,7 +243,6 @@ if ($InstallLapackpp) {
 
 $exports = [ordered]@{
     "blaspp_DIR" = Convert-ToCMakePath $blasppDir
-    "Random123_DIR" = Convert-ToCMakePath $random123Include
     "googletest_PREFIX" = Convert-ToCMakePath $gtestInstall
     "MKLROOT" = Convert-ToCMakePath $mklRoot
 }
@@ -274,8 +262,6 @@ if ($env:GITHUB_PATH) {
 # Stable output names consumed by action.yml.
 if ($env:GITHUB_OUTPUT) {
     "blaspp-dir=$(Convert-ToCMakePath $blasppDir)" |
-        Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-    "random123-dir=$(Convert-ToCMakePath $random123Include)" |
         Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
     "googletest-prefix=$(Convert-ToCMakePath $gtestInstall)" |
         Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8

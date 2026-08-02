@@ -78,7 +78,6 @@ if ($SetupDependencies) {
 }
 
 $blasppDir = Require-EnvironmentVariable "blaspp_DIR"
-$random123Dir = Require-EnvironmentVariable "Random123_DIR"
 $mklRoot = Require-EnvironmentVariable "MKLROOT"
 $mklBin = Join-Path $mklRoot "bin"
 if (-not (Test-Path -LiteralPath $mklBin)) {
@@ -98,10 +97,8 @@ function Install-RandBLAS {
     $build = Join-Path $WorkRoot "$Name-build"
     $install = Join-Path $WorkRoot "$Name-install"
     $configuredBlasppDir = $blasppDir
-    $configuredRandom123Dir = $random123Dir
     if ($UseNativeDependencyPaths) {
         $configuredBlasppDir = $blasppDir.Replace("/", "\")
-        $configuredRandom123Dir = $random123Dir.Replace("/", "\")
     }
     $arguments = @(
         "-S", $SourceRoot,
@@ -110,7 +107,6 @@ function Install-RandBLAS {
         "-DCMAKE_BUILD_TYPE=Release",
         "-DCMAKE_INSTALL_PREFIX=$(Convert-ToCMakePath $install)",
         "-Dblaspp_DIR=$configuredBlasppDir",
-        "-DRandom123_DIR=$configuredRandom123Dir",
         "-DBUILD_TESTS=$(if ($BuildTests) { 'ON' } else { 'OFF' })"
     )
     if ($BuildTests) {
@@ -165,9 +161,9 @@ switch ($Task) {
             -UseNativeDependencyPaths $true
         $build = Join-Path $WorkRoot "downstream-consumer-build"
 
-        # Deliberately omit blaspp_DIR and Random123_DIR. This makes the smoke
-        # test exercise the native-backslash dependency paths recorded by
-        # RandBLASConfig.cmake and guards their generated-path normalization.
+        # Deliberately omit blaspp_DIR. This makes the smoke test exercise the
+        # native-backslash dependency path recorded by RandBLASConfig.cmake
+        # and guards its generated-path normalization.
         Invoke-Checked -Program "cmake" -Arguments @(
             "-S", (Join-Path $SourceRoot "test\downstream"),
             "-B", $build,
@@ -198,7 +194,6 @@ switch ($Task) {
             "-DCMAKE_BUILD_TYPE=Release",
             "-DRandBLAS_DIR=$(Convert-ToCMakePath $randblasDir)",
             "-Dblaspp_DIR=$blasppDir",
-            "-DRandom123_DIR=$random123Dir",
             "-Dlapackpp_DIR=$lapackppDir"
         )
         Invoke-Checked -Program "cmake" -Arguments @("--build", $build)

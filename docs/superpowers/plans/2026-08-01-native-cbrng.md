@@ -56,8 +56,8 @@ Update this table as work lands; record benchmark medians and links to any CI ru
 | 4. Add `RepackedOutput` | Complete | `1e7614c` | Direct, nested, identity, forwarding, and rejection coverage; full suite 458/458 passing. |
 | 5. Add native floating-point transforms | Complete | `25e6852` | Retained endpoint and Box--Muller references plus policy coverage; full suite 467/467 passing. |
 | 6. Migrate state and sampler APIs atomically | Complete | `e2eba75` | Expected structural compile failure observed; inventory found 131 matches across 19 files. All test executables build, focused 37/37 and full 472/472 pass, and the functional Random123 scan is empty. |
-| 7. Remove the build/package dependency | Complete | This commit | Disabled-package failure observed before cleanup. Clean build `/private/tmp/randblas-native-cbrng-build.AkjYv6`, install `/private/tmp/randblas-native-cbrng-install.87Bsis`, downstream, and examples all pass with Random123 disabled; full clean suite 472/472. The clean build also needed the existing non-Random123 `blaspp_DIR`. |
-| 8. Remove Random123 from CI | Not started | — | — |
+| 7. Remove the build/package dependency | Complete | `a4d8e0e` | Disabled-package failure observed before cleanup. Clean build `/private/tmp/randblas-native-cbrng-build.AkjYv6`, install `/private/tmp/randblas-native-cbrng-install.87Bsis`, downstream, and examples all pass with Random123 disabled; full clean suite 472/472. The clean build also needed the existing non-Random123 `blaspp_DIR`. |
+| 8. Remove Random123 from CI | Complete | This commit | Unix/Windows setup, caches, outputs, scripts, and workflow arguments removed; CI scan empty and local suite 472/472. Neither `actionlint` nor `pwsh` is installed locally. |
 | 9. Finish user and developer documentation | Not started | — | — |
 | 10. Run final validation and performance comparison | Not started | — | — |
 
@@ -919,15 +919,15 @@ Expected: no functional build/package match; installed headers may mention Rando
 
 **Interfaces produced:** Unix and Windows CI configurations with no Random123 checkout, cache, input, output, environment variable, or CMake argument.
 
-- [ ] **Step 1: Remove Unix dependency setup and workflow plumbing**
+- [x] **Step 1: Remove Unix dependency setup and workflow plumbing**
 
 Delete the Random123 clone/install/export steps and any action descriptions that promise it from `.github/actions/setup-randblas-deps/action.yml`. Remove `-DRandom123_DIR=...`, cache keys/paths, and action outputs from the Unix workflows. Keep BLAS++, LAPACK++, GTest, OpenMP, CUDA-aware host, sanitizer, examples, and downstream coverage unchanged.
 
-- [ ] **Step 2: Remove Windows dependency setup and workflow plumbing**
+- [x] **Step 2: Remove Windows dependency setup and workflow plumbing**
 
 Delete Random123 inputs/cache declarations from the Windows composite action, clone/install/result handling from `setup.ps1`, and required environment/CMake arguments from `run-ci.ps1`. Preserve PowerShell error handling, vcpkg/toolchain behavior, runtime DLL staging, and `/openmp:experimental` behavior.
 
-- [ ] **Step 3: Validate YAML/PowerShell text and local equivalents**
+- [x] **Step 3: Validate YAML/PowerShell text and local equivalents**
 
 Run:
 
@@ -943,7 +943,7 @@ ctest --test-dir build-randblas --output-on-failure
 
 Expected: no CI matches and the local equivalent remains green. If `actionlint` is already installed, also run `actionlint`; do not add a new tool dependency solely for this task.
 
-- [ ] **Step 4: Commit Checkpoint C**
+- [x] **Step 4: Commit Checkpoint C**
 
 ```bash
 cd /Users/riley/randnla/dev/repo-randblas
