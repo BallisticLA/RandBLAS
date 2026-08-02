@@ -64,6 +64,7 @@ if (GTest_FOUND)
         basic_rng/test_discrete.cc
         basic_rng/test_continuous.cc
         basic_rng/test_distortion.cc
+        basic_rng/test_sampler_regression.cc
     )
     add_executable(stat_tests ${STAT_SOURCES})
     target_link_libraries(stat_tests RandBLAS GTest::GTest GTest::Main)
