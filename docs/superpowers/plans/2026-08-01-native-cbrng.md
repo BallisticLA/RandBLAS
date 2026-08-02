@@ -59,7 +59,7 @@ Update this table as work lands; record benchmark medians and links to any CI ru
 | 7. Remove the build/package dependency | Complete | `a4d8e0e` | Disabled-package failure observed before cleanup. Clean build `/private/tmp/randblas-native-cbrng-build.AkjYv6`, install `/private/tmp/randblas-native-cbrng-install.87Bsis`, downstream, and examples all pass with Random123 disabled; full clean suite 472/472. The clean build also needed the existing non-Random123 `blaspp_DIR`. |
 | 8. Remove Random123 from CI | Complete | `d3ae3c0` | Unix/Windows setup, caches, outputs, scripts, and workflow arguments removed; CI scan empty and local suite 472/472. Neither `actionlint` nor `pwsh` is installed locally. |
 | 9. Finish user and developer documentation | Complete | `949f887` | Installation, API, tutorial, RNG developer, and test notes now describe the native state API; documentation scan leaves only reviewed attribution, compatibility, and release-history mentions. |
-| 10. Run final validation and performance comparison | Awaiting remote CI | — | Local build/package/example validation and review are complete. The remote PR still points to `25f0cf7`, so its green CI matrix does not yet cover the implementation through `7b81ecb`. |
+| 10. Run final validation and performance comparison | Complete | This commit | Clean local build/package/example validation, performance comparison, review, and all 21 PR checks pass. CI exposed one lost transitive `<math.h>` dependency; `57ff447` made floating-point `abs` calls explicit and restored all Linux configurations. |
 
 ---
 
@@ -1109,9 +1109,10 @@ Expected:
 
 Cross-check all 14 acceptance criteria in the approved design. In particular, verify the 204 KAT row count, opaque-counter state test, direct/nested repacking tests, bitwise sparse characterization, dense tolerance boundary, thread tests, package consumer, examples, and benchmark comparison. If any criterion lacks direct evidence, add the smallest test or documentation change and rerun its owning suite.
 
-#### Local validation record (2026-08-02)
+#### Final validation record (2026-08-02)
 
-- Final source head: `7b81ecb`; Clang 19.1.3, Release, OpenMP enabled.
+- Final implementation head: `57ff447`; local validation used Clang 19.1.3,
+  Release, with OpenMP enabled.
 - Clean build: `/private/tmp/randblas-native-cbrng-final2.sVeWeF`.
 - Clean install: `/private/tmp/randblas-native-cbrng-install-final2.8cSdjW`.
 - Downstream consumer: `/private/tmp/randblas-native-cbrng-downstream-final2.c5uzZA`.
@@ -1135,12 +1136,24 @@ Cross-check all 14 acceptance criteria in the approved design. In particular, ve
   KAT-count scans now pass. `bash -n docker/tsan/run.sh` also passes.
 - An inline full-branch review found and resolved the performance and TSAN
   cleanup issues above. Acceptance criteria 1--10 and 12--14 have direct local
-  evidence. Criterion 11 remains pending on CI for the implementation head.
-- `sphinx-build` is not installed in the local Spack environment. The PR's docs
-  job is green at the older remote head, so the edited documentation still
-  needs the post-push docs run.
+  evidence.
+- The first implementation-head CI run exposed unqualified floating-point
+  `abs` calls that had accidentally depended on Random123 transitively including
+  `<math.h>`. On Linux, those calls selected integer `abs`, corrupting sparse
+  conversion thresholds and numerical error bounds. Commit `57ff447` added the
+  owning `<cmath>` includes and qualified the affected calls as `std::abs`; the
+  focused failing families and the complete 472-test local suite then passed.
+- PR #182's complete 21-check matrix passes on `57ff447`, including
+  [core](https://github.com/BallisticLA/RandBLAS/actions/runs/30761829312),
+  [documentation](https://github.com/BallisticLA/RandBLAS/actions/runs/30761829302),
+  [downstream consumers](https://github.com/BallisticLA/RandBLAS/actions/runs/30761829290),
+  [examples](https://github.com/BallisticLA/RandBLAS/actions/runs/30761829255),
+  [thread sanitizer](https://github.com/BallisticLA/RandBLAS/actions/runs/30761829295),
+  and CLA checks. This supplies criterion 11's Linux/macOS/Windows, sanitizer,
+  package-consumer, example, and Sphinx evidence; all 14 acceptance criteria
+  are satisfied.
 
-- [ ] **Step 6: Request code review, address findings, and make the final plan-record commit**
+- [x] **Step 6: Request code review, address findings, and make the final plan-record commit**
 
 Use `superpowers:requesting-code-review` against the full branch diff. After findings are resolved and verification is rerun:
 
