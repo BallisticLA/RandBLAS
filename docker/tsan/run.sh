@@ -53,7 +53,6 @@ case "${subcommand}" in
                     -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
                     -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread" \
                     -Dblaspp_DIR="${blaspp_DIR}" \
-                    -DRandom123_DIR="${Random123_DIR}" \
                     /work/RandBLAS
                 make -j"$(nproc)"
                 # ignore_noninstrumented_modules=1 silences spurious reports

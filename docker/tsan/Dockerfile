@@ -6,9 +6,9 @@
 # Build:   docker build -t randblas-tsan docker/tsan/
 # Run:     ./docker/tsan/run.sh
 #
-# The image bakes blaspp + Random123 into /opt so that iterating on RandBLAS
-# itself is fast — only RandBLAS gets rebuilt per session. Bump the upstream
-# refs in this Dockerfile to refresh those dependencies.
+# The image bakes blaspp into /opt so that iterating on RandBLAS itself is
+# fast — only RandBLAS gets rebuilt per session. Bump the upstream ref in this
+# Dockerfile to refresh that dependency.
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -38,15 +38,7 @@ RUN git clone --depth 1 https://github.com/icl-utk-edu/blaspp.git /tmp/blaspp \
     && cmake --build /tmp/blaspp-build -j"$(nproc)" --target install \
     && rm -rf /tmp/blaspp /tmp/blaspp-build
 
-# Random123: header-only. cp -R is portable (BSD/GNU) so we don't need the
-# Random123 Makefile's `install-include` target (which uses GNU `cp -d`).
-RUN git clone --depth 1 https://github.com/DEShawResearch/Random123.git /tmp/Random123 \
-    && mkdir -p /opt/Random123-install/include \
-    && cp -R /tmp/Random123/include/Random123 /opt/Random123-install/include/ \
-    && rm -rf /tmp/Random123
-
 ENV blaspp_DIR=/opt/blaspp-install/lib/cmake/blaspp
-ENV Random123_DIR=/opt/Random123-install/include
 
 WORKDIR /work
 CMD ["/bin/bash"]
