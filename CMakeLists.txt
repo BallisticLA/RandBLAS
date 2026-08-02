@@ -12,7 +12,6 @@ include(RuntimeDLLs)
 
 # find dependencies
 find_package(blaspp REQUIRED)
-find_package(Random123 REQUIRED)
 include(OpenMP)
 include(MKL_sparse)
 

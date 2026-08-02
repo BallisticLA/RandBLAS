@@ -55,8 +55,8 @@ Update this table as work lands; record benchmark medians and links to any CI ru
 | 3. Add native Philox and static KATs | Complete | `f58a47b` | 204 static vectors from pinned Random123 `9545ff6`; 68 compile-time specializations; full suite 452/452 passing. |
 | 4. Add `RepackedOutput` | Complete | `1e7614c` | Direct, nested, identity, forwarding, and rejection coverage; full suite 458/458 passing. |
 | 5. Add native floating-point transforms | Complete | `25e6852` | Retained endpoint and Box--Muller references plus policy coverage; full suite 467/467 passing. |
-| 6. Migrate state and sampler APIs atomically | Complete | This commit | Expected structural compile failure observed; inventory found 131 matches across 19 files. All test executables build, focused 37/37 and full 472/472 pass, and the functional Random123 scan is empty. |
-| 7. Remove the build/package dependency | Not started | — | — |
+| 6. Migrate state and sampler APIs atomically | Complete | `e2eba75` | Expected structural compile failure observed; inventory found 131 matches across 19 files. All test executables build, focused 37/37 and full 472/472 pass, and the functional Random123 scan is empty. |
+| 7. Remove the build/package dependency | Complete | This commit | Disabled-package failure observed before cleanup. Clean build `/private/tmp/randblas-native-cbrng-build.AkjYv6`, install `/private/tmp/randblas-native-cbrng-install.87Bsis`, downstream, and examples all pass with Random123 disabled; full clean suite 472/472. The clean build also needed the existing non-Random123 `blaspp_DIR`. |
 | 8. Remove Random123 from CI | Not started | — | — |
 | 9. Finish user and developer documentation | Not started | — | — |
 | 10. Run final validation and performance comparison | Not started | — | — |
@@ -833,13 +833,13 @@ Pause for Checkpoint B review if requested.
 
 **Interfaces produced:** A build tree, installed package, downstream consumer, and examples with no Random123 installation or CMake variable.
 
-- [ ] **Step 1: Add a dependency-free package assertion**
+- [x] **Step 1: Add a dependency-free package assertion**
 
 Extend the installed downstream smoke test so `test/downstream/main.cc` constructs `DefaultRNGState`, generates a block, advances once, and calls one public dense sampling function. The consumer CMake command must not receive `Random123_DIR` or add a Random123 module path.
 
 Install the current package and configure the downstream consumer with `-DCMAKE_DISABLE_FIND_PACKAGE_Random123=ON`. Expected before CMake cleanup: configuration fails in `RandBLASConfig.cmake` at `find_dependency(Random123)`, even though Random123 is installed elsewhere on the machine. After cleanup, the same option must be harmless and configuration must pass.
 
-- [ ] **Step 2: Remove source-tree and interface dependency declarations**
+- [x] **Step 2: Remove source-tree and interface dependency declarations**
 
 Make these exact removals:
 
@@ -850,11 +850,11 @@ Make these exact removals:
 - remove every `${Random123_DIR}` include from `examples/CMakeLists.txt`;
 - delete `CMake/FindRandom123.cmake`.
 
-- [ ] **Step 3: Remove the installed transitive dependency**
+- [x] **Step 3: Remove the installed transitive dependency**
 
 In `CMake/rb_config.cmake`, remove conversion/storage of `Random123_DIR` and installation of `FindRandom123.cmake`. In `CMake/RandBLASConfig.cmake.in`, remove `Random123_DIR` fallback and `find_dependency(Random123)` while leaving BLAS++, OpenMP, MKL, and version metadata intact.
 
-- [ ] **Step 4: Reconfigure and build with the dependency path explicitly absent**
+- [x] **Step 4: Reconfigure and build with the dependency path explicitly absent**
 
 First find the current cache entries, then create a clean temporary build so an old include directory cannot mask a dependency:
 
@@ -871,7 +871,7 @@ ctest --test-dir "$native_build" --output-on-failure
 
 Expected: configure, build, and tests succeed without passing a Random123 location. Run Steps 4–6 in one shell, or record the concrete `native_build` and `native_install` paths in the execution log and restore those two variables when resuming.
 
-- [ ] **Step 5: Install and test the downstream consumer and examples**
+- [x] **Step 5: Install and test the downstream consumer and examples**
 
 Use the clean build's install target, a clean downstream build, and a clean examples build:
 
@@ -887,7 +887,7 @@ cmake --build "$examples_build" -j
 
 Expected: both consumers configure and compile without `Random123_DIR`.
 
-- [ ] **Step 6: Scan CMake and installed metadata and commit**
+- [x] **Step 6: Scan CMake and installed metadata and commit**
 
 ```bash
 cd /Users/riley/randnla/dev/repo-randblas

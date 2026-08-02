@@ -32,9 +32,6 @@ set(
 add_executable(
     tls_dense_skop ${tls_dense_skop_cxx}
 )
-target_include_directories(
-    tls_dense_skop PUBLIC ${Random123_DIR}
-)
 target_link_libraries(
     tls_dense_skop PUBLIC RandBLAS blaspp lapackpp
 )
@@ -45,18 +42,12 @@ set(
 add_executable(
     tls_sparse_skop ${tls_sparse_skop_cxx}
 )
-target_include_directories(
-    tls_sparse_skop PUBLIC ${Random123_DIR}
-)
 target_link_libraries(
     tls_sparse_skop PUBLIC RandBLAS blaspp lapackpp
 )
 
 add_executable(
     slra_svd_synthetic sparse-low-rank-approx/svd_rank1_plus_noise.cc
-)
-target_include_directories(
-    slra_svd_synthetic PUBLIC ${Random123_DIR}
 )
 target_link_libraries(
     slra_svd_synthetic PUBLIC RandBLAS blaspp lapackpp
@@ -77,18 +68,12 @@ FetchContent_MakeAvailable(
 add_executable(
     slra_svd_fmm sparse-low-rank-approx/svd_matrixmarket.cc
 )
-target_include_directories(
-    slra_svd_fmm PUBLIC ${Random123_DIR}
-)
 target_link_libraries(
     slra_svd_fmm PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market
 )
 
 add_executable(
     slra_qrcp sparse-low-rank-approx/qrcp_matrixmarket.cc
-)
-target_include_directories(
-    slra_qrcp PUBLIC ${Random123_DIR}
 )
 target_link_libraries(
     slra_qrcp PUBLIC RandBLAS blaspp lapackpp fast_matrix_market::fast_matrix_market
@@ -97,18 +82,12 @@ target_link_libraries(
 add_executable(
     spmm_performance simple-kernel-benchmarks/spmm_performance.cc
 )
-target_include_directories(
-    spmm_performance PUBLIC ${Random123_DIR}
-)
 target_link_libraries(
     spmm_performance PUBLIC RandBLAS blaspp lapackpp
 )
 
 add_executable(
     sketch_general_performance simple-kernel-benchmarks/sketch_general_performance.cc
-)
-target_include_directories(
-    sketch_general_performance PUBLIC ${Random123_DIR}
 )
 target_link_libraries(
     sketch_general_performance PUBLIC RandBLAS blaspp lapackpp

@@ -14,12 +14,6 @@ if (NOT blaspp_DIR)
 endif ()
 find_dependency(blaspp)
 
-# Random123
-if (NOT Random123_DIR)
-    set(Random123_DIR "@RandBLAS_CONFIG_RANDOM123_DIR@")
-endif ()
-find_dependency(Random123)
-
 # OpenMP
 set(RandBLAS_HAS_OpenMP @RandBLAS_HAS_OpenMP@)
 if (RandBLAS_HAS_OpenMP)
