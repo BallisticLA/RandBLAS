@@ -53,8 +53,8 @@ Update this table as work lands; record benchmark medians and links to any CI ru
 | 1. Characterize behavior and record baseline | Complete | `8fdb96b` | LLVM/Clang 19.1.3, Release, one thread. Dense 8192x1024 median 16,561,709 ticks; range 16,430,125–31,743,500. Sparse left/ColMajor warm min/median 4,226/4,280 us; COLD min 4,390 us. |
 | 2. Add full-width word arrays | Complete | `ed7f13f` | Nine focused tests; full suite 452/452 passing. |
 | 3. Add native Philox and static KATs | Complete | `f58a47b` | 204 static vectors from pinned Random123 `9545ff6`; 68 compile-time specializations; full suite 452/452 passing. |
-| 4. Add `RepackedOutput` | Complete | This commit | Direct, nested, identity, forwarding, and rejection coverage; full suite 458/458 passing. |
-| 5. Add native floating-point transforms | Not started | — | — |
+| 4. Add `RepackedOutput` | Complete | `1e7614c` | Direct, nested, identity, forwarding, and rejection coverage; full suite 458/458 passing. |
+| 5. Add native floating-point transforms | Complete | This commit | Retained endpoint and Box--Muller references plus policy coverage; full suite 467/467 passing. |
 | 6. Migrate state and sampler APIs atomically | Not started | — | — |
 | 7. Remove the build/package dependency | Not started | — | — |
 | 8. Remove Random123 from CI | Not started | — | — |
@@ -532,7 +532,7 @@ git commit -m "feat: add block output repacking"
 
 **Interfaces produced:** Native `u01`, `uneg11`, block conversion, Box--Muller, and dense transform policies under `RandBLAS::rng`.
 
-- [ ] **Step 1: Write failing endpoint and reference tests**
+- [x] **Step 1: Write failing endpoint and reference tests**
 
 Adapt only the Random123 conversion and Box--Muller cases RandBLAS actually uses. Test `uint32_t -> float`, `uint32_t -> double` where used, and `uint64_t -> double`. Include zero, one, midpoint/high-bit, maximum, and the reference values retained from the old test. Verify endpoint openness/closedness explicitly.
 
@@ -553,7 +553,7 @@ Until the final native `RNGState` lands in Task 6, use a minimal test-only state
 
 Run `stat_tests`. Expected: compilation fails because the native transform header and functions do not exist.
 
-- [ ] **Step 2: Implement the retained formulas faithfully**
+- [x] **Step 2: Implement the retained formulas faithfully**
 
 Implement scalar and block helpers using the same constants, scaling, endpoint convention, precision selection, angle/radius assignment, and sine/cosine output order as the current Random123-backed code. Preserve the rule that 32-bit source words produce `float` by default and 64-bit words produce `double` by default. The Box--Muller block length must be even.
 
@@ -575,7 +575,7 @@ struct boxmul {
 
 `detail::StateCanGenerateFixedUnsignedBlock` here is a local structural requirement in the distribution header; it must not depend on the umbrella header or create an include cycle. Task 6's public `CounterBasedRNGState` concept is the authoritative sampler boundary and must accept the same test state. Each wrapper fills a local `State::res_t`, calls `state.generate`, and applies the pure transform. It does not advance the state. Use `std::sin`, `std::cos`, `std::log`, and `std::sqrt`; remove the global `sincospi` shim only in Task 6 when Random123 headers are removed. Retain applicable D. E. Shaw Research notices.
 
-- [ ] **Step 3: Verify native transforms and statistical tests**
+- [x] **Step 3: Verify native transforms and statistical tests**
 
 Run:
 
@@ -588,7 +588,7 @@ ctest --test-dir build-randblas --output-on-failure -R 'Distribution|Continuous|
 
 Expected: native reference tests pass, and existing Random123-backed statistical/characterization tests remain green.
 
-- [ ] **Step 4: Commit Checkpoint A**
+- [x] **Step 4: Commit Checkpoint A**
 
 ```bash
 cd /Users/riley/randnla/dev/repo-randblas

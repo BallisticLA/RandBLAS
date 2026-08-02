@@ -32,6 +32,7 @@
 /// @file
 
 #include "compilers.hh"
+#include "rng/distributions.hh"
 #include "rng/philox.hh"
 #include "rng/repacked_output.hh"
 #include "rng/word_array.hh"
