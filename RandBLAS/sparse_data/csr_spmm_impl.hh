@@ -65,7 +65,12 @@ static void apply_csr_to_vector_ik_impl(
     // ^ silence compiler complaints if UnitStride == true.
     for (int64_t i = 0; i < len_Av; ++i) {
         T Av_i_diff = 0.0;
+        // MSVC's /openmp:llvm mode rejects the simd directive (C7660), and its
+        // /openmp:experimental mode ignores the reduction clause without
+        // vectorizing -- so on MSVC this pragma buys nothing either way.
+        #if !defined(_MSC_VER)
         #pragma omp simd reduction(+:Av_i_diff)
+        #endif
         for (int64_t ell = rowptr[i]; ell < rowptr[i+1]; ++ell) {
             int64_t j = colidxs[ell];
             if constexpr (UnitStride) {
