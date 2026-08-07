@@ -396,7 +396,7 @@ git commit -m "refactor: simplify native RNG state interfaces"
 - Preserves: `rng::u01<Real>(word)`, `rng::boxmuller(angle_word, radius_word)`, `rng::uneg11::convert<Real>(word)`, `rng::uneg11::generate(state)`, and `rng::boxmul::generate(state)`.
 - Removes: `rng::u01_block`, `rng::uneg11_block`, and `rng::boxmuller_block`.
 
-- [ ] **Step 1: Record the passing scalar and policy characterization**
+- [x] **Step 1: Record the passing scalar and policy characterization**
 
 Run before editing:
 
@@ -409,7 +409,7 @@ ctest --output-on-failure -R 'Distribution|Continuous|SamplerRegression'
 
 Expected: the current scalar reference, endpoint, policy, continuous-statistical, and sampler-regression tests pass. This is the behavior oracle for the readability refactor.
 
-- [ ] **Step 2: Rewrite tests around the supported API**
+- [x] **Step 2: Rewrite tests around the supported API**
 
 In `test/basic_rng/test_distributions.cc`:
 
@@ -440,7 +440,7 @@ for (std::size_t i = 0; i < bits.size(); i += 2) {
 
 Retain the compile-time rejection of an odd Box--Muller result length.
 
-- [ ] **Step 3: Remove the local concept layer and block helpers**
+- [x] **Step 3: Remove the local concept layer and block helpers**
 
 Include `concepts.hh` from `distributions.hh`. Delete these local concepts:
 
@@ -523,7 +523,7 @@ template <typename word_t>
 
 Do not change constants, casts, endpoints, word assignment, or math functions.
 
-- [ ] **Step 4: Put straightforward loops in the two policies**
+- [x] **Step 4: Put straightforward loops in the two policies**
 
 Implement the policies with the public state concept and direct loops:
 
@@ -584,7 +584,7 @@ struct boxmul {
 
 Each `generate` obtains one `res_t` block exactly once and never advances the input state. `uneg11::generate` loops over individual lanes and calls `convert`; `boxmul::generate` loops by two and calls `boxmuller`. Return `std::array<default_real_t<word_t>, N>` where `N` is the state result extent.
 
-- [ ] **Step 5: Verify behavior and reduced surface area**
+- [x] **Step 5: Verify behavior and reduced surface area**
 
 Run:
 
@@ -601,7 +601,7 @@ git diff --check
 
 Expected: all tests pass and the source scan has no matches. The scalar formulas should be visually dominant in the final header.
 
-- [ ] **Step 6: Commit the distribution refactor**
+- [x] **Step 6: Commit the distribution refactor**
 
 ```bash
 cd /Users/riley/randnla/dev/repo-randblas

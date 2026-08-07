@@ -46,11 +46,18 @@ struct FixedState {
     using res_t = std::array<Word, N>;
 
     res_t values{};
+    std::uint64_t blocks{};
 
     constexpr void generate(res_t& output) const noexcept {
         output = values;
     }
+
+    constexpr void advance(std::uint64_t amount) noexcept {
+        blocks += amount;
+    }
 };
+
+static_assert(RandBLAS::GeneratorState<FixedState<std::uint32_t, 4>>);
 
 template <class State>
 concept CanGenerateNormals = requires(State const& state) {
@@ -136,21 +143,6 @@ TEST(DistributionConversion, Uneg11IsClosedAndNeverZero) {
     }
 }
 
-TEST(DistributionConversion, BlockHelpersPreserveLengthAndLaneMapping) {
-    std::array<std::uint32_t, 4> input{
-        0, 1, UINT32_C(0x80000000), UINT32_MAX};
-    auto uniform = RandBLAS::rng::u01_block<float>(input);
-    auto symmetric = RandBLAS::rng::uneg11_block<float>(input);
-
-    static_assert(std::tuple_size_v<decltype(uniform)> == input.size());
-    static_assert(std::tuple_size_v<decltype(symmetric)> == input.size());
-    for (std::size_t i = 0; i < input.size(); ++i) {
-        EXPECT_EQ(uniform[i], RandBLAS::rng::u01<float>(input[i]));
-        EXPECT_EQ(symmetric[i],
-                  RandBLAS::rng::uneg11::convert<float>(input[i]));
-    }
-}
-
 TEST(DistributionConversion, BoxMullerMatchesRetainedReferences) {
     auto result32 = RandBLAS::rng::boxmuller(
         UINT32_C(0x243f6a88), UINT32_C(0x85a308d3));
@@ -190,8 +182,15 @@ TEST(DistributionPolicy, GeneratesOneFixedBlockWithoutAdvancingState) {
     EXPECT_EQ(state.values, state_before);
     EXPECT_EQ(uniform.size(), bits.size());
     EXPECT_EQ(normal.size(), bits.size());
-    EXPECT_EQ(uniform, RandBLAS::rng::uneg11_block<float>(bits));
-    EXPECT_EQ(normal, RandBLAS::rng::boxmuller_block<float>(bits));
+    for (std::size_t i = 0; i < bits.size(); ++i) {
+        EXPECT_EQ(uniform[i],
+                  RandBLAS::rng::uneg11::convert<float>(bits[i]));
+    }
+    for (std::size_t i = 0; i < bits.size(); i += 2) {
+        auto pair = RandBLAS::rng::boxmuller(bits[i], bits[i + 1]);
+        EXPECT_EQ(normal[i], pair[0]);
+        EXPECT_EQ(normal[i + 1], pair[1]);
+    }
 }
 
 TEST(DistributionPolicy, RejectsOddNormalBlockLengths) {

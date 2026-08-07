@@ -34,11 +34,11 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include "concepts.hh"
+
 #include <array>
 #include <cmath>
-#include <concepts>
 #include <cstddef>
-#include <cstdint>
 #include <limits>
 #include <tuple>
 #include <type_traits>
@@ -47,143 +47,92 @@ namespace RandBLAS::rng {
 
 namespace detail {
 
-template <class Word>
-concept SupportedDistributionWord =
-    std::unsigned_integral<Word> &&
-    (std::numeric_limits<Word>::digits == 32 ||
-     std::numeric_limits<Word>::digits == 64);
-
-template <class Real>
-concept SupportedDistributionReal =
-    std::same_as<std::remove_cv_t<Real>, float> ||
-    std::same_as<std::remove_cv_t<Real>, double>;
-
-template <SupportedDistributionWord Word>
+template <typename word_t>
 using default_real_t =
-    std::conditional_t<std::numeric_limits<Word>::digits == 32, float, double>;
-
-template <SupportedDistributionReal Real, SupportedDistributionWord Word>
-[[nodiscard]] constexpr Real uneg11_value(Word input) noexcept {
-    using signed_word_t = std::make_signed_t<Word>;
-    constexpr Real factor =
-        Real{1} / (static_cast<Real>(std::numeric_limits<signed_word_t>::max()) +
-                   Real{1});
-    constexpr Real half_factor = Real{0.5} * factor;
-    return static_cast<Real>(static_cast<signed_word_t>(input)) * factor +
-           half_factor;
-}
-
-template <class State>
-concept StateCanGenerateFixedUnsignedBlock = requires {
-    typename State::res_t;
-    typename State::res_t::value_type;
-    requires SupportedDistributionWord<typename State::res_t::value_type>;
-    requires(std::tuple_size_v<typename State::res_t> > 0);
-} && requires(State const& state, typename State::res_t& output) {
-    { state.generate(output) } -> std::same_as<void>;
-};
+    std::conditional_t<sizeof(word_t) == 4, float, double>;
 
 } // namespace detail
 
 /// Convert a random unsigned word to a floating-point value in (0, 1].
-template <detail::SupportedDistributionReal Real,
-          detail::SupportedDistributionWord Word>
-[[nodiscard]] constexpr Real u01(Word input) noexcept {
-    constexpr Real factor =
-        Real{1} / (static_cast<Real>(std::numeric_limits<Word>::max()) +
-                   Real{1});
-    constexpr Real half_factor = Real{0.5} * factor;
-    return static_cast<Real>(input) * factor + half_factor;
-}
-
-template <detail::SupportedDistributionReal Real,
-          detail::SupportedDistributionWord Word, std::size_t N>
-[[nodiscard]] constexpr auto u01_block(
-    std::array<Word, N> const& input) noexcept {
-    std::array<Real, N> output{};
-    for (std::size_t i = 0; i < N; ++i) {
-        output[i] = u01<Real>(input[i]);
-    }
-    return output;
-}
-
-template <detail::SupportedDistributionReal Real,
-          detail::SupportedDistributionWord Word, std::size_t N>
-[[nodiscard]] constexpr auto uneg11_block(
-    std::array<Word, N> const& input) noexcept {
-    std::array<Real, N> output{};
-    for (std::size_t i = 0; i < N; ++i) {
-        output[i] = detail::uneg11_value<Real>(input[i]);
-    }
-    return output;
-}
-
-template <detail::SupportedDistributionWord Word, std::size_t N>
-[[nodiscard]] constexpr auto uneg11_block(
-    std::array<Word, N> const& input) noexcept {
-    return uneg11_block<detail::default_real_t<Word>>(input);
+template <typename real_t, typename word_t>
+[[nodiscard]] constexpr real_t u01(word_t input) noexcept {
+    static_assert(std::is_unsigned_v<word_t>);
+    static_assert(sizeof(word_t) == 4 || sizeof(word_t) == 8);
+    static_assert(std::is_same_v<real_t, float> ||
+                  std::is_same_v<real_t, double>);
+    constexpr real_t factor =
+        real_t{1} /
+        (static_cast<real_t>(std::numeric_limits<word_t>::max()) + real_t{1});
+    constexpr real_t half_factor = real_t{0.5} * factor;
+    return static_cast<real_t>(input) * factor + half_factor;
 }
 
 /// Symmetric-uniform conversion and dense-sampling transform policy.
 struct uneg11 {
     /// Convert a random unsigned word to a floating-point value in [-1, 1].
-    template <detail::SupportedDistributionReal Real,
-              detail::SupportedDistributionWord Word>
-    [[nodiscard]] static constexpr Real convert(Word input) noexcept {
-        return detail::uneg11_value<Real>(input);
+    template <typename real_t, typename word_t>
+    [[nodiscard]] static constexpr real_t convert(word_t input) noexcept {
+        static_assert(std::is_unsigned_v<word_t>);
+        static_assert(sizeof(word_t) == 4 || sizeof(word_t) == 8);
+        static_assert(std::is_same_v<real_t, float> ||
+                      std::is_same_v<real_t, double>);
+        using signed_word_t = std::make_signed_t<word_t>;
+        constexpr real_t factor =
+            real_t{1} /
+            (static_cast<real_t>(
+                 std::numeric_limits<signed_word_t>::max()) + real_t{1});
+        constexpr real_t half_factor = real_t{0.5} * factor;
+        return static_cast<real_t>(static_cast<signed_word_t>(input)) * factor +
+               half_factor;
     }
 
-    template <class State>
-        requires detail::StateCanGenerateFixedUnsignedBlock<State>
-    [[nodiscard]] static auto generate(State const& state) {
-        typename State::res_t bits{};
+    template <GeneratorState state_t>
+    [[nodiscard]] static auto generate(state_t const& state) {
+        using bits_t = typename state_t::res_t;
+        using word_t = typename bits_t::value_type;
+        using real_t = detail::default_real_t<word_t>;
+        constexpr std::size_t count = std::tuple_size_v<bits_t>;
+        bits_t bits{};
+        std::array<real_t, count> output{};
         state.generate(bits);
-        return uneg11_block(bits);
+        for (std::size_t i = 0; i < count; ++i) {
+            output[i] = convert<real_t>(bits[i]);
+        }
+        return output;
     }
 };
 
 /// Transform an angle word and a radius word into sine-then-cosine normals.
-template <detail::SupportedDistributionWord Word>
-[[nodiscard]] inline auto boxmuller(Word angle_word, Word radius_word) {
-    using real_t = detail::default_real_t<Word>;
+template <typename word_t>
+[[nodiscard]] inline auto boxmuller(word_t angle_word, word_t radius_word) {
+    static_assert(std::is_unsigned_v<word_t>);
+    static_assert(sizeof(word_t) == 4 || sizeof(word_t) == 8);
+    using real_t = detail::default_real_t<word_t>;
     constexpr real_t pi = real_t{3.1415926535897932};
-    auto angle = pi * detail::uneg11_value<real_t>(angle_word);
+    auto angle = pi * uneg11::convert<real_t>(angle_word);
     auto radius = std::sqrt(real_t{-2} * std::log(u01<real_t>(radius_word)));
     return std::array<real_t, 2>{std::sin(angle) * radius,
                                  std::cos(angle) * radius};
 }
 
-template <detail::SupportedDistributionReal Real,
-          detail::SupportedDistributionWord Word, std::size_t N>
-    requires(N % 2 == 0)
-[[nodiscard]] inline auto boxmuller_block(std::array<Word, N> const& input) {
-    std::array<Real, N> output{};
-    constexpr Real pi = Real{3.1415926535897932};
-    for (std::size_t i = 0; i < N; i += 2) {
-        auto angle = pi * detail::uneg11_value<Real>(input[i]);
-        auto radius =
-            std::sqrt(Real{-2} * std::log(u01<Real>(input[i + 1])));
-        output[i] = std::sin(angle) * radius;
-        output[i + 1] = std::cos(angle) * radius;
-    }
-    return output;
-}
-
-template <detail::SupportedDistributionWord Word, std::size_t N>
-    requires(N % 2 == 0)
-[[nodiscard]] inline auto boxmuller_block(std::array<Word, N> const& input) {
-    return boxmuller_block<detail::default_real_t<Word>>(input);
-}
-
 /// Box--Muller dense-sampling transform policy.
 struct boxmul {
-    template <class State>
-        requires detail::StateCanGenerateFixedUnsignedBlock<State> &&
-                 (std::tuple_size_v<typename State::res_t> % 2 == 0)
-    [[nodiscard]] static auto generate(State const& state) {
-        typename State::res_t bits{};
+    template <GeneratorState state_t>
+        requires(std::tuple_size_v<typename state_t::res_t> % 2 == 0)
+    [[nodiscard]] static auto generate(state_t const& state) {
+        using bits_t = typename state_t::res_t;
+        using word_t = typename bits_t::value_type;
+        using real_t = detail::default_real_t<word_t>;
+        constexpr std::size_t count = std::tuple_size_v<bits_t>;
+        bits_t bits{};
+        std::array<real_t, count> output{};
         state.generate(bits);
-        return boxmuller_block(bits);
+        for (std::size_t i = 0; i < count; i += 2) {
+            auto pair = boxmuller(bits[i], bits[i + 1]);
+            output[i] = pair[0];
+            output[i + 1] = pair[1];
+        }
+        return output;
     }
 };
 
