@@ -627,7 +627,7 @@ git commit -m "refactor: simplify native RNG distributions"
 - Preserves: `next_word`, `uniform_01`, `gaussian<T>`, `geometric`, and `get_state` behavior.
 - Preserves: fetching a new result block advances the held state immediately by one block, even when buffered lanes remain unread.
 
-- [ ] **Step 1: Add a failing focused stream test**
+- [x] **Step 1: Add a failing focused stream test**
 
 Create `test/meta/test_rng_stream.cc` and add it to `META_SOURCES`. Define a deterministic state:
 
@@ -669,7 +669,7 @@ make -j meta_tests
 
 Expected: compilation fails because `RandBLAS/testing/rng.hh` and `RNGStream` do not exist.
 
-- [ ] **Step 2: Move and rename the helper**
+- [x] **Step 2: Move and rename the helper**
 
 Create `RandBLAS/testing/rng.hh` with RandBLAS's standard license header. Include
 `RandBLAS/random_gen.hh`, `<cmath>`, `<cstddef>`, `<cstdint>`, and `<tuple>`.
@@ -735,7 +735,7 @@ struct RNGStream {
 
 Keep the existing algorithms and consumption order. Reflow the comments to state the contracts directly. In particular, document that `get_state()` reports the state after every block already loaded into the buffer, not after an abstract fractional block position.
 
-- [ ] **Step 3: Rewire sparse test-data generation**
+- [x] **Step 3: Rewire sparse test-data generation**
 
 Include `RandBLAS/testing/rng.hh` from `RandBLAS/testing/sparse_data.hh`. Remove the old helper definition and replace all three `detail::CBRNGStream<state_t>` uses with `detail::RNGStream<state_t>`. Remove `<tuple>` from `sparse_data.hh` after confirming it has no remaining use; retain `<cmath>` because sparse generation itself computes logarithms.
 
@@ -750,7 +750,7 @@ remain in its local buffer. Production RandBLAS sampling remains
 coordinate-addressed and does not use this sequential adapter.
 ```
 
-- [ ] **Step 4: Verify the stream and sparse generators**
+- [x] **Step 4: Verify the stream and sparse generators**
 
 Run:
 
@@ -768,7 +768,7 @@ git diff --check
 
 Expected: all tests pass; the first scan has no matches; the second scan is limited to `RandBLAS/testing/rng.hh`, its direct test, the three sparse-data uses, and `test/DevNotes.md`.
 
-- [ ] **Step 5: Commit the test-infrastructure extraction**
+- [x] **Step 5: Commit the test-infrastructure extraction**
 
 ```bash
 cd /Users/riley/randnla/dev/repo-randblas

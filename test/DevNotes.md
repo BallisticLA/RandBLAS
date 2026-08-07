@@ -55,6 +55,15 @@ Sampler tests elsewhere cover state advancement, full/submatrix agreement, and
 OpenMP thread-count independence. Downstream-package and example builds verify
 that no external random-number package is required.
 
+### RNG stream
+
+`RandBLAS/testing/rng.hh` contains the test-only `detail::RNGStream` adapter.
+It turns fixed result blocks into a sequential word stream for random sparse
+test-matrix generation and supplies the uniform, Gaussian, and geometric draws
+needed there. Loading a block advances its held state immediately; unread lanes
+remain in its local buffer. Production RandBLAS sampling remains
+coordinate-addressed and does not use this sequential adapter.
+
 
 # OLD
 

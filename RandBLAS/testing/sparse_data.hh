@@ -34,7 +34,6 @@
 #include <vector>
 #include <cmath>
 #include <cstdint>
-#include <tuple>
 
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
@@ -48,6 +47,7 @@
 #include "RandBLAS/sparse_data/csr_matrix.hh"
 #include "RandBLAS/sparse_data/csc_matrix.hh"
 #include "RandBLAS/sparse_data/conversions.hh"
+#include "RandBLAS/testing/rng.hh"
 
 
 namespace RandBLAS::testing {
@@ -63,75 +63,6 @@ using RandBLAS::SignedInteger;
 #else
 #define SignedInteger typename
 #endif
-
-
-namespace detail {
-
-// Sequential wrapper around a counter-based RNG state. This helper dispenses
-// result words one at a time and
-// provides uniform, Gaussian, and geometric draws.
-template <GeneratorState generator_state_t = DefaultRNGState>
-struct CBRNGStream {
-    using state_t = generator_state_t;
-    using res_t = typename state_t::res_t;
-    using word_t = typename res_t::value_type;
-    static constexpr int block_size = std::tuple_size_v<res_t>;
-
-    state_t state;
-    res_t buffer;
-    int pos;
-    double spare;
-    bool has_spare;
-
-    CBRNGStream(const state_t &initial_state)
-        : state(initial_state), pos(block_size), spare(0.0), has_spare(false) {}
-
-    word_t next_word() {
-        if (pos >= block_size) {
-            state.generate(buffer);
-            state.advance(1);
-            pos = 0;
-        }
-        return buffer[pos++];
-    }
-
-    // Uniform in (0, 1], never 0.0 (safe for log).
-    double uniform_01() {
-        return RandBLAS::rng::u01<double>(next_word());
-    }
-
-    // Box-Muller Gaussian. Each call to boxmuller produces two independent values;
-    // we cache the second and return it on the next invocation.
-    template <typename T>
-    T gaussian() {
-        if (has_spare) {
-            has_spare = false;
-            return static_cast<T>(spare);
-        }
-        word_t u1 = next_word();
-        word_t u2 = next_word();
-        auto [g1, g2] = RandBLAS::rng::boxmuller(u1, u2);
-        spare = g2;
-        has_spare = true;
-        return static_cast<T>(g1);
-    }
-
-    // Geometric distribution: number of failures before first success in Bernoulli(p).
-    // Uses inverse CDF: floor(log(1 - u) / log(1 - p)) with u ~ Uniform(0, 1].
-    // Since u01 returns (0, 1], we have 1 - u in [0, 1). The only problematic value
-    // is 1 - u = 0, i.e., u = 1.0 exactly. With u01<double>(uint32_t), the maximum
-    // is 1.0 - 2^-33, so this never happens.
-    int64_t geometric(double log_1_minus_p) {
-        double u = uniform_01();
-        return static_cast<int64_t>(std::floor(std::log(1.0 - u) / log_1_minus_p));
-    }
-
-    state_t get_state() const {
-        return state;
-    }
-};
-
-} // end namespace detail
 
 
 template <typename T,
@@ -274,7 +205,7 @@ std::pair<CSRMatrix<T, sint_t>, state_t> random_csr(
     randblas_require(density >= 0.0 && density <= 1.0);
 
     CSRMatrix<T, sint_t> A(m, n);
-    detail::CBRNGStream<state_t> stream(state);
+    detail::RNGStream<state_t> stream(state);
 
     if (density == 0.0 || m == 0 || n == 0) {
         if (m > 0) {
@@ -357,7 +288,7 @@ std::pair<CSCMatrix<T, sint_t>, state_t> random_csc(
     randblas_require(density >= 0.0 && density <= 1.0);
 
     CSCMatrix<T, sint_t> A(m, n);
-    detail::CBRNGStream<state_t> stream(state);
+    detail::RNGStream<state_t> stream(state);
 
     if (density == 0.0 || m == 0 || n == 0) {
         if (n > 0) {
@@ -437,7 +368,7 @@ std::pair<COOMatrix<T, sint_t>, state_t> random_coo(
     randblas_require(density >= 0.0 && density <= 1.0);
 
     COOMatrix<T, sint_t> A(m, n);
-    detail::CBRNGStream<state_t> stream(state);
+    detail::RNGStream<state_t> stream(state);
 
     if (density == 0.0 || m == 0 || n == 0) {
         return {std::move(A), stream.get_state()};
