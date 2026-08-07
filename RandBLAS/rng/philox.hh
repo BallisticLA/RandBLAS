@@ -82,6 +82,84 @@ template <std::unsigned_integral Word>
     }
 }
 
+template <std::size_t N, std::size_t W>
+struct PhiloxConstants {
+    using word_t =
+        std::conditional_t<W == 32, std::uint32_t, std::uint64_t>;
+
+    static constexpr word_t multiplier_0 = [] {
+        if constexpr (W == 32 && N == 2) {
+            return UINT32_C(0xd256d193);
+        } else if constexpr (W == 32) {
+            return UINT32_C(0xd2511f53);
+        } else if constexpr (N == 2) {
+            return UINT64_C(0xd2b74407b1ce6e93);
+        } else {
+            return UINT64_C(0xd2e7470ee14c6c93);
+        }
+    }();
+
+    static constexpr word_t multiplier_1 = [] {
+        if constexpr (W == 32) {
+            return UINT32_C(0xcd9e8d57);
+        } else {
+            return UINT64_C(0xca5a826395121157);
+        }
+    }();
+
+    static constexpr word_t weyl_0 = [] {
+        if constexpr (W == 32) {
+            return UINT32_C(0x9e3779b9);
+        } else {
+            return UINT64_C(0x9e3779b97f4a7c15);
+        }
+    }();
+
+    static constexpr word_t weyl_1 = [] {
+        if constexpr (W == 32) {
+            return UINT32_C(0xbb67ae85);
+        } else {
+            return UINT64_C(0xbb67ae8584caa73b);
+        }
+    }();
+};
+
+template <std::size_t N, std::size_t W, class word_t, class key_t>
+constexpr void apply_philox_round(std::array<word_t, N>& block,
+                                  key_t const& key) noexcept {
+    using constants_t = PhiloxConstants<N, W>;
+
+    auto input_0 = block[0];
+    auto input_1 = block[1];
+    word_t high_0;
+    auto low_0 = mulhilo(constants_t::multiplier_0, input_0, &high_0);
+
+    if constexpr (N == 2) {
+        block[0] = static_cast<word_t>(high_0 ^ key[0] ^ input_1);
+        block[1] = low_0;
+    } else {
+        auto input_2 = block[2];
+        auto input_3 = block[3];
+        word_t high_1;
+        auto low_1 = mulhilo(constants_t::multiplier_1, input_2, &high_1);
+        block[0] = static_cast<word_t>(high_1 ^ input_1 ^ key[0]);
+        block[1] = low_1;
+        block[2] = static_cast<word_t>(high_0 ^ input_3 ^ key[1]);
+        block[3] = low_0;
+    }
+}
+
+template <std::size_t N, std::size_t W, class key_t>
+constexpr void bump_philox_key(key_t& key) noexcept {
+    using constants_t = PhiloxConstants<N, W>;
+    using word_t = typename key_t::value_type;
+
+    key[0] = static_cast<word_t>(key[0] + constants_t::weyl_0);
+    if constexpr (N == 4) {
+        key[1] = static_cast<word_t>(key[1] + constants_t::weyl_1);
+    }
+}
+
 } // namespace detail
 
 /// Stateless Philox counter-based random-number engine.
@@ -89,12 +167,11 @@ template <std::unsigned_integral Word>
 /// Word zero is the least-significant word of counters and keys. `generate`
 /// maps one counter/key pair to one result block without modifying its inputs.
 template <std::size_t N, std::size_t W, std::size_t R>
-class Philox {
+struct Philox {
     static_assert(N == 2 || N == 4, "Philox supports two or four words");
     static_assert(W == 32 || W == 64, "Philox supports 32- or 64-bit words");
     static_assert(R <= 16, "Philox supports at most 16 rounds");
 
-public:
     using word_t = std::conditional_t<W == 32, std::uint32_t, std::uint64_t>;
     using ctr_t = WordArray<word_t, N>;
     using key_t = WordArray<word_t, N / 2>;
@@ -117,79 +194,15 @@ public:
 
         key_t round_key = key;
         for (std::size_t round = 0; round < R; ++round) {
-            apply_round(block, round_key);
+            detail::apply_philox_round<N, W>(block, round_key);
             if (round + 1 < R) {
-                bump_key(round_key);
+                detail::bump_philox_key<N, W>(round_key);
             }
         }
         output = block;
     }
 
-private:
-    [[nodiscard]] static constexpr word_t multiplier_0() noexcept {
-        if constexpr (W == 32 && N == 2) {
-            return UINT32_C(0xd256d193);
-        } else if constexpr (W == 32) {
-            return UINT32_C(0xd2511f53);
-        } else if constexpr (N == 2) {
-            return UINT64_C(0xd2b74407b1ce6e93);
-        } else {
-            return UINT64_C(0xd2e7470ee14c6c93);
-        }
-    }
-
-    [[nodiscard]] static constexpr word_t multiplier_1() noexcept {
-        if constexpr (W == 32) {
-            return UINT32_C(0xcd9e8d57);
-        } else {
-            return UINT64_C(0xca5a826395121157);
-        }
-    }
-
-    [[nodiscard]] static constexpr word_t weyl_0() noexcept {
-        if constexpr (W == 32) {
-            return UINT32_C(0x9e3779b9);
-        } else {
-            return UINT64_C(0x9e3779b97f4a7c15);
-        }
-    }
-
-    [[nodiscard]] static constexpr word_t weyl_1() noexcept {
-        if constexpr (W == 32) {
-            return UINT32_C(0xbb67ae85);
-        } else {
-            return UINT64_C(0xbb67ae8584caa73b);
-        }
-    }
-
-    static constexpr void apply_round(res_t& block,
-                                      key_t const& key) noexcept {
-        auto input_0 = block[0];
-        auto input_1 = block[1];
-        word_t high_0;
-        auto low_0 = detail::mulhilo(multiplier_0(), input_0, &high_0);
-
-        if constexpr (N == 2) {
-            block[0] = static_cast<word_t>(high_0 ^ key[0] ^ input_1);
-            block[1] = low_0;
-        } else {
-            auto input_2 = block[2];
-            auto input_3 = block[3];
-            word_t high_1;
-            auto low_1 = detail::mulhilo(multiplier_1(), input_2, &high_1);
-            block[0] = static_cast<word_t>(high_1 ^ input_1 ^ key[0]);
-            block[1] = low_1;
-            block[2] = static_cast<word_t>(high_0 ^ input_3 ^ key[1]);
-            block[3] = low_0;
-        }
-    }
-
-    static constexpr void bump_key(key_t& key) noexcept {
-        key[0] = static_cast<word_t>(key[0] + weyl_0());
-        if constexpr (N == 4) {
-            key[1] = static_cast<word_t>(key[1] + weyl_1());
-        }
-    }
+    friend constexpr bool operator==(Philox const&, Philox const&) = default;
 };
 
 } // namespace RandBLAS::rng

@@ -52,9 +52,9 @@
 namespace RandBLAS::sparse {
 
 template <typename T, SignedInteger sint_t,
-          CounterBasedRNGState State = DefaultRNGState>
+          GeneratorState state_t = DefaultRNGState>
 void _considerate_fisher_yates(
-    const State &state,
+    const state_t &state,
     int64_t k,
     int64_t n,
     sint_t* samples,
@@ -67,7 +67,7 @@ void _considerate_fisher_yates(
     //  indices  = {0, 1, 2, ..., n - 1}; input-output; not const.
     //  work_piv = buffer of length k; output-only.
     randblas_require( k <= n );
-    using res_t = typename State::res_t;
+    using res_t = typename state_t::res_t;
     using word_t = typename res_t::value_type;
     constexpr std::size_t block_size = std::tuple_size_v<res_t>;
     constexpr auto word_bits = std::numeric_limits<word_t>::digits;
@@ -76,7 +76,7 @@ void _considerate_fisher_yates(
     static_assert((word_bits == 32 && block_size >= 3) ||
                       (word_bits == 64 && block_size >= 2),
                   "sparse Fisher-Yates sampling requires enough result words for an index and sign");
-    State work = state;
+    state_t work = state;
     for (sint_t j = 0; j < k; ++j) {
         res_t rv{};
         work.generate(rv);
@@ -111,9 +111,9 @@ void _considerate_fisher_yates(
 }
 
 template <typename T, SignedInteger sint_t,
-          CounterBasedRNGState State = DefaultRNGState>
-static State repeated_fisher_yates(
-    const State &state,
+          GeneratorState state_t = DefaultRNGState>
+static state_t repeated_fisher_yates(
+    const state_t &state,
     int64_t vec_nnz,
     int64_t dim_major,
     int64_t dim_minor,
@@ -138,7 +138,7 @@ static State repeated_fisher_yates(
     std::vector<sint_t> vec_work(dim_major);
     std::iota(vec_work.begin(), vec_work.end(), 0);
     std::vector<sint_t> pivots(vec_nnz);
-    State work = state;
+    state_t work = state;
     for (sint_t i = 0; i < dim_minor; ++i) {
         _considerate_fisher_yates(
             work, vec_nnz, dim_major,
@@ -171,7 +171,7 @@ namespace RandBLAS {
 
 // Forward declaration of SparseSkOp. It's returnable by
 // SparseDist.sample(), but its definition involves SparseDist.
-template<typename T, CounterBasedRNGState State = DefaultRNGState,
+template<typename T, GeneratorState state_t = DefaultRNGState,
          SignedInteger sint_t = int64_t>
 struct SparseSkOp;
 
@@ -278,9 +278,9 @@ struct SparseDist {
 
     // -------------------------------------------------------------------------------------
     ///  Construct a SparseSkOp with this distribution and the provided seed_state.
-    template <typename T, CounterBasedRNGState State = DefaultRNGState,
+    template <typename T, GeneratorState state_t = DefaultRNGState,
               SignedInteger sint_t = int64_t>
-    SparseSkOp<T,State,sint_t> sample(State &seed_state) {
+    SparseSkOp<T,state_t,sint_t> sample(state_t &seed_state) {
         return {*this, seed_state};
     }
 
@@ -311,15 +311,15 @@ struct SparseDist {
 /// independent from \math{\ttt{samples}.}
 ///
 template <SignedInteger sint_t,
-          CounterBasedRNGState State = DefaultRNGState>
-inline State repeated_fisher_yates(
-    int64_t k, int64_t n, int64_t r, sint_t *samples, const State &state
+          GeneratorState state_t = DefaultRNGState>
+inline state_t repeated_fisher_yates(
+    int64_t k, int64_t n, int64_t r, sint_t *samples, const state_t &state
 ) {
     return sparse::repeated_fisher_yates(state, k, n, r, samples, (sint_t*) nullptr, (double*) nullptr);
 }
 
-template <CounterBasedRNGState State = DefaultRNGState>
-State compute_next_state(SparseDist dist, State state) {
+template <GeneratorState state_t = DefaultRNGState>
+state_t compute_next_state(SparseDist dist, state_t state) {
     // Both _considerate_fisher_yates (SASO with vec_nnz > 1) and
     // sample_indices_iid_uniform (SASO with vec_nnz == 1, and LASO) consume
     // exactly one CBRNG counter increment per nonzero.
@@ -334,7 +334,7 @@ State compute_next_state(SparseDist dist, State state) {
 /// A sample from a distribution over structured sparse matrices with either
 /// independent rows or independent columns. This type conforms to the
 /// SketchingOperator concept.
-template <typename T, CounterBasedRNGState State, SignedInteger sint_t>
+template <typename T, GeneratorState generator_state_t, SignedInteger sint_t>
 struct SparseSkOp {
 
     // ---------------------------------------------------------------------------
@@ -343,7 +343,7 @@ struct SparseSkOp {
 
     // ---------------------------------------------------------------------------
     /// Type alias.
-    using state_t = State;
+    using state_t = generator_state_t;
 
     // ---------------------------------------------------------------------------
     /// Real scalar type used for nonzeros in matrix representations of this operator.
@@ -476,7 +476,7 @@ struct SparseSkOp {
         nnz(nnz), vals(vals), rows(rows), cols(cols){ };
 
     //  Move constructor
-    SparseSkOp(SparseSkOp<T,State,sint_t> &&S
+    SparseSkOp(SparseSkOp<T,state_t,sint_t> &&S
     ) : dist(S.dist), seed_state(S.seed_state), next_state(S.next_state),
         n_rows(dist.n_rows), n_cols(dist.n_cols), own_memory(S.own_memory),
         nnz(S.nnz), rows(S.rows), cols(S.cols), vals(S.vals)
@@ -584,13 +584,13 @@ void laso_merge_long_axis_vector_coo_data(
 ///      - A CBRNG state used to define :math:`\mtxS.`
 ///
 /// @endverbatim
-template <typename T, typename sint_t, CounterBasedRNGState State>
-State fill_sparse_unpacked(
+template <typename T, typename sint_t, GeneratorState state_t>
+state_t fill_sparse_unpacked(
     const SparseDist &D,
     int64_t n_rows_sub, int64_t n_cols_sub,
     int64_t ro_s, int64_t co_s,
     int64_t &nnz, T* vals, sint_t* rows, sint_t* cols,
-    const State &seed_state
+    const state_t &seed_state
 ) {
     randblas_require(D.n_rows >= n_rows_sub + ro_s);
     randblas_require(D.n_cols >= n_cols_sub + co_s);
@@ -643,7 +643,7 @@ State fill_sparse_unpacked(
     // Both the Fisher-Yates path (vec_nnz > 1) and the i.i.d.-uniform path (vec_nnz == 1
     // and LASO) consume exactly vec_nnz counter increments per major-axis vector, so the
     // skip amount is uniform.
-    State work_state = seed_state;
+    state_t work_state = seed_state;
     work_state.advance(num_major_off * vec_nnz);
 
     // Identify which output array holds the major-axis coordinate and which holds the
@@ -676,7 +676,7 @@ State fill_sparse_unpacked(
     // operator. On exit, the first "total" entries carry full major coordinates and local
     // minor coordinates (0..num_major_sub-1); "total" is the pre-filter nnz.
     int64_t total;
-    State end_state;
+    state_t end_state;
     if (D.major_axis == Axis::Short) {
         end_state = sparse::repeated_fisher_yates(
             work_state, vec_nnz, dim_major, num_major_sub, idxs_major, idxs_minor, vals
@@ -728,11 +728,11 @@ State fill_sparse_unpacked(
 // ro_s = co_s = 0 and the full operator dimensions instead. It writes the COO data for
 // the operator (D, seed_state) into the first nnz entries of (vals, rows, cols), which
 // must have length at least D.full_nnz.
-template <typename T, typename sint_t, CounterBasedRNGState State>
-State fill_sparse_unpacked_nosub(
+template <typename T, typename sint_t, GeneratorState state_t>
+state_t fill_sparse_unpacked_nosub(
     const SparseDist &D,
     int64_t &nnz, T* vals, sint_t* rows, sint_t *cols,
-    const State &seed_state
+    const state_t &seed_state
 ) {
     randblas_require( vals != nullptr );
     randblas_require( rows != nullptr );

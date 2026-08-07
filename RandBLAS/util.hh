@@ -492,7 +492,7 @@ static inline TO uneg11_to_u01(TI in) {
 /// independent from :math:`\ttt{samples}.`
 /// @endverbatim
 template <typename T, SignedInteger sint_t,
-          CounterBasedRNGState state_t = DefaultRNGState>
+          GeneratorState state_t = DefaultRNGState>
 state_t sample_indices_iid(int64_t n, const T* cdf, int64_t k, sint_t* samples, const state_t &state) {
     state_t work = state;
     auto rv_array = rng::uneg11::generate(work);
@@ -522,7 +522,7 @@ inline std::uint64_t promote_uint_pair(std::uint32_t a, std::uint32_t b) {
 }
 
 template <typename T, SignedInteger sint_t, bool WriteRademachers = true,
-          CounterBasedRNGState state_t = DefaultRNGState>
+          GeneratorState state_t = DefaultRNGState>
 state_t sample_indices_iid_uniform(int64_t n, int64_t k, sint_t* samples, T* rademachers, const state_t &state) {
     using res_t = typename state_t::res_t;
     using word_t = typename res_t::value_type;
@@ -573,7 +573,7 @@ state_t sample_indices_iid_uniform(int64_t n, int64_t k, sint_t* samples, T* rad
 /// 
 /// @endverbatim
 template <SignedInteger sint_t = int64_t,
-          CounterBasedRNGState state_t = DefaultRNGState>
+          GeneratorState state_t = DefaultRNGState>
 state_t sample_indices_iid_uniform(int64_t n,  int64_t k, sint_t* samples, const state_t &state) {
     return sample_indices_iid_uniform<float,sint_t,false,state_t>(n, k, samples, (float*) nullptr, state);
 }

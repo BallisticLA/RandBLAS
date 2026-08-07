@@ -75,12 +75,12 @@ std::vector<T> eye(int64_t n) {
     return A;
 }
 
-template <typename T, CounterBasedRNGState State = DefaultRNGState>
-auto random_matrix(int64_t m, int64_t n, State s) {
+template <typename T, GeneratorState state_t = DefaultRNGState>
+auto random_matrix(int64_t m, int64_t n, state_t s) {
     std::vector<T> A(m * n);
     DenseDist DA(m, n);
     auto next_state = RandBLAS::fill_dense(DA, A.data(), s);
-    std::tuple<std::vector<T>, Layout, State> t{A, DA.natural_layout, next_state};
+    std::tuple<std::vector<T>, Layout, state_t> t{A, DA.natural_layout, next_state};
     return t;
 }
 

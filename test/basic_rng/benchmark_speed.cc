@@ -58,7 +58,7 @@ std::ostream &operator<<(std::ostream &os, std::vector<T> &v)
 
 
 
-template <typename T, RandBLAS::CounterBasedRNGState State, typename OP>
+template <typename T, RandBLAS::GeneratorState State, typename OP>
 auto run_test(RandBLAS::DenseDist D, T *mat)
 {
     auto t0 = std::chrono::high_resolution_clock::now();

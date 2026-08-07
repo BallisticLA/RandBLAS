@@ -176,14 +176,14 @@ class TestSampleIndices : public ::testing::Test
         auto s1 = sample_indices_iid_uniform(n, k, unimportant.data(), seed);
         auto s2 = sample_indices_iid_uniform(n, k, unimportant.data(), s1);
         // check that counter increments are the same for the two samples of k indices.
-        auto total_2call = s2.counter()[0];
-        EXPECT_EQ(total_2call-offset, 2*(s1.counter()[0]-offset));
+        auto total_2call = s2.counter[0];
+        EXPECT_EQ(total_2call-offset, 2*(s1.counter[0]-offset));
 
         // check that the counter increment for a single sample of size 2k is (a) no larger
         // than the total increment for two samples of size k, and (b) is at most one less
         // than the total increment for two samples of size k.
         auto t = sample_indices_iid_uniform(n, 2*k, unimportant.data(), seed);
-        auto total_1call = t.counter()[0];
+        auto total_1call = t.counter[0];
         EXPECT_LE( total_1call, total_2call    );
         EXPECT_LE( total_2call, total_1call + 1);
     }
@@ -201,14 +201,14 @@ class TestSampleIndices : public ::testing::Test
         auto s1 = sample_indices_iid(n, cdf.data(), k, unimportant.data(), seed);
         auto s2 = sample_indices_iid(n, cdf.data(), k, unimportant.data(), s1);
         // check that counter increments are the same for the two samples of k indices.
-        auto total_2call = s2.counter()[0];
-        EXPECT_EQ(total_2call-offset, 2*(s1.counter()[0]-offset));
+        auto total_2call = s2.counter[0];
+        EXPECT_EQ(total_2call-offset, 2*(s1.counter[0]-offset));
 
         // check that the counter increment for a single sample of size 2k is (a) no larger
         // than the total increment for two samples of size k, and (b) is at most one less
         // than the total increment for two samples of size k.
         auto t = sample_indices_iid(n, cdf.data(), 2*k, unimportant.data(), seed);
-        auto total_1call = t.counter()[0];
+        auto total_1call = t.counter[0];
         EXPECT_LE( total_1call, total_2call    );
         EXPECT_LE( total_2call, total_1call + 1);
     }
@@ -315,12 +315,12 @@ class TestSampleIndices : public ::testing::Test
 
         auto s1 = repeated_fisher_yates(k, n, r1, twocall.data(), seed);
         auto s2 = repeated_fisher_yates(k, n, r2, twocall.data() + r1*k, s1);
-        auto ctr_twocall = (int) s2.counter()[0];
-        auto expect_incr = (int) std::ceil(((float)r_total/r1)*(s1.counter()[0]-offset));
+        auto ctr_twocall = (int) s2.counter[0];
+        auto expect_incr = (int) std::ceil(((float)r_total/r1)*(s1.counter[0]-offset));
         EXPECT_EQ(ctr_twocall - offset, expect_incr);
 
         auto t = repeated_fisher_yates(k, n, r_total, onecall.data(), seed);
-        auto ctr_onecall = t.counter()[0];
+        auto ctr_onecall = t.counter[0];
         EXPECT_EQ( ctr_onecall, ctr_twocall );
 
         auto msg = RandBLAS::testing::buffs_approx_equal(onecall.data(), twocall.data(), r_total*k, __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__);

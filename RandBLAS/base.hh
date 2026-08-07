@@ -52,19 +52,19 @@ namespace RandBLAS {
 using std::uint64_t;
 template <rng::CounterBasedEngine Engine>
     requires requires(RNGState<Engine> const& state, std::ostream& stream) {
-        state.counter().size();
-        state.key().size();
-        state.counter()[0];
-        state.key()[0];
-        stream << state.counter()[0];
-        stream << state.key()[0];
+        state.counter.size();
+        state.key.size();
+        state.counter[0];
+        state.key[0];
+        stream << state.counter[0];
+        stream << state.key[0];
     }
 std::ostream &operator<<(
     std::ostream &out,
     const RNGState<Engine> &s
 ) {
-    auto const& counter = s.counter();
-    auto const& key = s.key();
+    auto const& counter = s.counter;
+    auto const& key = s.key;
     out << "counter : {";
     for (std::size_t i = 0; i + 1 < counter.size(); ++i) {
         out << counter[i] << ", ";

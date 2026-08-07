@@ -78,6 +78,20 @@ concept HasMakeKey = requires(std::uint64_t seed) {
     { Engine::make_key(seed) } -> std::same_as<typename Engine::key_t>;
 };
 
+template <class Engine>
+concept HasPublicWrappedEngine = requires(Engine engine) {
+    engine.engine;
+};
+
+using PublicRepacked =
+    RandBLAS::rng::RepackedOutput<FixedEngine, std::uint16_t>;
+static_assert(HasPublicWrappedEngine<PublicRepacked>);
+static_assert(std::equality_comparable<
+              RandBLAS::rng::Philox<4, 32, 10>>);
+static_assert(std::equality_comparable<
+              RandBLAS::rng::RepackedOutput<
+                  RandBLAS::rng::Philox<4, 32, 10>, std::uint16_t>>);
+
 TEST(RepackedOutput, SplitsEachSourceWordLeastSignificantChunkFirst) {
     FixedEngine::ctr_t counter{};
     FixedEngine::key_t key{};

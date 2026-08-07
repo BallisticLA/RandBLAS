@@ -102,7 +102,7 @@ For each task:
 - Produces: public `RepackedOutput::engine` data.
 - Preserves: `RNGState::generate(res_t&) const`, `RNGState::advance(uint64_t)`, all constructors, equality for the default and test states, and `DefaultRNGState`.
 
-- [ ] **Step 1: Add failing concept and public-data checks**
+- [x] **Step 1: Add failing concept and public-data checks**
 
 In `test/basic_rng/test_rng_state.cc`, replace the old concept assertion and accessor-only test with checks equivalent to:
 
@@ -161,7 +161,7 @@ make -j stat_tests densedata_tests
 
 Expected: compilation fails because `GeneratorState`, public `counter`/`key`/`engine`, and public repacker `engine` do not yet exist.
 
-- [ ] **Step 2: Extract the structural concepts**
+- [x] **Step 2: Extract the structural concepts**
 
 Create `RandBLAS/rng/concepts.hh` with RandBLAS's standard license header and these definitions moved out of `random_gen.hh`:
 
@@ -226,7 +226,7 @@ concept GeneratorState =
 
 Copy the complete current `CounterBasedEngine` requirements, including counter advancement, fixed unsigned output, value semantics, and output-only generation. Include only `<concepts>`, `<cstdint>`, and `<tuple>`. Include `rng/concepts.hh` from `random_gen.hh` and delete the moved definitions from the umbrella header.
 
-- [ ] **Step 3: Make `RNGState` a transparent struct**
+- [x] **Step 3: Make `RNGState` a transparent struct**
 
 Change the concrete adapter to this public representation:
 
@@ -279,7 +279,7 @@ equality from arbitrary custom states.
 
 Update `RandBLAS/base.hh`'s stream insertion operator to inspect `s.counter` and `s.key` directly.
 
-- [ ] **Step 4: Make Philox and repacking transparent structs**
+- [x] **Step 4: Make Philox and repacking transparent structs**
 
 Change `rng::Philox<N, W, R>` from `class` to `struct`. Move its implementation helpers into `RandBLAS::rng::detail` with these names:
 
@@ -326,7 +326,7 @@ Include `concepts.hh` from `repacked_output.hh`, constrain the adapter with
 `detail::EngineHasFixedUnsignedResult` concept. Keep `ValidRepacking` as the
 separate width-ratio constraint.
 
-- [ ] **Step 5: Rename the state concept and template parameter throughout code**
+- [x] **Step 5: Rename the state concept and template parameter throughout code**
 
 Apply these exact vocabulary rules:
 
@@ -344,7 +344,7 @@ Within RandBLAS headers, replace template parameter `State` with `state_t` and u
 
 In tests and examples outside namespace RandBLAS, replace the concept name with `RandBLAS::GeneratorState`; retaining a local capitalized template parameter there is allowed. Do not add a `CounterBasedRNGState` alias.
 
-- [ ] **Step 6: Run focused and full tests**
+- [x] **Step 6: Run focused and full tests**
 
 Run:
 
@@ -358,7 +358,7 @@ ctest --output-on-failure
 
 Expected: all targets compile and every test passes. State equality, KATs, repacking, sampler regression, thread-count independence, and state-advance tests remain unchanged in behavior.
 
-- [ ] **Step 7: Audit vocabulary, access control, and formatting**
+- [x] **Step 7: Audit vocabulary, access control, and formatting**
 
 Run:
 
@@ -373,7 +373,7 @@ git diff --check
 
 Expected: all five scans have no matches. Manually inspect the task diff and join wrapped expressions that now fit comfortably on one readable line; do not reformat unrelated code.
 
-- [ ] **Step 8: Commit the public API remediation**
+- [x] **Step 8: Commit the public API remediation**
 
 ```bash
 cd /Users/riley/randnla/dev/repo-randblas

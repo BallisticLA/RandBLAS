@@ -69,7 +69,7 @@ auto parse_dimension_args(int argc, char** argv) {
 }
 
 template <typename T,
-          RandBLAS::CounterBasedRNGState State = RandBLAS::DefaultRNGState>
+          RandBLAS::GeneratorState State = RandBLAS::DefaultRNGState>
 void iid_sparsify_random_dense(
     int64_t n_rows, int64_t n_cols, int64_t stride_row,
     int64_t stride_col, T* mat, T prob_of_zero, State state

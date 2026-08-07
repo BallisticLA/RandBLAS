@@ -70,9 +70,9 @@ namespace detail {
 // Sequential wrapper around a counter-based RNG state. This helper dispenses
 // result words one at a time and
 // provides uniform, Gaussian, and geometric draws.
-template <RandBLAS::CounterBasedRNGState State = RandBLAS::DefaultRNGState>
+template <GeneratorState generator_state_t = DefaultRNGState>
 struct CBRNGStream {
-    using state_t = State;
+    using state_t = generator_state_t;
     using res_t = typename state_t::res_t;
     using word_t = typename res_t::value_type;
     static constexpr int block_size = std::tuple_size_v<res_t>;
@@ -135,7 +135,7 @@ struct CBRNGStream {
 
 
 template <typename T,
-          RandBLAS::CounterBasedRNGState State = RandBLAS::DefaultRNGState>
+          GeneratorState state_t = DefaultRNGState>
 void iid_sparsify_random_dense(
     int64_t n_rows,
     int64_t n_cols,
@@ -143,7 +143,7 @@ void iid_sparsify_random_dense(
     int64_t stride_col,
     T* mat,
     T prob_of_zero,
-    State state
+    state_t state
 ) {
     auto spar = new T[n_rows * n_cols];
     auto dist = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::ScalarDist::Uniform);
@@ -175,14 +175,14 @@ void iid_sparsify_random_dense(
 
 
 template <typename T,
-          RandBLAS::CounterBasedRNGState State = RandBLAS::DefaultRNGState>
+          GeneratorState state_t = DefaultRNGState>
 void iid_sparsify_random_dense(
     int64_t n_rows,
     int64_t n_cols,
     Layout layout,
     T* mat,
     T prob_of_zero,
-    State state
+    state_t state
 ) {
     if (layout == Layout::ColMajor) {
         iid_sparsify_random_dense(n_rows, n_cols, 1, n_rows, mat, prob_of_zero, state);
@@ -264,17 +264,17 @@ int64_t trianglize_coo(
 //     auto [A, next_state] = random_csr<double>(m, n, density, state);
 // ============================================================================
 template <typename T, SignedInteger sint_t = int64_t,
-          RandBLAS::CounterBasedRNGState State = RandBLAS::DefaultRNGState>
-std::pair<CSRMatrix<T, sint_t>, State> random_csr(
+          GeneratorState state_t = DefaultRNGState>
+std::pair<CSRMatrix<T, sint_t>, state_t> random_csr(
     int64_t m,
     int64_t n,
     double density,
-    const State &state
+    const state_t &state
 ) {
     randblas_require(density >= 0.0 && density <= 1.0);
 
     CSRMatrix<T, sint_t> A(m, n);
-    detail::CBRNGStream<State> stream(state);
+    detail::CBRNGStream<state_t> stream(state);
 
     if (density == 0.0 || m == 0 || n == 0) {
         if (m > 0) {
@@ -347,17 +347,17 @@ std::pair<CSRMatrix<T, sint_t>, State> random_csr(
 //     auto [A, next_state] = random_csc<double>(m, n, density, state);
 // ============================================================================
 template <typename T, SignedInteger sint_t = int64_t,
-          RandBLAS::CounterBasedRNGState State = RandBLAS::DefaultRNGState>
-std::pair<CSCMatrix<T, sint_t>, State> random_csc(
+          GeneratorState state_t = DefaultRNGState>
+std::pair<CSCMatrix<T, sint_t>, state_t> random_csc(
     int64_t m,
     int64_t n,
     double density,
-    const State &state
+    const state_t &state
 ) {
     randblas_require(density >= 0.0 && density <= 1.0);
 
     CSCMatrix<T, sint_t> A(m, n);
-    detail::CBRNGStream<State> stream(state);
+    detail::CBRNGStream<state_t> stream(state);
 
     if (density == 0.0 || m == 0 || n == 0) {
         if (n > 0) {
@@ -427,17 +427,17 @@ std::pair<CSCMatrix<T, sint_t>, State> random_csc(
 //     auto [A, next_state] = random_coo<double>(m, n, density, state);
 // ============================================================================
 template <typename T, SignedInteger sint_t = int64_t,
-          RandBLAS::CounterBasedRNGState State = RandBLAS::DefaultRNGState>
-std::pair<COOMatrix<T, sint_t>, State> random_coo(
+          GeneratorState state_t = DefaultRNGState>
+std::pair<COOMatrix<T, sint_t>, state_t> random_coo(
     int64_t m,
     int64_t n,
     double density,
-    const State &state
+    const state_t &state
 ) {
     randblas_require(density >= 0.0 && density <= 1.0);
 
     COOMatrix<T, sint_t> A(m, n);
-    detail::CBRNGStream<State> stream(state);
+    detail::CBRNGStream<state_t> stream(state);
 
     if (density == 0.0 || m == 0 || n == 0) {
         return {std::move(A), stream.get_state()};

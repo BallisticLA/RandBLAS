@@ -68,6 +68,9 @@ struct OpaqueEngine {
         output[0] = static_cast<std::uint32_t>(counter.value_);
         output[1] = static_cast<std::uint32_t>(counter.value_ >> 32) ^ key[0];
     }
+
+    friend constexpr bool operator==(OpaqueEngine const&,
+                                     OpaqueEngine const&) = default;
 };
 
 struct EngineWithoutMakeKey {
@@ -82,8 +85,18 @@ struct EngineWithoutMakeKey {
 };
 
 static_assert(RandBLAS::rng::CounterBasedEngine<OpaqueEngine>);
-static_assert(RandBLAS::CounterBasedRNGState<
-              RandBLAS::RNGState<OpaqueEngine>>);
+using OpaqueState = RandBLAS::RNGState<OpaqueEngine>;
+
+template <class state_t>
+concept HasPublicStateData = requires(state_t state) {
+    state.counter;
+    state.key;
+    state.engine;
+};
+
+static_assert(RandBLAS::GeneratorState<OpaqueState>);
+static_assert(HasPublicStateData<OpaqueState>);
+static_assert(std::equality_comparable<OpaqueState>);
 static_assert(!std::uniform_random_bit_generator<OpaqueEngine>);
 static_assert(!std::uniform_random_bit_generator<
               RandBLAS::RNGState<OpaqueEngine>>);
@@ -149,20 +162,16 @@ TEST(RNGState, GenerateDoesNotMutateAndAdvanceDelegatesToCounter) {
     OpaqueCounter expected_counter;
     expected_counter.advance(UINT64_C(0x100000003));
     state.advance(UINT64_C(0x100000003));
-    EXPECT_EQ(state.counter(), expected_counter);
+    EXPECT_EQ(state.counter, expected_counter);
     state.generate(output);
     EXPECT_EQ(output, (State::res_t{3, UINT32_C(0xa5a5a5a4)}));
 }
 
-TEST(RNGState, ExposesCounterAndKeyForConstObservationOnly) {
-    using State = RandBLAS::RNGState<OpaqueEngine>;
-    State const state(UINT64_C(0x0123456789abcdef));
-    static_assert(std::same_as<decltype(state.counter()),
-                               OpaqueEngine::ctr_t const&>);
-    static_assert(std::same_as<decltype(state.key()),
-                               OpaqueEngine::key_t const&>);
-    EXPECT_EQ(state.counter(), OpaqueCounter{});
-    EXPECT_EQ(state.key(), (OpaqueEngine::key_t{UINT32_C(0x89abcdef)}));
+TEST(RNGState, ExposesItsValueStateAsPublicData) {
+    OpaqueState state(UINT64_C(0x0123456789abcdef));
+    EXPECT_EQ(state.counter, OpaqueCounter{});
+    EXPECT_EQ(state.key,
+              (OpaqueEngine::key_t{UINT32_C(0x89abcdef)}));
 }
 
 TEST(RNGState, RepackedStatePreservesBitsAndBlockAdvancement) {
@@ -186,8 +195,8 @@ TEST(RNGState, RepackedStatePreservesBitsAndBlockAdvancement) {
 
     base.advance(37);
     repacked.advance(37);
-    EXPECT_EQ(base.counter(), repacked.counter());
-    EXPECT_EQ(base.key(), repacked.key());
+    EXPECT_EQ(base.counter, repacked.counter);
+    EXPECT_EQ(base.key, repacked.key);
 }
 
 } // namespace

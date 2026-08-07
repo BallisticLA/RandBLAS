@@ -42,7 +42,7 @@
 #include <tuple>
 
 // Fill a random matrix and truncate at the end of each row so that each row starts with a fresh counter.
-template<typename T, RandBLAS::CounterBasedRNGState State, typename OP>
+template<typename T, RandBLAS::GeneratorState State, typename OP>
 static void fill_dense_rmat_trunc(
     T* mat,
     int64_t n_rows,
@@ -167,7 +167,7 @@ class TestSubmatGeneration : public ::testing::Test
 
     virtual void TearDown(){};
 
-    template<typename T, RandBLAS::CounterBasedRNGState State, typename OP>
+    template<typename T, RandBLAS::GeneratorState State, typename OP>
     static void test_colwise_smat_gen(
         int64_t n_cols,
         int64_t n_rows, 
@@ -197,7 +197,7 @@ class TestSubmatGeneration : public ::testing::Test
         delete[] smat;
     }
 
-    template<typename T, RandBLAS::CounterBasedRNGState State, typename OP>
+    template<typename T, RandBLAS::GeneratorState State, typename OP>
     static void test_rowwise_smat_gen(
         int64_t n_cols,
         int64_t n_rows, 
@@ -227,7 +227,7 @@ class TestSubmatGeneration : public ::testing::Test
         delete[] smat;
     }
 
-    template<typename T, RandBLAS::CounterBasedRNGState State, typename OP>
+    template<typename T, RandBLAS::GeneratorState State, typename OP>
     static void test_diag_smat_gen(
         int64_t n_cols,
         int64_t n_rows,
@@ -296,7 +296,7 @@ TEST_F(TestSubmatGeneration, diag)
 
 
 #if defined(RandBLAS_HAS_OpenMP)
-template <typename T, RandBLAS::CounterBasedRNGState State, typename OP>
+template <typename T, RandBLAS::GeneratorState State, typename OP>
 void DenseThreadTest(int64_t m, int64_t n) {
     int64_t d = m*n;
 
@@ -443,7 +443,7 @@ class TestDenseSkOpStates : public ::testing::Test
         }
     }
 
-    template<RandBLAS::CounterBasedRNGState State = RandBLAS::DefaultRNGState>
+    template<RandBLAS::GeneratorState State = RandBLAS::DefaultRNGState>
     static void test_compute_next_state(
         uint32_t key,
         int64_t n_rows,
@@ -456,10 +456,10 @@ class TestDenseSkOpStates : public ::testing::Test
         RandBLAS::DenseDist D(n_rows, n_cols, sd);
 
         auto actual_final_state = RandBLAS::fill_dense(D, buff, state);
-        auto actual_c = actual_final_state.counter();
+        auto actual_c = actual_final_state.counter;
 
         auto expect_final_state = RandBLAS::dense::compute_next_state(D, state);
-        auto expect_c = expect_final_state.counter();
+        auto expect_c = expect_final_state.counter;
 
         for (std::size_t i = 0; i < std::tuple_size_v<typename State::res_t>; i++) {
             ASSERT_EQ(actual_c[i], expect_c[i]);

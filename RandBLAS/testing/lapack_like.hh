@@ -220,9 +220,9 @@ inline int64_t required_powermethod_iters(int64_t n, T p_fail, T tol) {
     return num_iters;
 }
 
-template <typename T, typename FUNC, CounterBasedRNGState State>
-std::pair<T, State> power_method(int64_t n, FUNC &A, T* v, T tol,
-                                 T failure_prob, const State &state) {
+template <typename T, typename FUNC, GeneratorState state_t>
+std::pair<T, state_t> power_method(int64_t n, FUNC &A, T* v, T tol,
+                                 T failure_prob, const state_t &state) {
     auto next_state = RandBLAS::fill_dense_unpacked(blas::Layout::ColMajor, {n, 1}, n, 1, 0, 0, v, state);
     std::vector<T> work(n, 0.0);
     T* u = work.data();
@@ -242,10 +242,10 @@ std::pair<T, State> power_method(int64_t n, FUNC &A, T* v, T tol,
 }
 
 
-template <typename T, CounterBasedRNGState State>
-std::tuple<T, T, State> exeigs_powermethod(int64_t n, const T* A,
+template <typename T, GeneratorState state_t>
+std::tuple<T, T, state_t> exeigs_powermethod(int64_t n, const T* A,
                                            T* eigvecs, T tol, T failure_prob,
-                                           const State &state,
+                                           const state_t &state,
                                            std::vector<T> work) {
     auto layout = blas::Layout::ColMajor;
     RandBLAS::util::require_symmetric(layout, A, n, n, (T) 0.0);

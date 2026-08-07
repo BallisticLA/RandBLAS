@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include "concepts.hh"
+
 #include <array>
 #include <bit>
 #include <concepts>
@@ -48,20 +50,6 @@ inline constexpr bool valid_repacking_widths =
     SourceBits % OutputBits == 0 &&
     std::has_single_bit(SourceBits / OutputBits);
 
-template <class Engine>
-concept EngineHasFixedUnsignedResult = requires {
-    typename Engine::ctr_t;
-    typename Engine::key_t;
-    typename Engine::res_t;
-    typename Engine::res_t::value_type;
-    requires std::unsigned_integral<typename Engine::res_t::value_type>;
-    requires(std::tuple_size_v<typename Engine::res_t> > 0);
-} && requires(Engine const& engine, typename Engine::ctr_t const& counter,
-              typename Engine::key_t const& key,
-              typename Engine::res_t& output) {
-    { engine.generate(counter, key, output) } -> std::same_as<void>;
-};
-
 } // namespace detail
 
 template <class SourceWord, class OutputWord>
@@ -76,9 +64,9 @@ concept ValidRepacking =
 /// The adaptor preserves the wrapped engine's counter, key, seed mapping, and
 /// total number of bits per block. Equal-width adaptation is an identity.
 template <class Engine, std::unsigned_integral OutputWord>
-    requires detail::EngineHasFixedUnsignedResult<Engine> &&
+    requires CounterBasedEngine<Engine> &&
              ValidRepacking<typename Engine::res_t::value_type, OutputWord>
-class RepackedOutput {
+struct RepackedOutput {
     using source_res_t = typename Engine::res_t;
     using source_word_t = typename source_res_t::value_type;
 
@@ -91,7 +79,6 @@ class RepackedOutput {
     static constexpr std::size_t source_word_count =
         std::tuple_size_v<source_res_t>;
 
-public:
     using word_t = OutputWord;
     using ctr_t = typename Engine::ctr_t;
     using key_t = typename Engine::key_t;
@@ -105,7 +92,7 @@ public:
 
     constexpr explicit RepackedOutput(Engine engine) noexcept(
         std::is_nothrow_move_constructible_v<Engine>)
-        : engine_(std::move(engine)) {}
+        : engine(std::move(engine)) {}
 
     [[nodiscard]] static constexpr key_t make_key(std::uint64_t seed) noexcept(
         noexcept(Engine::make_key(seed)))
@@ -118,10 +105,10 @@ public:
 
     constexpr void generate(ctr_t const& counter, key_t const& key,
                             res_t& output) const noexcept(
-        noexcept(engine_.generate(counter, key,
-                                  std::declval<source_res_t&>()))) {
+        noexcept(engine.generate(counter, key,
+                                 std::declval<source_res_t&>()))) {
         source_res_t source{};
-        engine_.generate(counter, key, source);
+        engine.generate(counter, key, source);
 
         constexpr source_word_t mask = [] {
             if constexpr (output_word_bits == source_word_bits) {
@@ -144,8 +131,10 @@ public:
         }
     }
 
-private:
-    [[no_unique_address]] Engine engine_;
+    friend constexpr bool operator==(RepackedOutput const&,
+                                     RepackedOutput const&) = default;
+
+    [[no_unique_address]] Engine engine{};
 };
 
 } // namespace RandBLAS::rng
