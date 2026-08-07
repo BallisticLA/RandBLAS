@@ -66,7 +66,8 @@ class TestSketchVector : public ::testing::Test
             x[incx*i] = 1.0;
 
         RandBLAS::DenseDist D(d, m);
-        RandBLAS::DenseSkOp<T> S(D, seed);
+        RandBLAS::DenseSkOp<T> S(
+            D, RandBLAS::DefaultRNGState{seed});
         RandBLAS::fill_dense(S);
         int64_t lds = (S.layout == blas::Layout::RowMajor) ? m : d;
 
@@ -100,7 +101,8 @@ class TestSketchVector : public ::testing::Test
             x[incx*i] = 1.0;
         
         RandBLAS::DenseDist D(m, d);
-        RandBLAS::DenseSkOp<T> S(D, seed);
+        RandBLAS::DenseSkOp<T> S(
+            D, RandBLAS::DefaultRNGState{seed});
         RandBLAS::fill_dense(S);
         int64_t lds = (S.layout == blas::Layout::RowMajor) ? d : m;
 
@@ -137,9 +139,11 @@ class TestSketchVector : public ::testing::Test
         // Generate wide and tall sketching operator using same seed
         RandBLAS::DenseDist D_wide(d, m);
         RandBLAS::DenseDist D_tall(m, d);
-        RandBLAS::DenseSkOp<T> S_wide(D_wide, seed);
+        RandBLAS::DenseSkOp<T> S_wide(
+            D_wide, RandBLAS::DefaultRNGState{seed});
         RandBLAS::fill_dense(S_wide);
-        RandBLAS::DenseSkOp<T> S_tall(D_tall, seed);
+        RandBLAS::DenseSkOp<T> S_tall(
+            D_tall, RandBLAS::DefaultRNGState{seed});
         RandBLAS::fill_dense(S_tall);
 
         // Perform wide sketch with Op::NoTrans and tall sketch with Op::Trans. Should be the same operation
@@ -173,7 +177,8 @@ class TestSketchVector : public ::testing::Test
         
         // Generate tall sketching operator
         RandBLAS::DenseDist D(d, m);
-        RandBLAS::DenseSkOp<T> S(D, seed);
+        RandBLAS::DenseSkOp<T> S(
+            D, RandBLAS::DefaultRNGState{seed});
         RandBLAS::fill_dense(S);
         int64_t lds = (S.layout == blas::Layout::RowMajor) ? m : d;
 

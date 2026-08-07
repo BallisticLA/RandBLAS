@@ -14,8 +14,11 @@ int main() {
     double A[m * n];
 
     RandBLAS::DenseDist Dist_A(m, n);
-    RandBLAS::RNGState state(0);
-    RandBLAS::fill_dense(Dist_A, A, state);
+    RandBLAS::DefaultRNGState state(0);
+    RandBLAS::DefaultRNGState::res_t block{};
+    state.generate(block);
+    state.advance(1);
+    auto next_state = RandBLAS::fill_dense(Dist_A, A, state);
 
-    return 0;
+    return next_state == state;
 }

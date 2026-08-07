@@ -32,138 +32,57 @@
 /// @file
 
 #include "compilers.hh"
-#include <Random123/features/compilerfeatures.h>
-#include <Random123/array.h>
-#include <Random123/philox.h>
-#include <Random123/threefry.h>
-// NOTE: we do not support Random123's AES or ARS generators.
+#include "rng/concepts.hh"
+#include "rng/distributions.hh"
+#include "rng/philox.hh"
+#include "rng/repacked_output.hh"
+#include "rng/word_array.hh"
 
-// Host-side shim for sincospi / sincospif. Random123/boxmuller.hpp calls these
-// unqualified; its own fallback definitions are gated behind
-//     `!defined(CUDART_VERSION) || CUDART_VERSION < 5000`
-// and are therefore skipped on host compiles where any dependency leaks
-// <cuda_runtime.h> into the include chain (notably blaspp's CMake config
-// transitively exports CUDA_INCLUDE_DIRS when blaspp was built with CUDA
-// support, which then poisons RandBLAS's host test compiles). Without these
-// definitions the host-compiled code fails to link.
-//
-// An earlier version of this shim was removed in PR #156 (9b73a25, 2026-03-05)
-// on the theory that CI green = unused. RandBLAS CI does not currently
-// exercise the Linux + CUDA-aware blaspp configuration where the failure
-// manifests; restoring the shim so host builds succeed on that config.
-#if !defined(__CUDACC__)
-#include <cmath>
-static inline void sincospif(float x, float *s, float *c) {
-    const float PIf = 3.1415926535897932f;
-    *s = std::sin(PIf * x);
-    *c = std::cos(PIf * x);
-}
-static inline void sincospi(double x, double *s, double *c) {
-    const double PI = 3.1415926535897932;
-    *s = std::sin(PI * x);
-    *c = std::cos(PI * x);
-}
-#endif
+#include <cstddef>
+#include <cstdint>
+#include <utility>
 
-#include <Random123/boxmuller.hpp>
-#include <Random123/uniform.hpp>
+namespace RandBLAS {
 
-/// our extensions to random123
-namespace r123ext
-{
-/** Apply boxmuller transform to all elements of ri. The number of elements of r
- * must be evenly divisible by 2. See also r123::uneg11all.
- *
- * @tparam CTR a random123 CBRNG ctr_type
- * @tparam T the return element type. The default return type is dictated by
- *           the RNG's ctr_type's value_type : float for 32 bit counter elements
- *           and double for 64.
- *
- * @param[in] ri a sequence of N random values generated using random123 CBRNG
- *               type RNG. The transform is applied pair wise to the sequence.
- *
- * @returns a std::array<T,N> of transformed floating point values.
- */
-template <typename CTR, typename T = typename std::conditional
-    <sizeof(typename CTR::value_type) == sizeof(uint32_t), float, double>::type>
-auto boxmulall(
-    CTR const &ri
-) {
-    std::array<T, CTR::static_size> ro;
-    int nit = CTR::static_size / 2;
-    for (int i = 0; i < nit; ++i)
-    {
-        auto [v0, v1] = r123::boxmuller(ri[2*i], ri[2*i + 1]);
-        ro[2*i    ] = v0;
-        ro[2*i + 1] = v1;
+using DefaultRNG = rng::Philox<4, 32, 10>;
+
+/// Copyable state that binds an engine to one counter and one key.
+template <rng::CounterBasedEngine Engine = DefaultRNG>
+struct RNGState {
+    using engine_t = Engine;
+    using ctr_t = typename Engine::ctr_t;
+    using key_t = typename Engine::key_t;
+    using res_t = typename Engine::res_t;
+
+    ctr_t counter{};
+    key_t key{};
+    [[no_unique_address]] Engine engine{};
+
+    constexpr RNGState() = default;
+
+    constexpr RNGState(std::uint64_t seed) noexcept(
+        noexcept(Engine::make_key(seed)))
+        requires rng::SeedMappableEngine<Engine>
+        : key(Engine::make_key(seed)) {}
+
+    explicit constexpr RNGState(key_t const& input_key) : key(input_key) {}
+
+    constexpr RNGState(ctr_t const& input_counter, key_t const& input_key)
+        : counter(input_counter), key(input_key) {}
+
+    constexpr void generate(res_t& output) const noexcept(
+        noexcept(engine.generate(counter, key, output))) {
+        engine.generate(counter, key, output);
     }
-    return ro;
-}
 
-/** @defgroup generators
- * Generators take CBRNG, counter,and key instances and return a sequence of
- * random floating point numbers in a std::array. The length of the squence is
- * the length of the counter and the precision is float for 32 bit counters and
- * double for 64.
- */
-/// @{
-
-/// Generate a sequence of random values and apply a Box-Muller transform.
-struct boxmul
-{
-    /** Generate a sequence of random values and apply a Box-Muller transform.
-     *
-     * @tparam RNG a random123 CBRNG type
-     *
-     * @param[in] rng: a random123 CBRNG instance used to generate the sequence
-     * @param[in] c: the CBRNG counter
-     * @param[in] k: the CBRNG key
-     *
-     * @returns a std::array<N,T> where N is the CBRNG's ctr_type::static_size
-     *          and T is deduced from the RNG's counter element type : float
-     *          for 32 bit counter elements and double for 64. For example when
-     *          RNG is Philox4x32 the return is a std::array<float,4>.
-     */
-    template <typename RNG>
-    static
-    auto generate(
-        RNG &rng,
-        typename RNG::ctr_type const &c,
-        typename RNG::key_type const &k
-    ) {
-        return boxmulall(rng(c,k));
+    constexpr void advance(std::uint64_t blocks) noexcept(
+        noexcept(counter.advance(blocks))) {
+        counter.advance(blocks);
     }
+
+    friend constexpr bool operator==(RNGState const&, RNGState const&) = default;
 };
 
-/// Generate a sequence of random values and transform to -1.0 to 1.0.
-struct uneg11
-{
-    /** Generate a sequence of random values and transform to -1.0 to 1.0.
-     *
-     * @tparam RNG a random123 CBRNG type
-     *
-     * @param[in] rng: a random123 CBRNG instance used to generate the sequence
-     * @param[in] c: CBRNG counter
-     * @param[in] k: CBRNG key
-     *
-     * @returns a std::array<N,T> where N is the CBRNG's ctr_type::static_size
-     *          and T is deduced from the RNG's counter element type : float
-     *          for 32 bit counter elements and double for 64. For example when
-     *          RNG is Philox4x32 the return is a std::array<float,4>.
-     */
-    template <typename RNG, typename T = typename std::conditional
-        <sizeof(typename RNG::ctr_type::value_type) == sizeof(uint32_t), float, double>::type>
-    static
-    auto generate(
-        RNG &rng,
-        typename RNG::ctr_type const &c,
-        typename RNG::key_type const &k
-    ) {
-        return r123::uneg11all<T>(rng(c,k));
-    }
-};
+using DefaultRNGState = RNGState<DefaultRNG>;
 
-/// @}
-
-} // end of namespace r123ext
-
+} // namespace RandBLAS

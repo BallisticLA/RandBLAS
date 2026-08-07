@@ -36,6 +36,7 @@
 #include "RandBLAS/skge.hh"
 #include "RandBLAS/sparse_data/spmm_dispatch.hh"
 #include "RandBLAS/util.hh"
+#include <cmath>
 #include <functional>
 #include <vector>
 #include <tuple>
@@ -74,12 +75,12 @@ std::vector<T> eye(int64_t n) {
     return A;
 }
 
-template <typename T, typename RNG=r123::Philox4x32>
-auto random_matrix(int64_t m, int64_t n, RNGState<RNG> s) {
+template <typename T, GeneratorState state_t = DefaultRNGState>
+auto random_matrix(int64_t m, int64_t n, state_t s) {
     std::vector<T> A(m * n);
     DenseDist DA(m, n);
     auto next_state = RandBLAS::fill_dense(DA, A.data(), s);
-    std::tuple<std::vector<T>, Layout, RNGState<RNG>> t{A, DA.natural_layout, next_state};
+    std::tuple<std::vector<T>, Layout, state_t> t{A, DA.natural_layout, next_state};
     return t;
 }
 
@@ -237,7 +238,7 @@ void reference_left_apply(
     for (int64_t i = 0; i < rows_S; ++i) {
         for (int64_t j = 0; j < cols_S; ++j) {
             auto ell = i * s_row_stride + j * s_col_stride;
-            S_dense_abs[ell] = abs(S_dense[ell]);
+            S_dense_abs[ell] = std::abs(S_dense[ell]);
         }
     }
 
@@ -251,14 +252,14 @@ void reference_left_apply(
     std::vector<T> A_abs_vec(size_A);
     T* A_abs = A_abs_vec.data();
     for (int64_t i = 0; i < size_A; ++i)
-        A_abs[i] = abs(A[i]);
+        A_abs[i] = std::abs(A[i]);
     if (beta != 0.0) {
         for (int64_t i = 0; i < size_B; ++i)
-            E[i] = abs(B[i]);
+            E[i] = std::abs(B[i]);
     }
     T eps = std::numeric_limits<T>::epsilon();
-    T err_alpha = (abs(alpha) * m) * (2 * eps);
-    T err_beta = abs(beta) * eps;
+    T err_alpha = (std::abs(alpha) * m) * (2 * eps);
+    T err_beta = std::abs(beta) * eps;
     T* S_abs_ptr = S_dense_abs.data();
     blas::gemm(layout, transS, transA, d, n, m,
         err_alpha, &S_abs_ptr[pos], lds, A_abs, lda, err_beta, E, ldb

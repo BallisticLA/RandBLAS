@@ -34,6 +34,7 @@
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/conversions.hh"
 #include <algorithm>
+#include <cmath>
 
 namespace RandBLAS::sparse_data {
 
@@ -307,7 +308,7 @@ void dense_to_csc(int64_t stride_row, int64_t stride_col, T *mat, T abs_tol, CSC
     for (int64_t j = 0; j < n_cols; ++j) {
         for (int64_t i = 0; i < n_rows; ++i) {
             T val = MAT(i, j);
-            if (abs(val) > abs_tol) {
+            if (std::abs(val) > abs_tol) {
                 spmat.vals[nnz] = val;
                 spmat.rowidxs[nnz] = i;
                 nnz += 1;

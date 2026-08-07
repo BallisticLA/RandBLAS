@@ -207,7 +207,7 @@ Implementation
       // Since d < m and we're short-axis major, the columns of matrices sampled from
       // D1 or D1 will be sampled i.i.d. from some distribution on R^d.
 
-      auto S1 = D1.sample( seed_state ); // seed_state is some RNGState.
+      auto S1 = D1.sample( seed_state ); // seed_state satisfies GeneratorState.
       auto S  =  D.sample( seed_state );
       // With these definitions, S1 is *always* equal to the first m columns of S.
       // We recover S2 by working implicitly with the trailing k columns of S.
@@ -271,8 +271,7 @@ Implementation
       // Since n > d and we're short-axis major, the rows of matrices sampled from
       // D1 or D1 will be sampled i.i.d. from some distribution on R^d.
 
-      auto S1 = D1.sample( seed_state ); // seed_state is some RNGState.
+      auto S1 = D1.sample( seed_state ); // seed_state satisfies GeneratorState.
       auto S  =  D.sample( seed_state );
       // With these definitions, S1 is *always* equal to the first m rows of S.
       // We recover S2 by working implicitly with the last k rows of S.
-

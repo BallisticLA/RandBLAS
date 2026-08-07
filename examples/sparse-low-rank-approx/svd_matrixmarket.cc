@@ -220,7 +220,7 @@ int main(int argc, char** argv) {
     double *U  = new double[m*k]{};
     double *VT = new double[k*n]{}; 
     double *qb_work = new double[std::max(m, n)];
-    RandBLAS::RNGState<r123::Philox4x32> state(0);
+    RandBLAS::DefaultRNGState state(0);
     /*
     Effect of various parameters on performance:
         It's EXTREMELY important to use -O3 if you want reasonably

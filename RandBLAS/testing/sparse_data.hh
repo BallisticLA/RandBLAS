@@ -47,6 +47,7 @@
 #include "RandBLAS/sparse_data/csr_matrix.hh"
 #include "RandBLAS/sparse_data/csc_matrix.hh"
 #include "RandBLAS/sparse_data/conversions.hh"
+#include "RandBLAS/testing/rng.hh"
 
 
 namespace RandBLAS::testing {
@@ -64,77 +65,8 @@ using RandBLAS::SignedInteger;
 #endif
 
 
-namespace detail {
-
-// Sequential wrapper around a Random123 CBRNG. Philox4x32 produces 4 uint32_t
-// values per counter increment; this helper dispenses them one at a time and
-// provides uniform, Gaussian, and geometric draws.
-//
-// Subclasses RNGState so that counter and key are inherited directly.
-template <typename RNG = RandBLAS::DefaultRNG>
-struct PhiloxStream : public RandBLAS::RNGState<RNG> {
-    using state_t = RandBLAS::RNGState<RNG>;
-    using ctr_t   = typename state_t::ctr_type;
-    static constexpr int ctr_size = state_t::len_c;
-
-    RNG rng;
-    ctr_t buffer;
-    int pos;
-    double spare;
-    bool has_spare;
-
-    PhiloxStream(const state_t &state)
-        : state_t(state), pos(ctr_size), spare(0.0), has_spare(false) {}
-
-    uint32_t next_u32() {
-        if (pos >= ctr_size) {
-            buffer = rng(this->counter, this->key);
-            this->counter.incr();
-            pos = 0;
-        }
-        return buffer.v[pos++];
-    }
-
-    // Uniform in (0, 1], never 0.0 (safe for log).
-    double uniform_01() {
-        return r123::u01<double>(next_u32());
-    }
-
-    // Box-Muller Gaussian. Each call to boxmuller produces two independent values;
-    // we cache the second and return it on the next invocation.
-    template <typename T>
-    T gaussian() {
-        if (has_spare) {
-            has_spare = false;
-            return static_cast<T>(spare);
-        }
-        uint32_t u1 = next_u32();
-        uint32_t u2 = next_u32();
-        auto [g1, g2] = r123::boxmuller(u1, u2);
-        spare = g2;
-        has_spare = true;
-        return static_cast<T>(g1);
-    }
-
-    // Geometric distribution: number of failures before first success in Bernoulli(p).
-    // Uses inverse CDF: floor(log(1 - u) / log(1 - p)) with u ~ Uniform(0, 1].
-    // Since u01 returns (0, 1], we have 1 - u in [0, 1). The only problematic value
-    // is 1 - u = 0, i.e., u = 1.0 exactly. With u01<double>(uint32_t), the maximum
-    // is 1.0 - 2^-33, so this never happens.
-    int64_t geometric(double log_1_minus_p) {
-        double u = uniform_01();
-        return static_cast<int64_t>(std::floor(std::log(1.0 - u) / log_1_minus_p));
-    }
-
-    state_t get_state() const {
-        return state_t{this->counter, this->key};
-    }
-};
-
-} // end namespace detail
-
-
-template <typename T, typename RNG = r123::Philox4x32>
+template <typename T,
+          GeneratorState state_t = DefaultRNGState>
 void iid_sparsify_random_dense(
     int64_t n_rows,
     int64_t n_cols,
@@ -142,7 +74,7 @@ void iid_sparsify_random_dense(
     int64_t stride_col,
     T* mat,
     T prob_of_zero,
-    RandBLAS::RNGState<RNG> state
+    state_t state
 ) {
     auto spar = new T[n_rows * n_cols];
     auto dist = RandBLAS::DenseDist(n_rows, n_cols, RandBLAS::ScalarDist::Uniform);
@@ -173,14 +105,15 @@ void iid_sparsify_random_dense(
 }
 
 
-template <typename T, typename RNG = r123::Philox4x32>
+template <typename T,
+          GeneratorState state_t = DefaultRNGState>
 void iid_sparsify_random_dense(
     int64_t n_rows,
     int64_t n_cols,
     Layout layout,
     T* mat,
     T prob_of_zero,
-    RandBLAS::RNGState<RNG> state
+    state_t state
 ) {
     if (layout == Layout::ColMajor) {
         iid_sparsify_random_dense(n_rows, n_cols, 1, n_rows, mat, prob_of_zero, state);
@@ -261,17 +194,18 @@ int64_t trianglize_coo(
 // Returns {CSRMatrix, next_state}. Use with structured bindings:
 //     auto [A, next_state] = random_csr<double>(m, n, density, state);
 // ============================================================================
-template <typename T, SignedInteger sint_t = int64_t, typename RNG = RandBLAS::DefaultRNG>
-std::pair<CSRMatrix<T, sint_t>, RandBLAS::RNGState<RNG>> random_csr(
+template <typename T, SignedInteger sint_t = int64_t,
+          GeneratorState state_t = DefaultRNGState>
+std::pair<CSRMatrix<T, sint_t>, state_t> random_csr(
     int64_t m,
     int64_t n,
     double density,
-    const RandBLAS::RNGState<RNG> &state
+    const state_t &state
 ) {
     randblas_require(density >= 0.0 && density <= 1.0);
 
     CSRMatrix<T, sint_t> A(m, n);
-    detail::PhiloxStream<RNG> stream(state);
+    detail::RNGStream<state_t> stream(state);
 
     if (density == 0.0 || m == 0 || n == 0) {
         if (m > 0) {
@@ -343,17 +277,18 @@ std::pair<CSRMatrix<T, sint_t>, RandBLAS::RNGState<RNG>> random_csr(
 // Returns {CSCMatrix, next_state}. Use with structured bindings:
 //     auto [A, next_state] = random_csc<double>(m, n, density, state);
 // ============================================================================
-template <typename T, SignedInteger sint_t = int64_t, typename RNG = RandBLAS::DefaultRNG>
-std::pair<CSCMatrix<T, sint_t>, RandBLAS::RNGState<RNG>> random_csc(
+template <typename T, SignedInteger sint_t = int64_t,
+          GeneratorState state_t = DefaultRNGState>
+std::pair<CSCMatrix<T, sint_t>, state_t> random_csc(
     int64_t m,
     int64_t n,
     double density,
-    const RandBLAS::RNGState<RNG> &state
+    const state_t &state
 ) {
     randblas_require(density >= 0.0 && density <= 1.0);
 
     CSCMatrix<T, sint_t> A(m, n);
-    detail::PhiloxStream<RNG> stream(state);
+    detail::RNGStream<state_t> stream(state);
 
     if (density == 0.0 || m == 0 || n == 0) {
         if (n > 0) {
@@ -422,17 +357,18 @@ std::pair<CSCMatrix<T, sint_t>, RandBLAS::RNGState<RNG>> random_csc(
 // Returns {COOMatrix, next_state}. Use with structured bindings:
 //     auto [A, next_state] = random_coo<double>(m, n, density, state);
 // ============================================================================
-template <typename T, SignedInteger sint_t = int64_t, typename RNG = RandBLAS::DefaultRNG>
-std::pair<COOMatrix<T, sint_t>, RandBLAS::RNGState<RNG>> random_coo(
+template <typename T, SignedInteger sint_t = int64_t,
+          GeneratorState state_t = DefaultRNGState>
+std::pair<COOMatrix<T, sint_t>, state_t> random_coo(
     int64_t m,
     int64_t n,
     double density,
-    const RandBLAS::RNGState<RNG> &state
+    const state_t &state
 ) {
     randblas_require(density >= 0.0 && density <= 1.0);
 
     COOMatrix<T, sint_t> A(m, n);
-    detail::PhiloxStream<RNG> stream(state);
+    detail::RNGStream<state_t> stream(state);
 
     if (density == 0.0 || m == 0 || n == 0) {
         return {std::move(A), stream.get_state()};

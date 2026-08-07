@@ -6,112 +6,129 @@
 Sampling a sketching operator
 ******************************************************************************
 
-RandBLAS relies on counter-based random number generators (CBRNGs) from Random123.
-A CBRNG returns a random number upon being called with two integer parameters: the *counter* and the *key*.
-The time required for the CBRNG to return does not depend on either of these parameters.
-A serial application can set the key at the outset of the program and never change it, while
-parallel applications should use different keys across different threads.
-Sequential calls to the CBRNG with a fixed key should use different values for the counter. 
+RandBLAS includes native, header-only counter-based random-number generators
+(CBRNGs). A CBRNG is a stateless block function of a counter and a key. RandBLAS
+sampling functions consume a state abstraction that binds such an engine to one
+counter and one key.
 
+This organization lets RandBLAS assign counter blocks to matrix coordinates
+instead of relying on the order in which threads happen to run. Sampling a full
+operator or one of its submatrices is therefore reproducible and independent of
+the OpenMP thread count.
 
-RandBLAS doesn't expose CBRNGs directly. Instead, it exposes an abstraction of
-a CBRNG's state as defined in the :cpp:struct:`RandBLAS::RNGState` type.
-RNGState objects are needed to construct sketching operators.
 
 .. _constructing_rng_states_tut:
 
-Constructing RNGStates
-======================
+Constructing RNG states
+=======================
 
-There are two ways to construct an RNGState from scratch:
-
-.. code:: c++
-
-   RandBLAS::RNGState s1();     // key and counter are initialized to 0.
-   RandBLAS::RNGState s2(42);   // key set to 42, counter set to 0.
-
-Note that in both cases the counter is initialized to zero.
-This is important: you should never set the counter yourself!
-If you want statistically independent runs of the same program, then you can start with different values for the key.
-
-You can also construct an RNGState with a copy operation:
+Most applications should use :cpp:type:`RandBLAS::DefaultRNGState`, whose
+engine is ``RandBLAS::rng::Philox<4, 32, 10>``:
 
 .. code:: c++
 
-  RandBLAS::RNGState s3(s1);   // s3 is a copy of s1.
+   RandBLAS::DefaultRNGState s1{};     // zero counter and default key
+   RandBLAS::DefaultRNGState s2{42};   // zero counter and key mapped from seed 42
+
+The scalar seed is mapped to a key by the engine's stable ``make_key`` function;
+it should be treated as a seed rather than as the key's representation. Using
+different seeds is the ordinary way to obtain independent program runs.
+
+An RNG state is copyable:
+
+.. code:: c++
+
+   RandBLAS::DefaultRNGState s3{s1};
 
 
 Constructing your first sketching operator
 ==========================================
 
-RandBLAS provides several constructors for the DenseSkOp and SparseSkOp classes.
-However, the *recommended* constructors for these classes just accept two parameters:
-a representation of a distribution (i.e., a DenseDist or a SparseDist) and an RNGState.
+The recommended DenseSkOp and SparseSkOp constructors accept a distribution and
+an RNG state. For example, the following code defines a
+:math:`10000 \times 50` dense sketching operator whose entries are independent
+standard-normal samples:
 
-For example, the following code produces a :math:`10000 \times 50` dense sketching operator 
-whose entries are iid samples from the standard normal distribution.
+.. code:: c++
 
-   .. code:: c++
+   RandBLAS::DefaultRNGState state{};
+   RandBLAS::DenseDist dist(10000, 50);
+   RandBLAS::DenseSkOp<double> S(dist, state);
+   // state is copied into S.seed_state. Sampling happens only when needed.
 
-      RandBLAS::RNGState my_state();
-      RandBLAS::DenseDist my_dist(10000, 50);
-      RandBLAS::DenseSkOp<double> S(my_dist, my_state);
-      // my_state is stored as a constant value S.seed_state.
-      // S.seed_state will be accessed by RandBLAS' random sampling
-      // functions behind the scenes, only when needed.
-  
-We note that the numerical precision of the sketching operator must be specified with a template parameter;
-the entries of the sketching operator are defined by sampling in single precision and then
-casting the sample to double if needed.
+The numerical precision of the sketching operator is a template parameter.
+Entries are sampled in single precision and cast to double when needed.
 
-Formal API docs for the recommended constructors can be found :ref:`here <densedist_and_denseskop_api>` and :ref:`here <sparsedist_and_sparseskop_api>`.
+Formal API docs for the recommended constructors can be found
+:ref:`here <densedist_and_denseskop_api>` and
+:ref:`here <sparsedist_and_sparseskop_api>`.
 
 
 Constructing your :math:`N^{\text{th}}` sketching operator, for :math:`N > 1`
 ==============================================================================
 
-Suppose you have an application that requires two statistically independent dense
-sketching operators, :math:`\texttt{S1}` and :math:`\texttt{S2}`, each of size
-:math:`10000 \times 50`.  How should you get your hands on these objects?
+Constructing two operators from the same distribution and state defines the
+same mathematical operator, not two independent ones:
 
-.. warning::
-    If you try to construct those sketching operators as follows ...
+.. code:: c++
 
-    .. code:: c++
+   RandBLAS::DefaultRNGState state{};
+   RandBLAS::DenseDist dist(10000, 50);
+   RandBLAS::DenseSkOp<double> S1(dist, state);
+   RandBLAS::DenseSkOp<double> S2(dist, state); // S2 is the same as S1
 
-      RandBLAS::RNGState my_state();
-      RandBLAS::DenseDist my_dist(10000, 50);
-      RandBLAS::DenseSkOp<double> S1(my_dist, my_state);
-      RandBLAS::DenseSkOp<double> S2(my_dist, my_state);
+Use the first operator's ``next_state`` for the second operator:
 
-    *then your results would be invalid! Far from being independent,* :math:`\texttt{S1}`
-    *and* :math:`\texttt{S2}` *would be equal from a mathematical perspective.*
+.. code:: c++
 
-One correct approach is to then call the constructor for :math:`\texttt{S2}`
-using :math:`\texttt{S1.next_state}` as its RNGState argument:
+   RandBLAS::DefaultRNGState state{};
+   RandBLAS::DenseDist dist(10000, 50);
+   RandBLAS::DenseSkOp<double> S1(dist, state);
+   RandBLAS::DenseSkOp<double> S2(dist, S1.next_state);
 
-  .. code:: c++
+Alternatively, start with two states constructed from different seeds:
 
-    RandBLAS::RNGState my_state();
-    RandBLAS::DenseDist my_dist(10000, 50);
-    RandBLAS::DenseSkOp<double> S1(my_dist, my_state);
-    // ^ Defines S1 from a mathematical perspective. Computes S1.next_state,
-    //   but otherwise performs no work.
-    RandBLAS::DenseSkOp<double> S2(my_dist, S1.next_state);
+.. code:: c++
 
-Another valid approach is to declare two RNGState objects from the beginning using
-different keys, as in the following code:
-
-  .. code:: c++
-
-    RandBLAS::RNGState my_state1(19);
-    // ^ An RNGState with zero'd counter and key initialized to 19.
-    RandBLAS::RNGState my_state2(93);
-    // ^ An RNGState with zero'd counter and key initialized to 93.
-    RandBLAS::DenseDist my_dist(10000, 50);
-    RandBLAS::DenseSkOp<double> S1(my_dist, my_state1);
-    RandBLAS::DenseSkOp<double> S2(my_dist, my_state2);
-    // ^ S1 and S2 are defined only from a mathematical perspective.
-    //   No real work is performed here.
+   RandBLAS::DefaultRNGState state1{19};
+   RandBLAS::DefaultRNGState state2{93};
+   RandBLAS::DenseDist dist(10000, 50);
+   RandBLAS::DenseSkOp<double> S1(dist, state1);
+   RandBLAS::DenseSkOp<double> S2(dist, state2);
 
 
+Engine and state details
+========================
+
+Users who need direct block access can name the engine and state explicitly:
+
+.. code:: c++
+
+   using Engine = RandBLAS::rng::Philox<4, 32, 10>;
+   using State = RandBLAS::RNGState<Engine>;
+
+   State state{1234};
+   Engine::res_t block{};
+   state.generate(block); // writes every element of the output-only array
+   state.advance(1);      // add one to the engine's multiword counter
+
+The engine provides ``ctr_t``, ``key_t``, and ``res_t`` aliases. The concrete
+``RNGState`` adapter exposes the same aliases and public ``counter``, ``key``,
+and ``engine`` data. Generic samplers require only the ``GeneratorState``
+operations, so custom states need not use that representation. Generation does
+not mutate the state: advancing by one block is always explicit. The default
+Philox engine produces exactly the same integer blocks as Philox4x32-10 in
+Random123 for the same counter and key. Philox is a statistical generator, not
+a cryptographic random-number generator.
+
+``RandBLAS::rng::RepackedOutput`` can expose each result word as narrower chunks
+without changing the block boundary. Chunks are least-significant first within
+each source word: ``0xAABBCCDD`` becomes ``{0xCCDD, 0xAABB}`` with 16-bit words
+and ``{0xDD, 0xCC, 0xBB, 0xAA}`` with 8-bit words, regardless of host byte order.
+Current RandBLAS samplers accept native 32- or 64-bit result words; repacked
+8- and 16-bit results are provided for direct use and future sampler work.
+
+The dense Gaussian transform calls the host ``sin``, ``cos``, ``log``, and
+``sqrt`` functions. Its final bits can therefore vary across math libraries,
+compilers, or architectures even though the underlying integer stream and block
+assignment are fixed.

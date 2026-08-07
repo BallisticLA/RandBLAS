@@ -1,8 +1,8 @@
 name: setup-randblas-deps
 description: >
-  Installs RandBLAS build dependencies (GoogleTest, BLAS++, Random123, and
-  optionally LAPACK++), with caching for the from-source dependencies. Exports
-  blaspp_DIR, Random123_DIR, and (optionally) lapackpp_DIR via GITHUB_ENV.
+  Installs RandBLAS build dependencies (GoogleTest, BLAS++, and optionally
+  LAPACK++), with caching for the from-source dependencies. Exports blaspp_DIR
+  and (optionally) lapackpp_DIR via GITHUB_ENV.
 
 inputs:
   cc:
@@ -188,26 +188,12 @@ runs:
         fi
         make -j"${jobs}" install
 
-    - name: install Random123 headers
-      shell: bash
-      run: |
-        set -euxo pipefail
-        cd ..
-        rm -rf Random123 Random123-install
-        git clone --depth 1 https://github.com/DEShawResearch/Random123.git
-        # Random123's `make install-include` target uses GNU `cp -d`, which
-        # isn't supported by BSD cp on macOS. Copy the headers directly so
-        # the same step works on both platforms.
-        mkdir -p Random123-install/include
-        cp -R Random123/include/Random123 Random123-install/include/
-
     - name: export dependency paths
       shell: bash
       run: |
         set -euxo pipefail
         cd ..
         echo "blaspp_DIR=$(pwd)/blaspp-install/lib/cmake/blaspp" >> "$GITHUB_ENV"
-        echo "Random123_DIR=$(pwd)/Random123-install/include" >> "$GITHUB_ENV"
         if [[ "${{ inputs.install-lapackpp }}" == "true" ]]; then
           echo "lapackpp_DIR=$(pwd)/lapackpp-install/lib/cmake/lapackpp" >> "$GITHUB_ENV"
         fi

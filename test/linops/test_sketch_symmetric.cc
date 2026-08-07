@@ -94,7 +94,7 @@ class TestSketchSymmetric : public ::testing::Test {
         std::vector<T> A(lda*lda, 0.0);
         random_symmetric_mat(n, A.data(), lda, RNGState(seed_a));
         DenseDist D(rows_out, cols_out, ScalarDist::Uniform, major_axis);
-        DenseSkOp<T> S(D, seed_skop);
+        DenseSkOp<T> S(D, RandBLAS::DefaultRNGState{seed_skop});
         RandBLAS::fill_dense(S);
         int64_t lds = (S.layout == Layout::RowMajor) ? cols_out : rows_out;
         int64_t ldb = lds;
@@ -126,7 +126,7 @@ class TestSketchSymmetric : public ::testing::Test {
         std::vector<T> A(lda*lda, 0.0);
         random_symmetric_mat(n, A.data(), lda, RNGState(seed_a));
         DenseDist D(rows_out, cols_out, ScalarDist::Uniform, major_axis);
-        DenseSkOp<T> S(D, seed_skop);
+        DenseSkOp<T> S(D, RandBLAS::DefaultRNGState{seed_skop});
         RandBLAS::fill_dense(S);
         int64_t lds_init, ldb;
         Layout layout_B;
@@ -177,7 +177,7 @@ class TestSketchSymmetric : public ::testing::Test {
             0.0, 0.0, 3.0
         };
         DenseDist D(d, n, ScalarDist::Uniform, Axis::Short);
-        DenseSkOp<T> S(D, 42);
+        DenseSkOp<T> S(D, RandBLAS::DefaultRNGState{42});
         RandBLAS::fill_dense(S);
         std::vector<T> B(d * n, 0.0);
         try {

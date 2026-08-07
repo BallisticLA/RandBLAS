@@ -36,7 +36,6 @@
 
 #include <blas.hh>
 #include <utility>
-#include <cstring>
 #include <cstdint>
 #include <iostream>
 
@@ -50,141 +49,32 @@
 /// code common across the project
 namespace RandBLAS {
 
-typedef r123::Philox4x32 DefaultRNG;
 using std::uint64_t;
-
-/// -------------------------------------------------------------------
-/// This is a stateful version of a
-/// *counter-based random number generator* (CBRNG) from Random123.
-/// It packages a CBRNG together with two arrays, called "counter" and "key,"
-/// which are interpreted as extended-width unsigned integers.
-/// 
-/// RNGStates are used in every RandBLAS function that involves random sampling.
-///
-template <typename RNG = DefaultRNG>
-struct RNGState {
-
-    /// -------------------------------------------------------------------
-    /// Type of the underlying Random123 CBRNG. Must be based on 
-    /// Philox or Threefry. We've found that Philox works best for our 
-    /// purposes, and we default to Philox4x32.
-    using generator = RNG;
-    
-    using ctr_type = typename RNG::ctr_type;
-    // ^ An array type defined in Random123.
-    using key_type = typename RNG::key_type;
-    // ^ An array type defined in Random123.
-    using ctr_uint = typename RNG::ctr_type::value_type;
-    // ^ The unsigned integer type used in this RNGState's counter array.
-    using key_uint = typename RNG::key_type::value_type;
-    // ^ The unsigned integer type used in this RNGState's key array.
-
-    /// ------------------------------------------------------------------
-    /// This is a Random123-defined statically-sized array of unsigned integers.
-    /// With RandBLAS' default, it contains four 32-bit unsigned ints
-    /// and is interpreted as one 128-bit unsigned int.
-    /// 
-    /// This member specifies a "location" in the random stream
-    /// defined by RNGState::generator and RNGState::key.
-    /// Random sampling functions in RandBLAS effectively consume elements
-    /// of the random stream starting from this location.
-    ///
-    /// **RandBLAS functions do not mutate input RNGStates.** Free-functions 
-    /// return new RNGStates with suitably updated counters. Constructors
-    /// for SketchingOperator objects store updated RNGStates in the
-    /// object's next_state member.
-    typename RNG::ctr_type counter;
-
-    /// ------------------------------------------------------------------
-    /// This is a Random123-defined statically-sized array of unsigned integers.
-    /// With RandBLAS' default, it contains two 32-bit unsigned ints
-    /// and is interpreted as one 64-bit unsigned int.
-    ///
-    /// This member specifices a sequece of pseudo-random numbers
-    /// that RNGState::generator can produce. Any fixed sequence has
-    /// fairly large period (\math{2^{132},} with RandBLAS' default) and
-    /// is statistically independent from sequences induced by different keys.
-    ///
-    /// To increment the key by "step," call \math{\ttt{key.incr(step)}}.
-    typename RNG::key_type key;
-
-    const static int len_c = RNG::ctr_type::static_size;
-    static_assert(len_c >= 2);
-    const static int len_k = RNG::key_type::static_size;
-
-    /// Initialize the counter and key to zero.
-    RNGState() : counter{}, key{} {}
-
-    /// Initialize the counter and key to zero, then increment the key by k.
-    RNGState(uint64_t k) : counter{}, key{} { key.incr(k); }
-
-    // construct from a key
-    RNGState(key_type const &k) : counter{}, key(k) {}
-
-    // Initialize counter and key arrays at the given values.
-    RNGState(ctr_type const &c, key_type const &k) : counter(c), key(k) {}
-
-    // move construct from an initial counter and key
-    RNGState(ctr_type &&c, key_type &&k) : counter(std::move(c)), key(std::move(k)) {}
-
-    // move constructor.
-    RNGState(RNGState<RNG> &&s) : RNGState(std::move(s.counter), std::move(s.key)) {};
-
-    ~RNGState() {};
-
-    /// Copy constructor.
-    RNGState(const RNGState<RNG> &s) : RNGState(s.counter, s.key) {};
-
-    // A copy-assignment operator.
-    RNGState<RNG> &operator=(const RNGState<RNG> &s) {
-        std::memcpy(this->counter.v, s.counter.v, this->len_c * sizeof(ctr_uint));
-        std::memcpy(this->key.v,     s.key.v,     this->len_k * sizeof(key_uint));
-        return *this;
-    };
-
-    //
-    // Comparators (for now, these are just for testing and debugging)
-    // 
-
-    bool operator==(const RNGState<RNG> &s) const {
-        // the compiler should only allow comparisons between RNGStates of the same type.
-        for (int i = 0; i < len_c; ++i) {
-            if (counter.v[i] != s.counter.v[i]) { return false; }
-        }
-        for (int i = 0; i < len_k; ++i) {
-            if (key.v[i] != s.key.v[i]) { return false; }
-        }
-        return true;
-    };
-
-    bool operator!=(const RNGState<RNG> &s) const {
-        return !(*this == s);
-    };
-
-};
-
-template <typename RNG>
-const int RandBLAS::RNGState<RNG>::len_c;
-
-template <typename RNG>
-const int RandBLAS::RNGState<RNG>::len_k;
-
-template <typename RNG>
+template <rng::CounterBasedEngine Engine>
+    requires requires(RNGState<Engine> const& state, std::ostream& stream) {
+        state.counter.size();
+        state.key.size();
+        state.counter[0];
+        state.key[0];
+        stream << state.counter[0];
+        stream << state.key[0];
+    }
 std::ostream &operator<<(
     std::ostream &out,
-    const RNGState<RNG> &s
+    const RNGState<Engine> &s
 ) {
-    int i;
+    auto const& counter = s.counter;
+    auto const& key = s.key;
     out << "counter : {";
-    for (i = 0; i < s.len_c - 1; ++i) {
-        out << s.counter[i] << ", ";
+    for (std::size_t i = 0; i + 1 < counter.size(); ++i) {
+        out << counter[i] << ", ";
     }
-    out << s.counter[i] << "}\n";
+    out << counter[counter.size() - 1] << "}\n";
     out << "key     : {";
-    for (i = 0; i < s.len_k - 1; ++i) {
-        out << s.key[i] << ", ";
+    for (std::size_t i = 0; i + 1 < key.size(); ++i) {
+        out << key[i] << ", ";
     }
-    out << s.key[i] << "}";
+    out << key[key.size() - 1] << "}";
     return out;
 }
 
@@ -488,4 +378,3 @@ concept SketchingOperator = requires {
 #endif
 
 } // end namespace RandBLAS::base
-

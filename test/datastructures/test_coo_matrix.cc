@@ -47,9 +47,9 @@ using RandBLAS::SignedInteger;
 #endif
 
 
-template <typename T, typename RNG, SignedInteger sint_t>
+template <typename T, typename State, SignedInteger sint_t>
 void sparseskop_to_dense(
-    RandBLAS::SparseSkOp<T, RNG, sint_t> &S0,
+    RandBLAS::SparseSkOp<T, State, sint_t> &S0,
     T *mat,
     Layout layout
 ) {
@@ -154,8 +154,10 @@ class TestCOO : public ::testing::Test {
         // arrange
         RandBLAS::DenseDist D(n, n);
         std::vector<T> buff(n*n);
-        fill_dense(D, buff.data(), {0});
-        iid_sparsify_random_dense(n, n, Layout::ColMajor, buff.data(), prob_zero, {94});
+        fill_dense(D, buff.data(), RandBLAS::DefaultRNGState{0});
+        iid_sparsify_random_dense(
+            n, n, Layout::ColMajor, buff.data(), prob_zero,
+            RandBLAS::DefaultRNGState{94});
         std::vector<int64_t> perm(n);
         for (i = 0; i < n; ++i) {
             buff[i + i*n] = 2*(i+1); // diagonal is      2,   4, ..., 2*n
@@ -312,7 +314,8 @@ class Test_SkOp_to_COO : public ::testing::Test {
     template <typename T = double>
     void sparse_skop_to_coo(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index, Axis major_axis) {
         RandBLAS::SparseDist D(d, m, vec_nnzs[nnz_index], major_axis);
-        RandBLAS::SparseSkOp<T> S(D, keys[key_index]);
+        RandBLAS::SparseSkOp<T> S(
+            D, RandBLAS::DefaultRNGState{keys[key_index]});
         fill_sparse(S);
         auto A = RandBLAS::sparse::coo_view_of_skop(S);
 

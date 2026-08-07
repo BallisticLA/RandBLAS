@@ -56,7 +56,7 @@ class TestRSKGES : public ::testing::Test
         Layout layout
     ) {
         SparseDist D(m, d, vec_nnz, major_axis);
-        SparseSkOp<T> S0(D, seed);
+        SparseSkOp<T> S0(D, RandBLAS::DefaultRNGState{seed});
         RandBLAS::fill_sparse(S0);
         test_right_apply_submatrix_to_eye<T>(1.0, S0, m, d, 0, 0, layout, 0.0, 0);
     }
@@ -73,7 +73,8 @@ class TestRSKGES : public ::testing::Test
         int threads
     ) {
         SparseDist D(n, d, vec_nnzs[nnz_index], major_axis);
-        SparseSkOp<T> S0(D, keys[key_index]);
+        SparseSkOp<T> S0(
+            D, RandBLAS::DefaultRNGState{keys[key_index]});
         RandBLAS::fill_sparse(S0);
         test_right_apply_to_random<T>(1.0, S0, m, layout, 0.0, threads);
     }
@@ -93,7 +94,7 @@ class TestRSKGES : public ::testing::Test
         randblas_require(n0 >= n1);
         int64_t vec_nnz = d0 / 3; // this is actually quite dense. 
         SparseDist D0(n0, d0, vec_nnz, RandBLAS::Axis::Short);
-        SparseSkOp<T> S0(D0, seed);
+        SparseSkOp<T> S0(D0, RandBLAS::DefaultRNGState{seed});
         RandBLAS::fill_sparse(S0);
         test_right_apply_submatrix_to_eye<T>(1.0, S0, n1, d1, S_ro, S_co, layout, 0.0, 0);
     }
@@ -410,12 +411,12 @@ class TestRSKGES_SubmatrixPath : public ::testing::Test {
         if (opS == blas::Op::NoTrans) { big_rows = n + S_ro + 1; big_cols = d1 + S_co + 2; }
         else                          { big_rows = d1 + S_ro + 1; big_cols = n + S_co + 2; }
         SparseDist D0 {big_rows, big_cols, vec_nnz, major_axis};
-        RandBLAS::RNGState<r123::Philox4x32> seed((uint32_t) 7);
+        RandBLAS::DefaultRNGState seed((uint32_t) 7);
 
         // Dense input A: op(A) is m-by-n with opA = NoTrans, so A is m-by-n.
         int64_t lda = (layout == blas::Layout::ColMajor) ? m : n;
         std::vector<T> A(m * n);
-        RandBLAS::RNGState<r123::Philox4x32> a_state((uint32_t) 99);
+        RandBLAS::DefaultRNGState a_state((uint32_t) 99);
         RandBLAS::DenseDist DA {m, n};
         RandBLAS::fill_dense(DA, A.data(), a_state);
 

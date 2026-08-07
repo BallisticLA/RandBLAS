@@ -62,9 +62,9 @@ inline void copy_promote(int n, const T_IN &a, T_OUT* b) {
  * "ptr" is the pointer offset for the desired submatrix in the imagined buffer of the parent matrix.
  *
  * @tparam T the data type of the matrix
- * @tparam RNG a random123 CBRNG type
+ * @tparam state_t a counter-based RNG state type
  * @tparam OP an operator that transforms raw random values into matrix
- *           elements. See r123ext::uneg11 and r123ext::boxmul.
+ *           elements. See rng::uneg11 and rng::boxmul.
  *
  * @param[in] n_cols
  *      The number of columns in the implicitly defined parent matrix.
@@ -93,18 +93,25 @@ inline void copy_promote(int n, const T_IN &a, T_OUT* b) {
  * using OMP_NUM_THREADS. The sequence of values generated does not depend on the number of threads.
  * 
  */
-template<typename T, typename RNG, typename OP>
-static RNGState<RNG> fill_dense_submat_impl(int64_t n_cols, T* smat, int64_t n_srows, int64_t n_scols, int64_t ptr, const RNGState<RNG> &seed, int64_t lda = 0) {
+template<typename T, GeneratorState state_t, typename OP>
+static state_t fill_dense_submat_impl(int64_t n_cols, T* smat,
+                                    int64_t n_srows, int64_t n_scols,
+                                    int64_t ptr, state_t const& seed,
+                                    int64_t lda = 0) {
     if (lda <= 0) {
         lda = n_scols;
     } else {
         randblas_require(lda >= n_scols);
     }
     randblas_require(n_cols >= n_scols);
-    RNG rng;
-    using CTR_t = typename RNG::ctr_type;
-    using KEY_t = typename RNG::key_type;
-    const int64_t ctr_size = CTR_t::static_size;
+    using res_t = typename state_t::res_t;
+    using word_t = typename res_t::value_type;
+    constexpr int64_t ctr_size = std::tuple_size_v<res_t>;
+    static_assert(ctr_size % 2 == 0,
+                  "dense sampling requires an even RNG result length");
+    static_assert(std::numeric_limits<word_t>::digits == 32 ||
+                      std::numeric_limits<word_t>::digits == 64,
+                  "dense sampling requires 32- or 64-bit result words");
     
     int64_t pad = 0;
     // ^ computed such that n_cols+pad is divisible by ctr_size
@@ -125,19 +132,17 @@ static RNGState<RNG> fill_dense_submat_impl(int64_t n_cols, T* smat, int64_t n_s
     const bool  one_block_per_row = ctr_mat_start == ctr_mat_row_end;
     const int64_t first_block_len = ((one_block_per_row) ? last_block_stop : ctr_size) - first_block_start;
 
-    CTR_t temp_c = seed.counter;
-    temp_c.incr(ctr_mat_start);
-    const CTR_t c = temp_c;
-    const KEY_t k = seed.key;
+    state_t first_state = seed;
+    first_state.advance(ctr_mat_start);
 
     #pragma omp parallel for schedule(static)
     for (int64_t row = 0; row < n_srows; row++) {
 
         int64_t incr_from_c = safe_int_product(ctr_inter_row_stride, row);
     
-        auto c_row = c;
-        c_row.incr(incr_from_c);
-        auto rv = OP::generate(rng, c_row, k);
+        state_t row_state = first_state;
+        row_state.advance(incr_from_c);
+        auto rv = OP::generate(row_state);
 
         T* smat_row = smat + row*lda;
         for (int i = 0; i < first_block_len; i++) {
@@ -149,35 +154,34 @@ static RNGState<RNG> fill_dense_submat_impl(int64_t n_cols, T* smat, int64_t n_s
         // middle blocks
         int64_t ind = first_block_len;
         for (int i = 0; i < (ctr_mat_row_end - ctr_mat_start - 1); ++i) {
-            c_row.incr();
-            rv = OP::generate(rng, c_row, k);
+            row_state.advance(1);
+            rv = OP::generate(row_state);
             copy_promote(ctr_size, rv, smat_row + ind);
             ind = ind + ctr_size;
         }
         // last block
-        c_row.incr();
-        rv = OP::generate(rng, c_row, k);
+        row_state.advance(1);
+        rv = OP::generate(row_state);
         copy_promote(last_block_stop, rv, smat_row + ind);
     }
     
-    // find the largest counter in the counter array
-    CTR_t max_c = c;
-    max_c.incr(n_srows * ctr_inter_row_stride);
-    return RNGState<RNG> {max_c, k};
+    state_t next_state = seed;
+    next_state.advance(ctr_mat_start + n_srows * ctr_inter_row_stride);
+    return next_state;
 }
 
-template <typename RNG, typename DD>
-RNGState<RNG> compute_next_state(DD dist, RNGState<RNG> state) {
+template <GeneratorState state_t, typename DD>
+state_t compute_next_state(DD dist, state_t state) {
     int64_t major_len = dist.dim_major;
     int64_t minor_len = dist.dim_minor;
-    int64_t ctr_size = RNG::ctr_type::static_size;
+    constexpr int64_t ctr_size = std::tuple_size_v<typename state_t::res_t>;
     int64_t pad = 0;
     if (major_len % ctr_size != 0) {
         pad = ctr_size - major_len % ctr_size;
     }
     int64_t ctr_major_axis_stride = (major_len + pad) / ctr_size;
     int64_t full_incr = safe_int_product(ctr_major_axis_stride, minor_len);
-    state.counter.incr(full_incr);
+    state.advance(full_incr);
     return state;
 }
 
@@ -203,7 +207,7 @@ namespace RandBLAS {
 
 // Forward declaration of DenseSkOp. It's returnable by
 // DenseDist.sample(), but its definition involves DenseDist.
-template<typename T, typename RNG>
+template<typename T, GeneratorState state_t = DefaultRNGState>
 struct DenseSkOp;
 
 
@@ -327,8 +331,8 @@ struct DenseDist {
 
     // -------------------------------------------------------------------------------------
     ///  Construct a DenseSkOp with this distribution and the provided seed_state.
-    template <typename T, typename RNG = DefaultRNG>
-    DenseSkOp<T,RNG> sample(RNGState<RNG> &seed_state) {
+    template <typename T, GeneratorState state_t = DefaultRNGState>
+    DenseSkOp<T,state_t> sample(state_t &seed_state) {
         return {*this, seed_state};
     }
 
@@ -351,7 +355,7 @@ struct DenseDist {
 ///  A sample from a distribution over matrices whose entries are iid
 ///  mean-zero variance-one random variables.
 ///  This type conforms to the SketchingOperator concept.
-template <typename T, typename RNG = DefaultRNG>
+template <typename T, GeneratorState generator_state_t>
 struct DenseSkOp {
 
     // ---------------------------------------------------------------------------
@@ -360,7 +364,7 @@ struct DenseSkOp {
 
     // ---------------------------------------------------------------------------
     /// Type alias.
-    using state_t = RNGState<RNG>;
+    using state_t = generator_state_t;
 
     // ---------------------------------------------------------------------------
     /// Real scalar type used in matrix representations of this operator.
@@ -451,7 +455,7 @@ struct DenseSkOp {
 
     //  Move constructor
     DenseSkOp(
-        DenseSkOp<T,RNG> &&S
+        DenseSkOp<T,state_t> &&S
     ) : // Initializations
         dist(S.dist),
         seed_state(S.seed_state),
@@ -557,8 +561,10 @@ static_assert(SketchingOperator<DenseSkOp<double>>);
 ///      - Used to define :math:`\mtxS` as a sample from :math:`\D.`
 ///
 /// @endverbatim
-template<typename T, typename RNG = DefaultRNG>
-RNGState<RNG> fill_dense_unpacked(blas::Layout layout, const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s, T* buff, const RNGState<RNG> &seed) {
+template<typename T, GeneratorState state_t = DefaultRNGState>
+state_t fill_dense_unpacked(blas::Layout layout, const DenseDist &D,
+                          int64_t n_rows, int64_t n_cols, int64_t ro_s,
+                          int64_t co_s, T* buff, state_t const& seed) {
     using RandBLAS::dense::fill_dense_submat_impl;
     randblas_require(D.n_rows >= n_rows + ro_s);
     randblas_require(D.n_cols >= n_cols + co_s);
@@ -575,14 +581,16 @@ RNGState<RNG> fill_dense_unpacked(blas::Layout layout, const DenseDist &D, int64
         n_cols_ = n_cols;
         ptr = safe_int_product(ro_s, ma_len) + co_s;
     }
-    RNGState<RNG> next_state{};
+    state_t next_state{};
     switch (D.family) {
         case ScalarDist::Gaussian: {
-            next_state = fill_dense_submat_impl<T,RNG,r123ext::boxmul>(ma_len, buff, n_rows_, n_cols_, ptr, seed);
+            next_state = fill_dense_submat_impl<T,state_t,rng::boxmul>(
+                ma_len, buff, n_rows_, n_cols_, ptr, seed);
             break;
         }
         case ScalarDist::Uniform: {
-            next_state = fill_dense_submat_impl<T,RNG,r123ext::uneg11>(ma_len, buff, n_rows_, n_cols_, ptr, seed);
+            next_state = fill_dense_submat_impl<T,state_t,rng::uneg11>(
+                ma_len, buff, n_rows_, n_cols_, ptr, seed);
             blas::scal(n_rows_ * n_cols_, (T)std::sqrt(3), buff, 1);
             break;
         }
@@ -617,8 +625,8 @@ RNGState<RNG> fill_dense_unpacked(blas::Layout layout, const DenseDist &D, int64
 ///      A CBRNG state
 ///      - Used to define \math{\mat(\buff)} as a sample from \math{\D}.
 ///
-template <typename T, typename RNG = DefaultRNG>
-RNGState<RNG> fill_dense(const DenseDist &D, T *buff, const RNGState<RNG> &seed) {
+template <typename T, GeneratorState state_t = DefaultRNGState>
+state_t fill_dense(const DenseDist &D, T *buff, state_t const& seed) {
     return fill_dense_unpacked(D.natural_layout, D, D.n_rows, D.n_cols, 0, 0, buff, seed);
 }
 

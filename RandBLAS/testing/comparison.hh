@@ -70,11 +70,11 @@ bool approx_equal(T A, T B, std::ostream &str,
 {
     // Check if the numbers are really close -- needed
     // when comparing numbers near zero.
-    T diff_ab = abs(A - B);
+    T diff_ab = std::abs(A - B);
     if (diff_ab <= atol)
         return true;
 
-    T max_ab = std::max(abs(B), abs(A));
+    T max_ab = std::max(std::abs(B), std::abs(A));
 
     if (diff_ab <= max_ab * rtol)
         return true;

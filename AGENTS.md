@@ -177,7 +177,6 @@ ctest -V                 # Verbose output
 
 Key CMake variables:
 - `blaspp_DIR`: Path to BLAS++ installation (containing `blasppConfig.cmake`)
-- `Random123_DIR`: Path to Random123 headers
 - `CMAKE_BUILD_TYPE`: Release or Debug
 
 ### Installation
@@ -186,7 +185,6 @@ Key CMake variables:
 mkdir RandBLAS-build && cd RandBLAS-build
 cmake -DCMAKE_BUILD_TYPE=Release \
       -Dblaspp_DIR=/path/to/blaspp-install/lib/cmake/blaspp/ \
-      -DRandom123_DIR=/path/to/random123-install/include/ \
       ../RandBLAS/
 make -j install
 ctest

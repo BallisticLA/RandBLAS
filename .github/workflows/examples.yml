@@ -34,7 +34,6 @@ jobs:
           cmake \
             -DCMAKE_BUILD_TYPE=Release \
             -Dblaspp_DIR="${blaspp_DIR}" \
-            -DRandom123_DIR="${Random123_DIR}" \
             -DCMAKE_INSTALL_PREFIX="$(pwd)/../RandBLAS-install" \
             "$(pwd)/../RandBLAS"
           make -j"$(nproc)" install
@@ -51,7 +50,6 @@ jobs:
             -DCMAKE_PREFIX_PATH="$(pwd)/../../../RandBLAS-install" \
             -Dblaspp_DIR="${blaspp_DIR}" \
             -Dlapackpp_DIR="${lapackpp_DIR}" \
-            -DRandom123_DIR="${Random123_DIR}" \
             ..
           make -j"$(nproc)"
 

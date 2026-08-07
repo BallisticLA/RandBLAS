@@ -36,6 +36,7 @@
 #include "RandBLAS/util.hh"
 
 
+#include <cmath>
 #include <vector>
 #include <tuple>
 #include <algorithm>
@@ -360,7 +361,7 @@ void dense_to_coo(int64_t stride_row, int64_t stride_col, T *mat, T abs_tol, COO
     for (int64_t i = 0; i < n_rows; ++i) {
         for (int64_t j = 0; j < n_cols; ++j) {
             T val = MAT(i, j);
-            if (abs(val) > abs_tol) {
+            if (std::abs(val) > abs_tol) {
                 spmat.vals[nnz] = val;
                 spmat.rows[nnz] = i;
                 spmat.cols[nnz] = j;
@@ -414,4 +415,3 @@ void coo_to_dense(const COOMatrix<T> &spmat, Layout layout, T *mat) {
 }
 
 } // end namespace RandBLAS::sparse_data::coo
-

@@ -47,7 +47,6 @@ jobs:
             -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
             -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread" \
             -Dblaspp_DIR="${blaspp_DIR}" \
-            -DRandom123_DIR="${Random123_DIR}" \
             "$(pwd)/../RandBLAS"
           make -j"$(nproc)"
 

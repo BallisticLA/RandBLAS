@@ -124,8 +124,9 @@ C++ idioms and features we do use
 
 Things that affect our API:
  * Templates. We template for floating point precision just about everywhere.
-   We also template for stateful random number generators (see :cpp:any:`RandBLAS::RNGState`)
-   and arrays of 32-bit versus 64-bit signed integers.
+   Sampling functions and sketching operators also template on random-number
+   state types satisfying :cpp:any:`RandBLAS::GeneratorState`, and on arrays
+   of 32-bit versus 64-bit signed integers.
  * Standard constructors. We use these for any nontrivial struct type in RandBLAS. They're important
    because many of our datatypes have const members that need to be initialized as functions (albeit
    simple functions) of other members.
@@ -188,4 +189,3 @@ Some discussion
 
 We have no plans for consistent naming of overload-free sparse BLAS functions. The most we do in this regard is offer functions
 called [left/right]_spmm for SpMM where the sparse matrix operand appears on the left or on the right.
-

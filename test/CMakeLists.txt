@@ -60,16 +60,21 @@ if (GTest_FOUND)
     #####################################################################
 
     set(STAT_SOURCES
-        basic_rng/test_r123.cc
+        basic_rng/test_philox.cc
+        basic_rng/test_repacked_output.cc
+        basic_rng/test_distributions.cc
+        basic_rng/test_rng_state.cc
         basic_rng/test_discrete.cc
         basic_rng/test_continuous.cc
         basic_rng/test_distortion.cc
+        basic_rng/test_sampler_regression.cc
+        basic_rng/test_word_array.cc
     )
     add_executable(stat_tests ${STAT_SOURCES})
     target_link_libraries(stat_tests RandBLAS GTest::GTest GTest::Main)
     # Bake the KAT vector path in at compile time so the test is cwd-independent.
     target_compile_definitions(stat_tests PRIVATE
-        KAT_VECTORS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/basic_rng/r123_kat_vectors.txt")
+        PHILOX_KAT_VECTORS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/basic_rng/philox_kat_vectors.txt")
     randblas_stage_runtime_dlls(stat_tests)
     gtest_discover_tests(stat_tests)
 
@@ -79,7 +84,12 @@ if (GTest_FOUND)
     #
     #####################################################################
 
-    set(META_SOURCES meta/test_lapack_like.cc meta/test_sparse_data_generators.cc meta/test_comparison.cc)
+    set(META_SOURCES
+        meta/test_lapack_like.cc
+        meta/test_sparse_data_generators.cc
+        meta/test_comparison.cc
+        meta/test_rng_stream.cc
+    )
     add_executable(meta_tests ${META_SOURCES})
     target_link_libraries(meta_tests RandBLAS GTest::GTest GTest::Main)
     randblas_stage_runtime_dlls(meta_tests)

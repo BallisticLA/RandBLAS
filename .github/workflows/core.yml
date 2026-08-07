@@ -206,7 +206,6 @@ jobs:
             -DCMAKE_EXE_LINKER_FLAGS="${extra_link_flags}" \
             ${sanitize_address_arg} \
             -Dblaspp_DIR="${blaspp_DIR}" \
-            -DRandom123_DIR="${Random123_DIR}" \
             -DCMAKE_INSTALL_PREFIX="$(pwd)/../RandBLAS-install" \
             "$(pwd)/../RandBLAS"
 

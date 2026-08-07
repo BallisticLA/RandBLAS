@@ -38,6 +38,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <chrono>
+#include <cstdint>
 #include <vector>
 
 using std::chrono::high_resolution_clock;
@@ -138,8 +139,8 @@ int main(int argc, char* argv[]){
     // Sample the sketching operator 
     auto time_constructsketch1 = high_resolution_clock::now();
     RandBLAS::DenseDist Dist{ sk_dim, m };
-    uint32_t seed = 1997;
-    RandBLAS::DenseSkOp<double> S(Dist, seed);  
+    std::uint64_t seed = 1997;
+    RandBLAS::DenseSkOp<double> S(Dist, seed);
     RandBLAS::fill_dense(S);
     auto time_constructsketch2 = high_resolution_clock::now();
     double sampling_time = (double) duration_cast<milliseconds>(time_constructsketch2 - time_constructsketch1).count()/1000;

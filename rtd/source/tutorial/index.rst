@@ -31,12 +31,12 @@ RandBLAS, at a glance
   .. code:: c++
 
     // step 1
-    RandBLAS::RNGState state();
+    RandBLAS::DefaultRNGState state{};
     // step 2
     RandBLAS::DenseDist D(10000, 50);
     RandBLAS::DenseSkOp<double> S(D, state);
     // step 3
-    double B* = new double[20000 * 50];
+    double* B = new double[20000 * 50];
     RandBLAS::sketch_general(
           blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans,
           20000, 50,  10000,

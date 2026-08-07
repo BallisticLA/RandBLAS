@@ -69,6 +69,6 @@ TEST_F(TestIO, test_rngstate_insertion_operator) {
     int64_t two_pow_33 = static_cast<int64_t>(1) << 33;
     int64_t two_pow_61 = static_cast<int64_t>(1) << 61;
     RandBLAS::RNGState state(two_pow_33);  // expect {0, 2}
-    state.counter.incr(two_pow_61);        // expect {0, 536870912, 0, 0}
+    state.advance(two_pow_61);             // expect {0, 536870912, 0, 0}
     std::cout << state << std::endl;
 }

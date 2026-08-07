@@ -94,9 +94,10 @@ class TestSparseSkOpConstruction : public ::testing::Test
 
     template <SignedInteger sint_t>
     void proper_saso_construction(int64_t d, int64_t m, int64_t key_index, int64_t nnz_index) {
-        using RNG = SparseSkOp<float>::state_t::generator;
+        using State = SparseSkOp<float>::state_t;
         SparseDist D0(d, m, vec_nnzs[nnz_index], Axis::Short);
-        SparseSkOp<float, RNG, sint_t> S0(D0, keys[key_index]);
+        SparseSkOp<float, State, sint_t> S0(
+            D0, State{keys[key_index]});
         fill_sparse(S0);
         if (d < m) {
             check_fixed_nnz_per_col(S0);
@@ -107,10 +108,11 @@ class TestSparseSkOpConstruction : public ::testing::Test
 
     template <SignedInteger sint_t>
     void proper_laso_construction(int64_t d, int64_t m, int64_t key_index) {
-        using RNG = SparseSkOp<float>::state_t::generator;
+        using State = SparseSkOp<float>::state_t;
         int64_t vec_nnz = 1;
         SparseDist D0(d, m, vec_nnz, Axis::Long);
-        SparseSkOp<float, RNG, sint_t> S0(D0, keys[key_index]);
+        SparseSkOp<float, State, sint_t> S0(
+            D0, State{keys[key_index]});
         fill_sparse(S0);
         if (d < m) {
             check_fixed_nnz_per_row(S0);
@@ -175,7 +177,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
     }
 
     void unpacked_nosub(const SparseDist &D) {
-        RNGState<RandBLAS::DefaultRNG> s(1);
+        RandBLAS::DefaultRNGState s(1);
         SparseSkOp<float> S(D, s);
         auto expect_next = S.next_state;
         fill_sparse(S);
@@ -221,7 +223,7 @@ class TestSparseSkOpConstruction : public ::testing::Test
         int64_t ro_s, int64_t co_s, int64_t n_rows_sub, int64_t n_cols_sub, uint32_t key
     ) {
         SparseDist D {d, m, vec_nnz, major_axis};
-        RNGState<RandBLAS::DefaultRNG> seed(key);
+        RandBLAS::DefaultRNGState seed(key);
 
         // Full operator via the no-submatrix path.
         int64_t full_nnz_out = -1;

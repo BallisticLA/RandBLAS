@@ -4,8 +4,8 @@ This file reviews aspects of RandBLAS' implementation that aren't (currently) su
 for our user guide.
 
 
- * Our basic random number generation is handled by [Random123](https://github.com/DEShawResearch/random123).
-   We have small wrappers around Random123 code in ``RandBLAS/base.hh`` and ``RandBLAS/random_gen.hh``.
+ * The native counter-based random-number subsystem is documented in
+   [``RandBLAS/rng/DevNotes.md``](rng/DevNotes.md).
   
  * ``RandBLAS/dense_skops.hh`` has code for representing and sampling dense sketching operators.
    The sampling code is complicated because it supports multi-threaded random (sub)matrix generation, and yet the generated (sub)matrices are the same no matter how many threads
