@@ -17,21 +17,27 @@ find_dependency(blaspp)
 # OpenMP
 set(RandBLAS_HAS_OpenMP @RandBLAS_HAS_OpenMP@)
 if (RandBLAS_HAS_OpenMP)
-    # MSVC's standard /openmp mode does not support the omp simd directive
-    # used by RandBLAS's sparse kernels.
+    # MSVC's classic /openmp mode implements OpenMP 2.0 only: it rejects the
+    # omp simd directive used by RandBLAS's sparse kernels, 64-bit loop
+    # indices, and the collapse clause used by downstream consumers. The
+    # /openmp:llvm runtime supports all of these. Consumers can still
+    # override the mode explicitly with -DOpenMP_CXX_FLAGS=...
     if (MSVC AND NOT DEFINED OpenMP_CXX_FLAGS)
-        set(OpenMP_CXX_FLAGS "/openmp:experimental" CACHE STRING
+        set(OpenMP_CXX_FLAGS "/openmp:llvm" CACHE STRING
             "OpenMP compiler flags for C++")
+    endif()
+    if (MSVC)
+        set(RandBLAS_OpenMP_MSVC_FLAGS "${OpenMP_CXX_FLAGS}")
     endif()
 
     find_dependency(OpenMP COMPONENTS CXX)
 
     # FindOpenMP may retain a previously detected /openmp setting. Ensure that
-    # consumers of the installed package receive the SIMD-capable MSVC mode.
+    # consumers of the installed package receive the requested MSVC mode.
     if (MSVC AND OpenMP_CXX_FOUND AND TARGET OpenMP::OpenMP_CXX)
         set_property(TARGET OpenMP::OpenMP_CXX PROPERTY
-            INTERFACE_COMPILE_OPTIONS "/openmp:experimental")
-        set(OpenMP_CXX_FLAGS "/openmp:experimental")
+            INTERFACE_COMPILE_OPTIONS "${RandBLAS_OpenMP_MSVC_FLAGS}")
+        set(OpenMP_CXX_FLAGS "${RandBLAS_OpenMP_MSVC_FLAGS}")
     endif()
 endif()
 

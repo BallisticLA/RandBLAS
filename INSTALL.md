@@ -68,6 +68,18 @@ for more info.
 
 ## 3. Building and installing RandBLAS
 
+**A note if you arrived here from RandLAPACK.** RandLAPACK vendors RandBLAS
+as a git submodule pinned to an exact commit, and that pinned copy is the
+only RandBLAS configuration RandLAPACK is developed and tested against. Do
+not develop RandBLAS inside RandLAPACK's submodule checkout, and do not
+point RandLAPACK at a RandBLAS working copy: if you want to work on RandBLAS
+itself, clone this repository directly and build it as its own project, as
+described below. Installing RandBLAS this way does not affect RandLAPACK in
+any way; RandLAPACK keeps using its pinned submodule. (Package maintainers
+building RandBLAS and RandLAPACK as separate packages should see
+`RandLAPACK_EXTERNAL_RandBLAS` in RandLAPACK's INSTALL.md, which admits an
+external RandBLAS only when it was built from exactly the pinned commit.)
+
 The following CMake variables influence the RandBLAS build.
 
 | CMake Variable   | Description                               |
