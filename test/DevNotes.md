@@ -38,12 +38,12 @@ Relies on RandBLAS/testing/stats.hh.
     suite never locates or executes Random123.
   * `test_word_array.cc` covers modular carry propagation and wraparound.
   * `test_rng_state.cc` checks engine/state concepts, scalar seed mapping,
-    output-only block generation, explicit advancement, const raw accessors,
+    output-only block generation, explicit advancement, public state data,
     and compatibility with an engine whose counter representation is opaque.
   * `test_repacked_output.cc` checks direct and nested repacking, including
     least-significant-chunk-first ordering.
   * `test_distributions.cc` checks the native integer-to-floating transforms,
-    Box--Muller reference values, endpoints, and word assignment.
+    Box--Muller reference values, endpoints, policy loops, and word assignment.
   * `test_sampler_regression.cc` protects the pre-migration dense and sparse
     streams. Sparse outputs are bitwise exact; dense comparisons use the narrow
     floating-point tolerance required for host math-library differences.

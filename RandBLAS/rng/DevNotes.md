@@ -19,17 +19,19 @@ The third argument is output-only. The engine writes every lane and does not
 mutate the counter or key. The engine contract is structural; engines do not
 inherit from a RandBLAS base class.
 
-RandBLAS algorithms consume state-like objects instead of engines directly. A
-state provides a fixed-size unsigned `res_t` and these operations:
+RandBLAS algorithms consume state-like objects instead of engines directly.
+The structural `GeneratorState` concept requires a fixed-size unsigned `res_t`
+and these operations:
 
 ```cpp
 void generate(res_t& output) const;
 void advance(std::uint64_t blocks);
 ```
 
-`RNGState<Engine>` adapts an engine to that boundary by storing its counter,
-key, and an empty engine value. Algorithms are generic over the state contract
-and do not inspect those stored representations.
+`RNGState<Engine>` is the provided transparent adapter. Its public `counter`,
+`key`, and `engine` values represent the complete state. Generic algorithms
+depend only on the `GeneratorState` operations and do not require or inspect
+those public members.
 
 ## Relationship to the C++ standard random facilities
 
@@ -37,10 +39,10 @@ and do not inspect those stored representations.
 |---|---|---|
 | `rng::WordArray<Word, N>` | `std::array<Word, N>` | Adds little-endian, extended-width modular `advance(uint64_t)`; it is not a generator. |
 | `rng::Philox<N, W, R>` | C++26 `std::philox_engine` | RandBLAS is a stateless `(counter, key) -> block` function. The standard engine owns state, caches a block position, and returns one scalar per mutating `operator()`. |
-| `RNGState<Engine>` | State stored inside a standard random-number engine | Exposes nonmutating block generation and explicit block advancement only. It has no scalar `operator()`, serialization, seed sequence, or cached lane index. |
+| `RNGState<Engine>` | State stored inside a standard random-number engine | Provides transparent counter, key, and engine values together with nonmutating block generation and explicit block advancement. It has no scalar `operator()`, serialization, seed sequence, or cached lane index. |
 | `rng::RepackedOutput<Engine, Word>` | `std::independent_bits_engine` | Re-expresses every bit of one existing block in fixed LSB-first chunks. It does not draw a variable number of scalar values or define a new stream position. |
-| `rng::u01`, `rng::uneg11`, `rng::boxmuller` | `std::uniform_real_distribution` and `std::normal_distribution` | Preserve the current mappings and fixed block consumption. Standard distributions do not promise the required mapping or consumption pattern. |
-| `CounterBasedRNGState` | `std::uniform_random_bit_generator` | Produces a fixed result block without mutation; a URBG produces one scalar by mutating itself. Neither native RandBLAS concept models URBG. |
+| `rng::u01`, `rng::boxmuller`, `rng::uneg11`, `rng::boxmul` | `std::uniform_real_distribution` and `std::normal_distribution` | Transforms explicit words or result blocks without owning or mutating generator state. |
+| `GeneratorState` | `std::uniform_random_bit_generator` | Produces a fixed result block without mutation; a URBG produces one scalar by mutating itself. Neither native RandBLAS concept models URBG. |
 
 Neither a RandBLAS engine nor state is a standard uniform random bit generator.
 A scalar standard-engine adaptor can be designed independently if one is ever
@@ -87,6 +89,10 @@ This mapping is what makes full/submatrix generation consistent and makes
 generated operators independent of OpenMP thread count. Dense row padding and
 sparse block reservations are compatibility constraints during the migration.
 
+`RandBLAS::testing::detail::RNGStream` is test infrastructure only. It adapts
+result blocks to sequential scalar draws for random sparse test-matrix
+generation. See `test/DevNotes.md` for its consumption details.
+
 ## Floating-point reproducibility
 
 Native transforms retain the integer-to-floating formulas, constants,
@@ -96,9 +102,7 @@ host. Dense Gaussian values may therefore differ in the last bits across math
 libraries, compilers, and architectures. The integer Philox stream and default
 sparse operator output remain bitwise compatibility requirements.
 
-Standard-library distributions are not substituted because their mappings and
-engine-consumption patterns are not portable, and some have cached or
-variable-consumption behavior.
+The supported transform names are `u01`, `boxmuller`, `uneg11`, and `boxmul`.
 
 ## Algorithm provenance and licensing
 

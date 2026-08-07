@@ -1,3 +1,4 @@
+// Copyright, 2026. See LICENSE for copyright holder information.
 /*
 Copyright 2010-2011, D. E. Shaw Research.
 All rights reserved.
@@ -48,8 +49,7 @@ namespace RandBLAS::rng {
 namespace detail {
 
 template <typename word_t>
-using default_real_t =
-    std::conditional_t<sizeof(word_t) == 4, float, double>;
+using default_real_t = std::conditional_t<sizeof(word_t) == 4, float, double>;
 
 } // namespace detail
 
@@ -58,8 +58,7 @@ template <typename real_t, typename word_t>
 [[nodiscard]] constexpr real_t u01(word_t input) noexcept {
     static_assert(std::is_unsigned_v<word_t>);
     static_assert(sizeof(word_t) == 4 || sizeof(word_t) == 8);
-    static_assert(std::is_same_v<real_t, float> ||
-                  std::is_same_v<real_t, double>);
+    static_assert(std::is_same_v<real_t, float> || std::is_same_v<real_t, double>);
     constexpr real_t factor =
         real_t{1} /
         (static_cast<real_t>(std::numeric_limits<word_t>::max()) + real_t{1});
@@ -74,8 +73,7 @@ struct uneg11 {
     [[nodiscard]] static constexpr real_t convert(word_t input) noexcept {
         static_assert(std::is_unsigned_v<word_t>);
         static_assert(sizeof(word_t) == 4 || sizeof(word_t) == 8);
-        static_assert(std::is_same_v<real_t, float> ||
-                      std::is_same_v<real_t, double>);
+        static_assert(std::is_same_v<real_t, float> || std::is_same_v<real_t, double>);
         using signed_word_t = std::make_signed_t<word_t>;
         constexpr real_t factor =
             real_t{1} /

@@ -86,9 +86,7 @@ struct RepackedOutput {
         source_word_count * chunks_per_source_word;
     using res_t = std::array<OutputWord, repacked_word_count>;
 
-    constexpr RepackedOutput()
-        requires std::default_initializable<Engine>
-    = default;
+    constexpr RepackedOutput() requires std::default_initializable<Engine> = default;
 
     constexpr explicit RepackedOutput(Engine engine) noexcept(
         std::is_nothrow_move_constructible_v<Engine>)
@@ -121,18 +119,15 @@ struct RepackedOutput {
 
         std::size_t output_index = 0;
         for (source_word_t source_word : source) {
-            for (std::size_t chunk = 0; chunk < chunks_per_source_word;
-                 ++chunk) {
+            for (std::size_t chunk = 0; chunk < chunks_per_source_word; ++chunk) {
                 auto shifted = static_cast<source_word_t>(
                     source_word >> (chunk * output_word_bits));
-                output[output_index++] =
-                    static_cast<OutputWord>(shifted & mask);
+                output[output_index++] = static_cast<OutputWord>(shifted & mask);
             }
         }
     }
 
-    friend constexpr bool operator==(RepackedOutput const&,
-                                     RepackedOutput const&) = default;
+    friend constexpr bool operator==(RepackedOutput const&, RepackedOutput const&) = default;
 
     [[no_unique_address]] Engine engine{};
 };

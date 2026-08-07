@@ -1,3 +1,4 @@
+// Copyright, 2026. See LICENSE for copyright holder information.
 /*
 Copyright 2010-2011, D. E. Shaw Research.
 All rights reserved.
@@ -52,8 +53,7 @@ namespace RandBLAS::rng {
 namespace detail {
 
 template <std::unsigned_integral Word>
-[[nodiscard]] constexpr Word mulhilo(Word left, Word right,
-                                     Word* high) noexcept {
+[[nodiscard]] constexpr Word mulhilo(Word left, Word right, Word* high) noexcept {
     static_assert(sizeof(Word) == 4 || sizeof(Word) == 8);
 
     if constexpr (sizeof(Word) == 4) {
@@ -84,8 +84,7 @@ template <std::unsigned_integral Word>
 
 template <std::size_t N, std::size_t W>
 struct PhiloxConstants {
-    using word_t =
-        std::conditional_t<W == 32, std::uint32_t, std::uint64_t>;
+    using word_t = std::conditional_t<W == 32, std::uint32_t, std::uint64_t>;
 
     static constexpr word_t multiplier_0 = [] {
         if constexpr (W == 32 && N == 2) {

@@ -112,12 +112,14 @@ Users who need direct block access can name the engine and state explicitly:
    state.generate(block); // writes every element of the output-only array
    state.advance(1);      // add one to the engine's multiword counter
 
-The engine provides ``ctr_t``, ``key_t``, and ``res_t`` aliases. A state exposes
-the same aliases and const ``counter()`` and ``key()`` accessors. Generation does
+The engine provides ``ctr_t``, ``key_t``, and ``res_t`` aliases. The concrete
+``RNGState`` adapter exposes the same aliases and public ``counter``, ``key``,
+and ``engine`` data. Generic samplers require only the ``GeneratorState``
+operations, so custom states need not use that representation. Generation does
 not mutate the state: advancing by one block is always explicit. The default
 Philox engine produces exactly the same integer blocks as Philox4x32-10 in
-Random123 for the same counter and key. Philox is a statistical generator, not a
-cryptographic random-number generator.
+Random123 for the same counter and key. Philox is a statistical generator, not
+a cryptographic random-number generator.
 
 ``RandBLAS::rng::RepackedOutput`` can expose each result word as narrower chunks
 without changing the block boundary. Chunks are least-significant first within

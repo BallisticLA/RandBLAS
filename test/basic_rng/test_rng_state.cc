@@ -97,6 +97,7 @@ concept HasPublicStateData = requires(state_t state) {
 static_assert(RandBLAS::GeneratorState<OpaqueState>);
 static_assert(HasPublicStateData<OpaqueState>);
 static_assert(std::equality_comparable<OpaqueState>);
+static_assert(std::convertible_to<std::uint64_t, OpaqueState>);
 static_assert(!std::uniform_random_bit_generator<OpaqueEngine>);
 static_assert(!std::uniform_random_bit_generator<
               RandBLAS::RNGState<OpaqueEngine>>);

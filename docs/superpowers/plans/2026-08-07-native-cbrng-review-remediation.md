@@ -244,7 +244,7 @@ struct RNGState {
 
     constexpr RNGState() = default;
 
-    explicit constexpr RNGState(std::uint64_t seed) noexcept(
+    constexpr RNGState(std::uint64_t seed) noexcept(
         noexcept(Engine::make_key(seed)))
         requires rng::SeedMappableEngine<Engine>
         : key(Engine::make_key(seed)) {}
@@ -782,9 +782,14 @@ git commit -m "test: isolate the sequential RNG stream"
 
 **Files:**
 
+- Modify: `RandBLAS/random_gen.hh`
+- Modify: `RandBLAS/rng/concepts.hh`
 - Modify: `RandBLAS/rng/philox.hh`
 - Modify: `RandBLAS/rng/distributions.hh`
+- Modify: `RandBLAS/rng/repacked_output.hh`
+- Modify: `RandBLAS/testing/rng.hh`
 - Modify: `test/basic_rng/philox_kat_vectors.txt`
+- Modify: `test/basic_rng/test_rng_state.cc`
 - Modify: `examples/total-least-squares/tls_dense_skop.cc`
 - Modify: `examples/total-least-squares/tls_sparse_skop.cc`
 - Modify: `RandBLAS/rng/DevNotes.md`
@@ -797,10 +802,12 @@ git commit -m "test: isolate the sequential RNG stream"
 
 **Interfaces:**
 
-- Preserves: all code behavior.
+- Preserves: RNG output and consumption behavior.
+- Restores: implicit construction of the default state from a scalar seed, as
+  required by the natural sketch-operator examples and supported before this PR.
 - Documents: `GeneratorState`, transparent concrete state data, supported distribution names, test-only `RNGStream`, provenance, and deferred optimization scope.
 
-- [ ] **Step 1: Record the failing review scan**
+- [x] **Step 1: Record the failing review scan**
 
 Run:
 
@@ -813,7 +820,7 @@ head -n 4 RandBLAS/rng/philox.hh RandBLAS/rng/distributions.hh test/basic_rng/ph
 
 Expected: the first two scans show the reviewed stale text and constructor form; the three adapted files show only the D. E. Shaw copyright at their start.
 
-- [ ] **Step 2: Add dual copyright attribution**
+- [x] **Step 2: Add dual copyright attribution**
 
 Prepend this line, using the file's comment syntax, to the two adapted headers and the KAT fixture:
 
@@ -823,7 +830,7 @@ Copyright, 2026. See LICENSE for copyright holder information.
 
 Use `//` in `.hh` files and `#` in the vector file. Leave the complete D. E. Shaw Research notice byte-for-byte unchanged immediately below the new statement. Do not add RandBLAS attribution to `word_array.hh` or `repacked_output.hh`; they already carry the standard RandBLAS header and are not dual-license fixes.
 
-- [ ] **Step 3: Restore the natural TLS constructor examples**
+- [x] **Step 3: Restore the natural TLS constructor examples**
 
 In both total-least-squares examples, include `<cstdint>` directly if the file does not already own that include, then use:
 
@@ -841,7 +848,7 @@ RandBLAS::SparseSkOp<double> S(Dist, seed);
 
 Remove the explicit `DefaultRNGState{seed}` construction. Keep each constructor invocation on one line.
 
-- [ ] **Step 4: Correct permanent RNG and test notes**
+- [x] **Step 4: Correct permanent RNG and test notes**
 
 Update `RandBLAS/rng/DevNotes.md` as follows:
 
@@ -858,7 +865,7 @@ Update `RandBLAS/rng/DevNotes.md` as follows:
 
 Update `test/DevNotes.md` so the RNG-state entry says public data rather than const accessors and the distribution entry no longer refers to block helpers.
 
-- [ ] **Step 5: Correct public documentation and API links**
+- [x] **Step 5: Correct public documentation and API links**
 
 Change the FAQ sentence to:
 
@@ -878,7 +885,7 @@ In `rtd/source/api_reference/skops_and_dists.rst`, add a `GeneratorState` dropdo
 
 Keep the existing `RNGState` struct dropdown separately. Replace stale `CounterBasedRNGState` tutorial comments with `GeneratorState`. In `sampling_skops.rst`, replace the const `counter()`/`key()` accessor description with public `counter`/`key` data and state that generic samplers require only the `GeneratorState` operations.
 
-- [ ] **Step 6: Perform the focused readability pass**
+- [x] **Step 6: Perform the focused readability pass**
 
 Review the branch-added RNG files and the files changed in Tasks 1-4:
 
@@ -889,7 +896,7 @@ git diff origin/main -- RandBLAS/random_gen.hh RandBLAS/rng RandBLAS/testing/rng
 
 Join declarations, expressions, and short comments that were split solely to satisfy a narrow line budget. Retain line breaks that expose algorithm structure, separate template constraints, or keep tables and prose readable. Do not run a bulk formatter over the repository.
 
-- [ ] **Step 7: Build examples and documentation**
+- [x] **Step 7: Build examples and documentation**
 
 Run:
 
@@ -905,7 +912,7 @@ sphinx-build source build
 
 Expected: the library installs, both TLS targets compile with the scalar seed constructor, and Sphinx/Doxygen completes without a new missing-symbol warning for `GeneratorState`.
 
-- [ ] **Step 8: Verify the review fixes and commit**
+- [x] **Step 8: Verify the review fixes and commit**
 
 Run:
 

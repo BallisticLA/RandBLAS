@@ -66,8 +66,7 @@ concept CounterBasedEngine =
 template <class engine_t>
 concept SeedMappableEngine =
     CounterBasedEngine<engine_t> && requires(std::uint64_t seed) {
-        { engine_t::make_key(seed) } ->
-            std::same_as<typename engine_t::key_t>;
+        { engine_t::make_key(seed) } -> std::same_as<typename engine_t::key_t>;
     };
 
 } // namespace RandBLAS::rng
@@ -76,14 +75,13 @@ namespace RandBLAS {
 
 /// Copyable generator state that produces and advances fixed-size blocks.
 template <class state_t>
-concept GeneratorState =
-    std::copyable<state_t> && requires {
-        typename state_t::res_t;
-        requires rng::detail::FixedUnsignedBlock<typename state_t::res_t>;
-    } && requires(state_t& state, state_t const& const_state,
-                  typename state_t::res_t& output, std::uint64_t blocks) {
-        { const_state.generate(output) } -> std::same_as<void>;
-        { state.advance(blocks) } -> std::same_as<void>;
-    };
+concept GeneratorState = std::copyable<state_t> && requires {
+    typename state_t::res_t;
+    requires rng::detail::FixedUnsignedBlock<typename state_t::res_t>;
+} && requires(state_t& state, state_t const& const_state,
+              typename state_t::res_t& output, std::uint64_t blocks) {
+    { const_state.generate(output) } -> std::same_as<void>;
+    { state.advance(blocks) } -> std::same_as<void>;
+};
 
 } // namespace RandBLAS

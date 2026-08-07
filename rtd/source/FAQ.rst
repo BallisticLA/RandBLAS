@@ -124,8 +124,9 @@ C++ idioms and features we do use
 
 Things that affect our API:
  * Templates. We template for floating point precision just about everywhere.
-   We also template for counter-based random-number state types (see :cpp:any:`RandBLAS::RNGState`)
-   and arrays of 32-bit versus 64-bit signed integers.
+   Sampling functions and sketching operators also template on random-number
+   state types satisfying :cpp:any:`RandBLAS::GeneratorState`, and on arrays
+   of 32-bit versus 64-bit signed integers.
  * Standard constructors. We use these for any nontrivial struct type in RandBLAS. They're important
    because many of our datatypes have const members that need to be initialized as functions (albeit
    simple functions) of other members.

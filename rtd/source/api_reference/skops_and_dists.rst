@@ -41,6 +41,13 @@ Preliminaries
   .. doxygenenum:: RandBLAS::Axis
       :project: RandBLAS
 
+.. dropdown:: GeneratorState
+    :animate: fade-in-slide-down
+    :color: light
+
+    .. doxygenconcept:: RandBLAS::GeneratorState
+        :project: RandBLAS
+
 .. dropdown:: RNGState 
     :animate: fade-in-slide-down
     :color: light

@@ -60,7 +60,7 @@ struct RNGState {
 
     constexpr RNGState() = default;
 
-    explicit constexpr RNGState(std::uint64_t seed) noexcept(
+    constexpr RNGState(std::uint64_t seed) noexcept(
         noexcept(Engine::make_key(seed)))
         requires rng::SeedMappableEngine<Engine>
         : key(Engine::make_key(seed)) {}
@@ -80,8 +80,7 @@ struct RNGState {
         counter.advance(blocks);
     }
 
-    friend constexpr bool operator==(RNGState const&, RNGState const&) =
-        default;
+    friend constexpr bool operator==(RNGState const&, RNGState const&) = default;
 };
 
 using DefaultRNGState = RNGState<DefaultRNG>;

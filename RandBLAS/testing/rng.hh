@@ -50,8 +50,7 @@ struct RNGStream {
     double spare = 0.0;
     bool has_spare = false;
 
-    explicit RNGStream(state_t const& initial_state)
-        : state(initial_state) {}
+    explicit RNGStream(state_t const& initial_state) : state(initial_state) {}
 
     word_t next_word() {
         if (pos >= block_size) {
