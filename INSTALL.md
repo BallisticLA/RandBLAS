@@ -176,7 +176,8 @@ Install the following tools first:
 * Visual Studio 2022 or Build Tools with **Desktop development with C++**;
 * Git;
 * CMake 3.24 or later;
-* vcpkg.
+* vcpkg (the copy bundled with Visual Studio's C++ workload works; so does a
+  standalone clone).
 
 Create the workspace directories:
 
@@ -187,16 +188,46 @@ mkdir C:\randblas-work\build
 mkdir C:\randblas-work\install
 ```
 
-The following command assumes vcpkg is installed at `C:\vcpkg`. Adjust that
-path if necessary. Install the oneMKL port into a dedicated dependency prefix:
+Install the oneMKL port into a dedicated dependency prefix. The commands below
+use vcpkg's manifest mode, which every vcpkg distribution supports -- the copy
+bundled with Visual Studio has no classic-mode instance, so a plain
+`vcpkg install intel-mkl:x64-windows` fails there. First write a minimal
+manifest (the bundled vcpkg requires the `builtin-baseline` field; the pin
+below is vcpkg release 2026.07.29, whose intel-mkl port is 2025.2.0):
 
 ```bat
-C:\vcpkg\vcpkg.exe install intel-mkl:x64-windows ^
-  --x-install-root=C:\randblas-work\vcpkg-installed
+mkdir C:\randblas-work\vcpkg-manifest
+(
+echo {
+echo   "name": "randblas-windows-deps",
+echo   "version-string": "1",
+echo   "builtin-baseline": "9e593bb18ea69cc5095e012465dcd675a822ed0d",
+echo   "dependencies": [ "intel-mkl" ]
+echo }
+) > C:\randblas-work\vcpkg-manifest\vcpkg.json
+```
+
+Then install from the manifest directory. The command below assumes the
+Visual Studio bundled vcpkg, which a Native Tools prompt exposes under
+`%VSINSTALLDIR%VC\vcpkg`; substitute `C:\vcpkg\vcpkg.exe` (or wherever your
+copy lives) if you use a standalone clone. The scratch-directory flags keep
+vcpkg's working trees out of the read-only Visual Studio install location:
+
+```bat
+cd C:\randblas-work\vcpkg-manifest
+"%VSINSTALLDIR%VC\vcpkg\vcpkg.exe" install ^
+  --triplet x64-windows ^
+  --x-install-root=C:\randblas-work\vcpkg-installed ^
+  --downloads-root=C:\randblas-work\vcpkg-scratch\downloads ^
+  --x-buildtrees-root=C:\randblas-work\vcpkg-scratch\buildtrees ^
+  --x-packages-root=C:\randblas-work\vcpkg-scratch\packages
 
 set "MKLROOT=C:\randblas-work\vcpkg-installed\x64-windows"
 set "PATH=%MKLROOT%\bin;%PATH%"
 ```
+
+After the install succeeds, `C:\randblas-work\vcpkg-scratch` can be deleted;
+the installed prefix is self-contained.
 
 Build a shared, sequential, ILP64 BLAS++:
 

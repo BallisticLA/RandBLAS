@@ -280,3 +280,56 @@ jobs:
             -Task $task `
             -WorkRoot "$env:GITHUB_WORKSPACE/../RandBLAS-windows-ci-$workName" `
             -SanitizeAddress:$sanitizeAddress
+
+  # User-fidelity lane: a plain Visual Studio install has no standalone
+  # vcpkg -- only the manifest-only copy bundled with the C++ workload. A
+  # classic-mode `vcpkg install` fails there ("this vcpkg distribution does
+  # not have a classic mode instance") while staying green on CI runners,
+  # which ship a classic-capable C:\vcpkg. This job hides the runner's
+  # standalone vcpkg and provisions oneMKL through the bundled copy. The
+  # vcpkg-installed tree is deliberately NOT cached so every run exercises
+  # the manifest-mode fetch; only the installer download is cached.
+  windows-vs-bundled-vcpkg:
+    name: windows-msvc-mkl-ilp64-vs-bundled-vcpkg
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: initialize MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: cache oneMKL installer downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}\..\windows-deps-vsvcpkg\vcpkg-scratch\downloads
+          key: windows-vsvcpkg-mkl-downloads-1-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+
+      - name: cache GoogleTest installation
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}\..\windows-deps-vsvcpkg\googletest-install
+          key: windows-vsvcpkg-googletest-1.17.0-1
+
+      - name: cache BLAS++ installation
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}\..\windows-deps-vsvcpkg\blaspp-install
+          key: windows-vsvcpkg-blaspp-windows-portability-ilp64-sequential-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+
+      - name: run native Windows core validation
+        shell: pwsh
+        run: |
+          Remove-Item Env:VCPKG_INSTALLATION_ROOT -ErrorAction SilentlyContinue
+          Remove-Item Env:VCPKG_ROOT -ErrorAction SilentlyContinue
+          $bundledVcpkg = Join-Path $env:VSINSTALLDIR "VC\vcpkg\vcpkg.exe"
+          if (-not (Test-Path $bundledVcpkg)) {
+            throw "Runner image has no VS-bundled vcpkg at $bundledVcpkg; this lane needs another way to reproduce a manifest-only vcpkg."
+          }
+          & "$env:GITHUB_WORKSPACE/.github/scripts/windows/run-ci.ps1" `
+            -Task CoreSerial `
+            -WorkRoot "$env:GITHUB_WORKSPACE/../RandBLAS-windows-ci-vsvcpkg" `
+            -DependencyRoot "$env:GITHUB_WORKSPACE/../windows-deps-vsvcpkg" `
+            -SetupDependencies `
+            -VcpkgExecutable $bundledVcpkg
