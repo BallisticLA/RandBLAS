@@ -50,4 +50,11 @@ endif()
 # MKL sparse BLAS
 set(RandBLAS_HAS_MKL @RandBLAS_HAS_MKL@)
 
+# Provides randblas_stage_runtime_dlls(<target>), which copies a target's
+# imported DLL dependencies next to the executable. Windows searches the
+# executable's own directory first and PATH last, so a consumer that links
+# installed RandBLAS otherwise cannot find the BLAS DLLs at run time. Exported
+# rather than kept build-tree-only so consumers do not each reinvent it.
+include("${CMAKE_CURRENT_LIST_DIR}/RuntimeDLLs.cmake")
+
 include(RandBLAS)
