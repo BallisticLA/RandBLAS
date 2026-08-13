@@ -61,8 +61,12 @@ void coo_spsymm(
     T* Y, int64_t ldy
 ) {
     (void) m;
-    auto [irs_b, ics_b] = layout_to_strides(layout, ldb);
-    auto [irs_y, ics_y] = layout_to_strides(layout, ldy);
+    // Plain locals rather than structured bindings: clang does not (yet)
+    // support referencing structured bindings inside OpenMP regions.
+    stride_64t sb = layout_to_strides(layout, ldb);
+    stride_64t sy = layout_to_strides(layout, ldy);
+    int64_t irs_b = sb.inter_row_stride, ics_b = sb.inter_col_stride;
+    int64_t irs_y = sy.inter_row_stride, ics_y = sy.inter_col_stride;
     bool upper = (uplo == blas::Uplo::Upper);
 
     #pragma omp parallel for schedule(static)

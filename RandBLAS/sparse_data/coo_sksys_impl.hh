@@ -76,8 +76,12 @@ void coo_lsksys(
 ) {
     if (alpha == T(0)) return;
 
-    auto [irs_a, ics_a] = layout_to_strides(layout, lda);
-    auto [irs_b, ics_b] = layout_to_strides(layout, ldb);
+    // Plain locals rather than structured bindings: clang does not (yet)
+    // support referencing structured bindings inside OpenMP regions.
+    stride_64t sa = layout_to_strides(layout, lda);
+    stride_64t sb = layout_to_strides(layout, ldb);
+    int64_t irs_a = sa.inter_row_stride, ics_a = sa.inter_col_stride;
+    int64_t irs_b = sb.inter_row_stride, ics_b = sb.inter_col_stride;
     bool upper = (uplo == blas::Uplo::Upper);
 
     #pragma omp parallel for schedule(static)
