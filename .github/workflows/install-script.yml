@@ -77,8 +77,12 @@ jobs:
       - name: put oneAPI on the search path
         if: matrix.backend == 'mkl'
         run: |
-          set -euo pipefail
+          set -eo pipefail
+          # Deliberately no "set -u" around the source: oneAPI's own vars.sh
+          # reads OCL_ICD_FILENAMES and other variables without a default, so
+          # nounset makes sourcing it fail outright.
           source /opt/intel/oneapi/setvars.sh > /dev/null
+          set -u
           for v in MKLROOT LIBRARY_PATH LD_LIBRARY_PATH CPATH NLSPATH PKG_CONFIG_PATH; do
             if [ -n "${!v:-}" ]; then echo "$v=${!v}" >> "$GITHUB_ENV"; fi
           done
@@ -222,17 +226,22 @@ jobs:
 
       # Configure inside a network namespace with no interfaces, so any
       # FetchContent or git call added to the build later fails here rather
-      # than in a packager's sandbox months from now. "unshare -rn" rather
-      # than "sudo unshare -n": the -r user mapping keeps the generated build
-      # tree owned by the runner user, where sudo would leave it root-owned
-      # and break the non-root build step that follows.
+      # than in a packager's sandbox months from now.
+      #
+      # "sudo unshare -n" rather than the tidier unprivileged "unshare -rn":
+      # GitHub's runners restrict unprivileged user namespaces, so -r fails
+      # with "write failed /proc/self/uid_map: Operation not permitted".
+      # Running under sudo leaves the generated tree root-owned, so hand it
+      # back before the non-root build step that follows.
       - name: configure with plain CMake and no network
         run: |
-          unshare -rn \
+          set -euo pipefail
+          sudo unshare -n \
             cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/deps" \
               -DRandom123_DIR="$GITHUB_WORKSPACE/deps/include" \
               -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/pkg"
+          sudo chown -R "$(id -u):$(id -g)" build
 
       - name: build, install and test
         run: |
