@@ -46,30 +46,52 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: RandBLAS
+          # rb_version.cmake runs `git describe --tags`. Without the tags the
+          # version silently degrades to 0.0.0-0-gunknown, and the installed
+          # package and the configuration summary both report it.
+          fetch-depth: 0
 
       - name: install a compiler, CMake and a BLAS
         run: |
+          set -euo pipefail
           export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update -qq
           sudo apt-get install -qq -y g++ gfortran cmake git
           if [ "${{ matrix.backend }}" = "openblas" ]; then
             sudo apt-get install -qq -y libopenblas-dev
           else
-            sudo apt-get install -qq -y intel-oneapi-mkl-devel || \
-              { wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
-                  | sudo gpg --dearmor -o /usr/share/keyrings/oneapi.gpg
-                echo "deb [signed-by=/usr/share/keyrings/oneapi.gpg] https://apt.repos.intel.com/oneapi all main" \
-                  | sudo tee /etc/apt/sources.list.d/oneAPI.list
-                sudo apt-get update -qq
-                sudo apt-get install -qq -y intel-oneapi-mkl-devel; }
-            echo "MKLROOT=/opt/intel/oneapi/mkl/latest" >> "$GITHUB_ENV"
+            wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+              | sudo gpg --dearmor -o /usr/share/keyrings/oneapi.gpg
+            echo "deb [signed-by=/usr/share/keyrings/oneapi.gpg] https://apt.repos.intel.com/oneapi all main" \
+              | sudo tee /etc/apt/sources.list.d/oneAPI.list
+            sudo apt-get update -qq
+            sudo apt-get install -qq -y intel-oneapi-mkl-devel
           fi
+
+      # oneAPI's apt packages do not put MKL on the linker's search path;
+      # setvars.sh is what exports LIBRARY_PATH, LD_LIBRARY_PATH and MKLROOT.
+      # Without it BLAS++ finds the headers, fails to link, and reports "BLAS
+      # library not found" -- which is exactly the diagnosis the installer's
+      # error message points at, so propagate the variables into GITHUB_ENV
+      # rather than working around it.
+      - name: put oneAPI on the search path
+        if: matrix.backend == 'mkl'
+        run: |
+          set -euo pipefail
+          source /opt/intel/oneapi/setvars.sh > /dev/null
+          for v in MKLROOT LIBRARY_PATH LD_LIBRARY_PATH CPATH NLSPATH PKG_CONFIG_PATH; do
+            if [ -n "${!v:-}" ]; then echo "$v=${!v}" >> "$GITHUB_ENV"; fi
+          done
 
       - name: keep a pristine checkout for the discovery test
         run: cp -a RandBLAS RandBLAS-discovery
 
+      # pipefail matters here: without it the pipeline reports tee's exit
+      # status, so a failing installer looks like a passing step and the
+      # assertions below are the first thing to notice.
       - name: run the installer, capturing output for the escape-sequence check
         run: |
+          set -euo pipefail
           bash RandBLAS/install/install.sh --yes \
             --blas=${{ matrix.backend }} \
             --project-dir "$GITHUB_WORKSPACE/RandNLA-project" \
@@ -108,6 +130,7 @@ jobs:
 
       - name: re-run the installer in place (idempotency)
         run: |
+          set -euo pipefail
           bash RandBLAS/install/install.sh --yes \
             --blas=${{ matrix.backend }} \
             --project-dir "$GITHUB_WORKSPACE/RandNLA-project" | tee rerun.out
@@ -116,6 +139,7 @@ jobs:
 
       - name: install a second project through dependency discovery
         run: |
+          set -euo pipefail
           BLASPP_INSTALL_DIR="$GITHUB_WORKSPACE/RandNLA-project/install/blaspp-${{ matrix.backend }}-install" \
           RANDOM123_INSTALL_DIR="$GITHUB_WORKSPACE/RandNLA-project/install/Random123-install" \
           GTEST_ROOT="$GITHUB_WORKSPACE/RandNLA-project/install/googletest-install" \
@@ -133,6 +157,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: RandBLAS
+          # rb_version.cmake runs `git describe --tags`. Without the tags the
+          # version silently degrades to 0.0.0-0-gunknown, and the installed
+          # package and the configuration summary both report it.
+          fetch-depth: 0
 
       - name: install libomp
         run: brew install libomp
@@ -141,6 +169,7 @@ jobs:
       # only Apple's legacy interface, so there is no ILP64 lane to run here.
       - name: run the installer
         run: |
+          set -euo pipefail
           bash RandBLAS/install/install.sh --yes \
             --project-dir "$GITHUB_WORKSPACE/RandNLA-project" | tee installer.out
           grep -qE '^  Backend  *accelerate' installer.out
@@ -170,6 +199,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: install dependencies the way a package manager would
         run: |

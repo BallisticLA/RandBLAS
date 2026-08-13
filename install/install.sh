@@ -434,11 +434,20 @@ elif [[ "$UNAME_S" == "Darwin" ]]; then
         LIBOMP="$BREW_PREFIX/opt/libomp"
     fi
     if [[ -n "$LIBOMP" ]]; then
+        export CFLAGS="${CFLAGS:-} -Xpreprocessor -fopenmp -I$LIBOMP/include"
         export CXXFLAGS="${CXXFLAGS:-} -Xpreprocessor -fopenmp -I$LIBOMP/include"
         export LDFLAGS="${LDFLAGS:-} -L$LIBOMP/lib"
+        # Both the C and CXX components must be described. BLAS++'s installed
+        # blasppConfig.cmake does find_dependency(OpenMP) without restricting
+        # components, so a consumer configuring against it resolves OpenMP_C
+        # as well -- and with only the CXX variables set, that fails with
+        # "Could NOT find OpenMP_C" while configuring RandBLAS, long after
+        # BLAS++ itself built cleanly.
         OPENMP_FLAGS=(
+            "-DOpenMP_C_LIB_NAMES=omp"
             "-DOpenMP_CXX_LIB_NAMES=omp"
             "-DOpenMP_omp_LIBRARY=$LIBOMP/lib/libomp.dylib"
+            "-DOpenMP_C_FLAGS=-Xpreprocessor;-fopenmp"
             "-DOpenMP_CXX_FLAGS=-Xpreprocessor;-fopenmp"
         )
     else
