@@ -29,64 +29,35 @@
 
 #pragma once
 
-#include "RandBLAS/exceptions.hh"
-#include "RandBLAS/util.hh"
-#include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/csc_matrix.hh"
-#include "RandBLAS/sparse_data/spsymm_internal.hh"
+#include "RandBLAS/sparse_data/csr_spsymm_impl.hh"
 #include <blas.hh>
 
 namespace RandBLAS::sparse_data {
 
 // =============================================================================
-/// CSC fallback for symmetric sparse-times-dense.
+/// CSC fallback for symmetric sparse-times-dense (side=Left).
 ///
-/// Same semantics as the CSR variant; iteration is column-driven via
-/// colptr/rowidxs/vals. For CSC stored with uplo=Upper, structurally
-/// populated entries satisfy row <= col; for uplo=Lower, row >= col.
-/// Entries outside the named triangle are silently skipped.
+/// A symmetric CSC matrix's arrays, read as CSR, describe A^T = A over the
+/// same buffers, with the stored triangle name flipped: a CSC Upper entry at
+/// (i, j) with i <= j appears in the CSR view at (j, i), which is Lower.
+/// So this kernel is a delegation to csr_spsymm on the lightweight
+/// A.transpose() view with uplo flipped. Same identity as the MKL path.
 template <typename T, typename sint_t>
 void csc_spsymm(
     blas::Layout layout,
-    blas::Side side,
     blas::Uplo uplo,
     int64_t m, int64_t n,
     T alpha,
     const CSCMatrix<T, sint_t>& A,
     const T* B, int64_t ldb,
-    T beta,
     T* Y, int64_t ldy
 ) {
-    randblas_require(A.n_rows == A.n_cols);
-    int64_t k = (side == blas::Side::Left) ? m : n;
-    randblas_require(A.n_rows == k);
-
-    RandBLAS::util::lascl(layout, m, n, beta, Y, ldy);
-    if (alpha == T(0)) return;
-
-    if (side == blas::Side::Left) {
-        // Y = alpha * A * B + ...   (A is m-by-m)
-        for (int64_t j = 0; j < m; ++j) {
-            for (int64_t p = A.colptr[j]; p < A.colptr[j+1]; ++p) {
-                sint_t i = A.rowidxs[p];
-                if (uplo == blas::Uplo::Upper && i > j) continue;
-                if (uplo == blas::Uplo::Lower && i < j) continue;
-                T av = alpha * A.vals[p];
-                internal::spsymm_scatter_left(layout, n, av, i, j, B, ldb, Y, ldy);
-            }
-        }
-    } else {
-        // Y = alpha * B * A + ...   (A is n-by-n)
-        for (int64_t j = 0; j < n; ++j) {
-            for (int64_t p = A.colptr[j]; p < A.colptr[j+1]; ++p) {
-                sint_t i = A.rowidxs[p];
-                if (uplo == blas::Uplo::Upper && i > j) continue;
-                if (uplo == blas::Uplo::Lower && i < j) continue;
-                T av = alpha * A.vals[p];
-                internal::spsymm_scatter_right(layout, m, av, i, j, B, ldb, Y, ldy);
-            }
-        }
-    }
+    auto At = A.transpose();
+    blas::Uplo uplo_flipped = (uplo == blas::Uplo::Upper)
+        ? blas::Uplo::Lower
+        : blas::Uplo::Upper;
+    csr_spsymm(layout, uplo_flipped, m, n, alpha, At, B, ldb, Y, ldy);
 }
 
 } // namespace RandBLAS::sparse_data

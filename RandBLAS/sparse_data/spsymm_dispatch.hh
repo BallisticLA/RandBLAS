@@ -31,6 +31,7 @@
 
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
+#include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/coo_matrix.hh"
 #include "RandBLAS/sparse_data/csr_matrix.hh"
@@ -46,6 +47,7 @@
 #endif
 
 #include <type_traits>
+#include <vector>
 
 
 namespace RandBLAS::sparse_data {
@@ -63,23 +65,35 @@ namespace RandBLAS::sparse_data {
 /// where:
 ///
 ///   - :math:`\mat(A)` is a sparse symmetric matrix stored in COO, CSR, or
-///     CSC format. Only the triangle named by :math:`\ttt{uplo}` is read.
-///     The opposite triangle is implied by symmetry. The matrix is required
-///     to be square.
+///     CSC format, with zero-based indices. Only the triangle named by
+///     :math:`\ttt{uplo}` is read. The opposite triangle is implied by
+///     symmetry. The matrix is required to be square.
 ///   - :math:`\mat(B)` and :math:`\mat(Y)` are dense, both m-by-n.
 ///   - For :math:`\ttt{side} = \ttt{Left}`, :math:`\mat(A)` is m-by-m and the
 ///     operation is :math:`\mat(Y) = \alpha A B + \beta Y`.
 ///   - For :math:`\ttt{side} = \ttt{Right}`, :math:`\mat(A)` is n-by-n and
 ///     the operation is :math:`\mat(Y) = \alpha B A + \beta Y`.
 ///
-/// Dispatch:
+/// Dispatch. side=Right is normalized to side=Left at entry: since
+/// :math:`A = A^T`, the operation :math:`Y = B A` equals
+/// :math:`Y^T = A B^T`, and reinterpreting the B and Y buffers in the
+/// opposite layout presents them as :math:`B^T` and :math:`Y^T` with the
+/// same leading dimensions. After normalization:
+///
+///   - Arguments are validated (zero-based indices, square A of order m,
+///     leading-dimension lower bounds), beta is applied to Y exactly once,
+///     and alpha = 0 returns early.
 ///   - If RandBLAS was built with MKL and the index type matches MKL_INT,
-///     try the MKL fast path (mkl_sparse_d_mm with
-///     ``SPARSE_MATRIX_TYPE_SYMMETRIC`` descriptor). The MKL path covers
-///     side=Left for CSR and COO; it returns false (fall back) for CSC and
-///     for side=Right.
-///   - Otherwise (or on MKL fall back), call the format-specific fallback
-///     kernel (``csr_spsymm`` / ``csc_spsymm`` / ``coo_spsymm``).
+///     the MKL fast path runs (``mkl_sparse_?_mm`` with a
+///     ``SPARSE_MATRIX_TYPE_SYMMETRIC`` descriptor; CSC is consumed as a
+///     CSR-of-transpose view with uplo flipped). MKL covers all three
+///     formats; it receives beta = 1 since beta is already applied.
+///   - The per-format hand kernels (``csr_spsymm`` / ``csc_spsymm`` /
+///     ``coo_spsymm``) run only on non-MKL builds, on index-width mismatch
+///     with MKL_INT, or if MKL returns a runtime NOT_SUPPORTED. They are
+///     pure accumulators (no validation, no beta). The NOT_SUPPORTED
+///     fallback is safe because that status is a parameter-validation
+///     result: MKL has not touched Y when it returns it.
 /// @endverbatim
 template <SparseMatrix SpMat, typename T = typename SpMat::scalar_t>
 void spsymm(
@@ -93,6 +107,18 @@ void spsymm(
     T beta,
     T* Y, int64_t ldy
 ) {
+    using blas::Layout;
+    if (side == blas::Side::Right) {
+        // A == A^T, so Y = alpha B A + beta Y is Y^T = alpha A B^T + beta Y^T
+        // with B^T and Y^T read from the same buffers in the flipped layout.
+        // The dimensions of Y^T are n-by-m; uplo is unchanged (the equation
+        // transpose does not change which physical entries of A are stored).
+        auto flipped = (layout == Layout::ColMajor) ? Layout::RowMajor
+                                                    : Layout::ColMajor;
+        spsymm(flipped, blas::Side::Left, uplo, n, m, alpha, A, B, ldb, beta, Y, ldy);
+        return;
+    }
+
     using sint_t = typename SpMat::index_t;
     constexpr bool is_coo = std::is_same_v<SpMat, COOMatrix<T, sint_t>>;
     constexpr bool is_csr = std::is_same_v<SpMat, CSRMatrix<T, sint_t>>;
@@ -100,27 +126,38 @@ void spsymm(
     static_assert(is_coo || is_csr || is_csc,
                   "RandBLAS::sparse_data::spsymm requires COO, CSR, or CSC.");
 
+    // side is Left from here on: A is m-by-m, B and Y are m-by-n.
+    randblas_require(A.index_base == IndexBase::Zero);
     randblas_require(A.n_rows == A.n_cols);
-    int64_t k = (side == blas::Side::Left) ? m : n;
-    randblas_require(A.n_rows == k);
+    randblas_require(A.n_rows == m);
+    if (layout == Layout::ColMajor) {
+        randblas_require(ldb >= m);
+        randblas_require(ldy >= m);
+    } else {
+        randblas_require(ldb >= n);
+        randblas_require(ldy >= n);
+    }
+
+    // Apply beta exactly once, here; every path below accumulates into Y.
+    RandBLAS::util::lascl(layout, m, n, beta, Y, ldy);
+    if (alpha == T(0)) return;
 
 #if defined(RandBLAS_HAS_MKL)
     if constexpr (sizeof(sint_t) == sizeof(MKL_INT)) {
         bool handled = mkl::mkl_spsymm(
-            layout, side, uplo, m, n,
-            alpha, A, B, ldb, beta, Y, ldy
+            layout, uplo, m, n, alpha, A, B, ldb, (T) 1, Y, ldy
         );
         if (handled) return;
     }
 #endif
 
-    // Fallback path
+    // Fallback path: pure accumulators.
     if constexpr (is_csr) {
-        csr_spsymm(layout, side, uplo, m, n, alpha, A, B, ldb, beta, Y, ldy);
+        csr_spsymm(layout, uplo, m, n, alpha, A, B, ldb, Y, ldy);
     } else if constexpr (is_csc) {
-        csc_spsymm(layout, side, uplo, m, n, alpha, A, B, ldb, beta, Y, ldy);
+        csc_spsymm(layout, uplo, m, n, alpha, A, B, ldb, Y, ldy);
     } else if constexpr (is_coo) {
-        coo_spsymm(layout, side, uplo, m, n, alpha, A, B, ldb, beta, Y, ldy);
+        coo_spsymm(layout, uplo, m, n, alpha, A, B, ldb, Y, ldy);
     }
 }
 
@@ -128,27 +165,26 @@ void spsymm(
 /// Case D: sparse-symmetric A times sparse B, dense output.
 ///
 /// @verbatim embed:rst:leading-slashes
-/// Implemented as a composition: densify ``B`` into a temporary dense buffer
-/// matching the caller's ``layout``, then call the Case-C ``spsymm`` overload
-/// (sparse-symm × dense) on the result. This works in any build (the MKL
-/// fast path or the per-format hand kernel both apply, depending on the
-/// build), and across all 3 × 3 = 9 sparse-format pairings for ``(A, B)``,
-/// since the densification picks the right format-specific helper.
+/// Computes the same operation as the Case-C overload, with :math:`\mat(B)`
+/// sparse (COO, CSR, or CSC; any index type). side=Right is normalized to
+/// side=Left at entry via the same layout-flip identity, with
+/// :math:`B^T` obtained as the lightweight ``B.transpose()`` view.
 ///
-/// Why this composition rather than a single MKL ``sp2m`` call: MKL's
-/// ``mkl_sparse_sp2m`` returns ``SPARSE_STATUS_NOT_SUPPORTED`` when the
-/// ``matrix_descr`` on either operand is ``SPARSE_MATRIX_TYPE_SYMMETRIC``;
-/// only ``GENERAL`` is supported there. ``mkl_sparse_d_spmmd`` (which writes
-/// directly to dense ``C``) accepts no descriptor at all. So the symmetric
-/// expansion has to happen on the RandBLAS side. Composing through Case C
-/// gets it for free at the cost of a temporary dense buffer for ``B``
-/// (cost: ``O(m * n)``), and for the typical RandNLA workload where ``B``
-/// is a sketching operator with ``nnz(B) << m*n`` the cost is small.
+/// Primary path (MKL builds with index widths matching MKL_INT): expand
+/// :math:`A`'s stored triangle into a general sparse matrix in
+/// :math:`O(\ttt{nnz})` memory (``expand_symmetric_to_general``), then call
+/// the existing sparse-times-sparse dense-output routine
+/// (``mkl_spgemm_to_dense``) with a GENERAL descriptor. The expansion has to
+/// happen on the RandBLAS side either way: MKL's ``mkl_sparse_sp2m`` returns
+/// ``SPARSE_STATUS_NOT_SUPPORTED`` when either operand's ``matrix_descr`` is
+/// ``SPARSE_MATRIX_TYPE_SYMMETRIC``, and ``mkl_sparse_?_spmmd`` accepts no
+/// descriptor at all. Keeping :math:`B` sparse keeps the cost proportional
+/// to the actual nonzero structure.
 ///
-/// The dimensions of the densified ``B`` are the same as the user's ``Y``:
-/// ``m``-by-``n``, with the user's ``layout`` and a tight leading dim. The
-/// densified buffer is freed when the temporary ``std::vector<T>`` goes out
-/// of scope. ``Y`` itself is never touched until the Case-C call.
+/// Fallback path (non-MKL builds, or index width mismatched with MKL_INT):
+/// densify :math:`B` into a temporary dense buffer in the caller's layout
+/// (cost: an :math:`O(m \cdot n)` temporary, a fallback-only property) and
+/// compose through the Case-C overload above.
 /// @endverbatim
 template <SparseMatrix SpMatA, SparseMatrix SpMatB,
           typename T = typename SpMatA::scalar_t>
@@ -163,20 +199,53 @@ void spsymm(
     T beta,
     T* Y, int64_t ldy
 ) {
+    using blas::Layout;
     static_assert(std::is_same_v<T, typename SpMatB::scalar_t>,
                   "Case D: A and B must share scalar_t.");
 
+    if (side == blas::Side::Right) {
+        // Same identity as Case C; B^T is a lightweight transpose view.
+        auto flipped = (layout == Layout::ColMajor) ? Layout::RowMajor
+                                                    : Layout::ColMajor;
+        auto Bt = B.transpose();
+        spsymm(flipped, blas::Side::Left, uplo, n, m, alpha, A, Bt, beta, Y, ldy);
+        return;
+    }
+
+    // side is Left from here on: A is m-by-m, B and Y are m-by-n.
+    randblas_require(A.index_base == IndexBase::Zero);
+    randblas_require(B.index_base == IndexBase::Zero);
     randblas_require(A.n_rows == A.n_cols);
-    int64_t k = (side == blas::Side::Left) ? m : n;
-    randblas_require(A.n_rows == k);
+    randblas_require(A.n_rows == m);
     randblas_require(B.n_rows == m);
     randblas_require(B.n_cols == n);
+    if (layout == Layout::ColMajor) {
+        randblas_require(ldy >= m);
+    } else {
+        randblas_require(ldy >= n);
+    }
 
-    // Densify B into a tight buffer in the caller's layout.
-    int64_t ldb_dense = (layout == blas::Layout::ColMajor) ? m : n;
+    RandBLAS::util::lascl(layout, m, n, beta, Y, ldy);
+    if (alpha == T(0)) return;
+
+    using sint_A = typename SpMatA::index_t;
+    using sint_B = typename SpMatB::index_t;
+
+#if defined(RandBLAS_HAS_MKL)
+    if constexpr (sizeof(sint_A) == sizeof(MKL_INT) && sizeof(sint_B) == sizeof(MKL_INT)) {
+        auto A_general = expand_symmetric_to_general(A, uplo);
+        mkl::mkl_spgemm_to_dense(
+            layout, blas::Op::NoTrans, alpha, A_general, B, (T) 1, Y, ldy
+        );
+        return;
+    }
+#endif
+
+    // Fallback: densify B into a tight buffer in the caller's layout and
+    // compose through Case C (beta already applied, so pass beta = 1).
+    int64_t ldb_dense = (layout == Layout::ColMajor) ? m : n;
     std::vector<T> B_dense(static_cast<size_t>(m) * static_cast<size_t>(n), T(0));
 
-    using sint_B = typename SpMatB::index_t;
     if constexpr (std::is_same_v<SpMatB, COOMatrix<T, sint_B>>) {
         coo::coo_to_dense(B, layout, B_dense.data());
     } else if constexpr (std::is_same_v<SpMatB, CSRMatrix<T, sint_B>>) {
@@ -188,9 +257,8 @@ void spsymm(
                       "RandBLAS::sparse_data::spsymm: SpMatB must be COO, CSR, or CSC.");
     }
 
-    // Compose into Case C with the densified B.
-    spsymm(layout, side, uplo, m, n,
-           alpha, A, B_dense.data(), ldb_dense, beta, Y, ldy);
+    spsymm(layout, blas::Side::Left, uplo, m, n,
+           alpha, A, B_dense.data(), ldb_dense, (T) 1, Y, ldy);
 }
 
 } // end namespace RandBLAS::sparse_data

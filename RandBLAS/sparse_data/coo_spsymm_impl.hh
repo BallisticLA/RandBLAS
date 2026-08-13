@@ -29,51 +29,55 @@
 
 #pragma once
 
+#include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
-#include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/coo_matrix.hh"
-#include "RandBLAS/sparse_data/spsymm_internal.hh"
 #include <blas.hh>
 
 namespace RandBLAS::sparse_data {
 
 // =============================================================================
-/// COO fallback for symmetric sparse-times-dense.
+/// COO fallback for symmetric sparse-times-dense (side=Left).
 ///
-/// Iterates over the (row, col, val) triples directly. For uplo=Upper,
-/// structurally populated entries satisfy row <= col; for uplo=Lower,
-/// row >= col. Entries outside the named triangle are silently skipped.
-/// No assumption on the order of the COO entries.
+/// Accumulates Y += alpha * A * B over the stored (row, col, val) triples;
+/// no assumption on their order. For uplo=Upper, structurally populated
+/// entries satisfy row <= col; for uplo=Lower, row >= col. Entries outside
+/// the named triangle are silently skipped. The caller (the spsymm
+/// dispatcher) has already validated the arguments, applied beta scaling to
+/// Y, and normalized side=Right away, so this kernel is a pure accumulator.
+///
+/// Column-driven for the same reasons as csr_spsymm: the outer loop over
+/// dense right-hand-side columns is race-free under OpenMP and the inner
+/// updates are unit-stride in ColMajor.
 template <typename T, typename sint_t>
 void coo_spsymm(
     blas::Layout layout,
-    blas::Side side,
     blas::Uplo uplo,
     int64_t m, int64_t n,
     T alpha,
     const COOMatrix<T, sint_t>& A,
     const T* B, int64_t ldb,
-    T beta,
     T* Y, int64_t ldy
 ) {
-    randblas_require(A.n_rows == A.n_cols);
-    int64_t k = (side == blas::Side::Left) ? m : n;
-    randblas_require(A.n_rows == k);
+    (void) m;
+    auto [irs_b, ics_b] = layout_to_strides(layout, ldb);
+    auto [irs_y, ics_y] = layout_to_strides(layout, ldy);
+    bool upper = (uplo == blas::Uplo::Upper);
 
-    RandBLAS::util::lascl(layout, m, n, beta, Y, ldy);
-    if (alpha == T(0)) return;
-
-    for (int64_t p = 0; p < A.nnz; ++p) {
-        sint_t i = A.rows[p];
-        sint_t j = A.cols[p];
-        if (uplo == blas::Uplo::Upper && j < i) continue;
-        if (uplo == blas::Uplo::Lower && j > i) continue;
-        T av = alpha * A.vals[p];
-        if (side == blas::Side::Left)
-            internal::spsymm_scatter_left(layout, n, av, i, j, B, ldb, Y, ldy);
-        else
-            internal::spsymm_scatter_right(layout, m, av, i, j, B, ldb, Y, ldy);
+    #pragma omp parallel for schedule(static)
+    for (int64_t c = 0; c < n; ++c) {
+        const T* B_c = &B[c * ics_b];
+        T*       Y_c = &Y[c * ics_y];
+        for (int64_t p = 0; p < A.nnz; ++p) {
+            int64_t i = (int64_t) A.rows[p];
+            int64_t j = (int64_t) A.cols[p];
+            if (upper ? (j < i) : (j > i)) continue;
+            T av = alpha * A.vals[p];
+            Y_c[i * irs_y] += av * B_c[j * irs_b];
+            if (i != j)
+                Y_c[j * irs_y] += av * B_c[i * irs_b];
+        }
     }
 }
 

@@ -29,68 +29,58 @@
 
 #pragma once
 
+#include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
-#include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/csr_matrix.hh"
-#include "RandBLAS/sparse_data/spsymm_internal.hh"
 #include <blas.hh>
 
 namespace RandBLAS::sparse_data {
 
 
 // =============================================================================
-/// CSR fallback for the symmetric sparse-times-dense kernel.
+/// CSR fallback for the symmetric sparse-times-dense kernel (side=Left).
 ///
-/// Computes Y = alpha * op(A) * B + beta * Y (side=Left) or
-///          Y = alpha * B * op(A) + beta * Y (side=Right),
-/// where A is symmetric and only the triangle named by uplo is structurally
-/// stored. The off-diagonal entries contribute twice (the (i,j) and the
-/// implied (j,i)); diagonal entries contribute once. Entries that fall
-/// outside the named triangle are silently skipped, so the kernel is robust
-/// against callers who store both triangles by mistake (it just behaves like
-/// the "correctly stored" case).
+/// Accumulates Y += alpha * A * B, where A is m-by-m symmetric with only the
+/// triangle named by uplo structurally stored, and B, Y are dense m-by-n.
+/// The caller (the spsymm dispatcher) has already validated the arguments,
+/// applied beta scaling to Y, and normalized side=Right away, so this kernel
+/// is a pure accumulator. Entries outside the named triangle are silently
+/// skipped, so the kernel is robust against callers who store both triangles
+/// by mistake (it just behaves like the "correctly stored" case).
 ///
-/// Inner-loop updates use blas::axpy on slices of B and Y.
+/// The loop is column-driven: each dense right-hand-side column c of B/Y is
+/// processed independently, so the outer loop parallelizes without races and
+/// the inner updates are unit-stride in ColMajor. Each stored off-diagonal
+/// entry A(i, j) = v contributes twice per column (the entry itself and the
+/// implied symmetric A(j, i) = v); diagonal entries contribute once.
 template <typename T, typename sint_t>
 void csr_spsymm(
     blas::Layout layout,
-    blas::Side side,
     blas::Uplo uplo,
     int64_t m, int64_t n,
     T alpha,
     const CSRMatrix<T, sint_t>& A,
     const T* B, int64_t ldb,
-    T beta,
     T* Y, int64_t ldy
 ) {
-    randblas_require(A.n_rows == A.n_cols);
-    int64_t k = (side == blas::Side::Left) ? m : n;
-    randblas_require(A.n_rows == k);
+    (void) m;
+    auto [irs_b, ics_b] = layout_to_strides(layout, ldb);
+    auto [irs_y, ics_y] = layout_to_strides(layout, ldy);
+    bool upper = (uplo == blas::Uplo::Upper);
 
-    RandBLAS::util::lascl(layout, m, n, beta, Y, ldy);
-    if (alpha == T(0)) return;
-
-    if (side == blas::Side::Left) {
-        // Y = alpha * A * B + ...   (A is m-by-m)
-        for (int64_t i = 0; i < m; ++i) {
+    #pragma omp parallel for schedule(static)
+    for (int64_t c = 0; c < n; ++c) {
+        const T* B_c = &B[c * ics_b];
+        T*       Y_c = &Y[c * ics_y];
+        for (int64_t i = 0; i < A.n_rows; ++i) {
             for (int64_t p = A.rowptr[i]; p < A.rowptr[i+1]; ++p) {
-                sint_t j = A.colidxs[p];
-                if (uplo == blas::Uplo::Upper && j < i) continue;
-                if (uplo == blas::Uplo::Lower && j > i) continue;
+                int64_t j = (int64_t) A.colidxs[p];
+                if (upper ? (j < i) : (j > i)) continue;
                 T av = alpha * A.vals[p];
-                internal::spsymm_scatter_left(layout, n, av, i, j, B, ldb, Y, ldy);
-            }
-        }
-    } else {
-        // Y = alpha * B * A + ...   (A is n-by-n)
-        for (int64_t i = 0; i < n; ++i) {
-            for (int64_t p = A.rowptr[i]; p < A.rowptr[i+1]; ++p) {
-                sint_t j = A.colidxs[p];
-                if (uplo == blas::Uplo::Upper && j < i) continue;
-                if (uplo == blas::Uplo::Lower && j > i) continue;
-                T av = alpha * A.vals[p];
-                internal::spsymm_scatter_right(layout, m, av, i, j, B, ldb, Y, ldy);
+                Y_c[i * irs_y] += av * B_c[j * irs_b];
+                if (i != j)
+                    Y_c[j * irs_y] += av * B_c[i * irs_b];
             }
         }
     }
