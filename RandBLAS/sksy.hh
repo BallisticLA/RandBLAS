@@ -40,12 +40,34 @@
 // for the four-case API design and the implementation status of each case.
 //   - lsksy3, rsksy3: Case A (dense-symm A x dense Omega), via blas::symm.
 //   - lsksys, rsksys: Case B (dense-symm A x sparse SkOp). Thin wrappers
-//     handling the SparseSkOp materialization-and-recurse; the actual COO
-//     walk + two-axpy scatter lives in sparse_data/coo_sksys_impl.hh
-//     as coo_lsksys / coo_rsksys.
+//     handling validation, beta, and SparseSkOp materialization; the actual
+//     column-driven accumulation kernel lives in
+//     sparse_data/coo_sksys_impl.hh as coo_lsksys / coo_rsksys.
 // =============================================================================
 
 namespace RandBLAS::dense {
+
+// =============================================================================
+// Copy the n_rows-by-n_cols matrix at src (read in src_layout with leading
+// dimension ld_src) into a tight buffer laid out in target_layout, whose
+// leading dimension is written to ld_out. Used by lsksy3 / rsksy3 when the
+// SkOp's storage layout mismatches the caller's: blas::symm cannot transpose
+// an operand on the fly, so the copy keeps the SYMM speedup at an O(size)
+// one-time cost.
+// =============================================================================
+template <typename T>
+inline std::vector<T> transpose_copy_to_layout(
+    blas::Layout target_layout, int64_t n_rows, int64_t n_cols,
+    const T* src, blas::Layout src_layout, int64_t ld_src,
+    int64_t &ld_out
+) {
+    ld_out = (target_layout == blas::Layout::ColMajor) ? n_rows : n_cols;
+    std::vector<T> out(static_cast<size_t>(n_rows) * static_cast<size_t>(n_cols));
+    auto [irs_in,  ics_in]  = layout_to_strides(src_layout, ld_src);
+    auto [irs_out, ics_out] = layout_to_strides(target_layout, ld_out);
+    util::omatcopy(n_rows, n_cols, src, irs_in, ics_in, out.data(), irs_out, ics_out);
+    return out;
+}
 
 // =============================================================================
 /// LSKSY3: SYMM-backed left-sketch with a symmetric matrix A.
@@ -106,15 +128,8 @@ void lsksy3(
         blas::symm(layout, blas::Side::Right, uplo, d, n,
                    alpha, A, lda, S_ptr, lds, beta, B, ldb);
     } else {
-        // Layout mismatch: transpose-copy S into a tight buffer in the
-        // caller's layout, then SYMM. Costs O(d*n) for the copy, but keeps
-        // the SYMM speedup over GEMM on the d*n*n_A matvec.
-        int64_t lds_new = (layout == blas::Layout::ColMajor) ? d : n;
-        std::vector<T> S_copy(static_cast<size_t>(d) * static_cast<size_t>(n));
-        auto [irs_in,  ics_in]  = layout_to_strides(S.layout, lds);
-        auto [irs_out, ics_out] = layout_to_strides(layout, lds_new);
-        util::omatcopy(d, n, S_ptr, irs_in, ics_in,
-                       S_copy.data(), irs_out, ics_out);
+        int64_t lds_new;
+        auto S_copy = transpose_copy_to_layout(layout, d, n, S_ptr, S.layout, lds, lds_new);
         blas::symm(layout, blas::Side::Right, uplo, d, n,
                    alpha, A, lda, S_copy.data(), lds_new, beta, B, ldb);
     }
@@ -174,14 +189,8 @@ void rsksy3(
         blas::symm(layout, blas::Side::Left, uplo, n, d,
                    alpha, A, lda, S_ptr, lds, beta, B, ldb);
     } else {
-        // Layout mismatch: transpose-copy S into a tight matching-layout
-        // buffer, then SYMM. See lsksy3 for the trade-off discussion.
-        int64_t lds_new = (layout == blas::Layout::ColMajor) ? n : d;
-        std::vector<T> S_copy(static_cast<size_t>(n) * static_cast<size_t>(d));
-        auto [irs_in,  ics_in]  = layout_to_strides(S.layout, lds);
-        auto [irs_out, ics_out] = layout_to_strides(layout, lds_new);
-        util::omatcopy(n, d, S_ptr, irs_in, ics_in,
-                       S_copy.data(), irs_out, ics_out);
+        int64_t lds_new;
+        auto S_copy = transpose_copy_to_layout(layout, n, d, S_ptr, S.layout, lds, lds_new);
         blas::symm(layout, blas::Side::Left, uplo, n, d,
                    alpha, A, lda, S_copy.data(), lds_new, beta, B, ldb);
     }
@@ -201,11 +210,12 @@ namespace RandBLAS::sparse {
 ///   - submat(S) is the d-by-n view of S at (ro_s, co_s); S is a SparseSkOp.
 ///   - mat(B) is d-by-n dense.
 ///
-/// Inner loop: for each stored nonzero (row_S, col_S, v) of S inside the
-/// submatrix window, contribute alpha*v * (row col_S of A) to row (row_S - ro_s)
-/// of B. The row of symmetric A is assembled from the stored triangle as two
-/// blas::axpy calls (one along the stored column, one along the stored row past
-/// the diagonal).
+/// Validation mirrors the dense-path lsksy3. When S is unmaterialized, only
+/// the requested d-by-n window is sampled (submatrix_as_coo, the same pattern
+/// lskges uses); a materialized S is consumed through a lightweight COO view
+/// with the window filtered inside the kernel. The kernel itself
+/// (sparse_data::coo_lsksys) is a column-driven pure accumulator; beta is
+/// applied here, exactly once.
 template <typename T, typename RNG, SignedInteger sint_t>
 void lsksys(
     blas::Layout layout,
@@ -222,14 +232,27 @@ void lsksys(
     T *B,
     int64_t ldb
 ) {
-    if (S.nnz < 0) {
-        SparseSkOp<T, RNG, sint_t> shallowcopy(S.dist, S.seed_state);
-        fill_sparse(shallowcopy);
-        lsksys(layout, uplo, d, n, alpha, shallowcopy, ro_s, co_s, A, lda, beta, B, ldb);
-        return;
+    randblas_require( S.n_rows >= d + ro_s );
+    randblas_require( S.n_cols >= n + co_s );
+    if (layout == blas::Layout::ColMajor) {
+        randblas_require(lda >= n);
+        randblas_require(ldb >= d);
+    } else {
+        randblas_require(lda >= n);
+        randblas_require(ldb >= n);
     }
 
     util::lascl(layout, d, n, beta, B, ldb);
+    if (alpha == T(0)) return;
+
+    if (S.nnz < 0) {
+        // Sample only the requested window rather than materializing all of S.
+        auto Ssub = submatrix_as_coo(S, d, n, ro_s, co_s);
+        RandBLAS::sparse_data::coo_lsksys(
+            layout, uplo, d, n, alpha, Ssub, 0, 0, A, lda, B, ldb
+        );
+        return;
+    }
     auto Scoo = coo_view_of_skop(S);
     RandBLAS::sparse_data::coo_lsksys(
         layout, uplo, d, n, alpha, Scoo, ro_s, co_s, A, lda, B, ldb
@@ -245,9 +268,9 @@ void lsksys(
 ///   - submat(S) is the n-by-d view of S at (ro_s, co_s); S is a SparseSkOp.
 ///   - mat(B) is n-by-d dense.
 ///
-/// Same two-axpy scatter pattern as lsksys, but on columns of A (the column
-/// of A indexed by row_S of S contributes into the column of B indexed by
-/// col_S - co_s).
+/// Same validation, window-sampling, and beta conventions as lsksys; the
+/// kernel (sparse_data::coo_rsksys) reduces to coo_lsksys via the transpose
+/// identity.
 template <typename T, typename RNG, SignedInteger sint_t>
 void rsksys(
     blas::Layout layout,
@@ -264,14 +287,27 @@ void rsksys(
     T *B,
     int64_t ldb
 ) {
-    if (S.nnz < 0) {
-        SparseSkOp<T, RNG, sint_t> shallowcopy(S.dist, S.seed_state);
-        fill_sparse(shallowcopy);
-        rsksys(layout, uplo, n, d, alpha, A, lda, shallowcopy, ro_s, co_s, beta, B, ldb);
-        return;
+    randblas_require( S.n_rows >= n + ro_s );
+    randblas_require( S.n_cols >= d + co_s );
+    if (layout == blas::Layout::ColMajor) {
+        randblas_require(lda >= n);
+        randblas_require(ldb >= n);
+    } else {
+        randblas_require(lda >= n);
+        randblas_require(ldb >= d);
     }
 
     util::lascl(layout, n, d, beta, B, ldb);
+    if (alpha == T(0)) return;
+
+    if (S.nnz < 0) {
+        // Sample only the requested window rather than materializing all of S.
+        auto Ssub = submatrix_as_coo(S, n, d, ro_s, co_s);
+        RandBLAS::sparse_data::coo_rsksys(
+            layout, uplo, n, d, alpha, A, lda, Ssub, 0, 0, B, ldb
+        );
+        return;
+    }
     auto Scoo = coo_view_of_skop(S);
     RandBLAS::sparse_data::coo_rsksys(
         layout, uplo, n, d, alpha, A, lda, Scoo, ro_s, co_s, B, ldb
@@ -347,8 +383,8 @@ using namespace RandBLAS::sparse;
 ///      S - [in]
 ///       * A SketchingOperator object (DenseSkOp or SparseSkOp).
 ///       * Defines :math:`\submat(\mtxS).` DenseSkOp dispatches to a SYMM-backed
-///         kernel (Case A); SparseSkOp dispatches to a hand-rolled
-///         per-stored-nonzero scatter that reads only the named triangle of
+///         kernel (Case A); SparseSkOp dispatches to a column-driven
+///         accumulation kernel that reads only the named triangle of
 ///         :math:`A` (Case B). See `project-plans/randblas-symm-plan.md`.
 ///
 ///      ro_s - [in]
@@ -390,32 +426,18 @@ inline void sketch_symmetric(
     const T* A, int64_t lda,
     T beta,
     T* B, int64_t ldb
-);
-
-template <typename T, typename RNG>
-inline void sketch_symmetric(
-    blas::Layout layout, blas::Uplo uplo,
-    int64_t d, int64_t n,
-    T alpha,
-    const DenseSkOp<T, RNG> &S, int64_t ro_s, int64_t co_s,
-    const T* A, int64_t lda,
-    T beta,
-    T* B, int64_t ldb
 ) {
-    RandBLAS::dense::lsksy3(layout, uplo, d, n, alpha, S, ro_s, co_s, A, lda, beta, B, ldb);
-}
-
-template <typename T, typename RNG, RandBLAS::SignedInteger sint_t>
-inline void sketch_symmetric(
-    blas::Layout layout, blas::Uplo uplo,
-    int64_t d, int64_t n,
-    T alpha,
-    const SparseSkOp<T, RNG, sint_t> &S, int64_t ro_s, int64_t co_s,
-    const T* A, int64_t lda,
-    T beta,
-    T* B, int64_t ldb
-) {
-    RandBLAS::sparse::lsksys(layout, uplo, d, n, alpha, S, ro_s, co_s, A, lda, beta, B, ldb);
+    if constexpr (requires { S.buff; S.layout; }) {
+        RandBLAS::dense::lsksy3(layout, uplo, d, n, alpha, S, ro_s, co_s, A, lda, beta, B, ldb);
+    } else if constexpr (requires { S.nnz; }) {
+        RandBLAS::sparse::lsksys(layout, uplo, d, n, alpha, S, ro_s, co_s, A, lda, beta, B, ldb);
+    } else {
+        static_assert(sizeof(SKOP) == 0,
+            "sketch_symmetric supports DenseSkOp and SparseSkOp. For other "
+            "SketchingOperator types, apply the operator to a fully-stored A "
+            "with sketch_general.");
+        // see GitHub PR #155 for why we don't use static_assert(false, ...).
+    }
 }
 
 
@@ -449,32 +471,18 @@ inline void sketch_symmetric(
     const SKOP &S, int64_t ro_s, int64_t co_s,
     T beta,
     T* B, int64_t ldb
-);
-
-template <typename T, typename RNG>
-inline void sketch_symmetric(
-    blas::Layout layout, blas::Uplo uplo,
-    int64_t n, int64_t d,
-    T alpha,
-    const T* A, int64_t lda,
-    const DenseSkOp<T, RNG> &S, int64_t ro_s, int64_t co_s,
-    T beta,
-    T* B, int64_t ldb
 ) {
-    RandBLAS::dense::rsksy3(layout, uplo, n, d, alpha, A, lda, S, ro_s, co_s, beta, B, ldb);
-}
-
-template <typename T, typename RNG, RandBLAS::SignedInteger sint_t>
-inline void sketch_symmetric(
-    blas::Layout layout, blas::Uplo uplo,
-    int64_t n, int64_t d,
-    T alpha,
-    const T* A, int64_t lda,
-    const SparseSkOp<T, RNG, sint_t> &S, int64_t ro_s, int64_t co_s,
-    T beta,
-    T* B, int64_t ldb
-) {
-    RandBLAS::sparse::rsksys(layout, uplo, n, d, alpha, A, lda, S, ro_s, co_s, beta, B, ldb);
+    if constexpr (requires { S.buff; S.layout; }) {
+        RandBLAS::dense::rsksy3(layout, uplo, n, d, alpha, A, lda, S, ro_s, co_s, beta, B, ldb);
+    } else if constexpr (requires { S.nnz; }) {
+        RandBLAS::sparse::rsksys(layout, uplo, n, d, alpha, A, lda, S, ro_s, co_s, beta, B, ldb);
+    } else {
+        static_assert(sizeof(SKOP) == 0,
+            "sketch_symmetric supports DenseSkOp and SparseSkOp. For other "
+            "SketchingOperator types, apply the operator to a fully-stored A "
+            "with sketch_general.");
+        // see GitHub PR #155 for why we don't use static_assert(false, ...).
+    }
 }
 
 
@@ -507,34 +515,10 @@ inline void sketch_symmetric(
     const T* A, int64_t lda,
     T beta,
     T* B, int64_t ldb
-);
-
-template <typename T, typename RNG>
-inline void sketch_symmetric(
-    blas::Layout layout, blas::Uplo uplo,
-    T alpha,
-    const DenseSkOp<T, RNG> &S,
-    const T* A, int64_t lda,
-    T beta,
-    T* B, int64_t ldb
 ) {
     int64_t d = S.dist.n_rows;
     int64_t n = S.dist.n_cols;
-    RandBLAS::dense::lsksy3(layout, uplo, d, n, alpha, S, 0, 0, A, lda, beta, B, ldb);
-}
-
-template <typename T, typename RNG, RandBLAS::SignedInteger sint_t>
-inline void sketch_symmetric(
-    blas::Layout layout, blas::Uplo uplo,
-    T alpha,
-    const SparseSkOp<T, RNG, sint_t> &S,
-    const T* A, int64_t lda,
-    T beta,
-    T* B, int64_t ldb
-) {
-    int64_t d = S.dist.n_rows;
-    int64_t n = S.dist.n_cols;
-    RandBLAS::sparse::lsksys(layout, uplo, d, n, alpha, S, 0, 0, A, lda, beta, B, ldb);
+    sketch_symmetric(layout, uplo, d, n, alpha, S, 0, 0, A, lda, beta, B, ldb);
 }
 
 
@@ -564,34 +548,10 @@ inline void sketch_symmetric(
     const SKOP &S,
     T beta,
     T* B, int64_t ldb
-);
-
-template <typename T, typename RNG>
-inline void sketch_symmetric(
-    blas::Layout layout, blas::Uplo uplo,
-    T alpha,
-    const T* A, int64_t lda,
-    const DenseSkOp<T, RNG> &S,
-    T beta,
-    T* B, int64_t ldb
 ) {
     int64_t n = S.dist.n_rows;
     int64_t d = S.dist.n_cols;
-    RandBLAS::dense::rsksy3(layout, uplo, n, d, alpha, A, lda, S, 0, 0, beta, B, ldb);
-}
-
-template <typename T, typename RNG, RandBLAS::SignedInteger sint_t>
-inline void sketch_symmetric(
-    blas::Layout layout, blas::Uplo uplo,
-    T alpha,
-    const T* A, int64_t lda,
-    const SparseSkOp<T, RNG, sint_t> &S,
-    T beta,
-    T* B, int64_t ldb
-) {
-    int64_t n = S.dist.n_rows;
-    int64_t d = S.dist.n_cols;
-    RandBLAS::sparse::rsksys(layout, uplo, n, d, alpha, A, lda, S, 0, 0, beta, B, ldb);
+    sketch_symmetric(layout, uplo, n, d, alpha, A, lda, S, 0, 0, beta, B, ldb);
 }
 
 } // end namespace RandBLAS

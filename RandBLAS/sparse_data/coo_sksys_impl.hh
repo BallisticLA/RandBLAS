@@ -41,18 +41,19 @@ namespace RandBLAS::sparse_data {
 
 // =============================================================================
 // COO sparse-from-left times dense symmetric A into dense B:
-//     B = alpha * submat(Scoo) * sym(A, uplo) + beta * B
+//     B = alpha * submat(Scoo) * sym(A, uplo) + B
 //
 //   - sym(A, uplo) is n-by-n dense symmetric, only the `uplo` triangle stored.
 //   - submat(Scoo) is the d-by-n window of Scoo at (ro_s, co_s).
 //   - B is d-by-n dense, layout-matched.
 //
-// For each stored nonzero (row_S, col_S, v) of Scoo inside the window, the
-// kernel contributes alpha*v * (row col_S of A) to row (row_S - ro_s) of B.
-// The row of symmetric A is assembled from the stored triangle as two
-// blas::axpy calls: one along the stored column up to (and including) the
-// diagonal, one along the stored row past the diagonal. The split is chosen
-// by `uplo` and the matrix layout.
+// The loop is column-driven: each column c of B accumulates, over the window
+// nonzeros (row_S, col_S, v) of Scoo, the contribution
+//     B(row_S - ro_s, c) += alpha * v * sym(A, uplo)(col_S - co_s, c),
+// where the symmetric element read resolves to the stored triangle by
+// swapping the index pair when it falls outside it. Columns are independent,
+// so the outer loop parallelizes without races, and the accesses to A and B
+// walk down single columns in ColMajor.
 //
 // Beta-scaling of B and the alpha==0 short-circuit are the caller's
 // responsibility (so that this kernel can be composed with other accumulators
@@ -75,41 +76,26 @@ void coo_lsksys(
 ) {
     if (alpha == T(0)) return;
 
-    const bool col_major = (layout == blas::Layout::ColMajor);
+    auto [irs_a, ics_a] = layout_to_strides(layout, lda);
+    auto [irs_b, ics_b] = layout_to_strides(layout, ldb);
+    bool upper = (uplo == blas::Uplo::Upper);
 
-    for (int64_t p = 0; p < Scoo.nnz; ++p) {
-        sint_t row_S = Scoo.rows[p];
-        sint_t col_S = Scoo.cols[p];
-        if (row_S < ro_s || row_S >= ro_s + d) continue;
-        if (col_S < co_s || col_S >= co_s + n) continue;
-        int64_t i = static_cast<int64_t>(row_S) - ro_s;  // B row
-        int64_t j = static_cast<int64_t>(col_S) - co_s;  // A row index (sym A read as row j)
-        T av = alpha * Scoo.vals[p];
-
-        // B[i, :] += av * row_j(A_sym), split by uplo into two contiguous
-        // ranges of A so each becomes a single axpy.
-        if (uplo == blas::Uplo::Upper) {
-            // row j of A:
-            //   c in [0, j]: read A[c, j]      (column j of stored Upper, rows 0..j)
-            //   c in (j, n-1]: read A[j, c]    (row j of stored Upper, cols j+1..n-1)
-            if (col_major) {
-                blas::axpy(j + 1, av, &A[j * lda], 1, &B[i], ldb);
-                blas::axpy(n - j - 1, av, &A[j + (j + 1) * lda], lda, &B[i + (j + 1) * ldb], ldb);
-            } else {
-                blas::axpy(j + 1, av, &A[j], lda, &B[i * ldb], 1);
-                blas::axpy(n - j - 1, av, &A[j * lda + j + 1], 1, &B[i * ldb + j + 1], 1);
-            }
-        } else {
-            // Lower-stored:
-            //   c in [0, j]: read A[j, c]      (row j of stored Lower, cols 0..j)
-            //   c in (j, n-1]: read A[c, j]    (column j of stored Lower, rows j+1..n-1)
-            if (col_major) {
-                blas::axpy(j + 1, av, &A[j], lda, &B[i], ldb);
-                blas::axpy(n - j - 1, av, &A[(j + 1) + j * lda], 1, &B[i + (j + 1) * ldb], ldb);
-            } else {
-                blas::axpy(j + 1, av, &A[j * lda], 1, &B[i * ldb], 1);
-                blas::axpy(n - j - 1, av, &A[(j + 1) * lda + j], lda, &B[i * ldb + j + 1], 1);
-            }
+    #pragma omp parallel for schedule(static)
+    for (int64_t c = 0; c < n; ++c) {
+        T* B_c = &B[c * ics_b];
+        for (int64_t p = 0; p < Scoo.nnz; ++p) {
+            int64_t row_S = (int64_t) Scoo.rows[p];
+            int64_t col_S = (int64_t) Scoo.cols[p];
+            if (row_S < ro_s || row_S >= ro_s + d) continue;
+            if (col_S < co_s || col_S >= co_s + n) continue;
+            int64_t i = row_S - ro_s;  // B row
+            int64_t r = col_S - co_s;  // row of sym(A) contributing to column c
+            // sym(A, uplo)(r, c): read (r, c) if it lies in the stored
+            // triangle, else the mirrored (c, r).
+            bool mirrored = upper ? (r > c) : (r < c);
+            T a_rc = mirrored ? A[c * irs_a + r * ics_a]
+                              : A[r * irs_a + c * ics_a];
+            B_c[i * irs_b] += alpha * Scoo.vals[p] * a_rc;
         }
     }
 }
@@ -117,11 +103,16 @@ void coo_lsksys(
 
 // =============================================================================
 // COO sparse-from-right times dense symmetric A into dense B:
-//     B = alpha * sym(A, uplo) * submat(Scoo) + beta * B
+//     B = alpha * sym(A, uplo) * submat(Scoo) + B
 //
-// Same two-axpy scatter pattern as coo_lsksys, but on columns of A: the
-// column of A indexed by row_S of S contributes into the column of B indexed
-// by col_S - co_s.
+//   - sym(A, uplo) is n-by-n; submat(Scoo) is the n-by-d window at
+//     (ro_s, co_s); B is n-by-d.
+//
+// Reduction to coo_lsksys via the transpose identity: B = A * S implies
+// B^T = S^T * A^T = S^T * A (A symmetric). Reading the A and B buffers in
+// the flipped layout presents them as A^T (= A, with the stored triangle
+// name flipped) and B^T; S^T is the lightweight Scoo.transpose() view, with
+// the window offsets swapped.
 //
 // Beta-scaling of B and the alpha==0 short-circuit are the caller's
 // responsibility.
@@ -141,44 +132,15 @@ void coo_rsksys(
     T *B,
     int64_t ldb
 ) {
-    if (alpha == T(0)) return;
-
-    const bool col_major = (layout == blas::Layout::ColMajor);
-
-    for (int64_t p = 0; p < Scoo.nnz; ++p) {
-        sint_t row_S = Scoo.rows[p];
-        sint_t col_S = Scoo.cols[p];
-        if (row_S < ro_s || row_S >= ro_s + n) continue;
-        if (col_S < co_s || col_S >= co_s + d) continue;
-        int64_t i = static_cast<int64_t>(row_S) - ro_s;  // A column index
-        int64_t j = static_cast<int64_t>(col_S) - co_s;  // B column
-        T av = alpha * Scoo.vals[p];
-
-        // B[:, j] += av * col_i(A_sym), split by uplo:
-        if (uplo == blas::Uplo::Upper) {
-            // col i of A:
-            //   r in [0, i]: read A[r, i]    (column i of stored Upper, rows 0..i)
-            //   r in (i, n-1]: read A[i, r]  (row i of stored Upper, cols i+1..n-1)
-            if (col_major) {
-                blas::axpy(i + 1, av, &A[i * lda], 1, &B[j * ldb], 1);
-                blas::axpy(n - i - 1, av, &A[i + (i + 1) * lda], lda, &B[(i + 1) + j * ldb], 1);
-            } else {
-                blas::axpy(i + 1, av, &A[i], lda, &B[j], ldb);
-                blas::axpy(n - i - 1, av, &A[i * lda + i + 1], 1, &B[(i + 1) * ldb + j], ldb);
-            }
-        } else {
-            // Lower-stored col i:
-            //   r in [0, i-1]: read A[i, r]  (row i of stored Lower, cols 0..i-1)
-            //   r in [i, n-1]: read A[r, i]  (column i of stored Lower, rows i..n-1)
-            if (col_major) {
-                blas::axpy(i, av, &A[i], lda, &B[j * ldb], 1);
-                blas::axpy(n - i, av, &A[i + i * lda], 1, &B[i + j * ldb], 1);
-            } else {
-                blas::axpy(i, av, &A[i * lda], 1, &B[j], ldb);
-                blas::axpy(n - i, av, &A[i * lda + i], lda, &B[i * ldb + j], ldb);
-            }
-        }
-    }
+    auto flipped_layout = (layout == blas::Layout::ColMajor)
+        ? blas::Layout::RowMajor
+        : blas::Layout::ColMajor;
+    auto flipped_uplo = (uplo == blas::Uplo::Upper)
+        ? blas::Uplo::Lower
+        : blas::Uplo::Upper;
+    auto St = Scoo.transpose();
+    coo_lsksys(flipped_layout, flipped_uplo, d, n, alpha,
+               St, co_s, ro_s, A, lda, B, ldb);
 }
 
 } // end namespace RandBLAS::sparse_data
