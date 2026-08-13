@@ -69,9 +69,9 @@ two operands (``A`` symmetric vs. the second factor ``B``):
 | Tag | Operation                       | A storage           | B storage | Status this PR                                  |
 |-----|---------------------------------|---------------------|-----------|-------------------------------------------------|
 | A   | dense-symm × dense              | dense, one triangle | dense     | Implemented via ``blas::symm`` in ``sksy.hh``.   |
-| B   | dense-symm × sparse             | dense, one triangle | sparse    | Implemented via hand-rolled ``lsksys`` / ``rsksys`` wrappers in ``sksy.hh`` that handle the SparseSkOp materialization-and-recurse, and the ``coo_lsksys`` / ``coo_rsksys`` COO kernels in ``sparse_data/coo_sksys_impl.hh`` that do the two-axpy scatter per stored nonzero of S (reading only the named triangle of A). |
-| C   | sparse-symm × dense (→ dense)   | sparse, one triangle | dense     | Implemented in ``spsymm_dispatch.hh`` (MKL fast path + per-format fallbacks). |
-| D   | sparse-symm × sparse → dense    | sparse, one triangle | sparse    | Implemented via densify-B + Case-C composition in ``spsymm_dispatch.hh``. |
+| B   | dense-symm × sparse             | dense, one triangle | sparse    | Implemented via ``lsksys`` / ``rsksys`` wrappers in ``sksy.hh`` (validation, beta, window sampling) over the column-driven ``coo_lsksys`` kernel in ``sparse_data/coo_sksys_impl.hh`` (``coo_rsksys`` reduces to it via the transpose identity). Only the named triangle of A is read. |
+| C   | sparse-symm × dense (→ dense)   | sparse, one triangle | dense     | Implemented in ``spsymm_dispatch.hh`` (side=Right normalized at entry; MKL fast path covers all three formats; column-driven per-format fallbacks). |
+| D   | sparse-symm × sparse → dense    | sparse, one triangle | sparse    | Implemented in ``spsymm_dispatch.hh``: expand A's triangle to a general sparse matrix and reuse the sparse-times-sparse path (MKL builds); densify-B + Case-C composition as the non-MKL / index-width-mismatch fallback. |
 
 ### MKL availability
 
@@ -79,31 +79,39 @@ two operands (``A`` symmetric vs. the second factor ``B``):
 |-----|----------------|-----------------------------------------------------------------------------------------------------------------|
 | A   | No (BLAS++)    | ``blas::symm`` directly.                                                                                        |
 | B   | No             | The transpose trick puts the sparse op on the left of ``mkl_sparse_d_mm``, but the dense A has no ``matrix_descr``, so MKL can't be told A is symmetric. We hand-roll instead. See ``coo_lsksys`` / ``coo_rsksys`` in ``sparse_data/coo_sksys_impl.hh`` (with thin SparseSkOp wrappers in ``sksy.hh``). |
-| C   | Yes (mostly)   | ``mkl_sparse_d_mm`` with ``descr.type = SPARSE_MATRIX_TYPE_SYMMETRIC``. RandBLAS falls back to a hand kernel for side=Right (MKL has no Side parameter) and for CSC (``mkl_sparse_d_mm`` returns NOT_SUPPORTED on CSC). |
-| D   | No             | ``mkl_sparse_sp2m`` returns ``SPARSE_STATUS_NOT_SUPPORTED`` when ``descrA.type == SPARSE_MATRIX_TYPE_SYMMETRIC`` (only ``GENERAL`` is accepted there); ``mkl_sparse_d_spmmd`` takes no descriptor at all. Symmetric expansion has to happen on the RandBLAS side, so we don't gain anything by routing through MKL. |
+| C   | Yes            | ``mkl_sparse_?_mm`` with ``descr.type = SPARSE_MATRIX_TYPE_SYMMETRIC``. side=Right is normalized to side=Left by the dispatcher before MKL is reached (layout-flip identity, valid since ``A == A^T``); CSC is consumed inside ``mkl_spsymm`` as a CSR-of-transpose view with ``uplo`` flipped. The hand kernels run only on non-MKL builds, on index-width mismatch with ``MKL_INT``, or on a runtime ``NOT_SUPPORTED``. |
+| D   | Yes (via expansion) | ``mkl_sparse_sp2m`` returns ``SPARSE_STATUS_NOT_SUPPORTED`` when ``descrA.type == SPARSE_MATRIX_TYPE_SYMMETRIC`` (only ``GENERAL`` is accepted there), and ``mkl_sparse_?_spmmd`` takes no descriptor at all, so the symmetric expansion happens on the RandBLAS side: ``expand_symmetric_to_general`` (O(nnz)) followed by ``mkl_spgemm_to_dense`` with a GENERAL descriptor. |
 
 ### Case C dispatch (``spsymm_dispatch.hh``)
 
 ``RandBLAS::sparse_data::spsymm(layout, side, uplo, m, n, alpha, A, B, ldb, beta, Y, ldy)``
 dispatches as follows:
 
-1. Validate: A is square (``A.n_rows == A.n_cols``), and matches the side
-   convention (``A.n_rows == m`` for side=Left, ``A.n_rows == n`` for side=Right).
-2. If RandBLAS was built with MKL and the index width matches ``MKL_INT``,
-   try ``mkl::mkl_spsymm``. It applies the ``SPARSE_MATRIX_TYPE_SYMMETRIC``
-   descriptor and calls ``mkl_sparse_d_mm`` directly. Returns false for
-   side=Right and CSC; control falls through to step 3 in either case.
-3. Format-specific fallback: ``csr_spsymm`` / ``csc_spsymm`` / ``coo_spsymm``.
-   Each iterates the named triangle once. For each stored entry ``A(i,j) = v``,
-   it emits one ``blas::axpy`` for the structural location and a second one
-   for the implied symmetric counterpart (when ``i != j``). Diagonal entries
-   contribute once. Entries outside the named triangle are silently skipped,
-   so a caller that mistakenly stored both triangles still gets the correct
-   answer (the kernel just behaves as if the "extra" entries were absent).
-
-A shared ``internal::apply_beta_scale`` helper (defined in
-``csr_spsymm_impl.hh``, re-included by the other two format files) handles
-the ``Y <- beta * Y`` pass on entry.
+1. Normalize side=Right to side=Left: since ``A == A^T``, ``Y = B*A`` equals
+   ``Y^T = A*B^T``, and reinterpreting the B and Y buffers in the opposite
+   layout presents them as ``B^T`` and ``Y^T`` with the same leading
+   dimensions. ``uplo`` is unchanged. Everything below assumes side=Left.
+2. Validate: zero-based indices (``A.index_base == IndexBase::Zero``), A
+   square of order ``m``, and leading-dimension lower bounds for B and Y
+   (mirroring ``left_spmm``).
+3. Apply beta to Y exactly once (``util::lascl``); return early if alpha is
+   zero. Every path below is a pure accumulator.
+4. If RandBLAS was built with MKL and the index width matches ``MKL_INT``,
+   try ``mkl::mkl_spsymm`` with beta = 1. It applies the
+   ``SPARSE_MATRIX_TYPE_SYMMETRIC`` descriptor and calls ``mkl_sparse_?_mm``;
+   CSC goes through the CSR-of-transpose view with ``uplo`` flipped. It
+   returns false only on a runtime ``NOT_SUPPORTED`` (a parameter-validation
+   result, so Y is untouched when it happens); control then falls to step 5.
+5. Format-specific fallback: ``csr_spsymm`` / ``coo_spsymm`` (and
+   ``csc_spsymm``, a three-line delegation to ``csr_spsymm`` on the
+   transpose view with ``uplo`` flipped). The kernels are column-driven:
+   an OpenMP-parallel outer loop over the n right-hand-side columns of B/Y
+   (each column is owned by one thread, so there are no races), with a scan
+   of the stored triangle inside. Each stored off-diagonal entry
+   ``A(i,j) = v`` contributes twice per column (the entry and its implied
+   symmetric counterpart); diagonal entries once. Entries outside the named
+   triangle are silently skipped, so a caller that mistakenly stored both
+   triangles still gets the correct answer.
 
 The public-facing wrappers in the top-level ``RandBLAS::`` namespace are:
 
@@ -113,64 +121,64 @@ The public-facing wrappers in the top-level ``RandBLAS::`` namespace are:
     routes via the ``Symmetric<SpMat>`` carrier so the uplo annotation
     travels with the matrix.
 
-### Case B: hand-rolled COO kernels in ``coo_sksys_impl.hh``
+### Case B: column-driven COO kernel in ``coo_sksys_impl.hh``
 
-The COO walk and scatter live in ``sparse_data/coo_sksys_impl.hh`` as
-``coo_lsksys`` / ``coo_rsksys``, taking a ``COOMatrix<T, sint_t>`` plus
-submatrix offsets and writing into a dense buffer. Thin wrappers
-``lsksys`` / ``rsksys`` in ``sksy.hh`` handle the SparseSkOp
-materialization-and-recurse pattern, beta-scale ``B`` via ``util::lascl``,
-unpack the SparseSkOp into its COO view, and forward into the kernel.
-The split keeps ``sksy.hh`` focused on SkOp dispatch and puts the
-format-specific work next to the other COO kernels.
+The accumulation kernel lives in ``sparse_data/coo_sksys_impl.hh`` as
+``coo_lsksys``, taking a ``COOMatrix<T, sint_t>`` plus submatrix offsets and
+writing into a dense buffer. ``coo_rsksys`` is a delegation: ``B = A*S``
+implies ``B^T = S^T * A`` (A symmetric), so it calls ``coo_lsksys`` with the
+layout and ``uplo`` flipped, the ``Scoo.transpose()`` view, and the window
+offsets swapped. Wrappers ``lsksys`` / ``rsksys`` in ``sksy.hh`` validate
+the arguments (mirroring the dense-path ``lsksy3`` / ``rsksy3``), beta-scale
+``B`` via ``util::lascl`` exactly once, and forward into the kernel. The
+split keeps ``sksy.hh`` focused on SkOp dispatch and puts the format-specific
+work next to the other COO kernels.
 
-For each stored nonzero ``(i_S, j_S, v)`` of the SparseSkOp's COO view (with
-submatrix offsets ``(ro_s, co_s)`` filtered inline), the kernel applies
-``alpha * v`` to one row or column of the symmetric dense A and accumulates
-into the corresponding row or column of the output. Reading "row j of A" (or
-"col i of A") splits into two ranges based on the diagonal:
+The kernel is column-driven: an OpenMP-parallel outer loop over the n
+columns of B (each column owned by one thread, race-free), with a scan of
+the window nonzeros of S inside. The contribution of nonzero
+``(row_S, col_S, v)`` to column c is
+``B(row_S - ro_s, c) += alpha * v * sym(A, uplo)(col_S - co_s, c)``, where
+the symmetric element read resolves to the stored triangle by swapping the
+index pair when it falls outside it. There is one address computation for A
+(a two-way in-triangle test) instead of a per-``uplo``-per-layout grid of
+strided AXPY range splits. SparseSkOp is COO internally, so submatrix
+filtering is a direct ``if (row < ro_s ...) continue`` on the COO triples.
 
-  - For ``Uplo::Upper``: the part above the diagonal walks A's stored row /
-    column directly; the part below comes from the symmetric reflection
-    (reading the transposed-position entry from the stored triangle).
-  - For ``Uplo::Lower``: the roles swap.
+For an unmaterialized SparseSkOp, ``lsksys`` / ``rsksys`` sample only the
+requested window via ``submatrix_as_coo`` (the same pattern ``lskges``
+uses), so the RNG and memory cost is proportional to the window, not to the
+full operator; a materialized SparseSkOp is consumed through
+``coo_view_of_skop`` with the window filtered inside the kernel.
 
-Each range becomes a single ``blas::axpy`` with the appropriate stride, so
-the inner-loop body is exactly two AXPY calls per stored nonzero of S
-(plus a uniform layout / uplo branch). No special handling for the diagonal
-beyond consistent inclusion in one of the two ranges. SparseSkOp is COO
-internally, so submatrix filtering is a direct ``if (row < ro_s ...) continue``
-on the COO triples.
+### Case D: expand-A + spgemm reuse (densify-B as the fallback)
 
-### Case D: densify-B + Case-C composition
+Lives in ``spsymm_dispatch.hh`` next to the Case-C dispatcher. side=Right is
+normalized to side=Left at entry via the same layout-flip identity as
+Case C, with ``B^T`` obtained as the lightweight ``B.transpose()`` view.
+Validation and the single beta application follow the Case-C pattern.
 
-Lives in ``spsymm_dispatch.hh`` next to the Case-C dispatcher. The
-overload taking two ``SparseMatrix`` operands allocates an ``m`` by
-``n`` ``std::vector<T>`` (tight leading dim in the caller's
-``layout``), fills it via the format-specific ``coo_to_dense`` /
-``csr_to_dense`` / ``csc_to_dense`` helper picked by ``if constexpr``,
-then calls the existing Case-C ``spsymm`` overload on the densified
-buffer. Works in any build (the MKL fast path or the per-format hand
-kernel both apply, depending on the build), and across all 3 × 3 = 9
-sparse-format pairings for ``(A, B)`` since the densification picks
-the right format-specific helper.
-
-Why this composition rather than a single MKL ``sp2m`` call:
+Why MKL cannot be handed the symmetric A directly:
 
   - ``mkl_sparse_sp2m`` returns ``SPARSE_STATUS_NOT_SUPPORTED`` when
     the ``matrix_descr`` on either operand is
     ``SPARSE_MATRIX_TYPE_SYMMETRIC``; only ``GENERAL`` is accepted
     there.
-  - ``mkl_sparse_d_spmmd`` (which writes directly to dense ``C``)
+  - ``mkl_sparse_?_spmmd`` (which writes directly to dense ``C``)
     accepts no descriptor at all.
 
-So the symmetric expansion has to happen on the RandBLAS side either
-way. Composing through Case C gets it for free at the cost of a
-temporary dense buffer for ``B`` (cost ``O(m*n)``), and for the
-typical RandNLA workload where ``B`` is a sketching operator with
-``nnz(B) << m*n`` the buffer cost is small relative to the work that
-would have to happen anyway. ``Y`` itself is never touched until the
-Case-C call.
+So the symmetric expansion happens on the RandBLAS side. Primary path
+(MKL builds with both index widths matching ``MKL_INT``):
+``expand_symmetric_to_general(A, uplo)`` (in ``symmetric.hh``) builds an
+owning general COO from the stored triangle in ``O(nnz)`` memory, and
+``mkl_spgemm_to_dense`` runs on it with a GENERAL descriptor. ``B`` stays
+sparse, so the cost is proportional to the actual nonzero structure.
+
+Fallback path (non-MKL builds, or index width mismatched with
+``MKL_INT``): densify ``B`` into an ``m`` by ``n`` temporary in the
+caller's ``layout`` via the format-specific ``coo_to_dense`` /
+``csr_to_dense`` / ``csc_to_dense`` helper, then compose through the
+Case-C overload. The ``O(m*n)`` temporary is a fallback-only cost.
 
 ## Sketching sparse data with dense operators
 

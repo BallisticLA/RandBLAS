@@ -71,7 +71,7 @@ These overloads accept a ``blas::Uplo`` parameter naming the triangle of
 :math:`\mtxA` that is structurally stored; the opposite triangle is implied
 by symmetry and is **not** read. Both ``DenseSkOp`` and ``SparseSkOp`` are
 supported: DenseSkOp dispatches to ``blas::symm`` via ``lsksy3`` / ``rsksy3``,
-SparseSkOp dispatches to a hand-rolled two-axpy-per-nonzero kernel via
+SparseSkOp dispatches to a column-driven accumulation kernel via
 ``lsksys`` / ``rsksys``. See ``RandBLAS/sparse_data/DevNotes.md`` for the
 SparseSkOp access-pattern detail.
 

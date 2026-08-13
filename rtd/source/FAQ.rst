@@ -113,10 +113,9 @@ No support for negative values of "incx" or "incy" in sketch_vector.
 sketch_symmetric supports both DenseSkOp and SparseSkOp.
   ``sketch_symmetric`` now takes a ``blas::Uplo`` and exploits symmetry of :math:`A`:
   the ``DenseSkOp`` branch dispatches to ``blas::symm`` (via ``lsksy3`` / ``rsksy3``)
-  and the ``SparseSkOp`` branch dispatches to a hand-rolled kernel (``lsksys`` /
-  ``rsksys``) that emits two ``blas::axpy`` calls per stored nonzero of the SkOp,
-  reading only the triangle of :math:`A` named by ``uplo``. See
-  ``RandBLAS/sparse_data/DevNotes.md`` for the access-pattern detail.
+  and the ``SparseSkOp`` branch dispatches to a column-driven accumulation kernel
+  (``lsksys`` / ``rsksys``) that reads only the triangle of :math:`A` named by
+  ``uplo``. See ``RandBLAS/sparse_data/DevNotes.md`` for the access-pattern detail.
 
 Layout-mismatched ``DenseSkOp`` in ``sketch_symmetric`` transpose-copies the operand.
   When the ``DenseSkOp``'s storage layout differs from the caller's ``layout`` parameter, ``sketch_symmetric`` transpose-copies the operand into a tight buffer in the caller's layout and then calls ``blas::symm``. The copy is ``O(d * n)``; ``blas::symm`` has no on-the-fly transpose flag for the dense operand, so this is what it costs to keep the SYMM speedup over a ``blas::gemm`` fallback. The layout-matched case skips the copy.

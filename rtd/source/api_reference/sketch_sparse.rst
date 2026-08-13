@@ -139,21 +139,22 @@ Deterministic operations
 
        The "dense-symm A times sparse SkOp" case (Case B) is also implemented:
        it lives in ``sketch_symmetric`` (the SparseSkOp branch) and uses a
-       hand-rolled two-axpy-per-nonzero kernel that reads only the named
+       column-driven accumulation kernel that reads only the named
        triangle of A. See ``RandBLAS/sparse_data/DevNotes.md`` for the
        access pattern.
 
        The "sparse-symm A times sparse RHS, dense output" case (Case D) is
-       implemented via a two-``SparseMatrix``-arg ``spsymm`` overload that
-       densifies the sparse RHS into a temporary ``m``-by-``n`` buffer
-       (in the caller's layout) and then calls the Case-C dispatcher on
-       the densified buffer. This covers all 3 x 3 = 9 sparse-format
-       pairings for ``(A, B)``. ``mkl_sparse_sp2m`` rejects symmetric
-       descriptors and ``mkl_sparse_d_spmmd`` takes no descriptor, so
-       routing through MKL would not avoid the symmetric expansion. The
-       composition through Case C costs an ``O(m*n)`` temporary, which is
-       small for the typical RandNLA workload where ``B`` is a sketching
-       operator with ``nnz(B) << m*n``.
+       implemented via a two-``SparseMatrix``-arg ``spsymm`` overload,
+       covering all 3 x 3 = 9 sparse-format pairings for ``(A, B)``.
+       ``mkl_sparse_sp2m`` rejects symmetric descriptors and
+       ``mkl_sparse_?_spmmd`` takes no descriptor, so the symmetric
+       expansion happens on the RandBLAS side: on MKL builds the stored
+       triangle of ``A`` is expanded to a general sparse matrix in
+       ``O(nnz)`` memory and the existing sparse-times-sparse routine runs
+       with a GENERAL descriptor, keeping ``B`` sparse. Non-MKL builds
+       (and index widths mismatched with ``MKL_INT``) fall back to
+       densifying ``B`` into a temporary ``m``-by-``n`` buffer and
+       composing through the Case-C dispatcher.
 
 .. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)^{-1} \cdot \mtxB,` with sparse triangular :math:`\mtxA`
     :animate: fade-in-slide-down
