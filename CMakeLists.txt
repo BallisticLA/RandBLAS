@@ -1,4 +1,9 @@
-cmake_minimum_required(VERSION 3.12)
+# 3.21 is the real floor: native Windows builds need the TARGET_RUNTIME_DLLS
+# generator expression (see CMake/RuntimeDLLs.cmake), which was added in 3.21.
+# Nothing in the project uses a feature newer than that. Declaring one floor
+# for every platform keeps the requirement honest -- the previous 3.12 here
+# could never actually have built on Windows.
+cmake_minimum_required(VERSION 3.21)
 
 project(RandBLAS)
 
@@ -24,3 +29,7 @@ endif()
 
 # export the configuration
 include(rb_config)
+
+# Report what was actually configured. Kept last so it can see every decision
+# above, including whether the test subdirectory found GoogleTest.
+include(rb_summary)

@@ -5,9 +5,16 @@ features while still using MKL through BLAS++." ON)
 
 message(STATUS "Checking for MKL sparse BLAS ...")
 
+# Why the feature ended up on or off, in words, for the configuration summary.
+# Without this the three "off" paths below are indistinguishable in the log,
+# and the two that are accidents look exactly like the one that is deliberate.
+set(RandBLAS_MKL_SPARSE_REASON "" CACHE INTERNAL "" FORCE)
+
 if (NOT RandBLAS_USE_MKL_SPARSE)
     message(STATUS "  Disabled by user (RandBLAS_USE_MKL_SPARSE=OFF)")
     set(RandBLAS_HAS_MKL FALSE CACHE BOOL "Set if MKL sparse BLAS is available" FORCE)
+    set(RandBLAS_MKL_SPARSE_REASON
+        "disabled by request (RandBLAS_USE_MKL_SPARSE=OFF)" CACHE INTERNAL "" FORCE)
     message(STATUS "Checking for MKL sparse BLAS ... ${RandBLAS_HAS_MKL}")
     return()
 endif()
@@ -45,9 +52,16 @@ if (_mkl_found_via_blaspp)
     if (MKL_SPARSE_INCLUDE_DIR)
         set(tmp TRUE)
         message(STATUS "  MKL sparse BLAS header found: ${MKL_SPARSE_INCLUDE_DIR}/mkl_spblas.h")
+        set(RandBLAS_MKL_SPARSE_REASON
+            "enabled (${MKL_SPARSE_INCLUDE_DIR}/mkl_spblas.h)" CACHE INTERNAL "" FORCE)
     else()
         message(STATUS "  blaspp was built with MKL, but mkl_spblas.h not found. Set MKLROOT.")
+        set(RandBLAS_MKL_SPARSE_REASON
+            "requested, but mkl_spblas.h was not found -- set MKLROOT" CACHE INTERNAL "" FORCE)
     endif()
+else()
+    set(RandBLAS_MKL_SPARSE_REASON
+        "unavailable: BLAS++ was not built against MKL" CACHE INTERNAL "" FORCE)
 endif()
 
 set(RandBLAS_HAS_MKL ${tmp} CACHE BOOL "Set if MKL sparse BLAS is available" FORCE)
