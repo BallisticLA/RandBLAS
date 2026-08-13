@@ -1,0 +1,236 @@
+# Exercises install/install.sh itself -- the one artifact the core workflows
+# never run, since they hand-replicate the build recipe instead. What each lane
+# proves:
+#   1. a fresh checkout run non-interactively builds, and its tests pass;
+#   2. re-running in place succeeds, because idempotent re-runs are part of the
+#      script's contract and are how people recover from a failed run;
+#   3. the discovery path reuses dependencies pointed at by *_INSTALL_DIR
+#      rather than rebuilding them;
+#   4. piped output stays free of escape sequences, so CI logs and redirected
+#      transcripts remain readable.
+#
+# The packager lane is separate and deliberately does NOT run the installer:
+# conda-forge and Spack never do. It configures with plain CMake against
+# hand-installed dependencies, with the network off, which is the contract a
+# recipe actually depends on.
+name: install-script
+
+on:
+  pull_request:
+  workflow_dispatch:
+  # Only main. A branch with an open pull request is already covered by the
+  # pull_request event, and firing on both runs every job twice per commit.
+  push:
+    branches:
+      - main
+
+# One run per ref. Superseding is only safe for pull requests: on main every
+# commit should be validated, not just the newest.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  install-linux:
+    name: linux-${{ matrix.backend }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # openblas exercises the LP64 path and, with it, the warning the
+        # installer emits when ILP64 was preferred but is unavailable.
+        # mkl exercises the ILP64 path, which is the default wherever the
+        # backend can actually provide it.
+        backend: [openblas, mkl]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: RandBLAS
+
+      - name: install a compiler, CMake and a BLAS
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y g++ gfortran cmake git
+          if [ "${{ matrix.backend }}" = "openblas" ]; then
+            sudo apt-get install -qq -y libopenblas-dev
+          else
+            sudo apt-get install -qq -y intel-oneapi-mkl-devel || \
+              { wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+                  | sudo gpg --dearmor -o /usr/share/keyrings/oneapi.gpg
+                echo "deb [signed-by=/usr/share/keyrings/oneapi.gpg] https://apt.repos.intel.com/oneapi all main" \
+                  | sudo tee /etc/apt/sources.list.d/oneAPI.list
+                sudo apt-get update -qq
+                sudo apt-get install -qq -y intel-oneapi-mkl-devel; }
+            echo "MKLROOT=/opt/intel/oneapi/mkl/latest" >> "$GITHUB_ENV"
+          fi
+
+      - name: keep a pristine checkout for the discovery test
+        run: cp -a RandBLAS RandBLAS-discovery
+
+      - name: run the installer, capturing output for the escape-sequence check
+        run: |
+          bash RandBLAS/install/install.sh --yes \
+            --blas=${{ matrix.backend }} \
+            --project-dir "$GITHUB_WORKSPACE/RandNLA-project" \
+            2>&1 | tee installer.out
+
+      # Redirected output must contain no ANSI escapes and no carriage
+      # returns. Without this, adding a progress bar later silently fills
+      # every CI log and every user's redirected install.log with control
+      # characters, and nobody notices until the log is unreadable.
+      - name: piped output is free of terminal control sequences
+        run: |
+          if LC_ALL=C grep -qP '\x1b\[|\r' installer.out; then
+            echo "Found terminal control sequences in non-TTY output:"
+            LC_ALL=C grep -nP '\x1b\[|\r' installer.out | head -20
+            exit 1
+          fi
+          echo "OK: no escape sequences in redirected output."
+
+      - name: the reported integer width matches the backend
+        run: |
+          grep -E '^  Backend ' installer.out
+          if [ "${{ matrix.backend }}" = "mkl" ]; then
+            grep -qE '^  Backend .*ILP64' installer.out \
+              || { echo "MKL should have produced an ILP64 build."; exit 1; }
+          else
+            # OpenBLAS from apt is LP64, so the installer must both fall back
+            # and say that it did.
+            grep -qE '^  Backend .*LP64' installer.out \
+              || { echo "Expected an LP64 build for stock OpenBLAS."; exit 1; }
+            grep -q 'No ILP64 openblas was available' installer.out \
+              || { echo "The LP64 fallback happened without warning about it."; exit 1; }
+          fi
+
+      - name: run the test suite
+        run: ctest --test-dir RandNLA-project/build/RandBLAS-build --output-on-failure
+
+      - name: re-run the installer in place (idempotency)
+        run: |
+          bash RandBLAS/install/install.sh --yes \
+            --blas=${{ matrix.backend }} \
+            --project-dir "$GITHUB_WORKSPACE/RandNLA-project" | tee rerun.out
+          grep -q 'already built' rerun.out \
+            || { echo "The second run rebuilt dependencies instead of reusing them."; exit 1; }
+
+      - name: install a second project through dependency discovery
+        run: |
+          BLASPP_INSTALL_DIR="$GITHUB_WORKSPACE/RandNLA-project/install/blaspp-${{ matrix.backend }}-install" \
+          RANDOM123_INSTALL_DIR="$GITHUB_WORKSPACE/RandNLA-project/install/Random123-install" \
+          GTEST_ROOT="$GITHUB_WORKSPACE/RandNLA-project/install/googletest-install" \
+          bash RandBLAS-discovery/install/install.sh --yes \
+            --blas=${{ matrix.backend }} \
+            --project-dir "$GITHUB_WORKSPACE/RandNLA-project-discovery" | tee discovery.out
+          grep -q 'external install' discovery.out \
+            || { echo "Discovery did not reuse the pre-installed dependencies."; exit 1; }
+          test -d RandNLA-project-discovery/build/RandBLAS-build
+
+  install-macos:
+    name: macos-accelerate
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: RandBLAS
+
+      - name: install libomp
+        run: brew install libomp
+
+      # Accelerate is the default on macOS and is LP64-only: BLAS++ implements
+      # only Apple's legacy interface, so there is no ILP64 lane to run here.
+      - name: run the installer
+        run: |
+          bash RandBLAS/install/install.sh --yes \
+            --project-dir "$GITHUB_WORKSPACE/RandNLA-project" | tee installer.out
+          grep -qE '^  Backend  *accelerate' installer.out
+
+      - name: run the test suite
+        run: ctest --test-dir RandNLA-project/build/RandBLAS-build --output-on-failure
+
+      - name: re-run the installer in place (idempotency)
+        run: |
+          bash RandBLAS/install/install.sh --yes \
+            --project-dir "$GITHUB_WORKSPACE/RandNLA-project"
+
+      - name: asking for ILP64 on Accelerate is refused, not silently downgraded
+        run: |
+          if bash RandBLAS/install/install.sh --yes --blas=accelerate --blas-int=ilp64 \
+               --project-dir "$GITHUB_WORKSPACE/RandNLA-project-ilp64" > refuse.out 2>&1; then
+            echo "The installer accepted an impossible configuration."; cat refuse.out; exit 1
+          fi
+          grep -q 'not available with Accelerate' refuse.out
+
+  packager:
+    # The contract conda-forge and Spack rely on: dependencies already
+    # installed, plain CMake, no install script, and no network during
+    # configure. If this lane stays green, a recipe is possible; if it goes
+    # red, packaging is broken no matter how well the installer works.
+    name: linux-plain-cmake-offline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install dependencies the way a package manager would
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y g++ gfortran cmake git libopenblas-dev libgtest-dev
+
+      - name: build BLAS++ and Random123 into a prefix
+        run: |
+          PREFIX="$GITHUB_WORKSPACE/deps"
+          git clone --quiet --depth 1 https://github.com/icl-utk-edu/blaspp.git blaspp-src
+          cmake -S blaspp-src -B blaspp-build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PREFIX" -Dblas=openblas -Dbuild_tests=OFF
+          cmake --build blaspp-build -j"$(nproc)" --target install
+          git clone --quiet --depth 1 --branch v1.14.0 \
+            https://github.com/DEShawResearch/Random123.git random123-src
+          mkdir -p "$PREFIX/include"
+          cp -r random123-src/include/Random123 "$PREFIX/include/Random123"
+
+      # Configure inside a network namespace with no interfaces, so any
+      # FetchContent or git call added to the build later fails here rather
+      # than in a packager's sandbox months from now. "unshare -rn" rather
+      # than "sudo unshare -n": the -r user mapping keeps the generated build
+      # tree owned by the runner user, where sudo would leave it root-owned
+      # and break the non-root build step that follows.
+      - name: configure with plain CMake and no network
+        run: |
+          unshare -rn \
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/deps" \
+              -DRandom123_DIR="$GITHUB_WORKSPACE/deps/include" \
+              -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/pkg"
+
+      - name: build, install and test
+        run: |
+          cmake --build build -j"$(nproc)" --target install
+          ctest --test-dir build --output-on-failure
+
+      - name: a downstream project finds the installed package
+        run: |
+          mkdir -p consumer && cd consumer
+          cat > CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.21)
+          project(consumer CXX)
+          find_package(RandBLAS REQUIRED)
+          add_executable(use main.cc)
+          target_link_libraries(use RandBLAS)
+          EOF
+          cat > main.cc <<'EOF'
+          #include <RandBLAS.hh>
+          #include <vector>
+          int main() {
+              std::vector<double> M(16);
+              RandBLAS::DenseDist D(4, 4);
+              RandBLAS::RNGState state(0);
+              RandBLAS::fill_dense(D, M.data(), state);
+              return 0;
+          }
+          EOF
+          cmake -S . -B build \
+            -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/pkg;$GITHUB_WORKSPACE/deps" \
+            -DRandom123_DIR="$GITHUB_WORKSPACE/deps/include"
+          cmake --build build -j"$(nproc)"
+          ./build/use
