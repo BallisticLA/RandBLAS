@@ -65,17 +65,10 @@ protected:
 
     template <typename T>
     static void zero_other_triangle(int64_t n, T* A, int64_t lda, Uplo uplo) {
-        // Zero out the strict triangle NOT named by uplo, leaving only the
-        // structurally-stored side + diagonal.
-        if (uplo == Uplo::Upper) {
-            for (int64_t j = 0; j < n; ++j)
-                for (int64_t i = j + 1; i < n; ++i)
-                    A[i + j * lda] = T(0);
-        } else {
-            for (int64_t j = 0; j < n; ++j)
-                for (int64_t i = 0; i < j; ++i)
-                    A[i + j * lda] = T(0);
-        }
+        // Zero out the strict triangle NOT named by uplo (k=1 skips the
+        // diagonal), leaving only the structurally-stored side + diagonal.
+        auto other = (uplo == Uplo::Upper) ? Uplo::Lower : Uplo::Upper;
+        RandBLAS::overwrite_triangle(Layout::ColMajor, other, n, 1, A, lda);
     }
 
     template <typename SpMat, typename T>
@@ -327,4 +320,66 @@ TEST_F(TestSpsymm, SymmetricWrapper) {
         /*seed_A=*/0, /*seed_B=*/11,
         /*route_via_wrapper=*/true
     );
+}
+
+
+// MARK: ERROR PATHS
+
+TEST_F(TestSpsymm, leading_dim_too_small_throws) {
+    int64_t n_A = 6, d = 3;
+    std::vector<double> A_tri(n_A * n_A, 0.0);
+    fill_sym_dense<double>(n_A, A_tri.data(), n_A, 99);
+    zero_other_triangle<double>(n_A, A_tri.data(), n_A, Uplo::Upper);
+    CSRMatrix<double> A_sparse(n_A, n_A);
+    dense_to_sparse_format<CSRMatrix<double>, double>(Layout::ColMajor, A_tri.data(), 0.0, A_sparse);
+
+    std::vector<double> B(n_A * d, 1.0), Y(n_A * d, 0.0);
+    // side=Left, ColMajor: B and Y are n_A-by-d, so ldb, ldy >= n_A.
+    ASSERT_THROW(
+        RandBLAS::sparse_data::spsymm(Layout::ColMajor, Side::Left, Uplo::Upper, n_A, d,
+                                      1.0, A_sparse, B.data(), n_A, 0.0, Y.data(), n_A - 1),
+        RandBLAS::Error);
+    ASSERT_THROW(
+        RandBLAS::sparse_data::spsymm(Layout::ColMajor, Side::Left, Uplo::Upper, n_A, d,
+                                      1.0, A_sparse, B.data(), n_A - 1, 0.0, Y.data(), n_A),
+        RandBLAS::Error);
+}
+
+TEST_F(TestSpsymm, one_based_indices_throw) {
+    // The COOMatrix expert constructor accepts IndexBase::One, but spsymm
+    // requires zero-based indices (as left_spmm does).
+    double  vals[] = {2.0, 1.0, 3.0};
+    int64_t rows[] = {1, 1, 2};
+    int64_t cols[] = {1, 2, 2};
+    COOMatrix<double> A(2, 2, 3, vals, rows, cols, true,
+                        RandBLAS::sparse_data::IndexBase::One);
+    std::vector<double> B(2 * 2, 1.0), Y(2 * 2, 0.0);
+    ASSERT_THROW(
+        RandBLAS::sparse_data::spsymm(Layout::ColMajor, Side::Left, Uplo::Upper, 2, 2,
+                                      1.0, A, B.data(), 2, 0.0, Y.data(), 2),
+        RandBLAS::Error);
+}
+
+// Case D with int32 indices: exercises whichever branch the build selects
+// (expand-A + spgemm when the index width matches MKL_INT, the densify-B
+// composition otherwise). Both must produce the same answer.
+TEST_F(TestSpsymm, CaseD_Int32_Indices) {
+    // A_sym = [[2, 1, 0], [1, 3, 0], [0, 0, 4]], upper triangle stored.
+    double  a_vals[] = {2.0, 1.0, 3.0, 4.0};
+    int32_t a_rows[] = {0, 0, 1, 2};
+    int32_t a_cols[] = {0, 1, 1, 2};
+    COOMatrix<double, int32_t> A(3, 3, 4, a_vals, a_rows, a_cols);
+    // B = [[1, 0], [0, 5], [2, 0]].
+    double  b_vals[] = {1.0, 5.0, 2.0};
+    int32_t b_rows[] = {0, 1, 2};
+    int32_t b_cols[] = {0, 1, 0};
+    COOMatrix<double, int32_t> B(3, 2, 3, b_vals, b_rows, b_cols);
+
+    // A_sym * B = [[2, 5], [1, 15], [8, 0]].
+    std::vector<double> Y(3 * 2, 0.0);
+    RandBLAS::sparse_data::spsymm(Layout::ColMajor, Side::Left, Uplo::Upper, 3, 2,
+                                  1.0, A, B, 0.0, Y.data(), 3);
+    std::vector<double> expect = {2.0, 1.0, 8.0, 5.0, 15.0, 0.0};
+    for (size_t i = 0; i < expect.size(); ++i)
+        EXPECT_NEAR(Y[i], expect[i], 1e-14) << "mismatch at flat index " << i;
 }

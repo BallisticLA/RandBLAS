@@ -169,16 +169,21 @@ class TestSketchSymmetric : public ::testing::Test {
     // Note: an earlier `test_error_on_asymmetric` test verified that
     // sketch_symmetric threw on asymmetric input via require_symmetric. With
     // the SYMM-based dispatch (project-plans/randblas-symm-plan.md, Phase 1),
-    // only the triangle named by `uplo` is read --- the opposite triangle
+    // only the triangle named by `uplo` is read; the opposite triangle
     // contributing wrong values is undefined behavior at the caller, not a
-    // RandBLAS check. The test was removed accordingly.
+    // RandBLAS check. The test was removed accordingly. Error paths that ARE
+    // checked (leading dims, submatrix window bounds) are covered under
+    // MARK: ERROR PATHS below.
 
     // =============================================================================
     // Case B exerciser: sparse SkOp x dense symmetric A. Reference is the
     // densified-sparse-skop fed to blas::symm. layout is explicit (SparseSkOp
-    // has no S.layout the way DenseSkOp does --- the COO storage is layout-
+    // has no S.layout the way DenseSkOp does; the COO storage is layout-
     // agnostic, and the test layout determines how both B and the dense
-    // reference of S are laid out).
+    // reference of S are laid out). With materialize=false, S is handed to
+    // sketch_symmetric unmaterialized (nnz < 0), exercising the
+    // submatrix_as_coo window-sampling path; the reference is always built
+    // from a materialized twin (same dist and seed give identical samples).
     template <typename T>
     static void test_sparse_skop(
         Layout layout,
@@ -186,7 +191,8 @@ class TestSketchSymmetric : public ::testing::Test {
         T alpha, int64_t d, int64_t n, int64_t lda, T beta,
         blas::Side side_skop,
         int64_t vec_nnz = 2,
-        Uplo uplo = Uplo::Upper
+        Uplo uplo = Uplo::Upper,
+        bool materialize = true
     ) {
         auto [rows_out, cols_out] = dims_of_sketch_symmetric_output(d, n, side_skop);
         std::vector<T> A(lda * lda, T(0));
@@ -194,22 +200,19 @@ class TestSketchSymmetric : public ::testing::Test {
 
         SparseDist DS(rows_out, cols_out, vec_nnz, major_axis);
         SparseSkOp<T> S(DS, seed_skop);
-        RandBLAS::fill_sparse(S);
+        if (materialize)
+            RandBLAS::fill_sparse(S);
+        SparseSkOp<T> S_ref(DS, seed_skop);
+        RandBLAS::fill_sparse(S_ref);
 
-        // Densify S into a buffer matching the requested layout, for the SYMM
-        // reference. lds is the major-axis leading dim.
+        // Densify the reference twin into a buffer matching the requested
+        // layout, for the SYMM reference. lds is the major-axis leading dim
+        // (tight, so coo_to_dense's layout overload applies directly).
         int64_t lds = (layout == Layout::ColMajor) ? rows_out : cols_out;
         int64_t ldb = lds;
         std::vector<T> S_dense(static_cast<size_t>(rows_out) * cols_out, T(0));
-        auto Scoo = RandBLAS::coo_view_of_skop(S);
-        for (int64_t p = 0; p < Scoo.nnz; ++p) {
-            int64_t r = Scoo.rows[p], c = Scoo.cols[p];
-            if (layout == Layout::ColMajor) {
-                S_dense[r + c * lds] = Scoo.vals[p];
-            } else {
-                S_dense[r * lds + c] = Scoo.vals[p];
-            }
-        }
+        auto Scoo = RandBLAS::coo_view_of_skop(S_ref);
+        RandBLAS::sparse_data::coo::coo_to_dense(Scoo, layout, S_dense.data());
 
         uint32_t seed_b = seed_a + 42;
         std::vector<T> B_actual(static_cast<size_t>(rows_out) * cols_out);
@@ -224,9 +227,9 @@ class TestSketchSymmetric : public ::testing::Test {
         blas::symm(layout, side_a, uplo, rows_out, cols_out,
                    alpha, A.data(), lda, S_dense.data(), lds, beta, B_expect.data(), ldb);
 
-        // Same FMA-order-divergence tolerance as the spsymm tests: the sparse
-        // path emits two AXPYs per stored nonzero (different accumulation
-        // order than dense SYMM on a fully-stored matrix).
+        // Same FMA-order-divergence tolerance as the spsymm tests: the
+        // column-driven sparse kernel accumulates in a different order than
+        // dense SYMM on a fully-stored matrix.
         T atol = T(100) * std::numeric_limits<T>::epsilon();
         T rtol = T(10)  * std::numeric_limits<T>::epsilon();
         auto msg = RandBLAS::testing::matrices_approx_equal(
@@ -468,9 +471,9 @@ TEST_F(TestSketchSymmetric, sparse_skop_right_rowmajor_upper) {
 }
 
 TEST_F(TestSketchSymmetric, sparse_skop_lower_triangle) {
-    // Uplo::Lower coverage --- one cell per (side, layout) combo, since the
+    // Uplo::Lower coverage: one cell per (side, layout) combo, since the
     // Upper-vs-Lower difference exercises the same kernel branches as
-    // ColMajor-vs-RowMajor (different inner-loop axpy strides).
+    // ColMajor-vs-RowMajor (different symmetric-read resolution).
     test_sparse_skop<double>(Layout::ColMajor, 0, 1, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Left,  2, Uplo::Lower);
     test_sparse_skop<double>(Layout::RowMajor, 0, 1, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Left,  2, Uplo::Lower);
     test_sparse_skop<double>(Layout::ColMajor, 0, 1, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Right, 2, Uplo::Lower);
@@ -484,3 +487,41 @@ TEST_F(TestSketchSymmetric, sparse_skop_lift) {
     test_sparse_skop<double>(Layout::ColMajor, 0, 1, Axis::Short, 0.5, 13, 10, 10, 0.0, blas::Side::Right, 2, Uplo::Upper);
 }
 
+
+TEST_F(TestSketchSymmetric, sparse_skop_unmaterialized) {
+    // S is handed to sketch_symmetric with nnz < 0: the wrapper samples only
+    // the requested window via submatrix_as_coo instead of materializing S.
+    test_sparse_skop<double>(Layout::ColMajor, 0, 1, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Left,  2, Uplo::Upper, /*materialize=*/false);
+    test_sparse_skop<double>(Layout::RowMajor, 0, 1, Axis::Short, 0.5, 3, 10, 10, 0.0, blas::Side::Left,  2, Uplo::Lower, /*materialize=*/false);
+    test_sparse_skop<double>(Layout::ColMajor, 0, 1, Axis::Short, 0.5, 3, 10, 10, -1.0, blas::Side::Right, 2, Uplo::Upper, /*materialize=*/false);
+}
+
+
+// MARK: ERROR PATHS
+
+TEST_F(TestSketchSymmetric, sparse_skop_bad_arguments_throw) {
+    int64_t d = 3, n = 10;
+    SparseDist DS(d, n, 2, Axis::Short);
+    SparseSkOp<double> S(DS, 11);
+    RandBLAS::fill_sparse(S);
+    std::vector<double> A(n * n, 1.0);
+    std::vector<double> B(static_cast<size_t>(d) * n, 0.0);
+
+    // ldb below its ColMajor lower bound (B is d-by-n, so ldb >= d).
+    ASSERT_THROW(
+        RandBLAS::sketch_symmetric(Layout::ColMajor, Uplo::Upper, d, n,
+                                   1.0, S, 0, 0, A.data(), n, 0.0, B.data(), d - 1),
+        RandBLAS::Error);
+    // lda below its lower bound (A is n-by-n).
+    ASSERT_THROW(
+        RandBLAS::sketch_symmetric(Layout::ColMajor, Uplo::Upper, d, n,
+                                   1.0, S, 0, 0, A.data(), n - 1, 0.0, B.data(), d),
+        RandBLAS::Error);
+    // Submatrix window exceeding the operator: ro_s + d > S.n_rows. The
+    // dense-SkOp branch has always thrown here; the sparse branch must too
+    // (a silent filter would return a sketch with missing rows).
+    ASSERT_THROW(
+        RandBLAS::sketch_symmetric(Layout::ColMajor, Uplo::Upper, d, n,
+                                   1.0, S, 1, 0, A.data(), n, 0.0, B.data(), d),
+        RandBLAS::Error);
+}
