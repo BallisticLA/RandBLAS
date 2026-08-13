@@ -160,7 +160,7 @@ protected:
         auto msg = RandBLAS::testing::matrices_approx_equal(
             layout, blas::Op::NoTrans, m_BY, n_BY,
             Y_actual.data(), ldy, Y_expect.data(), ldy,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__, atol, rtol
+            __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__, atol, rtol
         );
         if (!msg.empty()) FAIL() << msg;
     }
@@ -251,7 +251,7 @@ protected:
         auto msg = RandBLAS::testing::matrices_approx_equal(
             layout, blas::Op::NoTrans, m_BY, n_BY,
             Y_actual.data(), ldy, Y_expect.data(), ldy,
-            __PRETTY_FUNCTION__, __FILE__, __LINE__, atol, rtol
+            __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__, atol, rtol
         );
         if (!msg.empty()) FAIL() << msg;
     }
