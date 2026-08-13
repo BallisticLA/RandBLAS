@@ -170,6 +170,44 @@ else
     C_OK=""; C_ERR=""; C_WARN=""; C_BOLD=""; C_OFF=""
 fi
 
+# Progress rendering tier.
+#   2  a terminal that can draw: redraw a bar in place, with block characters
+#   1  a terminal without colour or UTF-8: same bar, ASCII, still redrawn
+#   0  not a terminal: one line per step, no escapes, no carriage returns
+#
+# Tier 0 is not a fallback, it is a requirement. Redirected output ends up in
+# install.log, in CI transcripts and in bug reports, and control characters
+# make all three unreadable. CI asserts that redirected output contains no
+# escape sequence and no carriage return.
+PROGRESS_TIER=0
+if [[ -t 1 && "$WANT_PROGRESS" == "1" && "${TERM:-}" != "dumb" ]]; then
+    if [[ -z "${NO_COLOR:-}" && "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" == *[Uu][Tt][Ff]* ]]; then
+        PROGRESS_TIER=2
+    else
+        PROGRESS_TIER=1
+    fi
+fi
+
+if (( PROGRESS_TIER >= 2 )); then
+    BAR_FULL="━"; BAR_EMPTY="─"
+else
+    BAR_FULL="#"; BAR_EMPTY="-"
+fi
+
+# draw_bar <percent> <label>: redraw the current step's bar in place.
+draw_bar() {
+    local pct="$1" label="$2" width=28 filled i bar=""
+    (( pct > 100 )) && pct=100
+    filled=$(( pct * width / 100 ))
+    for ((i = 0; i < width; i++)); do
+        if (( i < filled )); then bar+="$BAR_FULL"; else bar+="$BAR_EMPTY"; fi
+    done
+    # \r and a trailing clear-to-end, so a shorter line never leaves debris
+    # from a longer one behind it.
+    printf '\r%s[%d/%d]%s %s %s %3d%%\033[K' \
+        "$C_BOLD" "$STEP" "$TOTAL_STEPS" "$C_OFF" "$label" "$bar" "$pct"
+}
+
 note() { printf '%s\n' "$*"; }
 warn() { printf '%swarning:%s %s\n' "$C_WARN" "$C_OFF" "$*" >&2; }
 
@@ -279,6 +317,68 @@ run_step() {
         printf '%sdone%s (%ds)\n' "$C_OK" "$C_OFF" "$((t1 - t0))"
     else
         printf '%sFAILED%s\n' "$C_ERR" "$C_OFF" >&2
+        printf '\nStep "%s" failed. Full output: %s\n' "$label" "$LOG" >&2
+        printf 'The last 20 log lines:\n' >&2
+        tail -20 "$LOG" >&2
+        exit 1
+    fi
+}
+
+# run_build_step <label> <command...>: like run_step, but drives a real
+# progress bar from the build tool's own output.
+#
+# Both build tools already report progress on the stream we are capturing
+# anyway -- Ninja writes "[12/34]" and Make writes "[ 42%]" -- so the bar
+# tracks actual work rather than elapsed time. A spinner would convey nothing;
+# this says how much is left.
+#
+# Falls straight through to run_step at tier 0, so redirected output is
+# byte-identical to what it was before any of this existed.
+run_build_step() {
+    local label="$1"; shift
+    if (( PROGRESS_TIER == 0 )); then
+        run_step "$label" "$@"
+        return
+    fi
+
+    STEP=$((STEP + 1))
+    local t0 t1 status statusfile
+    t0=$(date +%s)
+    {
+        printf '\n===== [%d/%d] %s =====\n' "$STEP" "$TOTAL_STEPS" "$label"
+        printf '$ %s\n' "$*"
+    } >> "$LOG"
+
+    draw_bar 0 "$label"
+
+    # The while loop runs in a subshell, so the command's exit status cannot
+    # come back through a variable; pass it through a file instead.
+    statusfile="$(mktemp)"
+    {
+        "$@" 2>&1
+        printf '%d\n' "$?" > "$statusfile"
+    } | while IFS= read -r line; do
+        printf '%s\n' "$line" >> "$LOG"
+        if [[ "$line" =~ ^\[([0-9]+)/([0-9]+)\] ]]; then
+            # Ninja: [12/34]
+            draw_bar $(( 100 * ${BASH_REMATCH[1]} / ${BASH_REMATCH[2]} )) "$label"
+        elif [[ "$line" =~ ^\[[[:space:]]*([0-9]+)%\] ]]; then
+            # Make: [ 42%]
+            draw_bar "${BASH_REMATCH[1]}" "$label"
+        fi
+    done
+    status="$(cat "$statusfile" 2>/dev/null || echo 1)"
+    rm -f "$statusfile"
+
+    if [[ "$status" == "0" ]]; then
+        t1=$(date +%s)
+        printf '\r%s[%d/%d]%s %s ... %sdone%s (%ds)\033[K\n' \
+            "$C_BOLD" "$STEP" "$TOTAL_STEPS" "$C_OFF" "$label" \
+            "$C_OK" "$C_OFF" "$((t1 - t0))"
+    else
+        printf '\r%s[%d/%d]%s %s ... %sFAILED%s\033[K\n' \
+            "$C_BOLD" "$STEP" "$TOTAL_STEPS" "$C_OFF" "$label" \
+            "$C_ERR" "$C_OFF" >&2
         printf '\nStep "%s" failed. Full output: %s\n' "$label" "$LOG" >&2
         printf 'The last 20 log lines:\n' >&2
         tail -20 "$LOG" >&2
@@ -630,7 +730,7 @@ if (( BUILD_BLASPP )); then
         fi
         printf '%sdone%s (requested %s)\n' "$C_OK" "$C_OFF" "$BLAS_INT_RESOLVED"
 
-        run_step "Building and installing BLAS++" \
+        run_build_step "Building and installing BLAS++" \
             cmake --build "$PROJECT_DIR/build/blaspp-build-$BLAS_INT_RESOLVED" \
                 -j "$JOBS" --target install
 
@@ -739,7 +839,7 @@ fi
 RB_ARGS+=("${OPENMP_FLAGS[@]}")
 
 run_step "Configuring RandBLAS" cmake "${RB_ARGS[@]}"
-run_step "Building and installing RandBLAS" \
+run_build_step "Building and installing RandBLAS" \
     cmake --build "$RANDBLAS_BUILD" -j "$JOBS" --target install
 
 #==============================================================================
@@ -884,7 +984,7 @@ build_examples() {
             -DRandom123_DIR="$RANDOM123_DIR" \
             -DFETCHCONTENT_BASE_DIR="$PROJECT_DIR/build/fetchcontent-cache" \
             "${OPENMP_FLAGS[@]}"
-    run_step "Building examples" \
+    run_build_step "Building examples" \
         cmake --build "$PROJECT_DIR/build/examples-build" -j "$JOBS"
 }
 
