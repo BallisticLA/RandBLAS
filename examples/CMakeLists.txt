@@ -1,4 +1,6 @@
-cmake_minimum_required(VERSION 3.12)
+# Matches the floor in the top-level RandBLAS CMakeLists.txt; RuntimeDLLs.cmake,
+# included below, needs TARGET_RUNTIME_DLLS from 3.21 on native Windows.
+cmake_minimum_required(VERSION 3.21)
 
 project(examples)
 
@@ -64,10 +66,24 @@ target_link_libraries(
 
 
 include(FetchContent)
+
+# Keep the download inside the project tree by default rather than buried in
+# the build directory, so a second configure reuses it and a user can find it.
+# Overridable, and ignored entirely if the caller already set it.
+if (NOT FETCHCONTENT_BASE_DIR)
+    set(FETCHCONTENT_BASE_DIR "${CMAKE_CURRENT_BINARY_DIR}/_deps"
+        CACHE PATH "Where FetchContent stores downloaded dependencies")
+endif()
+
+# Pinned to a release tag. This was previously GIT_TAG main, which meant the
+# examples built against whatever that branch happened to hold on the day --
+# so two people running the same commit could get different code, and a
+# breaking change upstream would land here without any change on our side.
+# v1.7.6 is commit d8e50e9a58918fef6ff2674cd62abfaf7b9c42a2.
 FetchContent_Declare(
     fast_matrix_market
     GIT_REPOSITORY https://github.com/alugowski/fast_matrix_market
-    GIT_TAG main
+    GIT_TAG v1.7.6
     GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(

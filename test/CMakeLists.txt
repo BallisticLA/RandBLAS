@@ -114,6 +114,14 @@ if (GTest_FOUND)
 endif()
 message(STATUS "Checking for regression tests ... ${tmp}")
 
+# BUILD_TESTS defaults to ON while find_package(GTest) above is not REQUIRED,
+# so a machine without GoogleTest silently produces a build with zero tests.
+# Recorded here for CMake/rb_summary.cmake, which warns about it: this
+# subdirectory has its own scope, so the summary cannot see GTest_FOUND, and
+# collecting every degraded-configuration warning in one place keeps them from
+# being reported twice.
+set(RandBLAS_HAS_GTest ${tmp} CACHE INTERNAL "" FORCE)
+
 add_executable(test_rng_speed basic_rng/benchmark_speed.cc)
 target_link_libraries(test_rng_speed RandBLAS)
 randblas_stage_runtime_dlls(test_rng_speed)
