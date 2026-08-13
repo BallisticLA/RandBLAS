@@ -67,13 +67,10 @@ void make_dense_symmetric(int64_t n, std::vector<T>& A, uint64_t seed) {
     A.assign(static_cast<size_t>(n) * n, T(0));
     std::mt19937_64 rng(seed);
     std::uniform_real_distribution<T> uni(-1.0, 1.0);
-    for (int64_t j = 0; j < n; ++j) {
-        for (int64_t i = 0; i <= j; ++i) {
-            T v = uni(rng);
-            A[i + j * n] = v;
-            if (i != j) A[j + i * n] = v;  // mirror
-        }
-    }
+    for (int64_t j = 0; j < n; ++j)
+        for (int64_t i = 0; i <= j; ++i)
+            A[i + j * n] = uni(rng);
+    RandBLAS::symmetrize(blas::Layout::ColMajor, blas::Uplo::Upper, n, A.data(), n);
 }
 
 // Sparsify the upper triangle of A (including diagonal) at the given density,
@@ -91,56 +88,21 @@ void sparsify_upper_then_mirror(int64_t n, std::vector<T>& A, double density, ui
     }
 }
 
-// Build a one-triangle (Upper) CSR view by walking the upper triangle of A_dense.
+// Build a one-triangle (Upper) CSR by zeroing the strict lower triangle of a
+// copy of A_dense and converting with the library's dense_to_csr.
 SpMat build_csr_upper_only(int64_t n, const std::vector<T>& A_dense) {
-    std::vector<sint_t> rowptr(n + 1, 0);
-    for (int64_t i = 0; i < n; ++i) {
-        for (int64_t j = i; j < n; ++j)
-            if (A_dense[i + j * n] != T(0)) ++rowptr[i + 1];
-    }
-    for (int64_t i = 0; i < n; ++i) rowptr[i + 1] += rowptr[i];
-    int64_t nnz = rowptr[n];
-
+    std::vector<T> upper(A_dense);
+    RandBLAS::overwrite_triangle(blas::Layout::ColMajor, blas::Uplo::Lower, n, 1, upper.data(), n);
     SpMat A_sparse(n, n);
-    A_sparse.reserve(nnz);
-    std::vector<sint_t> tmp_rp(rowptr);  // running cursor per row
-    for (int64_t i = 0; i < n; ++i) {
-        for (int64_t j = i; j < n; ++j) {
-            T v = A_dense[i + j * n];
-            if (v != T(0)) {
-                int64_t pos = tmp_rp[i]++;
-                A_sparse.colidxs[pos] = static_cast<sint_t>(j);
-                A_sparse.vals[pos] = v;
-            }
-        }
-    }
-    for (int64_t i = 0; i <= n; ++i) A_sparse.rowptr[i] = rowptr[i];
+    RandBLAS::sparse_data::csr::dense_to_csr(blas::Layout::ColMajor, upper.data(), T(0), A_sparse);
     return A_sparse;
 }
 
 // Build a full (both-triangles-stored) CSR for the pre-PR workaround comparison.
 SpMat build_csr_both_triangles(int64_t n, const std::vector<T>& A_dense) {
-    std::vector<sint_t> rowptr(n + 1, 0);
-    for (int64_t i = 0; i < n; ++i)
-        for (int64_t j = 0; j < n; ++j)
-            if (A_dense[i + j * n] != T(0)) ++rowptr[i + 1];
-    for (int64_t i = 0; i < n; ++i) rowptr[i + 1] += rowptr[i];
-    int64_t nnz = rowptr[n];
-
+    std::vector<T> full(A_dense);
     SpMat A_sparse(n, n);
-    A_sparse.reserve(nnz);
-    std::vector<sint_t> tmp_rp(rowptr);
-    for (int64_t i = 0; i < n; ++i) {
-        for (int64_t j = 0; j < n; ++j) {
-            T v = A_dense[i + j * n];
-            if (v != T(0)) {
-                int64_t pos = tmp_rp[i]++;
-                A_sparse.colidxs[pos] = static_cast<sint_t>(j);
-                A_sparse.vals[pos] = v;
-            }
-        }
-    }
-    for (int64_t i = 0; i <= n; ++i) A_sparse.rowptr[i] = rowptr[i];
+    RandBLAS::sparse_data::csr::dense_to_csr(blas::Layout::ColMajor, full.data(), T(0), A_sparse);
     return A_sparse;
 }
 
@@ -228,7 +190,7 @@ void run_config(int64_t n_A, int64_t d, double density, int num_trials) {
     }, num_trials);
 
     // 3. Dense blas::symm on the fully populated dense A (the "ideal"
-    //    BLAS-symm baseline -- doesn't exploit sparsity, but is the
+    //    BLAS-symm baseline: does not exploit sparsity, but is the
     //    fastest possible dense SYMM).
     auto [t3_min, t3_med] = run_trials([&] {
         blas::symm(layout, Side::Left, Uplo::Upper, n_A, d,
