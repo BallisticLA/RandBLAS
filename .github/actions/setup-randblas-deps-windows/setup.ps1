@@ -44,24 +44,58 @@ function Find-PackageConfigDirectory {
     return $config.Directory.FullName
 }
 
-function Clone-Head {
+# Fetch exactly one commit or tag, and record where it came from.
+#
+# This replaces a clone that took a branch name and returned early whenever the
+# destination merely existed. Two problems with that: a branch tip moves, so
+# two runs of the same script could build different source; and reuse keyed on
+# presence means changing a ref is a silent no-op for anyone who already has
+# the directory, so the new pin never takes effect. The stamp is needed
+# because a shallow fetch of a tag does not keep the tag ref locally, so git
+# cannot be asked afterwards whether a tree is at the pin.
+function Clone-Pinned {
     param(
         [Parameter(Mandatory = $true)][string] $Url,
         [Parameter(Mandatory = $true)][string] $Destination,
-        [string] $Branch = ""
+        [Parameter(Mandatory = $true)][string] $Ref
     )
 
-    if (Test-Path -LiteralPath $Destination) {
+    $stampPath = Join-Path $Destination ".randblas-provenance"
+    $stamp = "$Url@$Ref"
+    if ((Test-Path -LiteralPath $stampPath) -and
+        ((Get-Content -LiteralPath $stampPath -Raw).Trim() -eq $stamp)) {
+        Write-Host "Reusing $Destination (already at $Ref)"
         return
     }
 
-    $arguments = @("clone", "--depth", "1")
-    if ($Branch) {
-        $arguments += @("--branch", $Branch)
+    if (Test-Path -LiteralPath $Destination) {
+        Remove-Item -Recurse -Force -LiteralPath $Destination
     }
-    $arguments += @($Url, $Destination)
-    Invoke-Checked -Program "git" -Arguments $arguments
+    New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+    Invoke-Checked -Program "git" -Arguments @("-C", $Destination, "init", "--quiet")
+    Invoke-Checked -Program "git" -Arguments @("-C", $Destination, "remote", "add", "origin", $Url)
+    Invoke-Checked -Program "git" -Arguments @("-C", $Destination, "fetch", "--quiet", "--depth", "1", "origin", $Ref)
+    Invoke-Checked -Program "git" -Arguments @("-C", $Destination, "checkout", "--quiet", "FETCH_HEAD")
+    Set-Content -LiteralPath $stampPath -Value $stamp -Encoding ascii
 }
+
+#------------------------------------------------------------------ pins ------
+# Immutable refs only: a tag or a full commit hash, never a branch. These match
+# install/install.sh and the refs RandLAPACK validated, so the two installers
+# and CI cannot disagree about what they built.
+#
+# BLAS++ and LAPACK++ previously came from personal forks carrying one-line
+# MSVC fixes. Both merged upstream on 2026-08-06 (icl-utk-edu/blaspp#132,
+# icl-utk-edu/lapackpp#87), so both now come from icl-utk-edu, pinned to the
+# merge commits: the latest release of each, v2025.05.28, predates the fixes.
+$BlasppUrl    = "https://github.com/icl-utk-edu/blaspp.git"
+$BlasppRef    = "30571853f980d3a2a1737124ea4789e025a5e045"
+$LapackppUrl  = "https://github.com/icl-utk-edu/lapackpp.git"
+$LapackppRef  = "40b9d0daf29b6f1f3fa58bc3f22bd6cfb2c67fe4"
+$Random123Url = "https://github.com/DEShawResearch/Random123.git"
+$Random123Ref = "v1.14.0"
+$GTestUrl     = "https://github.com/google/googletest.git"
+$GTestRef     = "v1.18.0"
 
 function Export-GitHubValue {
     param(
@@ -188,8 +222,7 @@ $gtestVariant = if ($SanitizeAddress) { "googletest-asan" } else { "googletest" 
 $gtestBuild = Join-Path $DependencyRoot "$gtestVariant-build"
 $gtestInstall = Join-Path $DependencyRoot "$gtestVariant-install"
 if (-not (Test-Path -LiteralPath (Join-Path $gtestInstall "lib\cmake\GTest\GTestConfig.cmake"))) {
-    Clone-Head -Url "https://github.com/google/googletest.git" `
-        -Destination $gtestSource -Branch "v1.17.0"
+    Clone-Pinned -Url $GTestUrl -Destination $gtestSource -Ref $GTestRef
     $gtestArguments = @(
         "-S", $gtestSource,
         "-B", $gtestBuild,
@@ -215,8 +248,7 @@ $random123Source = Join-Path $DependencyRoot "Random123"
 $random123Install = Join-Path $DependencyRoot "Random123-install"
 $random123Include = Join-Path $random123Install "include"
 if (-not (Test-Path -LiteralPath (Join-Path $random123Include "Random123\philox.h"))) {
-    Clone-Head -Url "https://github.com/DEShawResearch/Random123.git" `
-        -Destination $random123Source
+    Clone-Pinned -Url $Random123Url -Destination $random123Source -Ref $Random123Ref
     New-Item -ItemType Directory -Force -Path $random123Include | Out-Null
     Copy-Item -LiteralPath (Join-Path $random123Source "include\Random123") `
         -Destination $random123Include -Recurse
@@ -229,10 +261,7 @@ $blasppConfig = Get-ChildItem -LiteralPath $blasppInstall -Recurse -File `
     -Filter "blasppConfig.cmake" -ErrorAction SilentlyContinue |
     Select-Object -First 1
 if (-not $blasppConfig) {
-    Clone-Head `
-        -Url "https://github.com/RaphaelArkadyMeyerNYU/blaspp.git" `
-        -Destination $blasppSource `
-        -Branch "windows-portability"
+    Clone-Pinned -Url $BlasppUrl -Destination $blasppSource -Ref $BlasppRef
     $blasLibraryArgument = ($mklLibraries | ForEach-Object {
         Convert-ToCMakePath $_
     }) -join ";"
@@ -267,10 +296,7 @@ if ($InstallLapackpp) {
         -Filter "lapackppConfig.cmake" -ErrorAction SilentlyContinue |
         Select-Object -First 1
     if (-not $lapackppConfig) {
-        Clone-Head `
-            -Url "https://github.com/RaphaelArkadyMeyerNYU/lapackpp.git" `
-            -Destination $lapackppSource `
-            -Branch "msvc-compatibility"
+        Clone-Pinned -Url $LapackppUrl -Destination $lapackppSource -Ref $LapackppRef
 
         Invoke-Checked -Program "cmake" -Arguments @(
             "-S", $lapackppSource,

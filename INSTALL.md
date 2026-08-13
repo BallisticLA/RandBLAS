@@ -1,13 +1,82 @@
 
 # Installing and using RandBLAS
 
-This guide has four main sections and a native-Windows appendix.
+## Quick start: the installer scripts
+
+If you just want a working RandBLAS, run the installer for your platform. It
+builds RandBLAS and every dependency it needs into a self-contained
+`RandNLA-project` directory beside your clone, installs nothing system-wide,
+and does not touch your shell configuration.
+
+```bash
+bash install/install.sh            # Linux and macOS
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install\install.ps1    # Windows
+```
+
+**You supply the toolchain; the installer supplies everything above it.** You
+need a C++20 compiler, CMake 3.21 or later, and Git — on Windows, in an *x64*
+developer shell. The script does not install compilers or package managers.
+When something is missing it says so and points at the usual way to get it.
+
+Useful options, common to both scripts:
+
+| Option | Effect |
+|---|---|
+| `--blas=` / `-Backend` | `auto`, `openblas`, `mkl`, `accelerate`, `custom` |
+| `--project-dir=` / `-ProjectDir` | where dependencies, builds and installs go |
+| `--prefix=` / `-Prefix` | install RandBLAS itself somewhere else |
+| `--examples` / `-Examples` | also build `examples/` (see below) |
+| `--fresh`, `--no-tests`, `-j N` | rebuild from scratch, skip GoogleTest, set parallelism |
+| `--yes` / `-Yes` | never prompt; also the behavior when stdin is redirected |
+
+Run with `--help` for the full list. Every option has an environment-variable
+equivalent, and already-installed dependencies are reused when you point at
+them with `BLASPP_INSTALL_DIR`, `RANDOM123_INSTALL_DIR` or `GTEST_ROOT`.
+
+### Sharing dependencies with RandLAPACK
+
+Both installers use the same `RandNLA-project` layout and both honour
+`RANDNLA_PROJECT_DIR`. Set it once and whichever installer runs second reuses
+the first one's BLAS++ instead of building a second copy:
+
+```bash
+export RANDNLA_PROJECT_DIR=$HOME/RandNLA-project    # Linux, macOS
+setx RANDNLA_PROJECT_DIR C:\RandNLA-project         # Windows
+```
+
+A dependency is reused only when it was built from the same source *and* in a
+compatible configuration; a BLAS++ built for a different backend or integer
+width is rebuilt rather than silently reused.
+
+### Examples are opt-in
+
+`examples/` is not built by default. It needs two dependencies RandBLAS itself
+does not — LAPACK++ and `fast_matrix_market` — and it requires OpenMP, which
+stock Apple Clang does not provide. The installer offers to build them when it
+finishes, and prints the exact command to do it later.
+
+### Building without the installer
+
+The installer is a convenience, never a requirement. Everything it does is
+reproducible with plain CMake and pre-installed dependencies, which is what
+sections 1 through 3 describe and what packagers should follow. See
+**Appendix B** for the packaging contract.
+
+---
+
+The rest of this guide has four main sections and two appendices.
 
 Sections 1 through 3 describe how to build and install RandBLAS using CMake.
 
 Section 4 explains how to use RandBLAS in other CMake projects.
 
 Appendix A follows the same general flow for a native Windows build with MSVC.
+
+Appendix B lists the configurations we test, and what a conda-forge or Spack
+recipe needs to know.
 
 If you want a TL;DR version of this guide, refer to one of the following.
  * Our GitHub Actions to [workflow files](https://github.com/BallisticLA/RandBLAS/tree/main/.github/workflows).
@@ -291,8 +360,11 @@ cmake --build C:/randblas-work/build/googletest --target install
 ```
 
 MSVC supplies OpenMP support. RandBLAS's CMake configuration automatically
-selects `/openmp:experimental` under MSVC because its sparse kernels use
-`#pragma omp simd`. No OpenMP flag needs to be added manually.
+selects `/openmp:llvm` under MSVC. The classic `/openmp` mode implements only
+OpenMP 2.0, which rejects the `omp simd` directive the sparse kernels use, as
+well as 64-bit loop indices and the `collapse` clause downstream consumers
+such as RandLAPACK rely on. No OpenMP flag needs to be added manually; to
+choose a different mode, set `-DOpenMP_CXX_FLAGS=...` at configure time.
 
 OpenMP is optional. To request a serial build explicitly, add
 `-DCMAKE_DISABLE_FIND_PACKAGE_OpenMP=TRUE` to the RandBLAS configuration
@@ -385,3 +457,89 @@ set "PATH=C:\randblas-work\vcpkg-installed\x64-windows\bin;C:\randblas-work\inst
 
 C:\path\to\my_randblas_project-build\myexec.exe
 ```
+
+
+## Appendix B. Tested configurations, integer width, and packaging
+
+### B.1. What we test
+
+Every row below is a lane in CI, so this table is a statement about what is
+actually exercised on every commit rather than what we believe should work.
+Anything not listed may well work; it is simply untested.
+
+| OS | Compiler | BLAS backend | Integer width | OpenMP | Notes |
+|---|---|---|---|---|---|
+| Ubuntu (latest) | gcc | OpenBLAS | LP64 | yes | release, debug+ASan, release+UBSan |
+| Ubuntu (latest) | gcc | oneMKL | ILP64 | yes | enables the MKL sparse path |
+| Ubuntu (latest) | clang | OpenBLAS | LP64 | yes | release, ASan, TSan |
+| macOS 14 | Apple Clang | Accelerate | LP64 | **no** | Apple Clang ships no OpenMP runtime |
+| macOS 15 | Homebrew LLVM | Accelerate | LP64 | yes | via Homebrew `libomp` |
+| Windows | MSVC | oneMKL | ILP64 | yes (`/openmp:llvm`) | x64 only |
+
+Compiler floor: RandBLAS uses C++20 [concepts](https://en.cppreference.com/w/cpp/language/constraints),
+which in practice means **gcc ≥ 13**. Older gcc will not compile it. CMake
+3.21 or later is required on every platform.
+
+The installer lanes additionally cover a fresh install, an idempotent re-run,
+dependency discovery, and a build performed with plain CMake and no network.
+
+### B.2. Integer width: which BLAS you get, and why
+
+RandBLAS's own API is `int64_t` regardless of the BLAS underneath, because
+BLAS++ presents `int64_t` either way. The width of the *underlying* BLAS still
+matters in two places: an LP64 BLAS caps each individual matrix dimension at
+2³¹, and the MKL sparse path requires `MKL_INT` to match RandBLAS's `int64_t`
+sparse indices.
+
+The installer therefore **prefers ILP64 wherever the backend can genuinely
+provide it, and falls back to LP64 with a warning where it cannot**:
+
+| Backend | Width | Why |
+|---|---|---|
+| oneMKL | ILP64 | `mkl_intel_ilp64` is a distinct library, so the choice is real and verifiable |
+| OpenBLAS | LP64 | see below |
+| Accelerate | LP64 | BLAS++ implements only Apple's legacy interface ([lapackpp#43](https://github.com/icl-utk-edu/lapackpp/issues/43)) |
+
+**OpenBLAS is the subtle one.** BLAS++ probes `int32` before `int64` and uses
+`blas_int` only to filter library *names*. For MKL that is enough. For
+OpenBLAS there is only ever `-lopenblas`, so an LP64 build passes the `int32`
+probe and is accepted — a successful `blas_int=int64` configure proves
+nothing. If you have an ILP64 OpenBLAS (on Debian or Ubuntu,
+`libopenblas64-dev`), point at it explicitly rather than hoping it is found:
+
+```bash
+bash install/install.sh --blas=custom --blas-int=ilp64 \
+  --blas-libraries=/usr/lib/x86_64-linux-gnu/libopenblas64.so
+```
+
+The installer reports the width it actually built, read back from BLAS++'s
+generated `blas/defines.h` rather than from what was requested, and the CMake
+configuration summary reports the same.
+
+### B.3. Packaging with conda-forge or Spack
+
+Neither ecosystem runs install scripts. Both configure with CMake against
+dependencies they installed themselves, often with no network available. That
+path is tested on every commit by the `linux-plain-cmake-offline` lane, which
+configures inside a network namespace with no interfaces.
+
+What a recipe needs to know:
+
+- **Dependencies are `blaspp` and `Random123`.** LAPACK++ is needed only for
+  `examples/`, GoogleTest only for the test suite.
+- **Nothing is downloaded during configure.** `examples/` is a standalone
+  `project()` and is the only place using `FetchContent`, so a packager never
+  reaches it.
+- **Default to LP64.** conda-forge's `libblas` metapackage — the mechanism
+  that lets a user swap BLAS implementations at runtime — is LP64, and this is
+  RandBLAS's default for every backend except MKL, so the two agree.
+- **RandBLAS never selects a BLAS itself.** It reaches the BLAS only through
+  BLAS++ and never calls `find_package(BLAS)`, so `BLA_VENDOR` and the choice
+  of implementation stay entirely with the packager.
+- **Pass `-DBUILD_TESTS=OFF`** unless you are running the suite; it defaults
+  to ON, and without GoogleTest that silently produces a build with zero tests.
+  The configuration summary warns when this happens.
+- **The installed package is relocatable.** It records the dependency paths
+  used at build time, but CMake falls back to a normal `CMAKE_PREFIX_PATH`
+  search when those paths do not exist, so a package built in one prefix and
+  consumed from another resolves correctly.

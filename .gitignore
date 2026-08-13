@@ -48,8 +48,11 @@ breathe/*
 **/compile_commands.json
 **build/
 !**build/.gitkeep
-**install/
-!**install/.gitkeep
+# Install trees produced by a build: blaspp-install, RandBLAS-install,
+# googletest-install and friends. Matched as *-install rather than a bare
+# "install" so that the tracked install/ source directory, which holds the
+# installer scripts, is not swallowed too. This mirrors RandLAPACK's pattern.
+**/*-install/
 
 
 ## Local 
