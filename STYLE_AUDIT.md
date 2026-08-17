@@ -376,7 +376,7 @@ We then read the file, its log, and the blame for the relevant lines.
 | 3 | `RandBLAS/sparse_data/csr_trsm_impl.hh` | Support headers | 0.238 | `#pragma once` appears before and after the license | Both directives arrived with the original 2025 sparse TRSM implementation | Cleanup candidate | Remove the leading duplicate so the license is first and one guard remains |
 | 4 | `test/basic_rng/test_r123.cc` | Tests | 0.211 | Upstream license, tabs, macro-heavy compatibility code, duplicate includes, mixed spacing and project-include form | Adapted from official Random123 tests; `test/DevNotes.md` explicitly calls it “extremely messy” because the upstream suite supports more compilers and languages | Intentional exception | Preserve upstream-shaped regions; require a narrow reason for local changes and avoid drive-by formatting |
 | 5 | `test/downstream/main.cc` | Tests | 0.205 | No project license is its only scored deviation | Added in 2026 as a deliberately tiny installed-package smoke test | Not an outlier | Adding the license is reasonable, but the file does not exhibit a cluster of style deviations |
-| 6 | `RandBLAS.hh` | Public/core | 0.193 | Uses an include guard rather than `#pragma once` | The umbrella header and installed-path angle includes date to the original 2022 layout | Not an outlier | Preserve the installed umbrella-header convention; new component headers use `#pragma once` |
+| 6 | `RandBLAS.hh` | Public/core | 0.193 | Uses an include guard rather than `#pragma once` | The umbrella header and installed-path angle includes date to the original 2022 layout | Intentional exception | Preserve the installed umbrella-header convention; new component headers use `#pragma once` |
 | 7 | `RandBLAS/sparse_data/csc_trsm_impl.hh` | Support headers | 0.157 | `#pragma once` precedes the license; one of three templates omits the space | Added beside the CSR implementation in 2025 | Not an outlier | Move the guard after the license in a focused cleanup; the evidence does not classify the whole file as an outlier |
 | 8 | `RandBLAS/random_gen.hh` | Public/core | 0.144 | The `r123ext` namespace and several short bodies use next-line braces | The block originated with the Random123 extension code in 2022 | Not an outlier | Follow the guide in new code; avoid reformatting this compatibility block without a functional reason |
 | 9 | `test/datastructures/test_denseskop.cc` | Tests | 0.107 | Half of eligible templates omit the space; one fixture uses `public::testing::Test` | The deviations accumulated across several feature and test-infrastructure changes | Not an outlier | Fix the localized spacing defects when editing those tests |
@@ -406,7 +406,8 @@ whitespace in new edits.
 
 ### Result
 
-The audit identifies four cleanup candidates and one intentional exception.
+The audit identifies four cleanup candidates, one outlying intentional
+exception, and one established umbrella-header exception.
 It also identifies several localized defects in otherwise ordinary files.
 That distinction is useful: a future cleanup can be small and reviewable,
 while the Random123-derived test retains the compatibility shape that
