@@ -338,3 +338,76 @@ Shell, PowerShell, YAML, and workflow files are similarly task-specific.
 They should favor explicit commands and platform terminology already used by
 the installation and CI files.
 No cross-language indentation rule is inferred from them.
+
+## Outlier analysis
+
+An outlier is a file that departs from its peers in several independent
+ways.
+This is stricter than finding a typo.
+
+For each eligible convention, the analyzer computed
+
+```text
+deviation_rate = nonconforming eligible occurrences / eligible occurrences
+convention_weight = dominant convention share within the stratum
+file_score = sum(deviation_rate * convention_weight)
+             / sum(applicable convention_weight)
+```
+
+The scored features were tab use, license placement, include spacing,
+duplicate includes, template spacing, namespace brace placement, inheritance
+spacing, header protection, and project-include form.
+A feature entered a stratum's score only when its dominant form reached the
+70% working-consensus threshold.
+Trailing whitespace and line length were not scored because the repository
+is mixed on both.
+
+A file became a candidate when it was in the top 10% of its stratum with a
+score of at least 0.20, or when it violated two strong structural
+conventions.
+We then read the file, its log, and the blame for the relevant lines.
+
+### Ranked register
+
+| Rank | File | Stratum | Score | Strong deviations | Provenance | Classification | Recommended action |
+|---:|---|---|---:|---|---|---|---|
+| 1 | `test/linops/test_sparse_trsm.cc` | Tests | 0.330 | No project license, all sampled templates omit the space, mixed quote/angle project includes, one tabbed line | Most formatting dates to the sparse TRSM tests added in 2025; later changes added coverage without normalizing the file | Cleanup candidate | Normalize in a focused test cleanup; do not mix with kernel changes |
+| 2 | `test/test_io.cc` | Tests | 0.314 | No project license, `TestIO: public` omits spaces; include groups are split by declarations | Introduced in 2024 and extended in 2026 | Cleanup candidate | Add the license and normalize fixture/include layout when the tests are made assertion-based |
+| 3 | `RandBLAS/sparse_data/csr_trsm_impl.hh` | Support headers | 0.238 | `#pragma once` appears before and after the license | Both directives arrived with the original 2025 sparse TRSM implementation | Cleanup candidate | Remove the leading duplicate so the license is first and one guard remains |
+| 4 | `test/basic_rng/test_r123.cc` | Tests | 0.211 | Upstream license, tabs, macro-heavy compatibility code, duplicate includes, mixed spacing and project-include form | Adapted from official Random123 tests; `test/DevNotes.md` explicitly calls it “extremely messy” because the upstream suite supports more compilers and languages | Intentional exception | Preserve upstream-shaped regions; require a narrow reason for local changes and avoid drive-by formatting |
+| 5 | `test/downstream/main.cc` | Tests | 0.205 | No project license is its only scored deviation | Added in 2026 as a deliberately tiny installed-package smoke test | Not an outlier | Adding the license is reasonable, but the file does not exhibit a cluster of style deviations |
+| 6 | `RandBLAS.hh` | Public/core | 0.193 | Uses an include guard rather than `#pragma once` | The umbrella header and installed-path angle includes date to the original 2022 layout | Not an outlier | Preserve the installed umbrella-header convention; new component headers use `#pragma once` |
+| 7 | `RandBLAS/sparse_data/csc_trsm_impl.hh` | Support headers | 0.157 | `#pragma once` precedes the license; one of three templates omits the space | Added beside the CSR implementation in 2025 | Not an outlier | Move the guard after the license in a focused cleanup; the evidence does not classify the whole file as an outlier |
+| 8 | `RandBLAS/random_gen.hh` | Public/core | 0.144 | The `r123ext` namespace and several short bodies use next-line braces | The block originated with the Random123 extension code in 2022 | Not an outlier | Follow the guide in new code; avoid reformatting this compatibility block without a functional reason |
+| 9 | `test/datastructures/test_denseskop.cc` | Tests | 0.107 | Half of eligible templates omit the space; one fixture uses `public::testing::Test` | The deviations accumulated across several feature and test-infrastructure changes | Not an outlier | Fix the localized spacing defects when editing those tests |
+| 10 | `RandBLAS/base.hh` | Public/core | 0.078 | Duplicate `<iostream>` include, one malformed `#include<iostream>`, three unspaced templates | The duplicate include is legacy code from 2022 and survived later API work | Cleanup candidate | Remove the duplicate and normalize only the affected declarations in a focused cleanup |
+| 11 | `RandBLAS/util.hh` | Public/core | 0.001 | Two tabbed lines; otherwise its scored forms follow the stratum | Utility functions and local matrix-index macros have evolved since 2022 | Not an outlier | Treat local macros as implementation devices, not a competing project style |
+
+`RandBLAS/base.hh` enters the register through the secondary structural rule,
+not its aggregate score: the duplicate include and malformed include spacing
+violate two strong include conventions.
+
+### Rejected example seeds
+
+The three sparse-low-rank example candidates each scored 0.000 on eligible
+features:
+
+- `examples/sparse-low-rank-approx/qrcp_matrixmarket.cc`;
+- `examples/sparse-low-rank-approx/svd_rank1_plus_noise.cc`;
+- `examples/sparse-low-rank-approx/svd_matrixmarket.cc`.
+
+Their timing and matrix-index macros came from the same May 2024 example
+work and serve local application code.
+Long lines, trailing whitespace, and duplicate includes are common enough in
+the seven-file example stratum that they do not distinguish these files as
+outliers.
+The guide still recommends avoiding duplicate includes and cleaning trailing
+whitespace in new edits.
+
+### Result
+
+The audit identifies four cleanup candidates and one intentional exception.
+It also identifies several localized defects in otherwise ordinary files.
+That distinction is useful: a future cleanup can be small and reviewable,
+while the Random123-derived test retains the compatibility shape that
+explains its difference.
