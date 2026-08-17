@@ -130,3 +130,211 @@ stratum:
 The anchors help interpret raw counts.
 They do not override the full-corpus evidence.
 
+## Convention profile
+
+The C++ corpus contains 69 files and 24,284 lines.
+The tables below report eligible occurrences, not just files that happen to
+contain a pattern.
+
+### C++ structure and spacing
+
+| Convention | Public/core | Support headers | Tests | Examples | Assessment |
+|---|---:|---:|---:|---:|---|
+| `template <...>` | 71/78 (91.0%) | 127/132 (96.2%) | 109/124 (87.9%) | 26/26 (100%) | Strong in library code; working in tests |
+| Space after `#include` | 93/94 (98.9%) | 144/144 (100%) | 236/236 (100%) | 99/99 (100%) | Strong |
+| Same-line namespace brace | 17/18 (94.4%) | 27/27 (100%) | 1/1 (100%) | No eligible occurrence | Strong in library code |
+| Spaced inheritance colon | 0/1 | 1/1 | 60/62 (96.8%) | No eligible occurrence | Strong in tests; too little library evidence |
+| No duplicate include target | 10/11 files | 19/19 files | 31/32 files | 4/7 files | Strong outside examples |
+| Project include uses quotes | 25/37 (67.6%) | 96/96 (100%) | 82/96 (85.4%) | 6/6 (100%) | Strong in support/examples; mixed in public/core |
+
+The public/core include result needs context.
+`RandBLAS.hh` is an installed umbrella header and uses angle-bracket paths for
+all nine `RandBLAS/` includes.
+`RandBLAS/util.hh` accounts for the other three angle-bracket project
+includes.
+Eight of the remaining root headers use repository-qualified quoted includes;
+`RandBLAS/random_gen.hh` has one quoted relative include.
+The guide therefore recommends repository-qualified quotes within component
+headers while preserving the umbrella header's installed-header convention.
+
+Every one of the 32 headers has effective multiple-inclusion protection.
+Thirty use exactly one `#pragma once`, `RandBLAS.hh` uses a conventional
+include guard, and `RandBLAS/sparse_data/csr_trsm_impl.hh` contains two
+`#pragma once` directives.
+New headers should use one `#pragma once` after the license block.
+
+Same-line opening braces dominate the broader C++ corpus: 1,876 of 2,033
+observed opening braces (92.3%) share a line with preceding code.
+Tests contain most of the exceptions.
+Of 459 `TEST` or `TEST_F` definitions, 335 (73.0%) put the opening brace on
+the macro line and 124 put it on the next line.
+Fixture/type declarations are mixed, so the guide adopts the overall
+same-line convention for new code without demanding a cleanup of old tests.
+
+Braces around single-statement control bodies are mixed.
+The scan found 742 same-line braced controls and 285 candidates whose body
+starts on the following line without a same-line brace.
+The latter pattern appears in core headers, tests, and examples.
+The guide requires braces when a body has multiple statements or nested
+control flow; a single short statement may remain unbraced when the local
+code is clear.
+
+### Whitespace and line length
+
+| Stratum | Tab-free files | Tabbed lines | Files with trailing whitespace | Trailing-whitespace lines | Lines over 100 columns |
+|---|---:|---:|---:|---:|---:|
+| Public/core | 10/11 | 2 | 8/11 | 179 | 131 |
+| Support headers | 18/19 | 9 | 9/19 | 85 | 125 |
+| Tests | 30/32 | 28 | 22/32 | 146 | 166 |
+| Examples | 7/7 | 0 | 5/7 | 43 | 92 |
+| **Total** | **65/69 (94.2%)** | **39** | **44/69** | **453** | **514** |
+
+Four-space block indentation is consistent across the close-reading anchors,
+and tabs are confined to four files.
+This is strong evidence for spaces and four-space block indentation.
+
+The repository does not establish a clean trailing-whitespace convention:
+453 lines in 44 files contain it.
+Nor does it support a hard 100-column limit: 514 lines in 43 files exceed
+that length, often for signatures, formulas, macro bodies, or URLs.
+The guide treats both as forward-looking recommendations: remove trailing
+whitespace and wrap prose or code when doing so helps a reader, but do not
+distort a mathematical expression or tabular signature merely to hit a
+number.
+
+### Pointer and reference binding
+
+Pointer binding is mixed.
+A declaration-shaped scan found 274 occurrences resembling `T* ptr` and 330
+resembling `T *ptr`.
+The split changes by stratum: examples favor `T* ptr`, while recent sparse
+kernels and much of the public API favor `T *ptr`.
+
+References are much less ambiguous.
+The same scan found 282 occurrences resembling `T &ref` and 47 resembling
+`T& ref`.
+The guide recommends declarator binding (`T *ptr`, `T &ref`) for new code and
+labels the pointer half as a recommendation rather than observed consensus.
+
+### Naming and API shape
+
+The following patterns recur across the public and support headers.
+
+| Subject | Evidence | Assessment |
+|---|---|---|
+| Namespace | `RandBLAS` with descriptive lower-case nested namespaces such as `dense` and `sparse_data` | Working consensus |
+| Public types | `RNGState`, `DenseDist`, `DenseSkOp`, `SparseDist`, `COOMatrix`, `CSRMatrix`, `CSCMatrix`, `IndexBase` | Strong PascalCase pattern |
+| Concepts | `SignedInteger`, `SketchingDistribution`, `SketchingOperator`, `SparseMatrix` | Strong PascalCase pattern |
+| Functions | `sketch_general`, `sketch_sparse`, `fill_dense`, `left_spmm`, `safe_int_product` | Strong snake_case pattern |
+| Variables and fields | `n_rows`, `row_stride`, `next_state`, `index_base` | Strong snake_case pattern |
+| Template parameters | `T`, `RNG`, `SKOP` for principal types; `sint_t`, `state_t` for index/state aliases | Working semantic pattern |
+| Macros | Compiler/configuration macros are uppercase; local matrix-index macros are normally uppercase | Working consensus with named legacy exceptions |
+
+The lower-case helper structs `stride_64t`, `dims64_t`, and
+`submat_spec_64t` are established public exceptions.
+They do not overturn the broader type pattern.
+
+The library uses BLAS++ vocabulary throughout: the scan found 127
+`blas::Layout` references and 128 `blas::Op` references.
+It found 953 `int64_t` references and 174 `randblas_require(...)` calls in
+headers.
+These counts support the existing API pattern: explicit layout/operation
+flags, signed 64-bit dimensions and strides, constrained signed index types,
+and validation near public entry points.
+
+Concepts are used directly in template parameter lists when the compiler
+supports them.
+The `SignedInteger`, `SketchingOperator`, `SketchingDistribution`, and
+`SparseMatrix` compatibility macros preserve builds where the relevant
+concept feature test is unavailable.
+New templates should reuse those concepts instead of introducing parallel
+SFINAE machinery.
+
+### Includes and preprocessor code
+
+Project headers normally precede third-party and standard-library headers.
+Conditional OpenMP includes use
+`#if defined(RandBLAS_HAS_OpenMP)`, followed by `<omp.h>`.
+The library contains ten OpenMP pragmas.
+
+Indented preprocessor directives are common inside function bodies: the scan
+found 106 in library headers, 14 in tests, and 16 in examples.
+They are mostly short-lived matrix-index macros or compiler branches.
+The pattern is deliberate enough to document, but these macros should be
+undefined as soon as their local job is complete.
+
+Macro naming has two domains.
+Public/compiler configuration names are uppercase or carry a recognizable
+project prefix (`RandBLAS_HAS_OpenMP`, `RandBLAS_OPTIMIZE_OFF`).
+Function-like validation macros keep their existing lower-case API spelling
+(`randblas_require`, `randblas_error_if`).
+The lower-case `matA` macros in `RandBLAS/util.hh` are legacy local names, not
+a convention for new macros.
+
+### Source documentation
+
+Nineteen of 32 headers contain `///` documentation; six contain at least one
+`/** ... */` block.
+Across C++ files, the scan found 3,225 `///` lines and 17 block-comment
+openers.
+Only two headers use `@file`, so that tag is optional rather than a file
+template requirement.
+
+All 77 detected parameter direction annotations use `@param[in]`.
+The public docs also use `@tparam`, `@returns`, and project math commands such
+as `\math{...}`.
+This establishes `///` plus explicit Doxygen fields as the preferred form for
+public contracts.
+Implementation comments are most useful when they explain an invariant,
+dispatch choice, numerical concern, or performance tradeoff.
+
+Web documentation is written in reStructuredText.
+The current source has 62 underlined headings, 272 inline `:math:` roles, and
+six note/warning directives.
+Repository notes are Markdown and contain 90 fenced-code markers and 121 ATX
+headings.
+The two formats have distinct jobs: public tutorials/API pages belong under
+`rtd/source/`, while implementation rationale belongs in the nearest
+`DevNotes.md`.
+
+### Tests
+
+The test corpus contains 62 fixture declarations, 455 `TEST_F` definitions,
+and four plain `TEST` definitions.
+Fixture classes normally begin with `Test`; test names are normally
+snake_case descriptions of behavior or parameter combinations.
+
+The scan found 141 `EXPECT_*` and 76 `ASSERT_*` uses.
+The counts do not imply that one family is preferred everywhere.
+Use `ASSERT_*` when later statements cannot run safely after failure; use
+`EXPECT_*` when independent checks can still provide useful information.
+
+Tests are organized by abstraction level, not by source filename alone:
+basic RNG behavior, data structures, low-level linear operations, wrapper
+APIs, and testing helpers live in separate subdirectories.
+This organization agrees with `test/DevNotes.md` and is more important than
+minor brace differences between old test files.
+
+### CMake, Python, and automation
+
+CMake is the only non-C++ stratum large enough for useful mechanical counts.
+Of 400 detected command invocations, 398 use lower-case command names.
+Four-space continuation/block indentation appears on 224 lines, compared
+with 18 two-space lines.
+Project-facing variables retain their established spelling
+(`RandBLAS_HAS_OpenMP`, `BUILD_TESTS`); new private helpers use a leading
+`_rb_` prefix, as in `CMake/rb_summary.cmake`.
+
+Only three Python files are tracked.
+They use four-space indentation but mix quote, import, and whitespace styles;
+eight Python lines contain a tab or trailing whitespace.
+The JavaScript and CSS strata each contain one file.
+The guide therefore gives small-language recommendations rather than claims
+of statistical consensus: use four spaces in Python, preserve the local
+language's conventional formatter shape, and follow the surrounding file in
+single-file strata.
+
+Shell, PowerShell, YAML, and workflow files are similarly task-specific.
+They should favor explicit commands and platform terminology already used by
+the installation and CI files.
+No cross-language indentation rule is inferred from them.
