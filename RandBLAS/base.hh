@@ -44,8 +44,6 @@
 #include <omp.h>
 #endif
 
-#include<iostream>
-
 
 /// code common across the project
 namespace RandBLAS {
@@ -255,7 +253,7 @@ inline submat_spec_64t offset_and_ldim(
 
 
 #ifdef __cpp_concepts
-template<typename T>
+template <typename T>
 concept SignedInteger = (std::numeric_limits<T>::is_signed && std::numeric_limits<T>::is_integer);
 #else
 #define SignedInteger typename
@@ -390,7 +388,7 @@ enum class Axis : char {
 /// 
 /// 
 /// @endverbatim
-template<typename SkDist>
+template <typename SkDist>
 concept SketchingDistribution = requires(SkDist D) {
     { D.n_rows }     -> std::same_as<const int64_t&>;
     { D.n_cols }     -> std::same_as<const int64_t&>;
@@ -468,7 +466,7 @@ concept SketchingDistribution = requires(SkDist D) {
 ///       /* type-specific initializers */ { };
 ///
 /// @endverbatim
-template<typename SKOP>
+template <typename SKOP>
 concept SketchingOperator = requires {
     typename SKOP::distribution_t;
     typename SKOP::state_t;
@@ -488,4 +486,3 @@ concept SketchingOperator = requires {
 #endif
 
 } // end namespace RandBLAS::base
-

@@ -1,5 +1,3 @@
-#pragma once
-
 // Copyright, 2024. See LICENSE for copyright holder information.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,6 +26,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 //
+
+#pragma once
 
 #include "RandBLAS/base.hh"
 #include "RandBLAS/exceptions.hh"
@@ -99,7 +99,7 @@ static void upper_trsv(
     }
 }
 
-template<typename T, SignedInteger sint_t = int64_t>
+template <typename T, SignedInteger sint_t = int64_t>
 static void trsm_jki_p11(
     blas::Layout layout_B,
     blas::Uplo uplo,

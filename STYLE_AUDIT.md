@@ -413,6 +413,13 @@ That distinction is useful: a future cleanup can be small and reviewable,
 while the Random123-derived test retains the compatibility shape that
 explains its difference.
 
+After recording the snapshot, the style-guide branch applied the
+behavior-neutral include, guard, template-spacing, inheritance-spacing, and
+tab fixes identified as mechanical in the register and dry run.
+The scores and classifications above remain tied to commit `952251c`; they
+record the evidence that motivated those fixes rather than the branch's later
+state.
+
 ## Guide traceability
 
 The following table traces the guide's normative rules to repository evidence.

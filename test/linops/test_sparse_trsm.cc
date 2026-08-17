@@ -2,12 +2,12 @@
 #include "RandBLAS/config.h"
 #include "RandBLAS/base.hh"
 #include "RandBLAS/util.hh"
-#include <RandBLAS/random_gen.hh>
-#include <RandBLAS/exceptions.hh>
-#include <RandBLAS/sparse_skops.hh>
-#include <RandBLAS/sparse_data/trsm_dispatch.hh>
-#include <RandBLAS/sparse_data/csr_trsm_impl.hh>
-#include <RandBLAS/sparse_data/csc_trsm_impl.hh>
+#include "RandBLAS/random_gen.hh"
+#include "RandBLAS/exceptions.hh"
+#include "RandBLAS/sparse_skops.hh"
+#include "RandBLAS/sparse_data/trsm_dispatch.hh"
+#include "RandBLAS/sparse_data/csr_trsm_impl.hh"
+#include "RandBLAS/sparse_data/csc_trsm_impl.hh"
 using RandBLAS::sparse_data::CSRMatrix;
 using RandBLAS::sparse_data::CSCMatrix;
 using RandBLAS::sparse_data::COOMatrix;
@@ -37,7 +37,7 @@ using std::vector;
 class TestSptrsm : public ::testing::Test
 {
     protected:
-    template<typename T>
+    template <typename T>
     static COOMatrix<T> make_test_matrix(int64_t n, T nonzero_prob, bool upper, uint32_t key = 0) {
         randblas_require(nonzero_prob >= 0);
         randblas_require(nonzero_prob <= 1);
@@ -56,7 +56,7 @@ class TestSptrsm : public ::testing::Test
 
     virtual void TearDown(){};
 
-    template<typename T>
+    template <typename T>
     static void test_csr_solve(int64_t n, T p, bool upper, int64_t incx, uint32_t key) {
         auto A_coo = make_test_matrix(n, p, upper, key);
         CSRMatrix<T> A(n, n);
@@ -82,7 +82,7 @@ class TestSptrsm : public ::testing::Test
         return;
     }
 
-    template<typename T>
+    template <typename T>
     static void test_csc_solve(int64_t n, T p, bool upper, int64_t incx, uint32_t key) {
         auto A_coo = make_test_matrix(n, p, upper, key);
         CSCMatrix<T> A(n, n);
@@ -108,7 +108,7 @@ class TestSptrsm : public ::testing::Test
         return;
     }
 
-    template<typename T>
+    template <typename T>
     static void test_csc_solve_matrix(Layout layout, int64_t n, T p, Op op,  Uplo uplo, int64_t k, uint32_t key) {
         auto A_coo = make_test_matrix(n, p, uplo == Uplo::Upper, key);
         CSCMatrix<T> A(n, n);
@@ -135,7 +135,7 @@ class TestSptrsm : public ::testing::Test
         return;
     }
 
-    template<typename T>
+    template <typename T>
     static void test_csr_solve_matrix(Layout layout, int64_t n, T p, Op op, Uplo uplo, int64_t k, uint32_t key) {
         auto A_coo = make_test_matrix(n, p, uplo == Uplo::Upper, key);
         CSRMatrix<T> A(n, n);
@@ -154,7 +154,7 @@ class TestSptrsm : public ::testing::Test
         RandBLAS::spmm(layout, op, Op::NoTrans, n, k, n, 1.0, A, rhs_ptr, ldb, 0.0, ref_ptr, ldb);
         
         // for (int64_t i = 0; i < k * n; ++i) {
-	    //     std::cout << ref_ptr[i] << "\t" << i << std::endl;
+        //     std::cout << ref_ptr[i] << "\t" << i << std::endl;
         //     randblas_require(std::abs(ref_ptr[i] - i) <= RandBLAS::sqrt_epsilon<T>());
         // }
         T atol = RandBLAS::sqrt_epsilon<T>();

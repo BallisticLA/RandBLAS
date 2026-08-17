@@ -42,7 +42,6 @@
 #include <iomanip> 
 #include <limits> 
 #include <numbers>
-#include <chrono>
 #include <fstream>
 
 using RandBLAS::sparse_data::reserve_coo;

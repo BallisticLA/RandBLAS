@@ -1,5 +1,3 @@
-#pragma once
-
 // Copyright, 2024. See LICENSE for copyright holder information.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -156,4 +154,3 @@ static void trsm_jki_p11(
 }
 
 }
-

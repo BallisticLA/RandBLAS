@@ -41,7 +41,7 @@
 #include <thread>
 
 // Fill a random matrix and truncate at the end of each row so that each row starts with a fresh counter.
-template<typename T, typename RNG, typename OP>
+template <typename T, typename RNG, typename OP>
 static void fill_dense_rmat_trunc(
     T* mat,
     int64_t n_rows,
@@ -168,7 +168,7 @@ class TestSubmatGeneration : public ::testing::Test
 
     virtual void TearDown(){};
 
-    template<typename T, typename RNG, typename OP>
+    template <typename T, typename RNG, typename OP>
     static void test_colwise_smat_gen(
         int64_t n_cols,
         int64_t n_rows, 
@@ -198,7 +198,7 @@ class TestSubmatGeneration : public ::testing::Test
         delete[] smat;
     }
 
-    template<typename T, typename RNG, typename OP>
+    template <typename T, typename RNG, typename OP>
     static void test_rowwise_smat_gen(
         int64_t n_cols,
         int64_t n_rows, 
@@ -228,7 +228,7 @@ class TestSubmatGeneration : public ::testing::Test
         delete[] smat;
     }
 
-    template<typename T, typename RNG, typename OP>
+    template <typename T, typename RNG, typename OP>
     static void test_diag_smat_gen(
         int64_t n_cols,
         int64_t n_rows,
@@ -341,7 +341,7 @@ TEST(TestDenseThreading, GaussianPhilox) {
 #endif
 
 
-class TestFillAxis : public::testing::Test
+class TestFillAxis : public ::testing::Test
 {
     protected:
         static inline auto distname = RandBLAS::ScalarDist::Uniform;
@@ -442,7 +442,7 @@ class TestDenseSkOpStates : public ::testing::Test
         }
     }
 
-    template<typename RNG>
+    template <typename RNG>
     static void test_compute_next_state(
         uint32_t key,
         int64_t n_rows,

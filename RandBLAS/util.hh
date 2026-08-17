@@ -196,9 +196,9 @@ void print_buff_to_stream_impl(
         abs_end =  " ]\n])\n";
     }
 
-	int64_t i, j;
+    int64_t i, j;
     T val;
-	stream << std::endl << label << abs_start;
+    stream << std::endl << label << abs_start;
     stream << std::setprecision(decimals);
     for (i = 0; i < n_rows; ++i) {
         stream << mid_start;
@@ -557,4 +557,3 @@ state_t sample_indices_iid_uniform(int64_t n,  int64_t k, sint_t* samples, const
 
 
 } // end namespace RandBLAS
-

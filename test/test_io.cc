@@ -16,7 +16,7 @@ using RandBLAS::print_buff_to_stream;
 #include <gtest/gtest.h>
 
 
-class TestIO: public ::testing::Test {
+class TestIO : public ::testing::Test {
     protected:
 
     std::vector<double> get_pi_mat(int64_t n_rows, int64_t n_cols) {
