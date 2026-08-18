@@ -368,13 +368,16 @@ TEST_F(TestSparseSkOpConstruction, sampling_is_thread_count_independent) {
         int64_t vec_nnz;
         RandBLAS::Axis major_axis;
     };
-    constexpr std::array<Case, 6> cases{{
+    constexpr std::array<Case, 9> cases{{
         {7, 31, 1, RandBLAS::Axis::Short},
         {7, 31, 5, RandBLAS::Axis::Short},
         {31, 7, 5, RandBLAS::Axis::Short},
+        {257, 2048, 12, RandBLAS::Axis::Short},
         {7, 31, 1, RandBLAS::Axis::Long},
         {7, 31, 12, RandBLAS::Axis::Long},
-        {31, 7, 12, RandBLAS::Axis::Long}
+        {31, 7, 12, RandBLAS::Axis::Long},
+        {257, 257, 128, RandBLAS::Axis::Long},
+        {2048, 4096, 1, RandBLAS::Axis::Long}
     }};
     constexpr std::array<int, 3> thread_counts{1, 2, 4};
     const int saved_dynamic = omp_get_dynamic();

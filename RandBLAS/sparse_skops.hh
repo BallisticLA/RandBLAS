@@ -749,7 +749,7 @@ state_t fill_sparse_unpacked(
     // and LASO) consume exactly vec_nnz counter increments per major-axis vector, so the
     // skip amount is uniform.
     state_t work_state = seed_state;
-    work_state.counter.incr(num_major_off * vec_nnz);
+    work_state.counter.incr(safe_int_product(num_major_off, vec_nnz));
 
     // Identify which output array holds the major-axis coordinate and which holds the
     // minor-axis coordinate (the index of the major-axis vector). We sample directly
@@ -776,52 +776,90 @@ state_t fill_sparse_unpacked(
         }
     };
 
-    // Phase 1: sample the num_major_sub requested major-axis vectors directly into the
-    // output buffers, using the same helpers (and hence the same RNG stream) as the full
-    // operator. On exit, the first "total" entries carry full major coordinates and local
-    // minor coordinates (0..num_major_sub-1); "total" is the pre-filter nnz.
-    int64_t total;
+    // Phase 1: sample each requested major-axis vector into a fixed-width output lane.
+    // Fixed lanes let physical threads work independently while logical vector indices
+    // determine counter ranges and output positions.
+    std::vector<int64_t> lane_counts(num_major_sub, vec_nnz);
     state_t end_state;
     if (D.major_axis == Axis::Short) {
         end_state = sparse::repeated_fisher_yates(
             work_state, vec_nnz, dim_major, num_major_sub, idxs_major, idxs_minor, vals
         );
-        total = vec_nnz * num_major_sub;
+        const int active_threads = sparse::sparse_sampling_thread_count(
+            dim_major, num_major_sub, vec_nnz, false
+        );
+        #pragma omp parallel for schedule(static) num_threads(active_threads) \
+            if(active_threads > 1)
         for (int64_t b = 0; b < num_major_sub; ++b) {
-            sort_block_by_major(idxs_major + b * vec_nnz, vals + b * vec_nnz, vec_nnz);
+            const int64_t lane_offset = safe_int_product(b, vec_nnz);
+            sort_block_by_major(
+                idxs_major + lane_offset,
+                vals + lane_offset,
+                vec_nnz
+            );
         }
     } else {
-        // LASO: each major-axis vector is sampled with replacement and merged in place,
-        // advancing through the output buffers exactly as the full operator does.
-        std::unordered_map<sint_t, T> loc2count{};
-        std::unordered_map<sint_t, T> loc2scale{};
-        sint_t* im = idxs_major;
-        sint_t* in = idxs_minor;
-        T*      v  = vals;
-        total = 0;
-        end_state = work_state;
-        for (int64_t i = 0; i < num_major_sub; ++i) {
-            end_state = sample_indices_iid_uniform(dim_major, vec_nnz, im, v, end_state);
-            laso_merge_long_axis_vector_coo_data(vec_nnz, v, im, in, i, loc2count, loc2scale);
-            // The merge compacts to the (<= vec_nnz) distinct survivors.
-            int64_t count = (int64_t) loc2count.size();
-            sort_block_by_major(im, v, count);
-            im += count; in += count; v += count; total += count;
+        const int active_threads = sparse::sparse_sampling_thread_count(
+            dim_major, num_major_sub, vec_nnz, false
+        );
+        const auto base_counter = work_state.counter;
+        #pragma omp parallel num_threads(active_threads) if(active_threads > 1)
+        {
+            std::unordered_map<sint_t, T> loc2count;
+            std::unordered_map<sint_t, T> loc2scale;
+
+            #pragma omp for schedule(static)
+            for (int64_t i = 0; i < num_major_sub; ++i) {
+                const int64_t lane_offset = safe_int_product(i, vec_nnz);
+                auto vector_counter = base_counter;
+                vector_counter.incr(lane_offset);
+                state_t vector_state{vector_counter, work_state.key};
+                sint_t *vector_major = idxs_major + lane_offset;
+                sint_t *vector_minor = idxs_minor + lane_offset;
+                T *vector_vals = vals + lane_offset;
+
+                sample_indices_iid_uniform(
+                    dim_major,
+                    vec_nnz,
+                    vector_major,
+                    vector_vals,
+                    vector_state
+                );
+                laso_merge_long_axis_vector_coo_data(
+                    vec_nnz,
+                    vector_vals,
+                    vector_major,
+                    vector_minor,
+                    i,
+                    loc2count,
+                    loc2scale
+                );
+                const int64_t survivors = static_cast<int64_t>(loc2count.size());
+                sort_block_by_major(vector_major, vector_vals, survivors);
+                lane_counts[i] = survivors;
+            }
         }
+        end_state = work_state;
+        end_state.counter.incr(safe_int_product(num_major_sub, vec_nnz));
     }
 
-    // Phase 2: compact in place, keeping only nonzeros whose major coordinate lands in
-    // the window [dim_major_off, dim_major_off + dim_major_sub) and shifting those
-    // coordinates down to local indices. The write index nnz never exceeds the read
-    // index k, so reading and writing the same buffers is safe.
+    // Phase 2: pack lanes in increasing logical-vector order and keep only nonzeros in
+    // the requested major-coordinate window. Every destination precedes or equals its
+    // source, so this serial pass cannot overwrite an unread lane.
     nnz = 0;
-    for (int64_t k = 0; k < total; ++k) {
-        sint_t mc = idxs_major[k] - (sint_t) dim_major_off;
-        if (0 <= mc && mc < (sint_t) dim_major_sub) {
-            idxs_major[nnz] = mc;
-            idxs_minor[nnz] = idxs_minor[k];
-            vals[nnz]       = vals[k];
-            nnz++;
+    for (int64_t i = 0; i < num_major_sub; ++i) {
+        const int64_t lane_offset = safe_int_product(i, vec_nnz);
+        for (int64_t j = 0; j < lane_counts[i]; ++j) {
+            const int64_t read = lane_offset + j;
+            const sint_t local_major = idxs_major[read]
+                - static_cast<sint_t>(dim_major_off);
+            if (0 <= local_major
+                && local_major < static_cast<sint_t>(dim_major_sub)) {
+                idxs_major[nnz] = local_major;
+                idxs_minor[nnz] = static_cast<sint_t>(i);
+                vals[nnz] = vals[read];
+                ++nnz;
+            }
         }
     }
     return end_state;
