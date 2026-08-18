@@ -18,7 +18,9 @@ We have three types of documentation.
  2. Web documentation, split into a [tutorial](https://randblas.readthedocs.io/en/latest/tutorial/index.html) and an [API reference](https://randblas.readthedocs.io/en/latest/api_reference/index.html).
  3. Developer notes; [one](RandBLAS/DevNotes.md) for RandBLAS as a whole and [another](RandBLAS/sparse_data/DevNotes.md) for our sparse matrix functionality.
 
-Contributors should also consult the [RandBLAS style guide](STYLE_GUIDE.md).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) before preparing a change.
+Source and documentation conventions are in
+[`STYLE_GUIDE.md`](STYLE_GUIDE.md).
 
 Detailed installation instructions are in [INSTALL.md](INSTALL.md).
 

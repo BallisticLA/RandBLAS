@@ -1,8 +1,10 @@
 # RandBLAS style audit
 
-This audit records the evidence behind `STYLE_GUIDE.md`.
-The guide is normative; this file is descriptive.
-Keeping the two separate prevents an old inconsistency from becoming a new rule.
+This audit records the evidence behind `STYLE_GUIDE.md` and the
+project-specific constraints summarized in `CONTRIBUTING.md`.
+The guides are normative; this file is descriptive.
+Keeping normative guidance separate from the audit prevents an old
+inconsistency from becoming a new rule.
 
 ## Review snapshot
 
@@ -40,8 +42,14 @@ We call a convention a **strong consensus** when it appears in at least five
 eligible files and at least 90% of eligible occurrences.
 A **working consensus** needs five eligible files and a share of at least 70%.
 Everything else is **mixed**.
-Mixed evidence is either omitted from the guide, split by file stratum, or
-presented as an explicit forward-looking recommendation.
+Mixed evidence is omitted from the guide or left to the surrounding file.
+The audit does not turn a close count into a new formatting rule.
+
+The review also uses the original February 2025 contributor notes, now
+preserved in [issue #99](https://github.com/BallisticLA/RandBLAS/issues/99#issuecomment-5323627413).
+Those notes state project requirements that occurrence counts cannot recover,
+including the Sphinx–Breathe documentation format, the Random123 boundary,
+and the definition of the public API.
 
 ## Corpus
 
@@ -175,9 +183,7 @@ Braces around single-statement control bodies are mixed.
 The scan found 742 same-line braced controls and 285 candidates whose body
 starts on the following line without a same-line brace.
 The latter pattern appears in core headers, tests, and examples.
-The guide requires braces when a body has multiple statements or nested
-control flow; a single short statement may remain unbraced when the local
-code is clear.
+The guide therefore leaves body bracing to the surrounding file.
 
 ### Whitespace and line length
 
@@ -197,10 +203,8 @@ The repository does not establish a clean trailing-whitespace convention:
 453 lines in 44 files contain it.
 Nor does it support a hard 100-column limit: 514 lines in 43 files exceed
 that length, often for signatures, formulas, macro bodies, or URLs.
-The guide treats both as forward-looking recommendations: remove trailing
-whitespace and wrap prose or code when doing so helps a reader, but do not
-distort a mathematical expression or tabular signature merely to hit a
-number.
+The guide therefore sets no rule for trailing whitespace and no numerical
+line limit.
 
 ### Pointer and reference binding
 
@@ -210,11 +214,10 @@ resembling `T *ptr`.
 The split changes by stratum: examples favor `T* ptr`, while recent sparse
 kernels and much of the public API favor `T *ptr`.
 
-References are much less ambiguous.
-The same scan found 282 occurrences resembling `T &ref` and 47 resembling
-`T& ref`.
-The guide recommends declarator binding (`T *ptr`, `T &ref`) for new code and
-labels the pointer half as a recommendation rather than observed consensus.
+References favor `T &ref`: the same scan found 282 such occurrences and 47
+resembling `T& ref`.
+That does not justify one combined pointer-and-reference rule.
+The guide leaves both choices to the declaration being modified.
 
 ### Naming and API shape
 
@@ -238,9 +241,17 @@ The library uses BLAS++ vocabulary throughout: the scan found 127
 `blas::Layout` references and 128 `blas::Op` references.
 It found 953 `int64_t` references and 174 `randblas_require(...)` calls in
 headers.
-These counts support the existing API pattern: explicit layout/operation
-flags, signed 64-bit dimensions and strides, constrained signed index types,
-and validation near public entry points.
+The type counts support explicit layout/operation flags, signed 64-bit
+dimensions and strides, and constrained signed index types.
+The validation calls show that checks are common, but a raw call count does
+not establish that every public entry point must validate every property.
+The guide therefore makes no blanket validation rule.
+
+The February 2025 notes provide two API constraints directly.
+`std::random` is prohibited outside selected tests; all other randomness goes
+through Random123 and `RNGState`.
+Standard-library data structures do not appear anywhere in the public API,
+which the notes define as the declarations selected by the web API reference.
 
 Concepts are used directly in template parameter lists when the compiler
 supports them.
@@ -260,16 +271,8 @@ The library contains ten OpenMP pragmas.
 Indented preprocessor directives are common inside function bodies: the scan
 found 106 in library headers, 14 in tests, and 16 in examples.
 They are mostly short-lived matrix-index macros or compiler branches.
-The pattern is deliberate enough to document, but these macros should be
-undefined as soon as their local job is complete.
-
-Macro naming has two domains.
-Public/compiler configuration names are uppercase or carry a recognizable
-project prefix (`RandBLAS_HAS_OpenMP`, `RandBLAS_OPTIMIZE_OFF`).
-Function-like validation macros keep their existing lower-case API spelling
-(`randblas_require`, `randblas_error_if`).
-The lower-case `matA` macros in `RandBLAS/util.hh` are legacy local names, not
-a convention for new macros.
+Their spelling and placement vary too much to support an additional guide
+rule.
 
 ### Source documentation
 
@@ -277,25 +280,40 @@ Nineteen of 32 headers contain `///` documentation; six contain at least one
 `/** ... */` block.
 Across C++ files, the scan found 3,225 `///` lines and 17 block-comment
 openers.
-Only two headers use `@file`, so that tag is optional rather than a file
-template requirement.
+This supports `///` for web-facing declarations.
 
-All 77 detected parameter direction annotations use `@param[in]`.
-The public docs also use `@tparam`, `@returns`, and project math commands such
-as `\math{...}`.
-This establishes `///` plus explicit Doxygen fields as the preferred form for
-public contracts.
-Implementation comments are most useful when they explain an invariant,
-dispatch choice, numerical concern, or performance tradeoff.
+The original audit made a bad inference from Doxygen field counts.
+Native `@param`, `@tparam`, and return fields occur in only four headers;
+60 of the parameter fields are concentrated in `RandBLAS/skge.hh`'s lower
+level kernels.
+By contrast, six public-operation headers contain 220 parameter rows in the
+embedded reStructuredText form `name - [direction]`.
+The February 2025 notes explicitly reject native Doxygen fields for new
+web-facing comments because of their rendered appearance.
+
+The build configuration confirms why.
+`rtd/source/conf.py` runs Doxygen to produce XML, configures Breathe to read
+that XML, and then lets Sphinx render the site.
+The API-reference pages select declarations with Breathe directives such as
+`doxygenfunction` and `doxygenstruct`.
+The C++ comments use `@verbatim embed:rst:leading-slashes`, the `\math{...}`
+Doxygen alias, reStructuredText math roles, and the custom `mathmacro`
+directive to control the Sphinx output.
+Doxygen is an extraction stage, not the documentation frontend.
+
+The library headers contain 81 major equals-sign separators and 113 hyphen
+separators.
+Library, test, and example code contain 48 `// MARK:` labels.
+Together with the contributor notes, these counts support the short
+navigational guidance in the revised guide.
 
 Web documentation is written in reStructuredText.
 The current source has 62 underlined headings, 272 inline `:math:` roles, and
 six note/warning directives.
 Repository notes are Markdown and contain 90 fenced-code markers and 121 ATX
 headings.
-The two formats have distinct jobs: public tutorials/API pages belong under
-`rtd/source/`, while implementation rationale belongs in the nearest
-`DevNotes.md`.
+Public tutorials and API pages belong under `rtd/source/`; implementation
+rationale belongs in the nearest `DevNotes.md`.
 
 ### Tests
 
@@ -303,11 +321,6 @@ The test corpus contains 62 fixture declarations, 455 `TEST_F` definitions,
 and four plain `TEST` definitions.
 Fixture classes normally begin with `Test`; test names are normally
 snake_case descriptions of behavior or parameter combinations.
-
-The scan found 141 `EXPECT_*` and 76 `ASSERT_*` uses.
-The counts do not imply that one family is preferred everywhere.
-Use `ASSERT_*` when later statements cannot run safely after failure; use
-`EXPECT_*` when independent checks can still provide useful information.
 
 Tests are organized by abstraction level, not by source filename alone:
 basic RNG behavior, data structures, low-level linear operations, wrapper
@@ -322,22 +335,14 @@ Of 400 detected command invocations, 398 use lower-case command names.
 Four-space continuation/block indentation appears on 224 lines, compared
 with 18 two-space lines.
 Project-facing variables retain their established spelling
-(`RandBLAS_HAS_OpenMP`, `BUILD_TESTS`); new private helpers use a leading
-`_rb_` prefix, as in `CMake/rb_summary.cmake`.
+(`RandBLAS_HAS_OpenMP`, `BUILD_TESTS`).
+The `_rb_` private-helper spelling comes from one file and does not establish
+a repository-wide rule.
 
-Only three Python files are tracked.
-They use four-space indentation but mix quote, import, and whitespace styles;
-eight Python lines contain a tab or trailing whitespace.
-The JavaScript and CSS strata each contain one file.
-The guide therefore gives small-language recommendations rather than claims
-of statistical consensus: use four spaces in Python, preserve the local
-language's conventional formatter shape, and follow the surrounding file in
-single-file strata.
-
-Shell, PowerShell, YAML, and workflow files are similarly task-specific.
-They should favor explicit commands and platform terminology already used by
-the installation and CI files.
-No cross-language indentation rule is inferred from them.
+Only three Python files are tracked, while the JavaScript and CSS strata each
+contain one file.
+Those files do not support repository-wide rules beyond following the local
+file, so the guide does not restate generic language advice for them.
 
 ## Outlier analysis
 
@@ -401,8 +406,8 @@ work and serve local application code.
 Long lines, trailing whitespace, and duplicate includes are common enough in
 the seven-file example stratum that they do not distinguish these files as
 outliers.
-The guide still recommends avoiding duplicate includes and cleaning trailing
-whitespace in new edits.
+Duplicate includes remain a mechanical defect; mixed line length and trailing
+whitespace do not become guide rules.
 
 ### Result
 
@@ -422,52 +427,35 @@ state.
 
 ## Guide traceability
 
-The following table traces the guide's normative rules to repository evidence.
-“Project requirement” means the rule comes from `AGENTS.md` or a DevNotes file
-rather than a mechanical style count.
-Recommendations are directions for new work, not claims that old files already
-agree.
+The following table traces the guides' normative rules to repository evidence.
+“Project requirement” means the rule comes from `AGENTS.md`, a DevNotes file,
+or the February 2025 contributor notes rather than a mechanical style count.
 
-| Guide section | Rule set | Evidence | Confidence | Exceptions or limits |
+| Document and section | Rule set | Evidence | Confidence | Exceptions or limits |
 |---|---|---|---|---|
-| 2 | Preserve correctness, ownership, thread safety, and public API compatibility during style changes | `AGENTS.md`; `RandBLAS/DevNotes.md`; [close-reading method](#close-reading-anchors) | Project requirement | None; this is the safety boundary for cleanup work |
-| 2 | Keep sampled matrices independent of thread count | `AGENTS.md`; `RandBLAS/DevNotes.md`; `test/datastructures/test_denseskop.cc` | Project requirement | None |
-| 2 | Follow neighboring BLAS-like parameter order | [naming and API profile](#naming-and-api-shape) | Working consensus | Match the nearest operation because the signatures serve different kernels |
-| 2, 9 | Benchmark kernel optimizations and record the relevant configuration | `AGENTS.md`; `RandBLAS/sparse_data/DevNotes.md` | Project requirement | Applies to performance changes, not formatting-only work |
-| 2, 8 | Use comments for contracts, invariants, dispatch, numerical concerns, and performance rationale | [source-documentation profile](#source-documentation); `RandBLAS/DevNotes.md` | Working consensus | Short local comments may still label data or a compact transformation |
-| 3 | Put the license first, use one `#pragma once`, and group project, third-party, then standard includes | [C++ structure and spacing](#c-structure-and-spacing); [include profile](#includes-and-preprocessor-code) | Strong consensus for license/guard/include syntax; working consensus for group order | `RandBLAS.hh` keeps its include guard and installed-path angle includes |
-| 4 | Use four spaces, avoid tabs, add spaces to `template <...>` and inheritance, and place opening braces on the same line | [C++ structure and spacing](#c-structure-and-spacing); [whitespace profile](#whitespace-and-line-length) | Strong consensus, except template spacing in tests is working consensus | Existing test/type brace placement is mixed; use the rule for new code |
-| 4 | Brace multi-statement or nested bodies; allow a clear, short single statement to follow local form | [C++ structure and spacing](#c-structure-and-spacing) | Correctness rule plus mixed local evidence | The guide deliberately does not require all single statements to be braced |
-| 4 | Bind pointers and references to the declarator and remove trailing whitespace on touched lines | [pointer/reference profile](#pointer-and-reference-binding); [whitespace profile](#whitespace-and-line-length) | Recommendation for pointers and trailing whitespace; working consensus for references | Do not reformat untouched code solely to apply these recommendations |
-| 5 | Use the documented naming table; keep local macros uppercase, narrow, and explicitly undefined | [naming profile](#naming-and-api-shape); [preprocessor profile](#includes-and-preprocessor-code) | Strong or working consensus by entity | Named public lower-case types and validation macros remain established exceptions |
-| 6 | Reuse C++20 concepts and BLAS++ enum types; use `int64_t` dimensions/strides and validate public inputs | [naming and API profile](#naming-and-api-shape); `AGENTS.md` | Project requirement backed by strong occurrence counts | Sparse index buffers may use a constrained signed index type |
-| 6 | Format long signatures one logical parameter per line and preserve documented ownership flags | [close-reading anchors](#close-reading-anchors); `RandBLAS/sparse_data/DevNotes.md` | Working convention for signatures; project requirement for ownership | Compact signatures may stay on one line when they remain readable |
-| 7 | Make component headers self-contained; include direct dependencies; keep the OpenMP include conditional | [include profile](#includes-and-preprocessor-code); build model in `AGENTS.md` | Build requirement for direct dependencies; strong local convention for OpenMP | The installed umbrella header follows its documented exception |
-| 8 | Prefer `///` public contracts with Doxygen fields and keep implementation rationale in DevNotes | [source-documentation profile](#source-documentation) | Strong consensus for `///`; working convention for field coverage | `@file` is optional; `@param[out]` extends the repository's direction syntax to output buffers |
-| 9 | Put OpenMP pragmas next to their loops and cover every affected sparse format/transpose/layout path | [preprocessor profile](#includes-and-preprocessor-code); `AGENTS.md`; `RandBLAS/sparse_data/DevNotes.md`; `test/DevNotes.md` | Working convention for pragma placement; project requirement for path coverage | Coverage is limited to paths affected by the change |
-| 10 | Use fixtures for shared setup, choose `ASSERT_*` for unsafe continuation, and use `EXPECT_*` for independent checks | [test profile](#tests) | Strong fixture convention; semantic GoogleTest rule | A plain `TEST` remains suitable when no shared setup exists |
-| 10 | Give RNG changes deterministic checks and test new sketch operations across their applicable sides, transposes, layouts, submatrices, and formats | `AGENTS.md`; `test/DevNotes.md`; [test profile](#tests) | Project requirement | Only applicable combinations need coverage |
-| 11 | Keep examples focused on a use or benchmark and keep local helper macros narrow | [example anchors](#close-reading-anchors); [rejected example seeds](#rejected-example-seeds) | Working editorial rule | Example-local timing and index macros are permitted |
-| 11 | Use lower-case CMake commands, four-space blocks, established public variable spellings, and `_rb_` for private helpers | [CMake profile](#cmake-python-and-automation) | Strong for command case; working for indentation and helper names | Existing public/cache names retain their spelling |
-| 11 | Use four spaces in Python; otherwise follow local form in small language strata and prefer explicit automation | [CMake, Python, and automation](#cmake-python-and-automation) | Recommendation | No repository-wide quote rule is inferred from three Python files |
-| 12 | Preserve the two documented exceptions and do not copy their special forms into ordinary component headers or tests | [outlier register](#ranked-register) | Explicit exception | Applies only to `RandBLAS.hh` and upstream-shaped regions of `test_r123.cc` |
+| `CONTRIBUTING.md`: Project constraints | Preserve correctness, ownership, thread safety, public API compatibility, and reproducibility | `AGENTS.md`; the three DevNotes files; issue #99 | Project requirement | A proposal may deliberately revise one of these properties |
+| `CONTRIBUTING.md`: Project constraints | Route randomness through Random123/`RNGState`; keep standard-library data structures out of the web-defined public API | [issue #99 contributor notes](https://github.com/BallisticLA/RandBLAS/issues/99#issuecomment-5323627413) | Project requirement | Selected tests may use another generator for a stated reason |
+| `CONTRIBUTING.md`: Development and review | Use the Spack-backed workspace for maintainer validation, test affected sparse dispatch paths, and benchmark optimizations | Workspace `AGENTS.md`; DevNotes; relevant tests | Project requirement | Standalone contributors use `INSTALL.md`; coverage is limited to paths affected by the change |
+| `STYLE_GUIDE.md`: C++ source | Use four spaces, same-line braces, `template <...>` spacing, and the naming table | [C++ structure and spacing](#c-structure-and-spacing); [naming profile](#naming-and-api-shape) | Strong or working consensus by form | Pointer/reference spacing and line length remain local choices |
+| `STYLE_GUIDE.md`: C++ source | Put the license first, use one `#pragma once`, include direct dependencies, and group includes | [C++ structure and spacing](#c-structure-and-spacing); [include profile](#includes-and-preprocessor-code) | Strong for protection and include syntax; working for group order | `RandBLAS.hh` keeps its installed-header form |
+| `STYLE_GUIDE.md`: Public interfaces | Reuse C++20 concepts and BLAS++ enums; use `int64_t` for dimensions and strides | CMake configuration; [naming and API profile](#naming-and-api-shape) | Build requirement backed by occurrence counts | Sparse indices may use a constrained signed type |
+| `STYLE_GUIDE.md`: Documentation | Treat Doxygen as XML extraction and write web-facing comments for Sphinx–Breathe | [source-documentation profile](#source-documentation); `rtd/source/conf.py`; `rtd/DevNotes.md`; issue #99 | Project requirement backed by build configuration | Native Doxygen fields remain in legacy comments |
+| `STYLE_GUIDE.md`: Documentation | Use `///`, embedded reStructuredText for long parameter lists, project math facilities, and the established separators/markers | [source-documentation profile](#source-documentation); issue #99 | Strong convention plus project requirement | Short contracts should remain plain prose |
+| `STYLE_GUIDE.md`: Other files | Use the established test fixture/case naming, lower-case CMake commands, and otherwise follow the local file | [test profile](#tests); [CMake, Python, and automation profile](#cmake-python-and-automation) | Strong test and CMake consensus; smaller strata are mixed | A plain `TEST` is suitable without shared setup |
 
 ## Rubric dry run
 
-We applied the guide to five pairs without editing the source files.
+We applied the guide to representative pairs without editing the source files.
 The dry run asks whether the guide distinguishes a strong rule from a
-recommendation, whether deviations cluster, and whether provenance supplies a
+local choice, whether deviations cluster, and whether provenance supplies a
 narrow exception.
 
 | Stratum and pair | Guide result | Outlier result | Ambiguity exposed |
 |---|---|---|---|
-| Core: `RandBLAS/dense_skops.hh` / `RandBLAS/base.hh` | Both contain old local spacing and documentation forms. `base.hh` also has a duplicate `<iostream>` and malformed `#include<iostream>`, which violate two strong include rules. | `base.hh` is a focused cleanup candidate; `dense_skops.hh` is ordinary core code with localized debt. | A recommendation such as pointer binding cannot classify a file by itself. |
+| Core: `RandBLAS/dense_skops.hh` / `RandBLAS/base.hh` | Both contain old local spacing and documentation forms. `base.hh` also has a duplicate `<iostream>` and malformed `#include<iostream>`, which violate two strong include rules. | `base.hh` is a focused cleanup candidate; `dense_skops.hh` is ordinary core code with localized debt. | Mixed pointer spacing and legacy Doxygen fields cannot classify a file by themselves. |
 | Sparse: `csr_spmm_impl.hh` / `csr_trsm_impl.hh` | The SpMM header follows the structural rules apart from minor include grouping. The TRSM header puts `#pragma once` before the license and repeats it after the license. | Only `csr_trsm_impl.hh` is a cleanup candidate. | None: the duplicate protection is a strong, mechanical defect. |
 | Tests: `test_lskge3.cc` / `test_denseskop.cc` | Both show older test-brace forms. `test_denseskop.cc` adds several unspaced templates and one malformed inheritance clause. | `test_denseskop.cc` has localized defects but is not an outlier; neither file has the independent cluster needed for that label. | Test brace placement is mixed, so the guide governs new code without retroactively condemning either file. |
-| Examples: `tls_dense_skop.cc` / `svd_rank1_plus_noise.cc` | Both implement a recognizable numerical use and contain example-local rough edges. The SVD example's duplicate `<chrono>` is a cleanup item, while its index macro is allowed when kept local. | Neither example is an outlier; the seeded SVD example scored 0.000 on eligible stratum rules. | “Teach a real use” is an editorial review question, not a mechanical outlier feature. |
-| Other languages: `CMake/rb_config.cmake` / `rtd/source/conf.py` | The CMake file follows the reliable command-case and block-indentation rules. The Python file has mixed import and quote forms, but the guide makes those local-style questions. | Neither file is an outlier. | The small Python corpus supports an indentation recommendation, not a repository-wide formatter or quote rule. |
 
 The dry run produced no rule that reverses an evidence-based outlier
 classification.
-It did expose two useful boundaries: recommendations cannot create an outlier
-on their own, and mixed test/Python evidence must remain local guidance.
+It exposed one useful boundary: mixed evidence must remain local guidance.
