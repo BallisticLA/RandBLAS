@@ -411,7 +411,12 @@ struct SparseDist {
 /// without replacement from the index set \math{\\{0,\ldots,n-1\\}.} It uses a special 
 /// implementation of Fisher-Yates shuffling to produce \math{r} such samples in \math{O(n + rk)} time.
 /// These samples are stored by writing to \math{\ttt{samples}} in \math{r} blocks of length \math{k.}
-/// 
+///
+/// When RandBLAS is built with OpenMP, sampling is automatically parallelized over the
+/// \math{r} blocks. The counter range for block \math{i} depends only on \math{i}, so the
+/// samples and returned RNGState do not depend on the number of OpenMP threads or their
+/// scheduling.
+///
 /// The returned RNGState should
 /// be used for the next call to a random sampling function whose output should be statistically
 /// independent from \math{\ttt{samples}.}
@@ -431,7 +436,7 @@ RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
     int64_t num_major_axis_vec = (dist.major_axis == Axis::Short)
         ? std::max(dist.n_rows, dist.n_cols)
         : std::min(dist.n_rows, dist.n_cols);
-    state.counter.incr(num_major_axis_vec * dist.vec_nnz);
+    state.counter.incr(safe_int_product(num_major_axis_vec, dist.vec_nnz));
     return state;
 }
 
@@ -655,6 +660,12 @@ void laso_merge_long_axis_vector_coo_data(
 /// whose upper-left corner is at \math{(\ttt{ro_s},\ttt{co_s}),} where \math{\mtxS} is
 /// defined by \math{(\D,\ttt{seed_state}).} The submatrix is sampled directly, without
 /// materializing the full operator, and is returned in COO format.
+///
+/// The COO entries are ordered by increasing major-axis-vector index and then by
+/// increasing major coordinate within each vector. When RandBLAS is built with OpenMP,
+/// sampling is automatically parallelized over these vectors. The counter range for a
+/// vector depends only on its logical index, so the sparse representation and returned
+/// RNGState do not depend on the number of OpenMP threads or their scheduling.
 ///
 /// If any of \math{(\vals,\rows,\cols)} is null, then no sampling occurs: the required
 /// length of each output array is written to \math{\ttt{nnz},} and \math{\ttt{seed_state}}
@@ -898,6 +909,10 @@ state_t fill_sparse_unpacked_nosub(
 /// If all reference members are are non-null, then we'll assume each of them has length 
 /// at least \math{\ttt{S.dist.full_nnz}.} We'll proceed to populate those members 
 /// (and \math{\ttt{S.nnz}}) with the data for the explicit representation of \math{\ttt{S}.}
+/// When RandBLAS is built with OpenMP, sampling is automatically parallelized over the
+/// operator's major-axis vectors. Each vector receives a counter range determined only by
+/// its logical index, so the explicit representation is independent of the number of
+/// OpenMP threads and their scheduling.
 /// On exit, \math{\ttt{S}} can be equivalently represented by
 /// @verbatim embed:rst:leading-slashes
 ///  .. code:: c++

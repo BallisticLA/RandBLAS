@@ -9,9 +9,12 @@ Sampling a sketching operator
 RandBLAS relies on counter-based random number generators (CBRNGs) from Random123.
 A CBRNG returns a random number upon being called with two integer parameters: the *counter* and the *key*.
 The time required for the CBRNG to return does not depend on either of these parameters.
-A serial application can set the key at the outset of the program and never change it, while
-parallel applications should use different keys across different threads.
-Sequential calls to the CBRNG with a fixed key should use different values for the counter. 
+RandBLAS assigns counter values to logical matrix locations, not to physical threads.
+You provide one RNGState, and RandBLAS partitions its counter space when dense or sparse
+operator sampling uses the available OpenMP threads.
+The resulting operator and returned RNGState therefore don't depend on the thread count or schedule.
+Different keys are useful when you want statistically separate operator streams or program runs;
+they aren't needed merely because an application uses multiple threads.
 
 
 RandBLAS doesn't expose CBRNGs directly. Instead, it exposes an abstraction of
@@ -113,5 +116,4 @@ different keys, as in the following code:
     RandBLAS::DenseSkOp<double> S2(my_dist, my_state2);
     // ^ S1 and S2 are defined only from a mathematical perspective.
     //   No real work is performed here.
-
 
