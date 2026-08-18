@@ -130,6 +130,16 @@ target_link_libraries(
     sketch_general_performance PUBLIC RandBLAS blaspp lapackpp
 )
 
+add_executable(
+    saso_sampling_performance simple-kernel-benchmarks/saso_sampling_performance.cc
+)
+target_include_directories(
+    saso_sampling_performance PUBLIC ${Random123_DIR}
+)
+target_link_libraries(
+    saso_sampling_performance PUBLIC RandBLAS blaspp lapackpp
+)
+
 foreach(example_target IN ITEMS
     tls_dense_skop
     tls_sparse_skop
@@ -138,6 +148,7 @@ foreach(example_target IN ITEMS
     slra_qrcp
     spmm_performance
     sketch_general_performance
+    saso_sampling_performance
 )
     randblas_stage_runtime_dlls(${example_target})
 endforeach()
