@@ -53,7 +53,7 @@
 
 namespace RandBLAS::sparse {
 
-inline int sparse_sampling_thread_count(
+static inline int sparse_sampling_thread_count(
     int64_t dim_major,
     int64_t num_major_axis_vectors,
     int64_t vec_nnz,

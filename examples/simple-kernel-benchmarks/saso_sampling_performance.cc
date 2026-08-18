@@ -66,8 +66,10 @@
 //   * minimum-time nanoseconds per generated nonzero
 //   * speedup relative to std::sample in the same table
 //
-// All methods are single-threaded. The k=1 RandBLAS row uses the library's
-// specialized i.i.d.-uniform path rather than repeated Fisher-Yates.
+// The comparison tables are intended for a single OpenMP thread. Scaling mode
+// times only RandBLAS because the competing implementations own one serial RNG
+// engine. The k=1 RandBLAS row uses the library's specialized i.i.d.-uniform
+// path rather than repeated Fisher-Yates.
 //
 // USAGE:
 //
@@ -77,6 +79,8 @@
 //   flags:
 //     --natural-only   skip the controlled-Philox tables
 //     --support-only   skip end-to-end COO construction
+//     --scaling        report RandBLAS thread scaling only
+//     --threads=LIST   requested thread counts (default 1,2,4,8)
 //     --help           print usage
 //
 // EXAMPLES:
@@ -84,12 +88,19 @@
 //   ./saso_sampling_performance
 //   ./saso_sampling_performance 256 4096 8 20
 //   ./saso_sampling_performance --natural-only --support-only 1024 8192 8
+//   ./saso_sampling_performance --scaling --threads=1,2,4,8 2000 100000 8 10
 //
 // ============================================================================
 
 #include <RandBLAS.hh>
 
 #include "saso_sampling_baselines.hh"
+
+#include "RandBLAS/config.h"
+
+#if defined(RandBLAS_HAS_OpenMP)
+#include <omp.h>
+#endif
 
 #include <algorithm>
 #include <chrono>
@@ -118,6 +129,31 @@ struct Row {
     double speedup_vs_std_sample = -1.0;
     std::string notes;
 };
+
+struct ScalingRow {
+    int threads;
+    int64_t min_ns;
+    int64_t median_ns;
+    double ns_per_nonzero;
+    double speedup;
+    double efficiency;
+};
+
+static int current_threads() {
+#if defined(RandBLAS_HAS_OpenMP)
+    return omp_get_max_threads();
+#else
+    return 1;
+#endif
+}
+
+static void set_threads(int thread_count) {
+#if defined(RandBLAS_HAS_OpenMP)
+    omp_set_num_threads(thread_count);
+#else
+    (void) thread_count;
+#endif
+}
 
 template <typename Func>
 static std::pair<int64_t, int64_t> run_trials(Func &&func, int64_t num_trials) {
@@ -548,6 +584,98 @@ static void print_rows(const std::string &title, const std::vector<Row> &rows) {
     std::cout << "\n";
 }
 
+static bool run_scaling(
+    const Config &config,
+    int64_t num_trials,
+    const std::vector<int> &thread_counts
+) {
+    constexpr uint64_t seed = 12345;
+    const int64_t nnz = config.num_major_axis_vectors * config.vec_nnz;
+    std::vector<int64_t> samples(nnz, -1);
+    std::vector<int64_t> expected_samples;
+    RandBLAS::RNGState<> expected_state(seed);
+    std::vector<ScalingRow> rows;
+    rows.reserve(thread_counts.size());
+    bool exact = true;
+    int64_t baseline_ns = 0;
+    const int baseline_threads = thread_counts.front();
+
+    for (int thread_count : thread_counts) {
+        set_threads(thread_count);
+        RandBLAS::RNGState<> state(seed);
+        auto end_state = RandBLAS::repeated_fisher_yates(
+            config.vec_nnz,
+            config.dim_major,
+            config.num_major_axis_vectors,
+            samples.data(),
+            state
+        );
+        exact = exact && support_is_valid(config, samples);
+        if (rows.empty()) {
+            expected_samples = samples;
+            expected_state = end_state;
+        } else {
+            exact = exact
+                && samples == expected_samples
+                && end_state == expected_state;
+        }
+
+        auto [min_ns, median_ns] = run_trials([&]() {
+            RandBLAS::RNGState<> trial_state(seed);
+            end_state = RandBLAS::repeated_fisher_yates(
+                config.vec_nnz,
+                config.dim_major,
+                config.num_major_axis_vectors,
+                samples.data(),
+                trial_state
+            );
+        }, num_trials);
+        if (rows.empty()) {
+            baseline_ns = min_ns;
+        }
+        const double speedup = min_ns > 0
+            ? static_cast<double>(baseline_ns) / static_cast<double>(min_ns)
+            : -1.0;
+        const double relative_threads = static_cast<double>(thread_count)
+            / static_cast<double>(baseline_threads);
+        rows.push_back({
+            thread_count,
+            min_ns,
+            median_ns,
+            static_cast<double>(min_ns) / static_cast<double>(nnz),
+            speedup,
+            speedup / relative_threads
+        });
+    }
+
+    std::cout << "=== RANDBLAS THREAD SCALING: n=" << config.dim_major
+              << " r=" << config.num_major_axis_vectors
+              << " k=" << config.vec_nnz
+              << ", trials=" << num_trials << " ===\n";
+#if !defined(RandBLAS_HAS_OpenMP)
+    std::cout << "  (built without OpenMP -- thread sweep is a no-op)\n";
+#endif
+    std::cout << "\n"
+              << "  " << std::right << std::setw(7) << "Threads"
+              << std::setw(13) << "Min(ns)"
+              << std::setw(13) << "Median(ns)"
+              << std::setw(13) << "ns/nonzero"
+              << std::setw(10) << "Speedup"
+              << std::setw(12) << "Efficiency" << "\n"
+              << "  " << std::string(68, '-') << "\n";
+    for (const ScalingRow &row : rows) {
+        std::cout << "  " << std::right << std::setw(7) << row.threads
+                  << std::setw(13) << row.min_ns
+                  << std::setw(13) << row.median_ns
+                  << std::setw(13) << format_cell(row.ns_per_nonzero, 2)
+                  << std::setw(10) << format_cell(row.speedup, 2)
+                  << std::setw(12) << format_cell(row.efficiency, 2) << "\n";
+    }
+    std::cout << "\n  Exact output/state check: "
+              << (exact ? "PASS" : "FAIL") << "\n\n";
+    return exact;
+}
+
 static void run_support_tables(
     const Config &config,
     int64_t num_trials,
@@ -611,17 +739,43 @@ static bool config_is_valid(const Config &config, int64_t num_trials) {
         && num_trials > 0;
 }
 
+static std::vector<int> parse_threads(const std::string &csv) {
+    std::vector<int> thread_counts;
+    std::stringstream stream(csv);
+    std::string token;
+    while (std::getline(stream, token, ',')) {
+        if (!token.empty()) {
+            thread_counts.push_back(std::atoi(token.c_str()));
+        }
+    }
+    if (thread_counts.empty()) {
+        thread_counts = {1, 2, 4, 8};
+    }
+    return thread_counts;
+}
+
+static bool thread_counts_are_valid(const std::vector<int> &thread_counts) {
+    return std::all_of(
+        thread_counts.begin(),
+        thread_counts.end(),
+        [](int thread_count) { return thread_count > 0; }
+    );
+}
+
 static void print_usage(const char *program) {
     std::cout << "Usage:\n"
               << "  " << program << " [flags]\n"
               << "  " << program << " [flags] n r k [trials]\n\n"
               << "Constraints: 0 < k <= n <= r and trials > 0.\n"
-              << "Flags: --natural-only, --support-only, --help\n";
+              << "Flags: --natural-only, --support-only, --scaling, "
+              << "--threads=1,2,4,8, --help\n";
 }
 
 int main(int argc, char **argv) {
     bool include_controlled = true;
     bool support_only = false;
+    bool scaling = false;
+    std::vector<int> thread_counts{1, 2, 4, 8};
     std::vector<std::string> positional;
     for (int arg = 1; arg < argc; ++arg) {
         std::string value = argv[arg];
@@ -629,6 +783,10 @@ int main(int argc, char **argv) {
             include_controlled = false;
         } else if (value == "--support-only") {
             support_only = true;
+        } else if (value == "--scaling") {
+            scaling = true;
+        } else if (value.rfind("--threads=", 0) == 0) {
+            thread_counts = parse_threads(value.substr(10));
         } else if (value == "--help") {
             print_usage(argv[0]);
             return 0;
@@ -645,12 +803,21 @@ int main(int argc, char **argv) {
         print_usage(argv[0]);
         return 1;
     }
+    if (!thread_counts_are_valid(thread_counts)) {
+        std::cerr << "Invalid thread list. Expected positive integers.\n";
+        return 1;
+    }
 
     std::cout << "\n============================================================\n"
               << "SASO SAMPLING PERFORMANCE BENCHMARK\n"
-              << "============================================================\n"
-              << "Single-threaded; allocations for output arrays are not timed.\n"
-              << "Speedup is relative to std::sample in the same table.\n\n";
+              << "============================================================\n";
+    if (scaling) {
+        std::cout << "RandBLAS-only thread scaling; output allocation is not timed.\n"
+                  << "Configured OpenMP maximum: " << current_threads() << "\n\n";
+    } else {
+        std::cout << "Comparison mode; allocations for output arrays are not timed.\n"
+                  << "Speedup is relative to std::sample in the same table.\n\n";
+    }
 
     if (!positional.empty()) {
         Config config{
@@ -665,6 +832,9 @@ int main(int argc, char **argv) {
             std::cerr << "Invalid configuration. Expected 0 < k <= n <= r "
                       << "and trials > 0.\n";
             return 1;
+        }
+        if (scaling) {
+            return run_scaling(config, num_trials, thread_counts) ? 0 : 2;
         }
         run_support_tables(config, num_trials, include_controlled);
         if (!support_only) {
@@ -690,6 +860,13 @@ int main(int argc, char **argv) {
         {1024, 4096, 64},
         {4096, 4096, 8},
     };
+    if (scaling) {
+        bool exact = true;
+        for (const Config &config : support_configs) {
+            exact = run_scaling(config, num_trials, thread_counts) && exact;
+        }
+        return exact ? 0 : 2;
+    }
     for (const Config &config : support_configs) {
         run_support_tables(config, num_trials, include_controlled);
     }
