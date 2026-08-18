@@ -31,7 +31,14 @@
 #include <RandBLAS/sparse_skops.hh>
 #include <RandBLAS/util.hh>
 #include "RandBLAS/testing/comparison.hh"
+
+#if defined(RandBLAS_HAS_OpenMP)
+#include <omp.h>
+#endif
+
 #include <gtest/gtest.h>
+
+#include <array>
 #include <cmath>
 #include <limits>
 #include <vector>
@@ -50,6 +57,56 @@ using RandBLAS::SparseSkOp;
 using RandBLAS::Axis;
 using RandBLAS::fill_sparse;
 using RandBLAS::fill_sparse_unpacked_nosub;
+
+template <typename T, typename sint_t = int64_t>
+struct SparseSnapshot {
+    int64_t nnz;
+    std::vector<T> vals;
+    std::vector<sint_t> rows;
+    std::vector<sint_t> cols;
+    RandBLAS::RNGState<> end_state;
+};
+
+template <typename T, typename sint_t = int64_t>
+static SparseSnapshot<T, sint_t> sample_sparse_snapshot(
+    const RandBLAS::SparseDist &dist,
+    int64_t n_rows_sub,
+    int64_t n_cols_sub,
+    int64_t row_offset,
+    int64_t col_offset,
+    const RandBLAS::RNGState<> &seed
+) {
+    const bool short_is_rows = dist.n_rows <= dist.n_cols;
+    const int64_t short_sub = short_is_rows ? n_rows_sub : n_cols_sub;
+    const int64_t long_sub = short_is_rows ? n_cols_sub : n_rows_sub;
+    const int64_t num_vectors = dist.major_axis == RandBLAS::Axis::Short
+        ? long_sub
+        : short_sub;
+    const int64_t capacity = dist.vec_nnz * num_vectors;
+    SparseSnapshot<T, sint_t> result{
+        -1,
+        std::vector<T>(capacity),
+        std::vector<sint_t>(capacity),
+        std::vector<sint_t>(capacity),
+        seed
+    };
+    result.end_state = RandBLAS::fill_sparse_unpacked(
+        dist,
+        n_rows_sub,
+        n_cols_sub,
+        row_offset,
+        col_offset,
+        result.nnz,
+        result.vals.data(),
+        result.rows.data(),
+        result.cols.data(),
+        seed
+    );
+    result.vals.resize(result.nnz);
+    result.rows.resize(result.nnz);
+    result.cols.resize(result.nnz);
+    return result;
+}
 
 
 class TestSparseSkOpConstruction : public ::testing::Test
@@ -302,6 +359,70 @@ class TestSparseSkOpConstruction : public ::testing::Test
     }
 
 };
+
+#if defined(RandBLAS_HAS_OpenMP)
+TEST_F(TestSparseSkOpConstruction, sampling_is_thread_count_independent) {
+    struct Case {
+        int64_t n_rows;
+        int64_t n_cols;
+        int64_t vec_nnz;
+        RandBLAS::Axis major_axis;
+    };
+    constexpr std::array<Case, 6> cases{{
+        {7, 31, 1, RandBLAS::Axis::Short},
+        {7, 31, 5, RandBLAS::Axis::Short},
+        {31, 7, 5, RandBLAS::Axis::Short},
+        {7, 31, 1, RandBLAS::Axis::Long},
+        {7, 31, 12, RandBLAS::Axis::Long},
+        {31, 7, 12, RandBLAS::Axis::Long}
+    }};
+    constexpr std::array<int, 3> thread_counts{1, 2, 4};
+    const int saved_dynamic = omp_get_dynamic();
+    const int saved_max_threads = omp_get_max_threads();
+    omp_set_dynamic(0);
+
+    RandBLAS::RNGState<> seed(20260817);
+    seed.counter.incr(41);
+    for (const Case &test_case : cases) {
+        RandBLAS::SparseDist dist(
+            test_case.n_rows,
+            test_case.n_cols,
+            test_case.vec_nnz,
+            test_case.major_axis
+        );
+        omp_set_num_threads(1);
+        auto expected_full = sample_sparse_snapshot<double>(
+            dist, dist.n_rows, dist.n_cols, 0, 0, seed
+        );
+        auto expected_sub = sample_sparse_snapshot<double>(
+            dist, dist.n_rows - 2, dist.n_cols - 3, 1, 2, seed
+        );
+
+        for (int thread_count : thread_counts) {
+            omp_set_num_threads(thread_count);
+            auto actual_full = sample_sparse_snapshot<double>(
+                dist, dist.n_rows, dist.n_cols, 0, 0, seed
+            );
+            auto actual_sub = sample_sparse_snapshot<double>(
+                dist, dist.n_rows - 2, dist.n_cols - 3, 1, 2, seed
+            );
+            EXPECT_EQ(actual_full.nnz, expected_full.nnz);
+            EXPECT_EQ(actual_full.vals, expected_full.vals);
+            EXPECT_EQ(actual_full.rows, expected_full.rows);
+            EXPECT_EQ(actual_full.cols, expected_full.cols);
+            EXPECT_EQ(actual_full.end_state, expected_full.end_state);
+            EXPECT_EQ(actual_sub.nnz, expected_sub.nnz);
+            EXPECT_EQ(actual_sub.vals, expected_sub.vals);
+            EXPECT_EQ(actual_sub.rows, expected_sub.rows);
+            EXPECT_EQ(actual_sub.cols, expected_sub.cols);
+            EXPECT_EQ(actual_sub.end_state, expected_sub.end_state);
+        }
+    }
+
+    omp_set_num_threads(saved_max_threads);
+    omp_set_dynamic(saved_dynamic);
+}
+#endif
 
 TEST_F(TestSparseSkOpConstruction, respect_ownership) {
     respect_ownership<int64_t>(7, 20);

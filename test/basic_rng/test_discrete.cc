@@ -41,7 +41,12 @@ using RandBLAS::repeated_fisher_yates;
 #include "RandBLAS/testing/stats.hh"
 #include "RandBLAS/testing/comparison.hh"
 
+#if defined(RandBLAS_HAS_OpenMP)
+#include <omp.h>
+#endif
+
 #include <algorithm>
+#include <array>
 #include <iostream>
 #include <iterator>
 #include <random>
@@ -342,6 +347,42 @@ TEST_F(TestSampleIndices, rngstate_updates_iid) {
 TEST_F(TestSampleIndices, rngstate_updates_fisher_yates) {
     test_updated_rngstates_fisher_yates();
 }
+
+#if defined(RandBLAS_HAS_OpenMP)
+TEST_F(TestSampleIndices, fisher_yates_is_thread_count_independent) {
+    constexpr int64_t n = 29;
+    constexpr int64_t num_vectors = 37;
+    constexpr std::array<int64_t, 2> vec_nnz_values{1, 7};
+    constexpr std::array<int, 3> thread_counts{1, 2, 4};
+    const int saved_dynamic = omp_get_dynamic();
+    const int saved_max_threads = omp_get_max_threads();
+    omp_set_dynamic(0);
+
+    for (int64_t vec_nnz : vec_nnz_values) {
+        RandBLAS::RNGState<> seed(1729);
+        seed.counter.incr(306);
+        std::vector<int64_t> expected(num_vectors * vec_nnz, -1);
+
+        omp_set_num_threads(1);
+        auto expected_state = RandBLAS::repeated_fisher_yates(
+            vec_nnz, n, num_vectors, expected.data(), seed
+        );
+
+        for (int thread_count : thread_counts) {
+            std::vector<int64_t> actual(num_vectors * vec_nnz, -1);
+            omp_set_num_threads(thread_count);
+            auto actual_state = RandBLAS::repeated_fisher_yates(
+                vec_nnz, n, num_vectors, actual.data(), seed
+            );
+            EXPECT_EQ(actual, expected);
+            EXPECT_EQ(actual_state, expected_state);
+        }
+    }
+
+    omp_set_num_threads(saved_max_threads);
+    omp_set_dynamic(saved_dynamic);
+}
+#endif
 
 
 TEST_F(TestSampleIndices, smoke_3_x_10) {
