@@ -36,6 +36,11 @@
 #include "RandBLAS/sparse_data/spmm_dispatch.hh"
 
 #include <blas.hh>
+
+#if defined(RandBLAS_HAS_OpenMP)
+#include <omp.h>
+#endif
+
 #include <iostream>
 #include <cstdio>
 #include <cmath>
@@ -47,6 +52,38 @@
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 namespace RandBLAS::sparse {
+
+inline int sparse_sampling_thread_count(
+    int64_t dim_major,
+    int64_t num_major_axis_vectors,
+    int64_t vec_nnz,
+    bool uses_permutation_workspace
+) {
+#if defined(RandBLAS_HAS_OpenMP)
+    int64_t active_threads = std::min<int64_t>(
+        omp_get_max_threads(), num_major_axis_vectors
+    );
+    const int64_t useful_work = safe_int_product(
+        num_major_axis_vectors, vec_nnz
+    );
+    if (useful_work < 1024) {
+        return 1;
+    }
+    if (uses_permutation_workspace) {
+        const int64_t amortized_threads = std::max<int64_t>(
+            1, useful_work / dim_major
+        );
+        active_threads = std::min(active_threads, amortized_threads);
+    }
+    return static_cast<int>(std::max<int64_t>(1, active_threads));
+#else
+    (void) dim_major;
+    (void) num_major_axis_vectors;
+    (void) vec_nnz;
+    (void) uses_permutation_workspace;
+    return 1;
+#endif
+}
 
 template <typename T, SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
 void _considerate_fisher_yates(
@@ -106,39 +143,126 @@ static state_t repeated_fisher_yates(
 ) {
     randblas_error_if(vec_nnz > dim_major);
     if (vec_nnz == 1) {
-        // Sampling 1 element without replacement is the same as with replacement,
-        // so delegate to the cheaper i.i.d. sampler in a single batched call.
-        if (idxs_minor != nullptr)
-            std::iota(idxs_minor, idxs_minor + dim_minor, sint_t{0});
-        if (vals != nullptr) {
-            return sample_indices_iid_uniform<T, sint_t, true>(
-                dim_major, dim_minor, idxs_major, vals, state);
-        } else {
-            return sample_indices_iid_uniform<sint_t>(
-                dim_major, dim_minor, idxs_major, state);
-        }
-    }
-    std::vector<sint_t> vec_work(dim_major);
-    std::iota(vec_work.begin(), vec_work.end(), 0);
-    std::vector<sint_t> pivots(vec_nnz);
-    auto [ctr, key] = state;
-    for (sint_t i = 0; i < dim_minor; ++i) {
-        state_t state_work{ctr, state.key};
-        _considerate_fisher_yates(
-            state_work, vec_nnz, dim_major,
-            idxs_major, vec_work.data(), pivots.data(), vals
+        const int active_threads = sparse_sampling_thread_count(
+            dim_major, dim_minor, vec_nnz, false
         );
-        ctr.incr(vec_nnz);
-        idxs_major += vec_nnz;
-        if (idxs_minor != nullptr) {
-            std::fill(idxs_minor, idxs_minor + vec_nnz, i);
-            idxs_minor += vec_nnz;
+        if (active_threads == 1) {
+            if (idxs_minor != nullptr) {
+                std::iota(idxs_minor, idxs_minor + dim_minor, sint_t{0});
+            }
+            if (vals != nullptr) {
+                return sample_indices_iid_uniform<T, sint_t, true>(
+                    dim_major, dim_minor, idxs_major, vals, state
+                );
+            }
+            return sample_indices_iid_uniform<sint_t>(
+                dim_major, dim_minor, idxs_major, state
+            );
         }
-        if (vals != nullptr) { 
-            vals += vec_nnz;
+        if (vals != nullptr) {
+            randblas_require(state.len_c >= 4);
+        } else {
+            randblas_require(state.len_c >= 2);
+        }
+        using RNG = typename state_t::generator;
+        const auto base_counter = state.counter;
+        const std::uint64_t dim_major_64 = static_cast<std::uint64_t>(dim_major);
+        #pragma omp parallel num_threads(active_threads)
+        {
+            RNG gen;
+            #pragma omp for schedule(static)
+            for (int64_t i = 0; i < dim_minor; ++i) {
+                auto vector_counter = base_counter;
+                vector_counter.incr(i);
+                auto rv = gen(vector_counter, state.key);
+                const std::uint64_t sample = promote_uint_pair(rv[0], rv[1]);
+                idxs_major[i] = static_cast<sint_t>(sample % dim_major_64);
+                if (idxs_minor != nullptr) {
+                    idxs_minor[i] = static_cast<sint_t>(i);
+                }
+                if (vals != nullptr) {
+                    vals[i] = (rv[2] % 2 == 0) ? static_cast<T>(1) : static_cast<T>(-1);
+                }
+            }
+        }
+        auto end_counter = base_counter;
+        end_counter.incr(dim_minor);
+        return state_t{end_counter, state.key};
+    }
+
+    const int active_threads = sparse_sampling_thread_count(
+        dim_major, dim_minor, vec_nnz, true
+    );
+    if (active_threads == 1) {
+        std::vector<sint_t> vec_work(dim_major);
+        std::iota(vec_work.begin(), vec_work.end(), sint_t{0});
+        std::vector<sint_t> pivots(vec_nnz);
+        auto [counter, key] = state;
+        for (int64_t i = 0; i < dim_minor; ++i) {
+            state_t vector_state{counter, state.key};
+            _considerate_fisher_yates(
+                vector_state,
+                vec_nnz,
+                dim_major,
+                idxs_major,
+                vec_work.data(),
+                pivots.data(),
+                vals
+            );
+            counter.incr(vec_nnz);
+            idxs_major += vec_nnz;
+            if (idxs_minor != nullptr) {
+                std::fill(idxs_minor, idxs_minor + vec_nnz, static_cast<sint_t>(i));
+                idxs_minor += vec_nnz;
+            }
+            if (vals != nullptr) {
+                vals += vec_nnz;
+            }
+        }
+        return state_t{counter, key};
+    }
+
+    const auto base_counter = state.counter;
+    const int64_t full_increment = safe_int_product(dim_minor, vec_nnz);
+    #pragma omp parallel num_threads(active_threads)
+    {
+        std::vector<sint_t> vec_work(dim_major);
+        std::iota(vec_work.begin(), vec_work.end(), sint_t{0});
+        std::vector<sint_t> pivots(vec_nnz);
+
+        #pragma omp for schedule(static)
+        for (int64_t i = 0; i < dim_minor; ++i) {
+            const int64_t offset = safe_int_product(i, vec_nnz);
+            auto vector_counter = base_counter;
+            vector_counter.incr(offset);
+            state_t vector_state{vector_counter, state.key};
+            sint_t *vector_major = idxs_major + offset;
+            sint_t *vector_minor = idxs_minor == nullptr
+                ? nullptr
+                : idxs_minor + offset;
+            T *vector_vals = vals == nullptr ? nullptr : vals + offset;
+            _considerate_fisher_yates(
+                vector_state,
+                vec_nnz,
+                dim_major,
+                vector_major,
+                vec_work.data(),
+                pivots.data(),
+                vector_vals
+            );
+            if (vector_minor != nullptr) {
+                std::fill(
+                    vector_minor,
+                    vector_minor + vec_nnz,
+                    static_cast<sint_t>(i)
+                );
+            }
         }
     }
-    return state_t {ctr, key};
+
+    auto end_counter = base_counter;
+    end_counter.incr(full_increment);
+    return state_t{end_counter, state.key};
 }
 
 inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t dim_major, int64_t dim_minor) {

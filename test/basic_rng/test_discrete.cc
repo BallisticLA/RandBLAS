@@ -351,7 +351,7 @@ TEST_F(TestSampleIndices, rngstate_updates_fisher_yates) {
 #if defined(RandBLAS_HAS_OpenMP)
 TEST_F(TestSampleIndices, fisher_yates_is_thread_count_independent) {
     constexpr int64_t n = 29;
-    constexpr int64_t num_vectors = 37;
+    constexpr int64_t num_vectors = 2048;
     constexpr std::array<int64_t, 2> vec_nnz_values{1, 7};
     constexpr std::array<int, 3> thread_counts{1, 2, 4};
     const int saved_dynamic = omp_get_dynamic();
@@ -378,6 +378,25 @@ TEST_F(TestSampleIndices, fisher_yates_is_thread_count_independent) {
             EXPECT_EQ(actual_state, expected_state);
         }
     }
+
+    omp_set_num_threads(saved_max_threads);
+    omp_set_dynamic(saved_dynamic);
+}
+
+TEST_F(TestSampleIndices, sparse_sampling_thread_policy_uses_available_threads) {
+    const int saved_dynamic = omp_get_dynamic();
+    const int saved_max_threads = omp_get_max_threads();
+    omp_set_dynamic(0);
+    omp_set_num_threads(4);
+
+    EXPECT_EQ(
+        RandBLAS::sparse::sparse_sampling_thread_count(2000, 100000, 4, true),
+        4
+    );
+    EXPECT_EQ(
+        RandBLAS::sparse::sparse_sampling_thread_count(2000, 100, 4, true),
+        1
+    );
 
     omp_set_num_threads(saved_max_threads);
     omp_set_dynamic(saved_dynamic);
