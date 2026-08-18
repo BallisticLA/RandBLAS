@@ -142,6 +142,9 @@ static state_t repeated_fisher_yates(
     T *vals
 ) {
     randblas_error_if(vec_nnz > dim_major);
+    if (vals != nullptr) {
+        randblas_require(state.len_c >= 4);
+    }
     if (vec_nnz == 1) {
         const int active_threads = sparse_sampling_thread_count(
             dim_major, dim_minor, vec_nnz, false
@@ -754,6 +757,7 @@ state_t fill_sparse_unpacked(
         nnz = vec_nnz * num_major_sub;
         return seed_state;
     }
+    randblas_require(seed_state.len_c >= 4);
 
     // Skip the RNG counter past the num_major_off major-axis vectors we don't need.
     // Both the Fisher-Yates path (vec_nnz > 1) and the i.i.d.-uniform path (vec_nnz == 1

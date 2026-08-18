@@ -368,10 +368,11 @@ TEST_F(TestSparseSkOpConstruction, sampling_is_thread_count_independent) {
         int64_t vec_nnz;
         RandBLAS::Axis major_axis;
     };
-    constexpr std::array<Case, 9> cases{{
+    constexpr std::array<Case, 10> cases{{
         {7, 31, 1, RandBLAS::Axis::Short},
         {7, 31, 5, RandBLAS::Axis::Short},
         {31, 7, 5, RandBLAS::Axis::Short},
+        {257, 2048, 1, RandBLAS::Axis::Short},
         {257, 2048, 12, RandBLAS::Axis::Short},
         {7, 31, 1, RandBLAS::Axis::Long},
         {7, 31, 12, RandBLAS::Axis::Long},
@@ -420,6 +421,68 @@ TEST_F(TestSparseSkOpConstruction, sampling_is_thread_count_independent) {
             EXPECT_EQ(actual_sub.cols, expected_sub.cols);
             EXPECT_EQ(actual_sub.end_state, expected_sub.end_state);
         }
+    }
+
+    omp_set_num_threads(saved_max_threads);
+    omp_set_dynamic(saved_dynamic);
+}
+
+TEST_F(TestSparseSkOpConstruction, parallel_saso_k1_writes_full_coo_data) {
+    const int saved_dynamic = omp_get_dynamic();
+    const int saved_max_threads = omp_get_max_threads();
+    omp_set_dynamic(0);
+    RandBLAS::SparseDist dist(257, 2048, 1, RandBLAS::Axis::Short);
+    RandBLAS::RNGState<> seed(991);
+    seed.counter.incr(73);
+
+    omp_set_num_threads(1);
+    auto expected = sample_sparse_snapshot<float, int32_t>(
+        dist, dist.n_rows, dist.n_cols, 0, 0, seed
+    );
+    omp_set_num_threads(4);
+    auto actual = sample_sparse_snapshot<float, int32_t>(
+        dist, dist.n_rows, dist.n_cols, 0, 0, seed
+    );
+
+    EXPECT_EQ(actual.nnz, expected.nnz);
+    EXPECT_EQ(actual.vals, expected.vals);
+    EXPECT_EQ(actual.rows, expected.rows);
+    EXPECT_EQ(actual.cols, expected.cols);
+    EXPECT_EQ(actual.end_state, expected.end_state);
+
+    omp_set_num_threads(saved_max_threads);
+    omp_set_dynamic(saved_dynamic);
+}
+
+TEST_F(TestSparseSkOpConstruction, parallel_sampling_rejects_two_word_rng) {
+    using TwoWordRNG = r123::Philox2x32;
+    const int saved_dynamic = omp_get_dynamic();
+    const int saved_max_threads = omp_get_max_threads();
+    omp_set_dynamic(0);
+    omp_set_num_threads(4);
+
+    for (RandBLAS::Axis axis : {RandBLAS::Axis::Short, RandBLAS::Axis::Long}) {
+        RandBLAS::SparseDist dist(257, 2048, 4, axis);
+        RandBLAS::RNGState<TwoWordRNG> seed(17);
+        std::vector<double> vals(dist.full_nnz);
+        std::vector<int64_t> rows(dist.full_nnz);
+        std::vector<int64_t> cols(dist.full_nnz);
+        int64_t nnz = -1;
+        EXPECT_THROW(
+            RandBLAS::fill_sparse_unpacked(
+                dist,
+                dist.n_rows,
+                dist.n_cols,
+                0,
+                0,
+                nnz,
+                vals.data(),
+                rows.data(),
+                cols.data(),
+                seed
+            ),
+            RandBLAS::Error
+        );
     }
 
     omp_set_num_threads(saved_max_threads);

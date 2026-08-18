@@ -66,8 +66,8 @@
 //   * minimum-time nanoseconds per generated nonzero
 //   * speedup relative to std::sample in the same table
 //
-// The comparison tables are intended for a single OpenMP thread. Scaling mode
-// times only RandBLAS because the competing implementations own one serial RNG
+// The comparison tables force RandBLAS to one OpenMP thread. Scaling mode times
+// only RandBLAS because the competing implementations own one serial RNG
 // engine. The k=1 RandBLAS row uses the library's specialized i.i.d.-uniform
 // path rather than repeated Fisher-Yates.
 //
@@ -131,6 +131,7 @@ struct Row {
 };
 
 struct ScalingRow {
+    int requested_threads;
     int threads;
     int64_t min_ns;
     int64_t median_ns;
@@ -149,11 +150,52 @@ static int current_threads() {
 
 static void set_threads(int thread_count) {
 #if defined(RandBLAS_HAS_OpenMP)
+    omp_set_dynamic(0);
     omp_set_num_threads(thread_count);
 #else
     (void) thread_count;
 #endif
 }
+
+static int effective_threads(int requested_threads) {
+#if defined(RandBLAS_HAS_OpenMP)
+    int actual_threads = 1;
+    #pragma omp parallel num_threads(requested_threads)
+    {
+        #pragma omp single
+        {
+            actual_threads = omp_get_num_threads();
+        }
+    }
+    return actual_threads;
+#else
+    (void) requested_threads;
+    return 1;
+#endif
+}
+
+class OpenMPSettingsGuard {
+public:
+    OpenMPSettingsGuard() {
+#if defined(RandBLAS_HAS_OpenMP)
+        dynamic_ = omp_get_dynamic();
+        threads_ = omp_get_max_threads();
+#endif
+    }
+
+    ~OpenMPSettingsGuard() {
+#if defined(RandBLAS_HAS_OpenMP)
+        omp_set_num_threads(threads_);
+        omp_set_dynamic(dynamic_);
+#endif
+    }
+
+private:
+#if defined(RandBLAS_HAS_OpenMP)
+    int dynamic_;
+    int threads_;
+#endif
+};
 
 template <typename Func>
 static std::pair<int64_t, int64_t> run_trials(Func &&func, int64_t num_trials) {
@@ -598,10 +640,17 @@ static bool run_scaling(
     rows.reserve(thread_counts.size());
     bool exact = true;
     int64_t baseline_ns = 0;
-    const int baseline_threads = thread_counts.front();
+    int baseline_threads = 1;
 
     for (int thread_count : thread_counts) {
         set_threads(thread_count);
+        const int policy_threads = RandBLAS::sparse::sparse_sampling_thread_count(
+            config.dim_major,
+            config.num_major_axis_vectors,
+            config.vec_nnz,
+            config.vec_nnz > 1
+        );
+        const int actual_threads = effective_threads(policy_threads);
         RandBLAS::RNGState<> state(seed);
         auto end_state = RandBLAS::repeated_fisher_yates(
             config.vec_nnz,
@@ -632,14 +681,16 @@ static bool run_scaling(
         }, num_trials);
         if (rows.empty()) {
             baseline_ns = min_ns;
+            baseline_threads = actual_threads;
         }
         const double speedup = min_ns > 0
             ? static_cast<double>(baseline_ns) / static_cast<double>(min_ns)
             : -1.0;
-        const double relative_threads = static_cast<double>(thread_count)
+        const double relative_threads = static_cast<double>(actual_threads)
             / static_cast<double>(baseline_threads);
         rows.push_back({
             thread_count,
+            actual_threads,
             min_ns,
             median_ns,
             static_cast<double>(min_ns) / static_cast<double>(nnz),
@@ -656,20 +707,22 @@ static bool run_scaling(
     std::cout << "  (built without OpenMP -- thread sweep is a no-op)\n";
 #endif
     std::cout << "\n"
-              << "  " << std::right << std::setw(7) << "Threads"
+              << "  " << std::right << std::setw(7) << "Request"
+              << std::setw(8) << "Threads"
               << std::setw(13) << "Min(ns)"
               << std::setw(13) << "Median(ns)"
               << std::setw(13) << "ns/nonzero"
-              << std::setw(10) << "Speedup"
-              << std::setw(12) << "Efficiency" << "\n"
-              << "  " << std::string(68, '-') << "\n";
+              << std::setw(11) << "Spd(min)"
+              << std::setw(11) << "Eff(min)" << "\n"
+              << "  " << std::string(74, '-') << "\n";
     for (const ScalingRow &row : rows) {
-        std::cout << "  " << std::right << std::setw(7) << row.threads
+        std::cout << "  " << std::right << std::setw(7) << row.requested_threads
+                  << std::setw(8) << row.threads
                   << std::setw(13) << row.min_ns
                   << std::setw(13) << row.median_ns
                   << std::setw(13) << format_cell(row.ns_per_nonzero, 2)
-                  << std::setw(10) << format_cell(row.speedup, 2)
-                  << std::setw(12) << format_cell(row.efficiency, 2) << "\n";
+                  << std::setw(11) << format_cell(row.speedup, 2)
+                  << std::setw(11) << format_cell(row.efficiency, 2) << "\n";
     }
     std::cout << "\n  Exact output/state check: "
               << (exact ? "PASS" : "FAIL") << "\n\n";
@@ -772,6 +825,7 @@ static void print_usage(const char *program) {
 }
 
 int main(int argc, char **argv) {
+    OpenMPSettingsGuard openmp_settings;
     bool include_controlled = true;
     bool support_only = false;
     bool scaling = false;
@@ -807,6 +861,9 @@ int main(int argc, char **argv) {
         std::cerr << "Invalid thread list. Expected positive integers.\n";
         return 1;
     }
+    if (!scaling) {
+        set_threads(1);
+    }
 
     std::cout << "\n============================================================\n"
               << "SASO SAMPLING PERFORMANCE BENCHMARK\n"
@@ -816,6 +873,7 @@ int main(int argc, char **argv) {
                   << "Configured OpenMP maximum: " << current_threads() << "\n\n";
     } else {
         std::cout << "Comparison mode; allocations for output arrays are not timed.\n"
+                  << "RandBLAS is forced to one OpenMP thread.\n"
                   << "Speedup is relative to std::sample in the same table.\n\n";
     }
 
