@@ -36,7 +36,6 @@
 #include <limits>
 #include <numeric>
 #include <random>
-#include <ranges>
 #include <utility>
 #include <vector>
 
@@ -73,13 +72,15 @@ private:
     RNGState<> state_;
 };
 
-// Use std::sample to draw vec_nnz distinct indices from [0, n) for each
-// requested vector. This scans all n candidates for every vector.
+// Use std::sample over an iota-filled vector to draw vec_nnz distinct indices
+// from [0, n) for each requested vector. This scans all n candidates for every
+// vector and uses O(n) workspace.
 template <typename RNG>
 void sample_std_sample(
     int64_t n, int64_t num_vectors, int64_t vec_nnz, int64_t *samples, RNG &rng
 ) {
-    auto population = std::views::iota(int64_t{0}, n);
+    std::vector<int64_t> population(n);
+    std::iota(population.begin(), population.end(), int64_t{0});
     for (int64_t vector = 0; vector < num_vectors; ++vector) {
         std::sample(
             population.begin(), population.end(),

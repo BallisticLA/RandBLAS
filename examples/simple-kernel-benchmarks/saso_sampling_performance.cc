@@ -37,7 +37,7 @@
 //
 // SUPPORT-ONLY METHODS:
 //
-//   * std::sample over std::views::iota
+//   * std::sample over an iota-filled vector
 //   * partial Fisher-Yates with a fresh length-n iota per vector
 //   * full std::shuffle followed by the first k entries
 //   * uniform draws with linear duplicate rejection
@@ -371,7 +371,7 @@ static std::vector<Row> support_rows(
     using namespace RandBLAS::testing;
     std::vector<Row> rows;
     rows.push_back(benchmark_support_method<RNG>(
-        "std::sample(iota)", "O(r*n), standard selection",
+        "std::sample(iota vector)", "O(r*n), O(n) workspace",
         config, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_std_sample(n, r, k, output, rng);
@@ -493,7 +493,7 @@ static std::vector<Row> saso_data_rows(
     using namespace RandBLAS::testing;
     std::vector<Row> rows;
     rows.push_back(benchmark_saso_data_method<RNG>(
-        "std::sample(iota)", "support + minor + sign + sort",
+        "std::sample(iota vector)", "support + minor + sign + sort",
         config, major_is_rows, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_std_sample(n, r, k, output, rng);
