@@ -40,6 +40,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <vector>
 
@@ -69,11 +70,8 @@ struct SparseSnapshot {
 
 template <typename T, typename sint_t = int64_t>
 static SparseSnapshot<T, sint_t> sample_sparse_snapshot(
-    const RandBLAS::SparseDist &dist,
-    int64_t n_rows_sub,
-    int64_t n_cols_sub,
-    int64_t row_offset,
-    int64_t col_offset,
+    const RandBLAS::SparseDist &dist, int64_t n_rows_sub, int64_t n_cols_sub,
+    int64_t row_offset, int64_t col_offset,
     const RandBLAS::RNGState<> &seed
 ) {
     const bool short_is_rows = dist.n_rows <= dist.n_cols;
@@ -84,23 +82,12 @@ static SparseSnapshot<T, sint_t> sample_sparse_snapshot(
         : short_sub;
     const int64_t capacity = dist.vec_nnz * num_vectors;
     SparseSnapshot<T, sint_t> result{
-        -1,
-        std::vector<T>(capacity),
-        std::vector<sint_t>(capacity),
-        std::vector<sint_t>(capacity),
-        seed
+        -1, std::vector<T>(capacity), std::vector<sint_t>(capacity),
+        std::vector<sint_t>(capacity), seed
     };
     result.end_state = RandBLAS::fill_sparse_unpacked(
-        dist,
-        n_rows_sub,
-        n_cols_sub,
-        row_offset,
-        col_offset,
-        result.nnz,
-        result.vals.data(),
-        result.rows.data(),
-        result.cols.data(),
-        seed
+        dist, n_rows_sub, n_cols_sub, row_offset, col_offset, result.nnz,
+        result.vals.data(), result.rows.data(), result.cols.data(), seed
     );
     result.vals.resize(result.nnz);
     result.rows.resize(result.nnz);
@@ -389,10 +376,8 @@ TEST_F(TestSparseSkOpConstruction, sampling_is_thread_count_independent) {
     seed.counter.incr(41);
     for (const Case &test_case : cases) {
         RandBLAS::SparseDist dist(
-            test_case.n_rows,
-            test_case.n_cols,
-            test_case.vec_nnz,
-            test_case.major_axis
+            test_case.n_rows, test_case.n_cols,
+            test_case.vec_nnz, test_case.major_axis
         );
         omp_set_num_threads(1);
         auto expected_full = sample_sparse_snapshot<double>(
@@ -470,16 +455,8 @@ TEST_F(TestSparseSkOpConstruction, parallel_sampling_rejects_two_word_rng) {
         int64_t nnz = -1;
         EXPECT_THROW(
             RandBLAS::fill_sparse_unpacked(
-                dist,
-                dist.n_rows,
-                dist.n_cols,
-                0,
-                0,
-                nnz,
-                vals.data(),
-                rows.data(),
-                cols.data(),
-                seed
+                dist, dist.n_rows, dist.n_cols, 0, 0, nnz,
+                vals.data(), rows.data(), cols.data(), seed
             ),
             RandBLAS::Error
         );

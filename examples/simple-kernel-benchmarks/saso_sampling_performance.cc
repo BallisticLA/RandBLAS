@@ -93,10 +93,9 @@
 // ============================================================================
 
 #include <RandBLAS.hh>
+#include "RandBLAS/config.h"
 
 #include "saso_sampling_baselines.hh"
-
-#include "RandBLAS/config.h"
 
 #if defined(RandBLAS_HAS_OpenMP)
 #include <omp.h>
@@ -114,6 +113,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+// MARK: benchmark setup
 
 struct Config {
     int64_t dim_major;
@@ -254,19 +255,16 @@ static void fill_speedups(std::vector<Row> &rows) {
     }
 }
 
-static bool support_is_valid(
-    const Config &config,
-    const std::vector<int64_t> &samples
-) {
+// MARK: correctness checks
+
+static bool support_is_valid(const Config &config, const std::vector<int64_t> &samples) {
     if (samples.size() != static_cast<std::size_t>(
             config.num_major_axis_vectors * config.vec_nnz
         )) {
         return false;
     }
     std::vector<bool> seen(config.dim_major, false);
-    for (int64_t vector = 0;
-         vector < config.num_major_axis_vectors;
-         ++vector) {
+    for (int64_t vector = 0; vector < config.num_major_axis_vectors; ++vector) {
         std::fill(seen.begin(), seen.end(), false);
         for (int64_t entry = 0; entry < config.vec_nnz; ++entry) {
             int64_t index = samples[vector * config.vec_nnz + entry];
@@ -280,10 +278,8 @@ static bool support_is_valid(
 }
 
 static bool saso_data_is_valid(
-    const Config &config,
-    bool major_is_rows,
-    const std::vector<int64_t> &rows,
-    const std::vector<int64_t> &cols,
+    const Config &config, bool major_is_rows,
+    const std::vector<int64_t> &rows, const std::vector<int64_t> &cols,
     const std::vector<double> &values
 ) {
     const std::vector<int64_t> &major = major_is_rows ? rows : cols;
@@ -291,9 +287,7 @@ static bool saso_data_is_valid(
     if (!support_is_valid(config, major)) {
         return false;
     }
-    for (int64_t vector = 0;
-         vector < config.num_major_axis_vectors;
-         ++vector) {
+    for (int64_t vector = 0; vector < config.num_major_axis_vectors; ++vector) {
         for (int64_t entry = 0; entry < config.vec_nnz; ++entry) {
             int64_t offset = vector * config.vec_nnz + entry;
             if (minor[offset] != vector) {
@@ -310,25 +304,20 @@ static bool saso_data_is_valid(
     return true;
 }
 
+// MARK: support-only benchmarks
+
 template <typename RNG, typename Sampler>
 static Row benchmark_support_method(
-    const std::string &label,
-    const std::string &notes,
-    const Config &config,
-    int64_t num_trials,
-    uint64_t seed,
-    Sampler sampler
+    const std::string &label, const std::string &notes, const Config &config,
+    int64_t num_trials, uint64_t seed, Sampler sampler
 ) {
     int64_t nnz = config.num_major_axis_vectors * config.vec_nnz;
     std::vector<int64_t> samples(nnz, -1);
     RNG rng(seed);
     auto sample = [&]() {
         sampler(
-            config.dim_major,
-            config.num_major_axis_vectors,
-            config.vec_nnz,
-            samples.data(),
-            rng
+            config.dim_major, config.num_major_axis_vectors,
+            config.vec_nnz, samples.data(), rng
         );
     };
 
@@ -345,21 +334,14 @@ static Row benchmark_support_method(
     return row;
 }
 
-static Row benchmark_randblas_support(
-    const Config &config,
-    int64_t num_trials,
-    uint64_t seed
-) {
+static Row benchmark_randblas_support(const Config &config, int64_t num_trials, uint64_t seed) {
     int64_t nnz = config.num_major_axis_vectors * config.vec_nnz;
     std::vector<int64_t> samples(nnz, -1);
     RandBLAS::RNGState<> state(seed);
     auto sample = [&]() {
         state = RandBLAS::repeated_fisher_yates(
-            config.vec_nnz,
-            config.dim_major,
-            config.num_major_axis_vectors,
-            samples.data(),
-            state
+            config.vec_nnz, config.dim_major, config.num_major_axis_vectors,
+            samples.data(), state
         );
     };
 
@@ -385,58 +367,40 @@ static Row benchmark_randblas_support(
 
 template <typename RNG>
 static std::vector<Row> support_rows(
-    const Config &config,
-    int64_t num_trials,
-    uint64_t seed
+    const Config &config, int64_t num_trials, uint64_t seed
 ) {
     using namespace RandBLAS::benchmark;
     std::vector<Row> rows;
     rows.push_back(benchmark_support_method<RNG>(
-        "std::sample(iota)",
-        "O(r*n), standard selection",
-        config,
-        num_trials,
-        seed,
+        "std::sample(iota)", "O(r*n), standard selection",
+        config, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_std_sample(n, r, k, output, rng);
         }
     ));
     rows.push_back(benchmark_support_method<RNG>(
-        "partial FY + iota reset",
-        "O(r*n), reset dominates for k << n",
-        config,
-        num_trials,
-        seed,
+        "partial FY + iota reset", "O(r*n), reset dominates for k << n",
+        config, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_partial_fisher_yates(n, r, k, output, rng);
         }
     ));
     rows.push_back(benchmark_support_method<RNG>(
-        "full std::shuffle",
-        "O(r*n), take first k",
-        config,
-        num_trials,
-        seed,
+        "full std::shuffle", "O(r*n), take first k", config, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_full_shuffle(n, r, k, output, rng);
         }
     ));
     rows.push_back(benchmark_support_method<RNG>(
-        "draw/reject + linear find",
-        "O(r*k^2) expected when k << n",
-        config,
-        num_trials,
-        seed,
+        "draw/reject + linear find", "O(r*k^2) expected when k << n",
+        config, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_rejection(n, r, k, output, rng);
         }
     ));
     rows.push_back(benchmark_support_method<RNG>(
-        "Floyd + fixed hash",
-        "O(r*k) expected, reusable table",
-        config,
-        num_trials,
-        seed,
+        "Floyd + fixed hash", "O(r*k) expected, reusable table",
+        config, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_floyd(n, r, k, output, rng);
         }
@@ -446,15 +410,12 @@ static std::vector<Row> support_rows(
     return rows;
 }
 
+// MARK: end-to-end COO benchmarks
+
 template <typename RNG, typename Sampler>
 static Row benchmark_saso_data_method(
-    const std::string &label,
-    const std::string &notes,
-    const Config &config,
-    bool major_is_rows,
-    int64_t num_trials,
-    uint64_t seed,
-    Sampler sampler
+    const std::string &label, const std::string &notes, const Config &config,
+    bool major_is_rows, int64_t num_trials, uint64_t seed, Sampler sampler
 ) {
     int64_t nnz = config.num_major_axis_vectors * config.vec_nnz;
     std::vector<int64_t> rows(nnz, -1);
@@ -463,22 +424,13 @@ static Row benchmark_saso_data_method(
     RNG rng(seed);
     auto sample = [&]() {
         RandBLAS::benchmark::fill_saso_data(
-            config.dim_major,
-            config.num_major_axis_vectors,
-            config.vec_nnz,
-            major_is_rows,
-            rows.data(),
-            cols.data(),
-            values.data(),
-            rng,
-            sampler
+            config.dim_major, config.num_major_axis_vectors, config.vec_nnz,
+            major_is_rows, rows.data(), cols.data(), values.data(), rng, sampler
         );
     };
 
     sample();
-    bool valid = saso_data_is_valid(
-        config, major_is_rows, rows, cols, values
-    );
+    bool valid = saso_data_is_valid(config, major_is_rows, rows, cols, values);
     auto [min_ns, median_ns] = run_trials(sample, num_trials);
 
     Row row;
@@ -491,10 +443,7 @@ static Row benchmark_saso_data_method(
 }
 
 static Row benchmark_randblas_saso_data(
-    const Config &config,
-    bool major_is_rows,
-    int64_t num_trials,
-    uint64_t seed
+    const Config &config, bool major_is_rows, int64_t num_trials, uint64_t seed
 ) {
     int64_t nnz = config.num_major_axis_vectors * config.vec_nnz;
     int64_t n_rows = major_is_rows
@@ -514,23 +463,14 @@ static Row benchmark_randblas_saso_data(
     auto sample = [&]() {
         sampled_nnz = nnz;
         state = RandBLAS::fill_sparse_unpacked(
-            distribution,
-            n_rows,
-            n_cols,
-            0,
-            0,
-            sampled_nnz,
-            values.data(),
-            rows.data(),
-            cols.data(),
-            state
+            distribution, n_rows, n_cols, 0, 0, sampled_nnz,
+            values.data(), rows.data(), cols.data(), state
         );
     };
 
     sample();
-    bool valid = sampled_nnz == nnz && saso_data_is_valid(
-        config, major_is_rows, rows, cols, values
-    );
+    bool valid = sampled_nnz == nnz
+        && saso_data_is_valid(config, major_is_rows, rows, cols, values);
     auto [min_ns, median_ns] = run_trials(sample, num_trials);
 
     Row row;
@@ -549,71 +489,46 @@ static Row benchmark_randblas_saso_data(
 
 template <typename RNG>
 static std::vector<Row> saso_data_rows(
-    const Config &config,
-    bool major_is_rows,
-    int64_t num_trials,
-    uint64_t seed
+    const Config &config, bool major_is_rows, int64_t num_trials, uint64_t seed
 ) {
     using namespace RandBLAS::benchmark;
     std::vector<Row> rows;
     rows.push_back(benchmark_saso_data_method<RNG>(
-        "std::sample(iota)",
-        "support + minor + sign + sort",
-        config,
-        major_is_rows,
-        num_trials,
-        seed,
+        "std::sample(iota)", "support + minor + sign + sort",
+        config, major_is_rows, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_std_sample(n, r, k, output, rng);
         }
     ));
     rows.push_back(benchmark_saso_data_method<RNG>(
-        "partial FY + iota reset",
-        "support + minor + sign + sort",
-        config,
-        major_is_rows,
-        num_trials,
-        seed,
+        "partial FY + iota reset", "support + minor + sign + sort",
+        config, major_is_rows, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_partial_fisher_yates(n, r, k, output, rng);
         }
     ));
     rows.push_back(benchmark_saso_data_method<RNG>(
-        "full std::shuffle",
-        "support + minor + sign + sort",
-        config,
-        major_is_rows,
-        num_trials,
-        seed,
+        "full std::shuffle", "support + minor + sign + sort",
+        config, major_is_rows, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_full_shuffle(n, r, k, output, rng);
         }
     ));
     rows.push_back(benchmark_saso_data_method<RNG>(
-        "draw/reject + linear find",
-        "support + minor + sign + sort",
-        config,
-        major_is_rows,
-        num_trials,
-        seed,
+        "draw/reject + linear find", "support + minor + sign + sort",
+        config, major_is_rows, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_rejection(n, r, k, output, rng);
         }
     ));
     rows.push_back(benchmark_saso_data_method<RNG>(
-        "Floyd + fixed hash",
-        "support + minor + sign + sort",
-        config,
-        major_is_rows,
-        num_trials,
-        seed,
+        "Floyd + fixed hash", "support + minor + sign + sort",
+        config, major_is_rows, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_floyd(n, r, k, output, rng);
         }
     ));
-    rows.push_back(benchmark_randblas_saso_data(
-        config, major_is_rows, num_trials, seed
-    ));
+    rows.push_back(benchmark_randblas_saso_data(config, major_is_rows, num_trials, seed));
     fill_speedups(rows);
     return rows;
 }
@@ -626,10 +541,10 @@ static void print_rows(const std::string &title, const std::vector<Row> &rows) {
     std::cout << "\n";
 }
 
+// MARK: thread scaling
+
 static bool run_scaling(
-    const Config &config,
-    int64_t num_trials,
-    const std::vector<int> &thread_counts
+    const Config &config, int64_t num_trials, const std::vector<int> &thread_counts
 ) {
     constexpr uint64_t seed = 12345;
     const int64_t nnz = config.num_major_axis_vectors * config.vec_nnz;
@@ -645,19 +560,14 @@ static bool run_scaling(
     for (int thread_count : thread_counts) {
         set_threads(thread_count);
         const int policy_threads = RandBLAS::sparse::sparse_sampling_thread_count(
-            config.dim_major,
-            config.num_major_axis_vectors,
-            config.vec_nnz,
-            config.vec_nnz > 1
+            config.dim_major, config.num_major_axis_vectors,
+            config.vec_nnz, config.vec_nnz > 1
         );
         const int actual_threads = effective_threads(policy_threads);
         RandBLAS::RNGState<> state(seed);
         auto end_state = RandBLAS::repeated_fisher_yates(
-            config.vec_nnz,
-            config.dim_major,
-            config.num_major_axis_vectors,
-            samples.data(),
-            state
+            config.vec_nnz, config.dim_major, config.num_major_axis_vectors,
+            samples.data(), state
         );
         exact = exact && support_is_valid(config, samples);
         if (rows.empty()) {
@@ -672,11 +582,8 @@ static bool run_scaling(
         auto [min_ns, median_ns] = run_trials([&]() {
             RandBLAS::RNGState<> trial_state(seed);
             end_state = RandBLAS::repeated_fisher_yates(
-                config.vec_nnz,
-                config.dim_major,
-                config.num_major_axis_vectors,
-                samples.data(),
-                trial_state
+                config.vec_nnz, config.dim_major, config.num_major_axis_vectors,
+                samples.data(), trial_state
             );
         }, num_trials);
         if (rows.empty()) {
@@ -689,13 +596,9 @@ static bool run_scaling(
         const double relative_threads = static_cast<double>(actual_threads)
             / static_cast<double>(baseline_threads);
         rows.push_back({
-            thread_count,
-            actual_threads,
-            min_ns,
-            median_ns,
+            thread_count, actual_threads, min_ns, median_ns,
             static_cast<double>(min_ns) / static_cast<double>(nnz),
-            speedup,
-            speedup / relative_threads
+            speedup, speedup / relative_threads
         });
     }
 
@@ -729,11 +632,7 @@ static bool run_scaling(
     return exact;
 }
 
-static void run_support_tables(
-    const Config &config,
-    int64_t num_trials,
-    bool include_controlled
-) {
+static void run_support_tables(const Config &config, int64_t num_trials, bool include_controlled) {
     constexpr uint64_t seed = 12345;
     std::cout << "=== SUPPORT ONLY: n=" << config.dim_major
               << " r=" << config.num_major_axis_vectors
@@ -746,18 +645,13 @@ static void run_support_tables(
     if (include_controlled) {
         print_rows(
             "controlled engine: Philox for every implementation",
-            support_rows<RandBLAS::benchmark::PhiloxURBG>(
-                config, num_trials, seed
-            )
+            support_rows<RandBLAS::benchmark::PhiloxURBG>(config, num_trials, seed)
         );
     }
 }
 
 static void run_saso_data_tables(
-    const Config &config,
-    bool major_is_rows,
-    int64_t num_trials,
-    bool include_controlled
+    const Config &config, bool major_is_rows, int64_t num_trials, bool include_controlled
 ) {
     constexpr uint64_t seed = 67890;
     const char *shape = major_is_rows
@@ -784,6 +678,8 @@ static void run_saso_data_tables(
     }
 }
 
+// MARK: command-line interface
+
 static bool config_is_valid(const Config &config, int64_t num_trials) {
     return config.dim_major > 0
         && config.num_major_axis_vectors >= config.dim_major
@@ -809,8 +705,7 @@ static std::vector<int> parse_threads(const std::string &csv) {
 
 static bool thread_counts_are_valid(const std::vector<int> &thread_counts) {
     return std::all_of(
-        thread_counts.begin(),
-        thread_counts.end(),
+        thread_counts.begin(), thread_counts.end(),
         [](int thread_count) { return thread_count > 0; }
     );
 }
@@ -879,8 +774,7 @@ int main(int argc, char **argv) {
 
     if (!positional.empty()) {
         Config config{
-            std::atoll(positional[0].c_str()),
-            std::atoll(positional[1].c_str()),
+            std::atoll(positional[0].c_str()), std::atoll(positional[1].c_str()),
             std::atoll(positional[2].c_str())
         };
         int64_t num_trials = positional.size() == 4

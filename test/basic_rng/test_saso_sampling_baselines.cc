@@ -32,21 +32,17 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <random>
 #include <vector>
 
 class TestSasoSamplingBaselines : public ::testing::Test {
 protected:
     static void expect_valid_samples(
-        int64_t n,
-        int64_t num_vectors,
-        int64_t vec_nnz,
+        int64_t n, int64_t num_vectors, int64_t vec_nnz,
         const std::vector<int64_t> &samples
     ) {
-        ASSERT_EQ(
-            samples.size(),
-            static_cast<std::size_t>(num_vectors * vec_nnz)
-        );
+        ASSERT_EQ(samples.size(), static_cast<std::size_t>(num_vectors * vec_nnz));
         for (int64_t vector = 0; vector < num_vectors; ++vector) {
             std::vector<bool> seen(n, false);
             for (int64_t entry = 0; entry < vec_nnz; ++entry) {
@@ -141,30 +137,19 @@ TEST_F(TestSasoSamplingBaselines, saso_data_respects_major_axis_orientation) {
         std::vector<int64_t> cols(nnz, -1);
         std::vector<double> values(nnz, 0.0);
         std::mt19937_64 rng(42);
-        auto sampler = [](int64_t sampler_n,
-                          int64_t sampler_num_vectors,
-                          int64_t sampler_vec_nnz,
-                          int64_t *samples,
-                          auto &sampler_rng) {
+        auto sampler = [](
+            int64_t sampler_n, int64_t sampler_num_vectors,
+            int64_t sampler_vec_nnz, int64_t *samples, auto &sampler_rng
+        ) {
             RandBLAS::benchmark::sample_partial_fisher_yates(
-                sampler_n,
-                sampler_num_vectors,
-                sampler_vec_nnz,
-                samples,
-                sampler_rng
+                sampler_n, sampler_num_vectors, sampler_vec_nnz,
+                samples, sampler_rng
             );
         };
 
         RandBLAS::benchmark::fill_saso_data(
-            n,
-            num_vectors,
-            vec_nnz,
-            major_is_rows,
-            rows.data(),
-            cols.data(),
-            values.data(),
-            rng,
-            sampler
+            n, num_vectors, vec_nnz, major_is_rows,
+            rows.data(), cols.data(), values.data(), rng, sampler
         );
 
         const std::vector<int64_t> &major = major_is_rows ? rows : cols;
@@ -191,9 +176,7 @@ TEST_F(TestSasoSamplingBaselines, philox_urbg_matches_randblas_stream) {
 
     for (int64_t draw = 0; draw < 3; ++draw) {
         auto random_values = generator(state.counter, state.key);
-        uint64_t expected = RandBLAS::promote_uint_pair(
-            random_values[0], random_values[1]
-        );
+        uint64_t expected = RandBLAS::promote_uint_pair(random_values[0], random_values[1]);
         EXPECT_EQ(rng(), expected);
         state.counter.incr();
     }

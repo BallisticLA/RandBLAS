@@ -452,10 +452,8 @@ void run_right(int64_t d, int64_t m, int64_t n,
 }
 
 static bool run_sampling_scaling(
-    const OpSpec &spec,
-    const SparseDist &dist,
-    const RandBLAS::RNGState<> &seed_state,
-    int num_trials,
+    const OpSpec &spec, const SparseDist &dist,
+    const RandBLAS::RNGState<> &seed_state, int num_trials,
     const std::vector<int> &threads
 ) {
     const int64_t capacity = dist.full_nnz;
@@ -478,24 +476,14 @@ static bool run_sampling_scaling(
         const bool uses_permutation_workspace =
             dist.major_axis == Axis::Short && dist.vec_nnz > 1;
         const int policy_threads = RandBLAS::sparse::sparse_sampling_thread_count(
-            dist.dim_major,
-            dist.dim_minor,
-            dist.vec_nnz,
+            dist.dim_major, dist.dim_minor, dist.vec_nnz,
             uses_permutation_workspace
         );
         const int actual_threads = effective_threads(policy_threads);
         int64_t sampled_nnz = -1;
         auto end_state = RandBLAS::fill_sparse_unpacked(
-            dist,
-            dist.n_rows,
-            dist.n_cols,
-            0,
-            0,
-            sampled_nnz,
-            values.data(),
-            rows.data(),
-            cols.data(),
-            seed_state
+            dist, dist.n_rows, dist.n_cols, 0, 0, sampled_nnz,
+            values.data(), rows.data(), cols.data(), seed_state
         );
         if (scaling_rows.empty()) {
             expected_nnz = sampled_nnz;
@@ -507,16 +495,13 @@ static bool run_sampling_scaling(
             exact = exact
                 && sampled_nnz == expected_nnz
                 && std::equal(
-                    values.begin(), values.begin() + sampled_nnz,
-                    expected_values.begin()
+                    values.begin(), values.begin() + sampled_nnz, expected_values.begin()
                 )
                 && std::equal(
-                    rows.begin(), rows.begin() + sampled_nnz,
-                    expected_rows.begin()
+                    rows.begin(), rows.begin() + sampled_nnz, expected_rows.begin()
                 )
                 && std::equal(
-                    cols.begin(), cols.begin() + sampled_nnz,
-                    expected_cols.begin()
+                    cols.begin(), cols.begin() + sampled_nnz, expected_cols.begin()
                 )
                 && end_state == expected_state;
         }
@@ -524,16 +509,8 @@ static bool run_sampling_scaling(
         auto [min_us, median_us] = run_trials([&]() {
             sampled_nnz = -1;
             end_state = RandBLAS::fill_sparse_unpacked(
-                dist,
-                dist.n_rows,
-                dist.n_cols,
-                0,
-                0,
-                sampled_nnz,
-                values.data(),
-                rows.data(),
-                cols.data(),
-                seed_state
+                dist, dist.n_rows, dist.n_cols, 0, 0, sampled_nnz,
+                values.data(), rows.data(), cols.data(), seed_state
             );
         }, num_trials);
         if (scaling_rows.empty()) {
@@ -546,14 +523,10 @@ static bool run_sampling_scaling(
         const double relative_threads = static_cast<double>(actual_threads)
             / static_cast<double>(baseline_threads);
         scaling_rows.push_back({
-            thread_count,
-            actual_threads,
-            min_us,
-            median_us,
+            thread_count, actual_threads, min_us, median_us,
             static_cast<double>(min_us) * 1000.0
                 / static_cast<double>(sampled_nnz),
-            speedup,
-            speedup / relative_threads
+            speedup, speedup / relative_threads
         });
     }
 
@@ -776,8 +749,7 @@ static std::vector<int> parse_threads(const std::string& csv) {
 
 static bool thread_counts_are_valid(const std::vector<int> &thread_counts) {
     return std::all_of(
-        thread_counts.begin(),
-        thread_counts.end(),
+        thread_counts.begin(), thread_counts.end(),
         [](int thread_count) { return thread_count > 0; }
     );
 }

@@ -37,6 +37,7 @@
 #include <numeric>
 #include <random>
 #include <ranges>
+#include <utility>
 #include <vector>
 
 namespace RandBLAS::benchmark {
@@ -68,31 +69,20 @@ private:
 
 template <typename RNG>
 void sample_std_sample(
-    int64_t n,
-    int64_t num_vectors,
-    int64_t vec_nnz,
-    int64_t *samples,
-    RNG &rng
+    int64_t n, int64_t num_vectors, int64_t vec_nnz, int64_t *samples, RNG &rng
 ) {
     auto population = std::views::iota(int64_t{0}, n);
     for (int64_t vector = 0; vector < num_vectors; ++vector) {
         std::sample(
-            population.begin(),
-            population.end(),
-            samples + vector * vec_nnz,
-            vec_nnz,
-            rng
+            population.begin(), population.end(),
+            samples + vector * vec_nnz, vec_nnz, rng
         );
     }
 }
 
 template <typename RNG>
 void sample_partial_fisher_yates(
-    int64_t n,
-    int64_t num_vectors,
-    int64_t vec_nnz,
-    int64_t *samples,
-    RNG &rng
+    int64_t n, int64_t num_vectors, int64_t vec_nnz, int64_t *samples, RNG &rng
 ) {
     std::vector<int64_t> population(n);
     for (int64_t vector = 0; vector < num_vectors; ++vector) {
@@ -108,42 +98,26 @@ void sample_partial_fisher_yates(
 
 template <typename RNG>
 void sample_full_shuffle(
-    int64_t n,
-    int64_t num_vectors,
-    int64_t vec_nnz,
-    int64_t *samples,
-    RNG &rng
+    int64_t n, int64_t num_vectors, int64_t vec_nnz, int64_t *samples, RNG &rng
 ) {
     std::vector<int64_t> population(n);
     std::iota(population.begin(), population.end(), int64_t{0});
     for (int64_t vector = 0; vector < num_vectors; ++vector) {
         std::shuffle(population.begin(), population.end(), rng);
-        std::copy_n(
-            population.begin(),
-            vec_nnz,
-            samples + vector * vec_nnz
-        );
+        std::copy_n(population.begin(), vec_nnz, samples + vector * vec_nnz);
     }
 }
 
 template <typename RNG>
 void sample_rejection(
-    int64_t n,
-    int64_t num_vectors,
-    int64_t vec_nnz,
-    int64_t *samples,
-    RNG &rng
+    int64_t n, int64_t num_vectors, int64_t vec_nnz, int64_t *samples, RNG &rng
 ) {
     std::uniform_int_distribution<int64_t> distribution(0, n - 1);
     for (int64_t vector = 0; vector < num_vectors; ++vector) {
         int64_t *vector_samples = samples + vector * vec_nnz;
         for (int64_t entry = 0; entry < vec_nnz;) {
             int64_t candidate = distribution(rng);
-            auto duplicate = std::find(
-                vector_samples,
-                vector_samples + entry,
-                candidate
-            );
+            auto duplicate = std::find(vector_samples, vector_samples + entry, candidate);
             if (duplicate == vector_samples + entry) {
                 vector_samples[entry] = candidate;
                 ++entry;
@@ -154,11 +128,7 @@ void sample_rejection(
 
 template <typename RNG>
 void sample_floyd(
-    int64_t n,
-    int64_t num_vectors,
-    int64_t vec_nnz,
-    int64_t *samples,
-    RNG &rng
+    int64_t n, int64_t num_vectors, int64_t vec_nnz, int64_t *samples, RNG &rng
 ) {
     uint64_t table_size = 1;
     while (table_size < 2 * static_cast<uint64_t>(vec_nnz)) {
@@ -195,15 +165,8 @@ void sample_floyd(
 
 template <typename RNG, typename Sampler>
 void fill_saso_data(
-    int64_t n,
-    int64_t num_vectors,
-    int64_t vec_nnz,
-    bool major_is_rows,
-    int64_t *rows,
-    int64_t *cols,
-    double *values,
-    RNG &rng,
-    Sampler sampler
+    int64_t n, int64_t num_vectors, int64_t vec_nnz, bool major_is_rows,
+    int64_t *rows, int64_t *cols, double *values, RNG &rng, Sampler sampler
 ) {
     int64_t *major_indices = major_is_rows ? rows : cols;
     int64_t *minor_indices = major_is_rows ? cols : rows;

@@ -44,8 +44,10 @@
 #include <iostream>
 #include <cstdio>
 #include <cmath>
+#include <cstdint>
 #include <algorithm>
 #include <unordered_map>
+#include <vector>
 #include <numeric>
 
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
@@ -54,10 +56,7 @@
 namespace RandBLAS::sparse {
 
 static inline int sparse_sampling_thread_count(
-    int64_t dim_major,
-    int64_t num_major_axis_vectors,
-    int64_t vec_nnz,
-    bool uses_permutation_workspace
+    int64_t dim_major, int64_t num_major_axis_vectors, int64_t vec_nnz, bool uses_permutation_workspace
 ) {
 #if defined(RandBLAS_HAS_OpenMP)
     int64_t active_threads = std::min<int64_t>(
@@ -204,13 +203,8 @@ static state_t repeated_fisher_yates(
         for (int64_t i = 0; i < dim_minor; ++i) {
             state_t vector_state{counter, state.key};
             _considerate_fisher_yates(
-                vector_state,
-                vec_nnz,
-                dim_major,
-                idxs_major,
-                vec_work.data(),
-                pivots.data(),
-                vals
+                vector_state, vec_nnz, dim_major,
+                idxs_major, vec_work.data(), pivots.data(), vals
             );
             counter.incr(vec_nnz);
             idxs_major += vec_nnz;
@@ -245,20 +239,11 @@ static state_t repeated_fisher_yates(
                 : idxs_minor + offset;
             T *vector_vals = vals == nullptr ? nullptr : vals + offset;
             _considerate_fisher_yates(
-                vector_state,
-                vec_nnz,
-                dim_major,
-                vector_major,
-                vec_work.data(),
-                pivots.data(),
-                vector_vals
+                vector_state, vec_nnz, dim_major,
+                vector_major, vec_work.data(), pivots.data(), vector_vals
             );
             if (vector_minor != nullptr) {
-                std::fill(
-                    vector_minor,
-                    vector_minor + vec_nnz,
-                    static_cast<sint_t>(i)
-                );
+                std::fill(vector_minor, vector_minor + vec_nnz, static_cast<sint_t>(i));
             }
         }
     }
@@ -416,7 +401,7 @@ struct SparseDist {
 /// These samples are stored by writing to \math{\ttt{samples}} in \math{r} blocks of length \math{k.}
 ///
 /// When RandBLAS is built with OpenMP, sampling is automatically parallelized over the
-/// \math{r} blocks. The counter range for block \math{i} depends only on \math{i}, so the
+/// \math{r} blocks. The counter range for block \math{i} depends only on \math{i,} so the
 /// samples and returned RNGState do not depend on the number of OpenMP threads or their
 /// scheduling.
 ///
@@ -807,11 +792,7 @@ state_t fill_sparse_unpacked(
             if(active_threads > 1)
         for (int64_t b = 0; b < num_major_sub; ++b) {
             const int64_t lane_offset = safe_int_product(b, vec_nnz);
-            sort_block_by_major(
-                idxs_major + lane_offset,
-                vals + lane_offset,
-                vec_nnz
-            );
+            sort_block_by_major(idxs_major + lane_offset, vals + lane_offset, vec_nnz);
         }
     } else {
         const int active_threads = sparse::sparse_sampling_thread_count(
@@ -834,20 +815,11 @@ state_t fill_sparse_unpacked(
                 T *vector_vals = vals + lane_offset;
 
                 sample_indices_iid_uniform(
-                    dim_major,
-                    vec_nnz,
-                    vector_major,
-                    vector_vals,
-                    vector_state
+                    dim_major, vec_nnz, vector_major, vector_vals, vector_state
                 );
                 laso_merge_long_axis_vector_coo_data(
-                    vec_nnz,
-                    vector_vals,
-                    vector_major,
-                    vector_minor,
-                    i,
-                    loc2count,
-                    loc2scale
+                    vec_nnz, vector_vals, vector_major, vector_minor, i,
+                    loc2count, loc2scale
                 );
                 const int64_t survivors = static_cast<int64_t>(loc2count.size());
                 sort_block_by_major(vector_major, vector_vals, survivors);

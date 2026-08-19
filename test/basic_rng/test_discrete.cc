@@ -389,14 +389,8 @@ TEST_F(TestSampleIndices, sparse_sampling_thread_policy_uses_available_threads) 
     omp_set_dynamic(0);
     omp_set_num_threads(4);
 
-    EXPECT_EQ(
-        RandBLAS::sparse::sparse_sampling_thread_count(2000, 100000, 4, true),
-        4
-    );
-    EXPECT_EQ(
-        RandBLAS::sparse::sparse_sampling_thread_count(2000, 100, 4, true),
-        1
-    );
+    EXPECT_EQ(RandBLAS::sparse::sparse_sampling_thread_count(2000, 100000, 4, true), 4);
+    EXPECT_EQ(RandBLAS::sparse::sparse_sampling_thread_count(2000, 100, 4, true), 1);
 
     omp_set_num_threads(saved_max_threads);
     omp_set_dynamic(saved_dynamic);
