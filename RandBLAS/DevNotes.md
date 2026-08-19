@@ -14,7 +14,26 @@ for our user guide.
  * `RandBLAS/sparse_skops.hh` has code for representing and sampling sparse sketching operators.
    The sampling code has a customized method for repeatedly sampling from an index set without
    replacement, which is needed to quickly generate the structures used in statistically reliable
-   sparse sketching operators.
+   sparse sketching operators. See [Sparse sampling and OpenMP](#sparse-sampling-and-openmp)
+   for details.
+
+ * [BLAS++ (aka blaspp)](https://github.com/icl-utk-edu/blaspp) is our portability layer for BLAS.
+   We actually use very few functions in BLAS at time of writing (GEMM, SCAL, COPY, and
+   AXPY) but we use its enumerations _everywhere_. Fast GEMM is important for sketching dense
+   data with dense operators.
+
+ * The `sketch_general` functions in `RandBLAS/skge.hh` are the main entry point for sketching dense data.
+   These functions are small wrappers around functions with more BLAS-like names:
+      * `lskge3` and `rskge3` are basically wrappers around GEMM.
+      * `lskges` and `rskges` trigger an opaque call sequence that uses sparse matrix operations.
+
+ * There is no widely accepted standard for sparse BLAS operations. This is a bummer because
+   sparse matrices are super important in data science and scientific computing. In view of this,
+   RandBLAS provides its own abstractions for sparse matrices (CSC, CSR, and COO formats).
+   The abstractions can either own their associated data or just wrap existing data (say, data
+   attached to a sparse matrix in Eigen). RandBLAS has reasonably flexible and high-performance code
+   for multiplying a sparse matrix and a dense matrix. All code related to sparse matrices is in
+   `RandBLAS/sparse_data`. See that folder's [`DevNotes.md`](sparse_data/DevNotes.md) file for details.
 
 ## Sparse sampling and OpenMP
 
@@ -37,21 +56,3 @@ locations, the surviving entries are sorted by major coordinate, and a per-vecto
 the live prefix of each lane. A serial pass then packs lanes in increasing vector order. Every
 packed destination precedes or equals its source, so this pass is safe in place and preserves the
 canonical COO ordering without a second `O(nnz)` buffer.
-
- * [BLAS++ (aka blaspp)](https://github.com/icl-utk-edu/blaspp) is our portability layer for BLAS.
-   We actually use very few functions in BLAS at time of writing (GEMM, SCAL, COPY, and
-   AXPY) but we use its enumerations _everywhere_. Fast GEMM is important for sketching dense
-   data with dense operators.
-
- * The `sketch_general` functions in `RandBLAS/skge.hh` are the main entry point for sketching dense data.
-   These functions are small wrappers around functions with more BLAS-like names:
-      * `lskge3` and `rskge3` are basically wrappers around GEMM.
-      * `lskges` and `rskges` trigger an opaque call sequence that uses sparse matrix operations.
-
- * There is no widely accepted standard for sparse BLAS operations. This is a bummer because
-   sparse matrices are super important in data science and scientific computing. In view of this,
-   RandBLAS provides its own abstractions for sparse matrices (CSC, CSR, and COO formats).
-   The abstractions can either own their associated data or just wrap existing data (say, data
-   attached to a sparse matrix in Eigen). RandBLAS has reasonably flexible and high-performance code
-   for multiplying a sparse matrix and a dense matrix. All code related to sparse matrices is in
-   `RandBLAS/sparse_data`. See that folder's [`DevNotes.md`](sparse_data/DevNotes.md) file for details.
