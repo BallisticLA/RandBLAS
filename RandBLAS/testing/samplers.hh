@@ -40,22 +40,28 @@
 #include <utility>
 #include <vector>
 
-namespace RandBLAS::benchmark {
+namespace RandBLAS::testing {
 
+// Adapt RandBLAS' default Philox generator to the UniformRandomBitGenerator
+// interface expected by the C++ standard library.
 class PhiloxURBG {
 public:
     using result_type = uint64_t;
 
+    // Initialize the adapter with a RandBLAS seed and counter zero.
     explicit PhiloxURBG(uint64_t seed) : state_(seed) {}
 
+    // Return the smallest value produced by the adapter.
     static constexpr result_type min() {
         return 0;
     }
 
+    // Return the largest value produced by the adapter.
     static constexpr result_type max() {
         return std::numeric_limits<result_type>::max();
     }
 
+    // Draw one 64-bit value and advance the underlying Philox counter once.
     result_type operator()() {
         typename RNGState<>::generator generator;
         auto random_values = generator(state_.counter, state_.key);
@@ -67,6 +73,8 @@ private:
     RNGState<> state_;
 };
 
+// Use std::sample to draw vec_nnz distinct indices from [0, n) for each
+// requested vector. This scans all n candidates for every vector.
 template <typename RNG>
 void sample_std_sample(
     int64_t n, int64_t num_vectors, int64_t vec_nnz, int64_t *samples, RNG &rng
@@ -80,6 +88,8 @@ void sample_std_sample(
     }
 }
 
+// Use the first vec_nnz steps of Fisher-Yates to draw distinct indices from
+// [0, n). The identity permutation is rebuilt for every requested vector.
 template <typename RNG>
 void sample_partial_fisher_yates(
     int64_t n, int64_t num_vectors, int64_t vec_nnz, int64_t *samples, RNG &rng
@@ -96,6 +106,8 @@ void sample_partial_fisher_yates(
     }
 }
 
+// Shuffle a permutation of [0, n) and copy its first vec_nnz entries for each
+// requested vector. The method uses O(n) work per vector and O(n) workspace.
 template <typename RNG>
 void sample_full_shuffle(
     int64_t n, int64_t num_vectors, int64_t vec_nnz, int64_t *samples, RNG &rng
@@ -108,6 +120,8 @@ void sample_full_shuffle(
     }
 }
 
+// Draw indices uniformly from [0, n), rejecting duplicates found by a linear
+// scan. The expected work is O(vec_nnz^2) per vector when vec_nnz is small.
 template <typename RNG>
 void sample_rejection(
     int64_t n, int64_t num_vectors, int64_t vec_nnz, int64_t *samples, RNG &rng
@@ -126,6 +140,8 @@ void sample_rejection(
     }
 }
 
+// Apply Floyd's algorithm with an open-addressed hash set to draw vec_nnz
+// distinct indices from [0, n). Expected work and workspace are O(vec_nnz).
 template <typename RNG>
 void sample_floyd(
     int64_t n, int64_t num_vectors, int64_t vec_nnz, int64_t *samples, RNG &rng
@@ -137,6 +153,7 @@ void sample_floyd(
     uint64_t table_mask = table_size - 1;
     std::vector<int64_t> table(table_size, -1);
 
+    // Find the slot containing value or the first empty slot in its probe chain.
     auto find_slot = [&table, table_mask](int64_t value) {
         constexpr uint64_t multiplier = 11400714819323198485ull;
         uint64_t slot = static_cast<uint64_t>(value) * multiplier & table_mask;
@@ -163,6 +180,9 @@ void sample_floyd(
     }
 }
 
+// Fill SASO COO data from a sampler of distinct major coordinates. The minor
+// coordinates identify vectors, values are random signs, and each vector's
+// major coordinates are sorted into canonical order.
 template <typename RNG, typename Sampler>
 void fill_saso_data(
     int64_t n, int64_t num_vectors, int64_t vec_nnz, bool major_is_rows,
@@ -196,4 +216,4 @@ void fill_saso_data(
     }
 }
 
-}  // namespace RandBLAS::benchmark
+}  // namespace RandBLAS::testing

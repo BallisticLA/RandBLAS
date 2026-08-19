@@ -26,7 +26,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include "../../examples/simple-kernel-benchmarks/saso_sampling_baselines.hh"
+#include "RandBLAS/testing/samplers.hh"
 
 #include <gtest/gtest.h>
 
@@ -63,7 +63,7 @@ TEST_F(TestSasoSamplingBaselines, std_sample_produces_valid_major_axis_vectors) 
     std::vector<int64_t> samples(num_vectors * vec_nnz, -1);
     std::mt19937_64 rng(42);
 
-    RandBLAS::benchmark::sample_std_sample(
+    RandBLAS::testing::sample_std_sample(
         n, num_vectors, vec_nnz, samples.data(), rng
     );
 
@@ -77,7 +77,7 @@ TEST_F(TestSasoSamplingBaselines, partial_fisher_yates_produces_valid_major_axis
     std::vector<int64_t> samples(num_vectors * vec_nnz, -1);
     std::mt19937_64 rng(42);
 
-    RandBLAS::benchmark::sample_partial_fisher_yates(
+    RandBLAS::testing::sample_partial_fisher_yates(
         n, num_vectors, vec_nnz, samples.data(), rng
     );
 
@@ -91,7 +91,7 @@ TEST_F(TestSasoSamplingBaselines, full_shuffle_produces_valid_major_axis_vectors
     std::vector<int64_t> samples(num_vectors * vec_nnz, -1);
     std::mt19937_64 rng(42);
 
-    RandBLAS::benchmark::sample_full_shuffle(
+    RandBLAS::testing::sample_full_shuffle(
         n, num_vectors, vec_nnz, samples.data(), rng
     );
 
@@ -105,7 +105,7 @@ TEST_F(TestSasoSamplingBaselines, rejection_produces_valid_major_axis_vectors) {
     std::vector<int64_t> samples(num_vectors * vec_nnz, -1);
     std::mt19937_64 rng(42);
 
-    RandBLAS::benchmark::sample_rejection(
+    RandBLAS::testing::sample_rejection(
         n, num_vectors, vec_nnz, samples.data(), rng
     );
 
@@ -119,7 +119,7 @@ TEST_F(TestSasoSamplingBaselines, floyd_produces_valid_major_axis_vectors) {
     std::vector<int64_t> samples(num_vectors * vec_nnz, -1);
     std::mt19937_64 rng(42);
 
-    RandBLAS::benchmark::sample_floyd(
+    RandBLAS::testing::sample_floyd(
         n, num_vectors, vec_nnz, samples.data(), rng
     );
 
@@ -141,13 +141,13 @@ TEST_F(TestSasoSamplingBaselines, saso_data_respects_major_axis_orientation) {
             int64_t sampler_n, int64_t sampler_num_vectors,
             int64_t sampler_vec_nnz, int64_t *samples, auto &sampler_rng
         ) {
-            RandBLAS::benchmark::sample_partial_fisher_yates(
+            RandBLAS::testing::sample_partial_fisher_yates(
                 sampler_n, sampler_num_vectors, sampler_vec_nnz,
                 samples, sampler_rng
             );
         };
 
-        RandBLAS::benchmark::fill_saso_data(
+        RandBLAS::testing::fill_saso_data(
             n, num_vectors, vec_nnz, major_is_rows,
             rows.data(), cols.data(), values.data(), rng, sampler
         );
@@ -172,7 +172,7 @@ TEST_F(TestSasoSamplingBaselines, philox_urbg_matches_randblas_stream) {
     constexpr uint64_t seed = 42;
     RandBLAS::RNGState<> state(seed);
     RandBLAS::DefaultRNG generator;
-    RandBLAS::benchmark::PhiloxURBG rng(seed);
+    RandBLAS::testing::PhiloxURBG rng(seed);
 
     for (int64_t draw = 0; draw < 3; ++draw) {
         auto random_values = generator(state.counter, state.key);

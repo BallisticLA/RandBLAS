@@ -94,8 +94,7 @@
 
 #include <RandBLAS.hh>
 #include "RandBLAS/config.h"
-
-#include "saso_sampling_baselines.hh"
+#include "RandBLAS/testing/samplers.hh"
 
 #if defined(RandBLAS_HAS_OpenMP)
 #include <omp.h>
@@ -369,7 +368,7 @@ template <typename RNG>
 static std::vector<Row> support_rows(
     const Config &config, int64_t num_trials, uint64_t seed
 ) {
-    using namespace RandBLAS::benchmark;
+    using namespace RandBLAS::testing;
     std::vector<Row> rows;
     rows.push_back(benchmark_support_method<RNG>(
         "std::sample(iota)", "O(r*n), standard selection",
@@ -423,7 +422,7 @@ static Row benchmark_saso_data_method(
     std::vector<double> values(nnz, 0.0);
     RNG rng(seed);
     auto sample = [&]() {
-        RandBLAS::benchmark::fill_saso_data(
+        RandBLAS::testing::fill_saso_data(
             config.dim_major, config.num_major_axis_vectors, config.vec_nnz,
             major_is_rows, rows.data(), cols.data(), values.data(), rng, sampler
         );
@@ -491,7 +490,7 @@ template <typename RNG>
 static std::vector<Row> saso_data_rows(
     const Config &config, bool major_is_rows, int64_t num_trials, uint64_t seed
 ) {
-    using namespace RandBLAS::benchmark;
+    using namespace RandBLAS::testing;
     std::vector<Row> rows;
     rows.push_back(benchmark_saso_data_method<RNG>(
         "std::sample(iota)", "support + minor + sign + sort",
@@ -645,7 +644,7 @@ static void run_support_tables(const Config &config, int64_t num_trials, bool in
     if (include_controlled) {
         print_rows(
             "controlled engine: Philox for every implementation",
-            support_rows<RandBLAS::benchmark::PhiloxURBG>(config, num_trials, seed)
+            support_rows<RandBLAS::testing::PhiloxURBG>(config, num_trials, seed)
         );
     }
 }
@@ -671,7 +670,7 @@ static void run_saso_data_tables(
     if (include_controlled) {
         print_rows(
             "controlled engine: support, minor coordinates, signs, and sorting",
-            saso_data_rows<RandBLAS::benchmark::PhiloxURBG>(
+            saso_data_rows<RandBLAS::testing::PhiloxURBG>(
                 config, major_is_rows, num_trials, seed
             )
         );
