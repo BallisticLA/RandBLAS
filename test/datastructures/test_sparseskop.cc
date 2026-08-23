@@ -96,8 +96,7 @@ static SparseSnapshot<T, sint_t> sample_sparse_snapshot(
 }
 
 
-class TestSparseSkOpConstruction : public ::testing::Test
-{
+class TestSparseSkOpConstruction : public ::testing::Test {
     protected:
         std::vector<uint32_t> keys{42, 0, 1};
         std::vector<int64_t> vec_nnzs{(int64_t) 1, (int64_t) 2, (int64_t) 3, (int64_t) 7};     
