@@ -350,6 +350,12 @@ TEST_F(TestSampleIndices, rngstate_updates_fisher_yates) {
 
 #if defined(RandBLAS_HAS_OpenMP)
 TEST_F(TestSampleIndices, fisher_yates_is_thread_count_independent) {
+    // Parallel sampling must reproduce the serial samples and the serial end
+    // state exactly. Use one thread to define the reference result, then repeat
+    // the same call with one, two, and four threads. The two vec_nnz values
+    // exercise both the single-index fast path and the general Fisher-Yates
+    // path, and the nonzero initial counter catches implementations that
+    // accidentally treat the counter as though it always starts at zero.
     constexpr int64_t n = 29;
     constexpr int64_t num_vectors = 2048;
     constexpr std::array<int64_t, 2> vec_nnz_values{1, 7};
@@ -384,6 +390,10 @@ TEST_F(TestSampleIndices, fisher_yates_is_thread_count_independent) {
 }
 
 TEST_F(TestSampleIndices, sparse_sampling_thread_policy_uses_available_threads) {
+    // The sampling policy should use the OpenMP threads available to a large
+    // job without paying parallel overhead for a small job. Advertise four
+    // threads, then check one problem above the policy's work threshold and
+    // one below it.
     const int saved_dynamic = omp_get_dynamic();
     const int saved_max_threads = omp_get_max_threads();
     omp_set_dynamic(0);

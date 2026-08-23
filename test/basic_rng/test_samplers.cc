@@ -40,6 +40,10 @@
 
 class TestSamplers : public ::testing::Test {
 protected:
+    // A support sampler writes a block of vec_nnz indices for each major-axis
+    // vector. This helper checks that every block represents a subset of
+    // {0, ..., n - 1}: all indices are in range, and no index is repeated
+    // within a block. It does not test whether those subsets are uniform.
     static void expect_valid_samples(
         int64_t n, int64_t num_vectors, int64_t vec_nnz,
         const std::vector<int64_t> &samples
@@ -61,6 +65,9 @@ protected:
 // MARK: support samplers
 
 TEST_F(TestSamplers, std_sample_produces_valid_major_axis_vectors) {
+    // std::sample is the most direct standard-library baseline for sampling
+    // without replacement. Draw several support sets from one RNG stream and
+    // pass the resulting blocks through the structural checks above.
     constexpr int64_t n = 7;
     constexpr int64_t num_vectors = 11;
     constexpr int64_t vec_nnz = 4;
@@ -75,6 +82,9 @@ TEST_F(TestSamplers, std_sample_produces_valid_major_axis_vectors) {
 }
 
 TEST_F(TestSamplers, partial_fisher_yates_produces_valid_major_axis_vectors) {
+    // Partial Fisher-Yates stops after selecting the requested number of
+    // indices rather than shuffling the full population. Check that its output
+    // still has the subset structure required of every major-axis vector.
     constexpr int64_t n = 7;
     constexpr int64_t num_vectors = 11;
     constexpr int64_t vec_nnz = 4;
@@ -89,6 +99,9 @@ TEST_F(TestSamplers, partial_fisher_yates_produces_valid_major_axis_vectors) {
 }
 
 TEST_F(TestSamplers, full_shuffle_produces_valid_major_axis_vectors) {
+    // This baseline shuffles all n indices and keeps the first vec_nnz entries.
+    // The retained prefix should therefore pass the same range and uniqueness
+    // checks as the samplers that avoid a full shuffle.
     constexpr int64_t n = 7;
     constexpr int64_t num_vectors = 11;
     constexpr int64_t vec_nnz = 4;
@@ -103,6 +116,9 @@ TEST_F(TestSamplers, full_shuffle_produces_valid_major_axis_vectors) {
 }
 
 TEST_F(TestSamplers, rejection_produces_valid_major_axis_vectors) {
+    // Rejection sampling draws indices until it has vec_nnz distinct values.
+    // Generate several blocks and check the property that makes a completed
+    // block valid: every entry is in range and appears only once.
     constexpr int64_t n = 7;
     constexpr int64_t num_vectors = 11;
     constexpr int64_t vec_nnz = 4;
@@ -117,6 +133,9 @@ TEST_F(TestSamplers, rejection_produces_valid_major_axis_vectors) {
 }
 
 TEST_F(TestSamplers, floyd_produces_valid_major_axis_vectors) {
+    // Floyd's algorithm constructs a subset without storing a permutation of
+    // all n indices. Its internal representation is different, but its output
+    // must satisfy the same per-vector subset contract.
     constexpr int64_t n = 7;
     constexpr int64_t num_vectors = 11;
     constexpr int64_t vec_nnz = 4;
@@ -133,6 +152,11 @@ TEST_F(TestSamplers, floyd_produces_valid_major_axis_vectors) {
 // MARK: end-to-end COO sampling
 
 TEST_F(TestSamplers, saso_data_respects_major_axis_orientation) {
+    // fill_saso_data turns sampled support sets into COO matrix data. Within
+    // each block, the minor coordinate identifies the major-axis vector while
+    // the major coordinate stores that vector's sampled support. Exercise both
+    // orientations and check the full COO contract: valid sorted supports,
+    // correct vector labels, and nonzero values in {-1, +1}.
     constexpr int64_t n = 7;
     constexpr int64_t num_vectors = 11;
     constexpr int64_t vec_nnz = 4;
@@ -177,6 +201,10 @@ TEST_F(TestSamplers, saso_data_respects_major_axis_orientation) {
 // MARK: Philox URBG adapter
 
 TEST_F(TestSamplers, philox_urbg_matches_randblas_stream) {
+    // In its default mode, PhiloxURBG returns one 64-bit value per Philox
+    // counter and then advances to the next counter. Generate the same counters
+    // directly with DefaultRNG, combine the first two 32-bit words by hand,
+    // and use those values as the reference stream.
     constexpr uint64_t seed = 42;
     RandBLAS::RNGState<> state(seed);
     RandBLAS::DefaultRNG generator;
@@ -191,6 +219,9 @@ TEST_F(TestSamplers, philox_urbg_matches_randblas_stream) {
 }
 
 TEST_F(TestSamplers, philox_urbg_can_use_both_results_per_counter) {
+    // When one-result-per-counter mode is disabled, the adapter exposes two
+    // 64-bit values from each four-word Philox result before advancing the
+    // counter. Compute both values directly and check their order.
     constexpr uint64_t seed = 42;
     RandBLAS::RNGState<> state(seed);
     RandBLAS::DefaultRNG generator;

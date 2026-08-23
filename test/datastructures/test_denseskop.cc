@@ -494,6 +494,12 @@ TEST_F(TestDenseSkOpStates, compare_skopless_fill_dense_to_compute_next_state) {
 }
 
 TEST_F(TestDenseSkOpStates, compute_next_state_avoids_padded_dimension_overflow) {
+    // Dense sampling consumes ceil(dim_major / counter_size) counters for each
+    // major-axis vector. Computing that ceiling as (dim_major + padding) /
+    // counter_size overflows when dim_major is INT64_MAX. Build a distribution
+    // with that extreme major dimension, advance a copy of the seed by the
+    // mathematically equivalent quotient-plus-one formula, and compare every
+    // word of the resulting counters. No dense matrix needs to be allocated.
     using RNG = r123::Philox4x32;
     constexpr int64_t max_int64 = std::numeric_limits<int64_t>::max();
     constexpr uint64_t ctr_size = RNG::ctr_type::static_size;

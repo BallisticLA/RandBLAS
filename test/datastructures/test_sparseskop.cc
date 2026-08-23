@@ -59,6 +59,10 @@ using RandBLAS::Axis;
 using RandBLAS::fill_sparse;
 using RandBLAS::fill_sparse_unpacked_nosub;
 
+// A sparse sampling call has five observable outputs: the number of stored
+// entries, three COO arrays, and the RNG state that follows the sample. Keep
+// them together so the parallel tests can compare a complete result rather
+// than checking only the sampled coordinates.
 template <typename T, typename sint_t = int64_t>
 struct SparseSnapshot {
     int64_t nnz;
@@ -68,6 +72,10 @@ struct SparseSnapshot {
     RandBLAS::RNGState<> end_state;
 };
 
+// Allocate the largest COO buffers permitted by the requested window, sample
+// the window, and trim those buffers to the number of entries actually written.
+// Trimming matters for LASOs, where restricting a sampled vector to a window
+// can remove entries and leave the output shorter than its upper bound.
 template <typename T, typename sint_t = int64_t>
 static SparseSnapshot<T, sint_t> sample_sparse_snapshot(
     const RandBLAS::SparseDist &dist, int64_t n_rows_sub, int64_t n_cols_sub,
@@ -348,6 +356,13 @@ class TestSparseSkOpConstruction : public ::testing::Test {
 
 #if defined(RandBLAS_HAS_OpenMP)
 TEST_F(TestSparseSkOpConstruction, sampling_is_thread_count_independent) {
+    // Changing the OpenMP thread count must not change a sampled sparse
+    // operator. For SASOs and LASOs of several shapes and sparsity levels, use
+    // a serial full-operator sample and a serial submatrix sample as reference
+    // results. Repeat each call with one, two, and four threads, then compare
+    // every COO array, the number of entries written, and the returned RNG
+    // state. A nonzero initial counter also checks that work is partitioned
+    // relative to the supplied state rather than an implicit zero state.
     struct Case {
         int64_t n_rows;
         int64_t n_cols;
@@ -412,6 +427,10 @@ TEST_F(TestSparseSkOpConstruction, sampling_is_thread_count_independent) {
 }
 
 TEST_F(TestSparseSkOpConstruction, parallel_saso_k1_writes_full_coo_data) {
+    // SASOs with one nonzero per major-axis vector use a specialized sampling
+    // path. Compare serial and four-thread samples entry-for-entry using float
+    // values and 32-bit indices, so this test checks that the fast path writes
+    // all three COO arrays and advances the RNG state for nondefault types.
     const int saved_dynamic = omp_get_dynamic();
     const int saved_max_threads = omp_get_max_threads();
     omp_set_dynamic(0);
@@ -439,6 +458,11 @@ TEST_F(TestSparseSkOpConstruction, parallel_saso_k1_writes_full_coo_data) {
 }
 
 TEST_F(TestSparseSkOpConstruction, parallel_sampling_rejects_two_word_rng) {
+    // Signed sparse sampling currently requires a counter-based generator
+    // result with at least four words so one counter can supply the sampled
+    // index and its sign. Force the parallel path with Philox2x32, which has
+    // only two words, and verify that both SASO and LASO sampling reject it
+    // with a RandBLAS error instead of reading nonexistent random words.
     using TwoWordRNG = r123::Philox2x32;
     const int saved_dynamic = omp_get_dynamic();
     const int saved_max_threads = omp_get_max_threads();
