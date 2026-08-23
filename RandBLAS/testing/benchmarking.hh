@@ -34,7 +34,41 @@
 #include <omp.h>
 #endif
 
+#include <algorithm>
+#include <cstdlib>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
+
 namespace RandBLAS::testing {
+
+// A parsed list and the result of applying the benchmark's positivity rule.
+struct ThreadCountsParseResult {
+    std::vector<int> thread_counts;
+    bool valid;
+};
+
+// Parse and validate a comma-separated thread-count list. Empty fields are
+// skipped, and an empty result is replaced with default_thread_counts.
+inline ThreadCountsParseResult parse_thread_counts(const std::string &csv, const std::vector<int> &default_thread_counts) {
+    std::vector<int> thread_counts;
+    std::stringstream stream(csv);
+    std::string token;
+    while (std::getline(stream, token, ',')) {
+        if (!token.empty()) {
+            thread_counts.push_back(std::atoi(token.c_str()));
+        }
+    }
+    if (thread_counts.empty()) {
+        thread_counts = default_thread_counts;
+    }
+    const bool valid = std::all_of(
+        thread_counts.begin(), thread_counts.end(),
+        [](int thread_count) { return thread_count > 0; }
+    );
+    return {std::move(thread_counts), valid};
+}
 
 // Return the maximum OpenMP thread count, or one in a serial build.
 inline int current_threads() {

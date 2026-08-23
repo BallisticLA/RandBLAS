@@ -9,10 +9,16 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <vector>
+
+#if defined(RandBLAS_HAS_OpenMP)
+#include <omp.h>
+#endif
 
 class TestExceptions : public ::testing::Test {
     protected:
@@ -146,3 +152,71 @@ TEST_F(TestExceptions, fill_dense_rejects_starting_offset_overflow) {
         std::overflow_error
     );
 }
+
+TEST_F(TestExceptions, validate_submat_dims_accepts_boundary_windows) {
+    // A submatrix may occupy its entire parent or may be empty. In particular,
+    // an empty window may begin at the parent's lower-right boundary because it
+    // does not address any entries beyond that boundary.
+    EXPECT_NO_THROW(RandBLAS::validate_submat_dims(5, 7, 5, 7, 0, 0));
+    EXPECT_NO_THROW(RandBLAS::validate_submat_dims(5, 7, 2, 3, 3, 4));
+    EXPECT_NO_THROW(RandBLAS::validate_submat_dims(5, 7, 0, 0, 5, 7));
+}
+
+TEST_F(TestExceptions, validate_submat_dims_rejects_invalid_windows) {
+    // The subtraction-form bounds check should reject malformed windows without
+    // first adding an extent and offset, which could overflow and make an invalid
+    // request appear valid. Cover each kind of bad dimension as well as INT64_MAX.
+    constexpr int64_t max_int64 = std::numeric_limits<int64_t>::max();
+
+    EXPECT_THROW(RandBLAS::validate_submat_dims(5, 7, -1, 1, 0, 0), RandBLAS::Error);
+    EXPECT_THROW(RandBLAS::validate_submat_dims(5, 7, 1, -1, 0, 0), RandBLAS::Error);
+    EXPECT_THROW(RandBLAS::validate_submat_dims(5, 7, 1, 1, -1, 0), RandBLAS::Error);
+    EXPECT_THROW(RandBLAS::validate_submat_dims(5, 7, 1, 1, 0, -1), RandBLAS::Error);
+    EXPECT_THROW(RandBLAS::validate_submat_dims(5, 7, 6, 1, 0, 0), RandBLAS::Error);
+    EXPECT_THROW(RandBLAS::validate_submat_dims(5, 7, 1, 8, 0, 0), RandBLAS::Error);
+    EXPECT_THROW(RandBLAS::validate_submat_dims(5, 7, 2, 3, 4, 0), RandBLAS::Error);
+    EXPECT_THROW(RandBLAS::validate_submat_dims(5, 7, 2, 3, 0, 5), RandBLAS::Error);
+    EXPECT_THROW(
+        RandBLAS::validate_submat_dims(5, 7, 1, 1, max_int64, max_int64),
+        RandBLAS::Error
+    );
+}
+
+TEST_F(TestExceptions, thread_number_helpers_report_serial_context) {
+    // Outside an OpenMP parallel region, every caller is the sole member of a
+    // one-thread team. These values are also the complete fallback contract for
+    // builds where RandBLAS was compiled without OpenMP.
+    EXPECT_EQ(RandBLAS::randblas_get_thread_num(), 0);
+    EXPECT_EQ(RandBLAS::randblas_get_num_threads(), 1);
+}
+
+#if defined(RandBLAS_HAS_OpenMP)
+TEST_F(TestExceptions, thread_number_helpers_report_openmp_team) {
+    // Give each physical OpenMP thread its own array slot, then compare the
+    // RandBLAS wrappers with OpenMP's direct answers. This checks both the
+    // thread's zero-based identity and the size of the team it belongs to.
+    const int orig_dynamic = omp_get_dynamic();
+    const int orig_max_threads = omp_get_max_threads();
+    const int requested_threads = std::min(4, orig_max_threads);
+    std::vector<int> thread_nums(requested_threads, -1);
+    std::vector<int> team_sizes(requested_threads, -1);
+    int actual_threads = 0;
+
+    omp_set_dynamic(0);
+    #pragma omp parallel num_threads(requested_threads)
+    {
+        const int thread_num = omp_get_thread_num();
+        thread_nums[thread_num] = RandBLAS::randblas_get_thread_num();
+        team_sizes[thread_num] = RandBLAS::randblas_get_num_threads();
+        #pragma omp single
+        actual_threads = omp_get_num_threads();
+    }
+    omp_set_num_threads(orig_max_threads);
+    omp_set_dynamic(orig_dynamic);
+
+    for (int thread_num = 0; thread_num < actual_threads; ++thread_num) {
+        EXPECT_EQ(thread_nums[thread_num], thread_num);
+        EXPECT_EQ(team_sizes[thread_num], actual_threads);
+    }
+}
+#endif

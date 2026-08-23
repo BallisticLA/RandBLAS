@@ -30,6 +30,8 @@
 #include "test/linops/linop_common.hh"
 #include <gtest/gtest.h>
 
+#include <array>
+
 using RandBLAS::DenseDist;
 using RandBLAS::DenseSkOp;
 using namespace test::linop_common;
@@ -152,6 +154,41 @@ TEST_F(TestLSKGE3, sketch_eye_single_null)
 {
     for (uint32_t seed : {0})
         sketch_eye<float>(seed, 200, 30, false, blas::Layout::ColMajor);
+}
+
+TEST_F(TestLSKGE3, lazy_zero_contraction_scales_nonempty_output) {
+    DenseSkOp<double> S(DenseDist(2, 2), 7);
+    double A = 0.0;
+    // Padding values make the expected result sensitive to both beta scaling
+    // and the column-major leading dimension.
+    std::array<double, 9> B{1.0, 2.0, 91.0, 3.0, 4.0, 92.0, 5.0, 6.0, 93.0};
+    const std::array<double, 9> expected{2.0, 4.0, 91.0, 6.0, 8.0, 92.0, 10.0, 12.0, 93.0};
+
+    // A zero contraction dimension leaves beta * B. Keeping S lazy exercises
+    // the submatrix-packing path that used to reject this valid operation.
+    ASSERT_EQ(S.buff, nullptr);
+    ASSERT_NO_THROW(RandBLAS::sketch_general(
+        blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans,
+        2, 3, 0, 1.0, S, 0, 0, &A, 1, 2.0, B.data(), 3
+    ));
+    EXPECT_EQ(B, expected);
+    EXPECT_EQ(S.buff, nullptr);
+}
+
+TEST_F(TestLSKGE3, lazy_empty_output_is_noop) {
+    DenseSkOp<double> S(DenseDist(2, 2), 7);
+    const std::array<double, 6> A{1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+    double B = 17.0;
+
+    // The zero row extent makes B empty, so neither packing S nor touching
+    // the sentinel output is necessary.
+    ASSERT_EQ(S.buff, nullptr);
+    ASSERT_NO_THROW(RandBLAS::sketch_general(
+        blas::Layout::ColMajor, blas::Op::NoTrans, blas::Op::NoTrans,
+        0, 3, 2, 1.0, S, 0, 0, A.data(), 2, 2.0, &B, 1
+    ));
+    EXPECT_EQ(B, 17.0);
+    EXPECT_EQ(S.buff, nullptr);
 }
 
 
@@ -304,4 +341,3 @@ TEST_F(TestLSKGE3, submatrix_a_single)
             blas::Layout::ColMajor
         );
 }
-

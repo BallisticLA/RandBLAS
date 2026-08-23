@@ -354,6 +354,85 @@ class TestSparseSkOpConstruction : public ::testing::Test {
 
 };
 
+TEST_F(TestSparseSkOpConstruction, submatrix_sampling_rejects_invalid_windows) {
+    // Submatrix validation must reject each negative argument and every window
+    // that extends past the parent operator. Exercise workspace-query mode so
+    // the check has to run before size arithmetic, allocation, RNG counter
+    // updates, or output writes. The near-INT64_MAX offsets specifically catch
+    // addition-form bounds checks that can overflow before making a decision.
+    struct Window {
+        int64_t n_rows;
+        int64_t n_cols;
+        int64_t row_offset;
+        int64_t col_offset;
+    };
+    constexpr int64_t max_int64 = std::numeric_limits<int64_t>::max();
+    constexpr std::array<Window, 10> invalid_windows{{
+        {-1, 5, 0, 0}, {5, -1, 0, 0}, {5, 5, -1, 0}, {5, 5, 0, -1},
+        {8, 5, 0, 0}, {5, 14, 0, 0}, {7, 5, 1, 0}, {5, 13, 0, 1},
+        {1, 1, max_int64, 0}, {1, 1, 0, max_int64}
+    }};
+    RandBLAS::SparseDist dist(7, 13, 2, RandBLAS::Axis::Short);
+    RandBLAS::RNGState<> seed(314);
+    RandBLAS::SparseSkOp<double> S(dist, seed);
+
+    for (const Window &window : invalid_windows) {
+        int64_t capacity = -1;
+        EXPECT_THROW(
+            RandBLAS::fill_sparse_unpacked(
+                dist, window.n_rows, window.n_cols,
+                window.row_offset, window.col_offset, capacity,
+                static_cast<double *>(nullptr),
+                static_cast<int64_t *>(nullptr),
+                static_cast<int64_t *>(nullptr), seed
+            ),
+            RandBLAS::Error
+        );
+        EXPECT_THROW(
+            RandBLAS::sparse::submatrix_as_coo(
+                S, window.n_rows, window.n_cols,
+                window.row_offset, window.col_offset
+            ),
+            RandBLAS::Error
+        );
+    }
+}
+
+TEST_F(TestSparseSkOpConstruction, submatrix_sampling_accepts_empty_boundary_window) {
+    // A zero-by-zero window at the lower-right corner is inside the parent
+    // operator. Verify that both the workspace query and the owning-COO helper
+    // accept it, report no entries, and leave caller-owned sentinel storage
+    // untouched when the sampling overload receives nonnull buffers.
+    RandBLAS::SparseDist dist(7, 13, 2, RandBLAS::Axis::Short);
+    RandBLAS::RNGState<> seed(2718);
+    int64_t capacity = -1;
+    RandBLAS::fill_sparse_unpacked(
+        dist, 0, 0, 7, 13, capacity,
+        static_cast<double *>(nullptr),
+        static_cast<int64_t *>(nullptr),
+        static_cast<int64_t *>(nullptr), seed
+    );
+    EXPECT_EQ(capacity, 0);
+
+    double val = 1.25;
+    int64_t row = 23;
+    int64_t col = 29;
+    int64_t nnz = -1;
+    RandBLAS::fill_sparse_unpacked(
+        dist, 0, 0, 7, 13, nnz, &val, &row, &col, seed
+    );
+    EXPECT_EQ(nnz, 0);
+    EXPECT_EQ(val, 1.25);
+    EXPECT_EQ(row, 23);
+    EXPECT_EQ(col, 29);
+
+    RandBLAS::SparseSkOp<double> S(dist, seed);
+    auto empty = RandBLAS::sparse::submatrix_as_coo(S, 0, 0, 7, 13);
+    EXPECT_EQ(empty.n_rows, 0);
+    EXPECT_EQ(empty.n_cols, 0);
+    EXPECT_EQ(empty.nnz, 0);
+}
+
 #if defined(RandBLAS_HAS_OpenMP)
 TEST_F(TestSparseSkOpConstruction, sampling_is_thread_count_independent) {
     // Changing the OpenMP thread count must not change a sampled sparse
@@ -480,6 +559,17 @@ TEST_F(TestSparseSkOpConstruction, parallel_sampling_rejects_two_word_rng) {
             RandBLAS::fill_sparse_unpacked(
                 dist, dist.n_rows, dist.n_cols, 0, 0, nnz,
                 vals.data(), rows.data(), cols.data(), seed
+            ),
+            RandBLAS::Error
+        );
+
+        // The owning-COO convenience path allocates its output buffers before
+        // sampling. It must propagate the same validation error while allowing
+        // those partially constructed buffers to be reclaimed during unwinding.
+        RandBLAS::SparseSkOp<double, TwoWordRNG> S(dist, seed);
+        EXPECT_THROW(
+            RandBLAS::sparse::submatrix_as_coo(
+                S, dist.n_rows, dist.n_cols, 0, 0
             ),
             RandBLAS::Error
         );

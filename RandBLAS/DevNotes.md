@@ -54,11 +54,16 @@ restored permutation of length `dim_major` and a pivot array of length `vec_nnz`
 shares mutable sampling workspace. This gives an `O(T * dim_major)` permutation-workspace cost
 for `T` active threads. An internal policy limits `T` by the available OpenMP threads, the number
 of major-axis vectors, the amount of sampling work, and the work available to amortize each
-permutation. The specialized `vec_nnz == 1` path does not allocate permutation workspace.
+permutation. Workspace storage is allocated before entering an OpenMP region, while each thread
+initializes its own permutation. The specialized `vec_nnz == 1` path does not allocate
+permutation workspace. A full-major-coordinate SASO is already packed after its per-vector sort;
+only a partial window needs the serial filtering pass.
 
 Long-axis-sparse operators (LASOs) sample with replacement. Vector `i` first occupies a lane of
 length `vec_nnz` at offset `i * vec_nnz`. A thread-private pair of hash maps merges duplicate
 locations, the surviving entries are sorted by major coordinate, and a per-vector count records
-the live prefix of each lane. A serial pass then packs lanes in increasing vector order. Every
-packed destination precedes or equals its source, so this pass is safe in place and preserves the
+the live prefix of each lane. The maps are constructed and reserved before the OpenMP region.
+Allocation failures during insertion are captured inside that region and rethrown after all
+threads leave it. A serial pass then packs lanes in increasing vector order. Every packed
+destination precedes or equals its source, so this pass is safe in place and preserves the
 canonical COO ordering without a second `O(nnz)` buffer.

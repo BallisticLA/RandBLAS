@@ -32,6 +32,7 @@
 /// @file
 
 #include "RandBLAS/config.h"
+#include "RandBLAS/exceptions.hh"
 #include "RandBLAS/random_gen.hh"
 
 #include <blas.hh>
@@ -194,6 +195,24 @@ inline blas::Layout flipped_layout(const blas::Layout &layout_before) {
     return (layout_before == Layout::RowMajor) ? Layout::ColMajor : Layout::RowMajor;
 }
 
+/// Return the calling thread's number, or zero when OpenMP is unavailable.
+inline int randblas_get_thread_num() {
+#if defined(RandBLAS_HAS_OpenMP)
+    return omp_get_thread_num();
+#else
+    return 0;
+#endif
+}
+
+/// Return the current OpenMP team size, or one when OpenMP is unavailable.
+inline int randblas_get_num_threads() {
+#if defined(RandBLAS_HAS_OpenMP)
+    return omp_get_num_threads();
+#else
+    return 1;
+#endif
+}
+
 /**
  * Stores stride information for a matrix represented as a buffer.
  * The intended semantics for a buffer "A" and the conceptualized
@@ -207,6 +226,22 @@ struct stride_64t {
     int64_t inter_row_stride; // step down a column
     int64_t inter_col_stride; // step along a row
 };
+
+/// Require a submatrix window to lie within its parent matrix.
+inline void validate_submat_dims(
+    int64_t parent_rows, int64_t parent_cols,
+    int64_t n_rows_sub, int64_t n_cols_sub,
+    int64_t ro, int64_t co
+) {
+    randblas_require(n_rows_sub >= 0);
+    randblas_require(n_cols_sub >= 0);
+    randblas_require(ro >= 0);
+    randblas_require(co >= 0);
+    randblas_require(n_rows_sub <= parent_rows);
+    randblas_require(n_cols_sub <= parent_cols);
+    randblas_require(ro <= parent_rows - n_rows_sub);
+    randblas_require(co <= parent_cols - n_cols_sub);
+}
 
 inline stride_64t layout_to_strides(blas::Layout layout, int64_t ldim) {
     if (layout == blas::Layout::ColMajor) {
@@ -247,10 +282,10 @@ inline submat_spec_64t offset_and_ldim(
 ) {
     if (layout == blas::Layout::ColMajor) {
         int64_t offset = ro_s + n_rows * co_s;
-        return submat_spec_64t{offset, n_rows};
+        return submat_spec_64t{offset, std::max(n_rows, (int64_t)1)};
     } else {
         int64_t offset = ro_s * n_cols + co_s;
-        return submat_spec_64t{offset, n_cols};
+        return submat_spec_64t{offset, std::max(n_cols, (int64_t)1)};
     }
 }
 

@@ -1,6 +1,8 @@
 #include "test/linops/linop_common.hh"
 // ^ That includes a ton of stuff.
 
+#include <array>
+
 using blas::Layout;
 using blas::Op;
 
@@ -284,6 +286,41 @@ TEST_F(TestLSKSP3, sketch_eye_single_null) {
         sketch_eye<float>(seed, 200, 30, false, blas::Layout::ColMajor);
 }
 
+TEST_F(TestLSKSP3, lazy_zero_contraction_scales_nonempty_output) {
+    DenseSkOp<double> S(DenseDist(2, 2), 7);
+    COOMatrix<double> A(0, 3);
+    // Padding values make the expected result sensitive to both beta scaling
+    // and the row-major leading dimension.
+    std::array<double, 8> B{1.0, 2.0, 3.0, 91.0, 4.0, 5.0, 6.0, 92.0};
+    const std::array<double, 8> expected{2.0, 4.0, 6.0, 91.0, 8.0, 10.0, 12.0, 92.0};
+
+    // A zero contraction dimension leaves beta * B. Keeping S lazy exercises
+    // the submatrix-packing path that used to reject this valid operation.
+    ASSERT_EQ(S.buff, nullptr);
+    ASSERT_NO_THROW(sketch_sparse(
+        Layout::RowMajor, Op::NoTrans, Op::NoTrans,
+        2, 3, 0, 1.0, S, 0, 0, A, 2.0, B.data(), 4
+    ));
+    EXPECT_EQ(B, expected);
+    EXPECT_EQ(S.buff, nullptr);
+}
+
+TEST_F(TestLSKSP3, lazy_empty_output_is_noop) {
+    DenseSkOp<double> S(DenseDist(2, 2), 7);
+    COOMatrix<double> A(2, 3);
+    double B = 17.0;
+
+    // The zero row extent makes B empty, so neither packing S nor touching
+    // the sentinel output is necessary.
+    ASSERT_EQ(S.buff, nullptr);
+    ASSERT_NO_THROW(sketch_sparse(
+        Layout::RowMajor, Op::NoTrans, Op::NoTrans,
+        0, 3, 2, 1.0, S, 0, 0, A, 2.0, &B, 3
+    ));
+    EXPECT_EQ(B, 17.0);
+    EXPECT_EQ(S.buff, nullptr);
+}
+
 ////////////////////////////////////////////////////////////////////////
 //
 //
@@ -462,6 +499,41 @@ TEST_F(TestRSKSP3, right_sketch_eye_single_null)
 {
     for (uint32_t seed : {0})
         sketch_eye<float>(seed, 200, 30, false, Layout::ColMajor);
+}
+
+TEST_F(TestRSKSP3, lazy_zero_contraction_scales_nonempty_output) {
+    DenseSkOp<double> S(DenseDist(2, 2), 7);
+    COOMatrix<double> A(3, 0);
+    // Padding values make the expected result sensitive to both beta scaling
+    // and the column-major leading dimension.
+    std::array<double, 8> B{1.0, 2.0, 3.0, 91.0, 4.0, 5.0, 6.0, 92.0};
+    const std::array<double, 8> expected{2.0, 4.0, 6.0, 91.0, 8.0, 10.0, 12.0, 92.0};
+
+    // A zero contraction dimension leaves beta * B. Keeping S lazy exercises
+    // the submatrix-packing path that used to reject this valid operation.
+    ASSERT_EQ(S.buff, nullptr);
+    ASSERT_NO_THROW(sketch_sparse(
+        Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+        3, 2, 0, 1.0, A, S, 0, 0, 2.0, B.data(), 4
+    ));
+    EXPECT_EQ(B, expected);
+    EXPECT_EQ(S.buff, nullptr);
+}
+
+TEST_F(TestRSKSP3, lazy_empty_output_is_noop) {
+    DenseSkOp<double> S(DenseDist(2, 2), 7);
+    COOMatrix<double> A(3, 2);
+    double B = 17.0;
+
+    // The zero column extent makes B empty, so neither packing S nor touching
+    // the sentinel output is necessary.
+    ASSERT_EQ(S.buff, nullptr);
+    ASSERT_NO_THROW(sketch_sparse(
+        Layout::ColMajor, Op::NoTrans, Op::NoTrans,
+        3, 0, 2, 1.0, A, S, 0, 0, 2.0, &B, 3
+    ));
+    EXPECT_EQ(B, 17.0);
+    EXPECT_EQ(S.buff, nullptr);
 }
 
 

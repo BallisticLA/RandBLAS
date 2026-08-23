@@ -348,6 +348,66 @@ TEST_F(TestSampleIndices, rngstate_updates_fisher_yates) {
     test_updated_rngstates_fisher_yates();
 }
 
+TEST_F(TestSampleIndices, fisher_yates_split_calls_cross_counter_word_carry) {
+    // Splitting a sampling request must preserve both its samples and its final
+    // RNG state, even when the assigned counter range crosses a word boundary.
+    // Start counter word zero ten steps below its maximum and give word one a
+    // recognizable value. A 512-vector call and two 256-vector calls consume
+    // the same 2048 counters, wrapping word zero to 2037 and carrying one into
+    // word one. OpenMP builds also run the split calls with two and four threads.
+    constexpr int64_t n = 29;
+    constexpr int64_t vec_nnz = 4;
+    constexpr int64_t first_num_vectors = 256;
+    constexpr int64_t second_num_vectors = 256;
+    constexpr int64_t total_num_vectors = first_num_vectors + second_num_vectors;
+    constexpr uint32_t max_uint32 = std::numeric_limits<uint32_t>::max();
+    constexpr uint32_t initial_word_one = 0x2468ACE0u;
+    RandBLAS::RNGState<> seed(1729);
+    seed.counter.v[0] = max_uint32 - 10;
+    seed.counter.v[1] = initial_word_one;
+
+#if defined(RandBLAS_HAS_OpenMP)
+    const int saved_dynamic = omp_get_dynamic();
+    const int saved_max_threads = omp_get_max_threads();
+    omp_set_dynamic(0);
+    auto set_test_threads = [](int thread_count) {
+        omp_set_num_threads(thread_count);
+    };
+#else
+    auto set_test_threads = [](int) {};
+#endif
+
+    std::vector<int64_t> one_call(total_num_vectors * vec_nnz, -1);
+    std::vector<int64_t> two_calls(total_num_vectors * vec_nnz, -1);
+    set_test_threads(1);
+    auto one_call_state = RandBLAS::repeated_fisher_yates(
+        vec_nnz, n, total_num_vectors, one_call.data(), seed
+    );
+    set_test_threads(2);
+    auto first_call_state = RandBLAS::repeated_fisher_yates(
+        vec_nnz, n, first_num_vectors, two_calls.data(), seed
+    );
+    set_test_threads(4);
+    auto two_call_state = RandBLAS::repeated_fisher_yates(
+        vec_nnz, n, second_num_vectors,
+        two_calls.data() + first_num_vectors * vec_nnz, first_call_state
+    );
+
+    EXPECT_EQ(two_calls, one_call);
+    EXPECT_EQ(two_call_state, one_call_state);
+    EXPECT_EQ(one_call_state.counter.v[0], 2037u);
+    EXPECT_EQ(one_call_state.counter.v[1], initial_word_one + 1);
+    RandBLAS::RNGState<> expected_state(seed);
+    expected_state.counter.v[0] = 2037u;
+    expected_state.counter.v[1] = initial_word_one + 1;
+    EXPECT_EQ(one_call_state, expected_state);
+
+#if defined(RandBLAS_HAS_OpenMP)
+    omp_set_num_threads(saved_max_threads);
+    omp_set_dynamic(saved_dynamic);
+#endif
+}
+
 #if defined(RandBLAS_HAS_OpenMP)
 TEST_F(TestSampleIndices, fisher_yates_is_thread_count_independent) {
     // Parallel sampling must reproduce the serial samples and the serial end
@@ -383,6 +443,45 @@ TEST_F(TestSampleIndices, fisher_yates_is_thread_count_independent) {
             EXPECT_EQ(actual, expected);
             EXPECT_EQ(actual_state, expected_state);
         }
+    }
+
+    omp_set_num_threads(saved_max_threads);
+    omp_set_dynamic(saved_dynamic);
+}
+
+TEST_F(TestSampleIndices, fisher_yates_is_exact_at_parallel_policy_boundary) {
+    // General Fisher-Yates enters the parallel path when num_vectors * vec_nnz
+    // reaches 1024. With vec_nnz = 4, 255 vectors give 1020 units of useful
+    // work and stay serial, while 256 vectors give 1024 and use the four
+    // available threads. Compare both workloads against one-thread references
+    // to check exactness on either side of that policy boundary.
+    constexpr int64_t n = 29;
+    constexpr int64_t vec_nnz = 4;
+    constexpr std::array<int64_t, 2> num_vectors_values{255, 256};
+    const int saved_dynamic = omp_get_dynamic();
+    const int saved_max_threads = omp_get_max_threads();
+    omp_set_dynamic(0);
+    omp_set_num_threads(4);
+
+    EXPECT_EQ(RandBLAS::sparse::sparse_sampling_thread_count(n, 255, vec_nnz, true), 1);
+    EXPECT_EQ(RandBLAS::sparse::sparse_sampling_thread_count(n, 256, vec_nnz, true), 4);
+
+    RandBLAS::RNGState<> seed(20260822);
+    seed.counter.incr(173);
+    for (int64_t num_vectors : num_vectors_values) {
+        std::vector<int64_t> expected(num_vectors * vec_nnz, -1);
+        std::vector<int64_t> actual(num_vectors * vec_nnz, -1);
+        omp_set_num_threads(1);
+        auto expected_state = RandBLAS::repeated_fisher_yates(
+            vec_nnz, n, num_vectors, expected.data(), seed
+        );
+        omp_set_num_threads(4);
+        auto actual_state = RandBLAS::repeated_fisher_yates(
+            vec_nnz, n, num_vectors, actual.data(), seed
+        );
+
+        EXPECT_EQ(actual, expected);
+        EXPECT_EQ(actual_state, expected_state);
     }
 
     omp_set_num_threads(saved_max_threads);

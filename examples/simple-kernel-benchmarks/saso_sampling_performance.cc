@@ -113,6 +113,7 @@
 using RandBLAS::testing::current_threads;
 using RandBLAS::testing::effective_threads;
 using RandBLAS::testing::OpenMPSettingsGuard;
+using RandBLAS::testing::parse_thread_counts;
 using RandBLAS::testing::set_threads;
 
 // MARK: benchmark setup
@@ -639,28 +640,6 @@ static bool config_is_valid(const Config &config, int64_t num_trials) {
         && num_trials > 0;
 }
 
-static std::vector<int> parse_threads(const std::string &csv) {
-    std::vector<int> thread_counts;
-    std::stringstream stream(csv);
-    std::string token;
-    while (std::getline(stream, token, ',')) {
-        if (!token.empty()) {
-            thread_counts.push_back(std::atoi(token.c_str()));
-        }
-    }
-    if (thread_counts.empty()) {
-        thread_counts = {1, 2, 4, 8};
-    }
-    return thread_counts;
-}
-
-static bool thread_counts_are_valid(const std::vector<int> &thread_counts) {
-    return std::all_of(
-        thread_counts.begin(), thread_counts.end(),
-        [](int thread_count) { return thread_count > 0; }
-    );
-}
-
 static void print_usage(const char *program) {
     std::cout << "Usage:\n"
               << "  " << program << " [flags]\n"
@@ -675,7 +654,8 @@ int main(int argc, char **argv) {
     bool include_controlled = true;
     bool support_only = false;
     bool scaling = false;
-    std::vector<int> thread_counts{1, 2, 4, 8};
+    const std::vector<int> default_thread_counts{1, 2, 4, 8};
+    auto thread_config = parse_thread_counts("", default_thread_counts);
     std::vector<std::string> positional;
     for (int arg = 1; arg < argc; ++arg) {
         std::string value = argv[arg];
@@ -686,7 +666,7 @@ int main(int argc, char **argv) {
         } else if (value == "--scaling") {
             scaling = true;
         } else if (value.rfind("--threads=", 0) == 0) {
-            thread_counts = parse_threads(value.substr(10));
+            thread_config = parse_thread_counts(value.substr(10), default_thread_counts);
         } else if (value == "--help") {
             print_usage(argv[0]);
             return 0;
@@ -703,7 +683,7 @@ int main(int argc, char **argv) {
         print_usage(argv[0]);
         return 1;
     }
-    if (!thread_counts_are_valid(thread_counts)) {
+    if (!thread_config.valid) {
         std::cerr << "Invalid thread list. Expected positive integers.\n";
         return 1;
     }
@@ -737,7 +717,7 @@ int main(int argc, char **argv) {
             return 1;
         }
         if (scaling) {
-            return run_scaling(config, num_trials, thread_counts) ? 0 : 2;
+            return run_scaling(config, num_trials, thread_config.thread_counts) ? 0 : 2;
         }
         run_support_tables(config, num_trials, include_controlled);
         if (!support_only) {
@@ -766,7 +746,7 @@ int main(int argc, char **argv) {
     if (scaling) {
         bool exact = true;
         for (const Config &config : support_configs) {
-            exact = run_scaling(config, num_trials, thread_counts) && exact;
+            exact = run_scaling(config, num_trials, thread_config.thread_counts) && exact;
         }
         return exact ? 0 : 2;
     }

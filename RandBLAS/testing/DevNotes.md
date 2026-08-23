@@ -4,8 +4,9 @@
 
 benchmarking.hh.
 
-  Small OpenMP helpers shared by performance benchmarks.
-  The helpers become serial no-ops when RandBLAS is built without OpenMP.
+  Small helpers shared by performance benchmarks, including OpenMP settings
+  and command-line thread-list parsing.
+  The OpenMP helpers become serial no-ops when RandBLAS is built without OpenMP.
 
 comparison.hh.
 

@@ -33,6 +33,7 @@
 #include "RandBLAS/random_gen.hh"
 #include "RandBLAS/dense_skops.hh"
 #include "RandBLAS/sparse_skops.hh"
+#include "RandBLAS/util.hh"
 
 #include <iostream>
 #include <stdio.h>
@@ -182,8 +183,7 @@ void lskge3(
         } // else, continue with the function as usual.
     }
     randblas_require( S.buff != nullptr );
-    randblas_require( S.n_rows >= rows_submat_S + ro_s );
-    randblas_require( S.n_cols >= cols_submat_S + co_s );
+    validate_submat_dims(S.n_rows, S.n_cols, rows_submat_S, cols_submat_S, ro_s, co_s);
     auto [rows_A, cols_A] = dims_before_op(m, n, opA);
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
@@ -335,8 +335,7 @@ void rskge3(
         }
     }
     randblas_require( S.buff != nullptr );
-    randblas_require( S.n_rows >= rows_submat_S + ro_s );
-    randblas_require( S.n_cols >= cols_submat_S + co_s );
+    validate_submat_dims(S.n_rows, S.n_cols, rows_submat_S, cols_submat_S, ro_s, co_s);
     auto [rows_A, cols_A] = dims_before_op(m, n, opA);
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= rows_A);
@@ -554,6 +553,7 @@ void lskges(
     int64_t ldb
 ) {
     auto [n_rows, n_cols] = dims_before_op(d, m, opS);
+    validate_submat_dims(S.n_rows, S.n_cols, n_rows, n_cols, ro_s, co_s);
     if (S.nnz < 0) {
         auto Ssub = submatrix_as_coo(S, n_rows, n_cols, ro_s, co_s);
         _lskges_compress_and_apply_coo(layout, opS, opA, d, n, m, alpha, Ssub, A, lda, beta, B, ldb);
@@ -693,6 +693,7 @@ inline void rskges(
     int64_t ldb
 ) { 
     auto [n_rows, n_cols] = dims_before_op(n, d, opS);
+    validate_submat_dims(S.n_rows, S.n_cols, n_rows, n_cols, ro_s, co_s);
     if (S.nnz < 0) {
         auto Ssub = submatrix_as_coo(S, n_rows, n_cols, ro_s, co_s);
         _rskges_compress_and_apply_coo(layout, opS, opA, m, d, n, alpha, A, lda, Ssub, beta, B, ldb);

@@ -88,10 +88,8 @@ void left_spmm(
     constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
     randblas_require(is_coo || is_csr || is_csc);
 
-    if constexpr (is_coo) {
-        randblas_require(A.n_rows >= d);
-        randblas_require(A.n_cols >= m);
-    } else {
+    validate_submat_dims(A.n_rows, A.n_cols, d, m, ro_a, co_a);
+    if constexpr (!is_coo) {
         randblas_require(A.n_rows == d);
         randblas_require(A.n_cols == m);
         randblas_require(ro_a == 0);

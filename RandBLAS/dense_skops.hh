@@ -161,7 +161,8 @@ static RNGState<RNG> fill_dense_submat_impl(int64_t n_cols, T* smat, int64_t n_s
         }
         // middle blocks
         int64_t ind = first_block_len;
-        for (int i = 0; i < (ctr_mat_row_end - ctr_mat_start - 1); ++i) {
+        const int64_t n_middle_blocks = ctr_mat_row_end - ctr_mat_start - 1;
+        for (int64_t block = 0; block < n_middle_blocks; ++block) {
             c_row.incr();
             rv = OP::generate(rng, c_row, k);
             copy_promote(ctr_size, rv, smat_row + ind);
@@ -569,14 +570,10 @@ static_assert(SketchingOperator<DenseSkOp<double>>);
 template<typename T, typename RNG = DefaultRNG>
 RNGState<RNG> fill_dense_unpacked(blas::Layout layout, const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s, T* buff, const RNGState<RNG> &seed) {
     using RandBLAS::dense::fill_dense_submat_impl;
-    randblas_require(n_rows > 0);
-    randblas_require(n_cols > 0);
-    randblas_require(ro_s >= 0);
-    randblas_require(co_s >= 0);
-    randblas_require(n_rows <= D.n_rows);
-    randblas_require(n_cols <= D.n_cols);
-    randblas_require(ro_s <= D.n_rows - n_rows);
-    randblas_require(co_s <= D.n_cols - n_cols);
+    validate_submat_dims(D.n_rows, D.n_cols, n_rows, n_cols, ro_s, co_s);
+    if (n_rows == 0 || n_cols == 0) {
+        return seed;
+    }
     const int64_t size_mat = safe_int_product(n_rows, n_cols);
     blas::Layout natural_layout = D.natural_layout;
     int64_t ma_len = D.dim_major;
@@ -695,14 +692,7 @@ struct BLASFriendlyOperator {
 
 template <typename BFO, typename DenseSkOp>
 BFO submatrix_as_blackbox(const DenseSkOp &S, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s) {
-    randblas_require(n_rows > 0);
-    randblas_require(n_cols > 0);
-    randblas_require(ro_s >= 0);
-    randblas_require(co_s >= 0);
-    randblas_require(n_rows <= S.n_rows);
-    randblas_require(n_cols <= S.n_cols);
-    randblas_require(ro_s <= S.n_rows - n_rows);
-    randblas_require(co_s <= S.n_cols - n_cols);
+    validate_submat_dims(S.n_rows, S.n_cols, n_rows, n_cols, ro_s, co_s);
     const int64_t size_mat = safe_int_product(n_rows, n_cols);
     using T = typename DenseSkOp::scalar_t;
     T *buff = new T[size_mat];

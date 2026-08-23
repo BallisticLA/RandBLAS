@@ -91,6 +91,7 @@ using RandBLAS::SparseSkOp;
 using RandBLAS::testing::current_threads;
 using RandBLAS::testing::effective_threads;
 using RandBLAS::testing::OpenMPSettingsGuard;
+using RandBLAS::testing::parse_thread_counts;
 using RandBLAS::testing::set_threads;
 
 // Machine bandwidth ceiling (GB/s) used as the %STR denominator; <0 disables %STR.
@@ -681,38 +682,23 @@ std::vector<OpSpec> sweep_specs() {
     };
 }
 
-static std::vector<int> parse_threads(const std::string& csv) {
-    std::vector<int> out;
-    std::stringstream ss(csv);
-    std::string tok;
-    while (std::getline(ss, tok, ',')) {
-        if (!tok.empty()) out.push_back(std::atoi(tok.c_str()));
-    }
-    if (out.empty()) out = {1, 2, 4, 8};
-    return out;
-}
-
-static bool thread_counts_are_valid(const std::vector<int> &thread_counts) {
-    return std::all_of(
-        thread_counts.begin(), thread_counts.end(),
-        [](int thread_count) { return thread_count > 0; }
-    );
-}
-
 int main(int argc, char** argv) {
     OpenMPSettingsGuard openmp_settings;
     bool no_stream = false, scaling = false, csr_probe = false;
-    std::vector<int> threads = {1, 2, 4, 8};
+    const std::vector<int> default_thread_counts{1, 2, 4, 8};
+    auto thread_config = parse_thread_counts("", default_thread_counts);
     std::vector<std::string> pos;
     for (int i = 1; i < argc; ++i) {
         std::string s = argv[i];
         if (s == "--no-stream")      no_stream = true;
         else if (s == "--scaling")   scaling = true;
         else if (s == "--csr-probe") csr_probe = true;
-        else if (s.rfind("--threads=", 0) == 0) threads = parse_threads(s.substr(10));
+        else if (s.rfind("--threads=", 0) == 0) {
+            thread_config = parse_thread_counts(s.substr(10), default_thread_counts);
+        }
         else pos.push_back(s);
     }
-    if (!thread_counts_are_valid(threads)) {
+    if (!thread_config.valid) {
         std::cerr << "Invalid thread list. Expected positive integers.\n";
         return 1;
     }
@@ -737,7 +723,8 @@ int main(int argc, char** argv) {
         int64_t sd = have_cfg ? d : 200, sm = have_cfg ? m : 2000, sn = have_cfg ? n : 2000;
         std::cout << "\n";
         return run_scaling(
-            sd, sm, sn, specs, trials, threads, !no_stream
+            sd, sm, sn, specs, trials,
+            thread_config.thread_counts, !no_stream
         ) ? 0 : 2;
     }
 
