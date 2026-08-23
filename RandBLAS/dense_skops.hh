@@ -35,7 +35,9 @@
 
 #include <blas.hh>
 
+#include <cstdint>
 #include <iostream>
+#include <limits>
 #include <stdio.h>
 #include <stdexcept>
 #include <string>
@@ -95,35 +97,48 @@ inline void copy_promote(int n, const T_IN &a, T_OUT* b) {
  */
 template<typename T, typename RNG, typename OP>
 static RNGState<RNG> fill_dense_submat_impl(int64_t n_cols, T* smat, int64_t n_srows, int64_t n_scols, int64_t ptr, const RNGState<RNG> &seed, int64_t lda = 0) {
+    randblas_require(n_cols > 0);
+    randblas_require(n_srows > 0);
+    randblas_require(n_scols > 0);
+    randblas_require(ptr >= 0);
     if (lda <= 0) {
         lda = n_scols;
     } else {
         randblas_require(lda >= n_scols);
     }
     randblas_require(n_cols >= n_scols);
+    // Validate the documented output span before deriving row offsets in parallel.
+    (void)safe_int_product(n_srows, lda);
     RNG rng;
     using CTR_t = typename RNG::ctr_type;
     using KEY_t = typename RNG::key_type;
     const int64_t ctr_size = CTR_t::static_size;
-    
-    int64_t pad = 0;
-    // ^ computed such that n_cols+pad is divisible by ctr_size
-    if (n_cols % ctr_size != 0) {
-        pad = ctr_size - n_cols % ctr_size;
-    }
-    
-    const int64_t ptr_padded = ptr + ptr / n_cols * pad;
-    // ^ ptr corresponding to the padded matrix
-    const int64_t ctr_mat_start     = ptr_padded / ctr_size;
-    const int64_t first_block_start = ptr_padded % ctr_size;
-    // ^ counter and [position within the counter's array] for index "ptr_padded".
-    const int64_t ctr_mat_row_end =  (ptr_padded + n_scols - 1) / ctr_size;
-    const int64_t last_block_stop = ((ptr_padded + n_scols - 1) % ctr_size) + 1;
-    // ^ counter and [1 + position within the counter's array] for index "(ptr_padded + n_scols - 1)".
-    const int64_t ctr_inter_row_stride = (n_cols + pad) / ctr_size;
+    const int64_t ctr_inter_row_stride = n_cols / ctr_size + (n_cols % ctr_size != 0);
     // ^ number of counters between the first counter of a given row to the first counter of the next row;
+    const int64_t parent_row = ptr / n_cols;
+    const int64_t parent_col = ptr % n_cols;
+    const int64_t parent_row_ctr_offset = safe_int_product(parent_row, ctr_inter_row_stride);
+    const uint64_t ctr_mat_start_wide = static_cast<uint64_t>(parent_row_ctr_offset)
+        + static_cast<uint64_t>(parent_col / ctr_size);
+    const uint64_t last_row_offset = static_cast<uint64_t>(parent_col)
+        + static_cast<uint64_t>(n_scols) - 1;
+    const uint64_t ctr_mat_row_end_wide = static_cast<uint64_t>(parent_row_ctr_offset)
+        + last_row_offset / static_cast<uint64_t>(ctr_size);
+    const uint64_t max_int64 = std::numeric_limits<int64_t>::max();
+    if (ctr_mat_start_wide > max_int64 || ctr_mat_row_end_wide > max_int64) {
+        throw std::overflow_error("Overflow when computing a dense submatrix's counter offsets.\n");
+    }
+    const int64_t ctr_mat_start = static_cast<int64_t>(ctr_mat_start_wide);
+    const int64_t first_block_start = parent_col % ctr_size;
+    // ^ counter and [position within the counter's array] for index "ptr".
+    const int64_t ctr_mat_row_end = static_cast<int64_t>(ctr_mat_row_end_wide);
+    const int64_t last_block_stop = static_cast<int64_t>(
+        last_row_offset % static_cast<uint64_t>(ctr_size)
+    ) + 1;
+    // ^ counter and [1 + position within the counter's array] for the last requested column.
     const bool  one_block_per_row = ctr_mat_start == ctr_mat_row_end;
     const int64_t first_block_len = ((one_block_per_row) ? last_block_stop : ctr_size) - first_block_start;
+    const int64_t full_incr = safe_int_product(n_srows, ctr_inter_row_stride);
 
     CTR_t temp_c = seed.counter;
     temp_c.incr(ctr_mat_start);
@@ -132,9 +147,7 @@ static RNGState<RNG> fill_dense_submat_impl(int64_t n_cols, T* smat, int64_t n_s
 
     #pragma omp parallel for schedule(static)
     for (int64_t row = 0; row < n_srows; row++) {
-
-        int64_t incr_from_c = safe_int_product(ctr_inter_row_stride, row);
-    
+        int64_t incr_from_c = ctr_inter_row_stride * row;
         auto c_row = c;
         c_row.incr(incr_from_c);
         auto rv = OP::generate(rng, c_row, k);
@@ -162,7 +175,7 @@ static RNGState<RNG> fill_dense_submat_impl(int64_t n_cols, T* smat, int64_t n_s
     
     // find the largest counter in the counter array
     CTR_t max_c = c;
-    max_c.incr(n_srows * ctr_inter_row_stride);
+    max_c.incr(full_incr);
     return RNGState<RNG> {max_c, k};
 }
 
@@ -171,11 +184,7 @@ RNGState<RNG> compute_next_state(DD dist, RNGState<RNG> state) {
     int64_t major_len = dist.dim_major;
     int64_t minor_len = dist.dim_minor;
     int64_t ctr_size = RNG::ctr_type::static_size;
-    int64_t pad = 0;
-    if (major_len % ctr_size != 0) {
-        pad = ctr_size - major_len % ctr_size;
-    }
-    int64_t ctr_major_axis_stride = (major_len + pad) / ctr_size;
+    int64_t ctr_major_axis_stride = major_len / ctr_size + (major_len % ctr_size != 0);
     int64_t full_incr = safe_int_product(ctr_major_axis_stride, minor_len);
     state.counter.incr(full_incr);
     return state;
@@ -560,21 +569,34 @@ static_assert(SketchingOperator<DenseSkOp<double>>);
 template<typename T, typename RNG = DefaultRNG>
 RNGState<RNG> fill_dense_unpacked(blas::Layout layout, const DenseDist &D, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s, T* buff, const RNGState<RNG> &seed) {
     using RandBLAS::dense::fill_dense_submat_impl;
-    randblas_require(D.n_rows >= n_rows + ro_s);
-    randblas_require(D.n_cols >= n_cols + co_s);
+    randblas_require(n_rows > 0);
+    randblas_require(n_cols > 0);
+    randblas_require(ro_s >= 0);
+    randblas_require(co_s >= 0);
+    randblas_require(n_rows <= D.n_rows);
+    randblas_require(n_cols <= D.n_cols);
+    randblas_require(ro_s <= D.n_rows - n_rows);
+    randblas_require(co_s <= D.n_cols - n_cols);
+    const int64_t size_mat = safe_int_product(n_rows, n_cols);
     blas::Layout natural_layout = D.natural_layout;
     int64_t ma_len = D.dim_major;
-    int64_t n_rows_, n_cols_, ptr;
+    int64_t n_rows_, n_cols_, major_offset, minor_offset;
     if (natural_layout == blas::Layout::ColMajor) {
         // operate on the transpose in row-major
         n_rows_ = n_cols;
         n_cols_ = n_rows;
-        ptr = ro_s + safe_int_product(co_s, ma_len);
+        major_offset = safe_int_product(co_s, ma_len);
+        minor_offset = ro_s;
     } else {
         n_rows_ = n_rows;
         n_cols_ = n_cols;
-        ptr = safe_int_product(ro_s, ma_len) + co_s;
+        major_offset = safe_int_product(ro_s, ma_len);
+        minor_offset = co_s;
     }
+    if (minor_offset > std::numeric_limits<int64_t>::max() - major_offset) {
+        throw std::overflow_error("Overflow when computing the dense submatrix's starting offset.\n");
+    }
+    const int64_t ptr = major_offset + minor_offset;
     RNGState<RNG> next_state{};
     switch (D.family) {
         case ScalarDist::Gaussian: {
@@ -583,14 +605,13 @@ RNGState<RNG> fill_dense_unpacked(blas::Layout layout, const DenseDist &D, int64
         }
         case ScalarDist::Uniform: {
             next_state = fill_dense_submat_impl<T,RNG,r123ext::uneg11>(ma_len, buff, n_rows_, n_cols_, ptr, seed);
-            blas::scal(n_rows_ * n_cols_, (T)std::sqrt(3), buff, 1);
+            blas::scal(size_mat, (T)std::sqrt(3), buff, 1);
             break;
         }
         default: {
             throw std::runtime_error(std::string("Unrecognized distribution."));
         }
     }
-    int64_t size_mat = n_rows * n_cols;
     if (layout != natural_layout) {
         T* flip_work = new T[size_mat];
         blas::copy(size_mat, buff, 1, flip_work, 1);
@@ -647,7 +668,8 @@ template <typename DenseSkOp>
 void fill_dense(DenseSkOp &S) {
     if (S.own_memory && S.buff == nullptr) {
         using T = typename DenseSkOp::scalar_t;
-        S.buff = new T[S.n_rows * S.n_cols];
+        const int64_t size_mat = safe_int_product(S.n_rows, S.n_cols);
+        S.buff = new T[size_mat];
     }
     randblas_require(S.buff != nullptr);
     fill_dense_unpacked(S.layout, S.dist, S.n_rows, S.n_cols, 0, 0, S.buff, S.seed_state);
@@ -673,10 +695,17 @@ struct BLASFriendlyOperator {
 
 template <typename BFO, typename DenseSkOp>
 BFO submatrix_as_blackbox(const DenseSkOp &S, int64_t n_rows, int64_t n_cols, int64_t ro_s, int64_t co_s) {
-    randblas_require(ro_s + n_rows <= S.n_rows);
-    randblas_require(co_s + n_cols <= S.n_cols);
+    randblas_require(n_rows > 0);
+    randblas_require(n_cols > 0);
+    randblas_require(ro_s >= 0);
+    randblas_require(co_s >= 0);
+    randblas_require(n_rows <= S.n_rows);
+    randblas_require(n_cols <= S.n_cols);
+    randblas_require(ro_s <= S.n_rows - n_rows);
+    randblas_require(co_s <= S.n_cols - n_cols);
+    const int64_t size_mat = safe_int_product(n_rows, n_cols);
     using T = typename DenseSkOp::scalar_t;
-    T *buff = new T[n_rows * n_cols];
+    T *buff = new T[size_mat];
     auto layout = S.layout;
     fill_dense_unpacked(layout, S.dist, n_rows, n_cols, ro_s, co_s, buff, S.seed_state);
     int64_t dim_major = S.dist.dim_major;

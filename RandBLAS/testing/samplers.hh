@@ -36,7 +36,7 @@
 #include <limits>
 #include <numeric>
 #include <random>
-#include <utility>
+#include <unordered_set>
 #include <vector>
 
 namespace RandBLAS::testing {
@@ -47,8 +47,13 @@ class PhiloxURBG {
 public:
     using result_type = uint64_t;
 
-    // Initialize the adapter with a RandBLAS seed and counter zero.
-    explicit PhiloxURBG(uint64_t seed) : state_(seed) {}
+    // Initialize the adapter with a RandBLAS seed and counter zero. By default,
+    // each call consumes a new counter, matching RandBLAS' sampling kernels.
+    explicit PhiloxURBG(uint64_t seed, bool one_result_per_counter = true)
+        : state_(seed),
+          one_result_per_counter_(one_result_per_counter),
+          random_values_{},
+          use_second_result_(false) {}
 
     // Return the smallest value produced by the adapter.
     static constexpr result_type min() {
@@ -60,16 +65,25 @@ public:
         return std::numeric_limits<result_type>::max();
     }
 
-    // Draw one 64-bit value and advance the underlying Philox counter once.
+    // Draw one 64-bit value, optionally using both 64-bit pairs from each
+    // Philox4x32 result before advancing to the next result.
     result_type operator()() {
+        if (use_second_result_) {
+            use_second_result_ = false;
+            return RandBLAS::promote_uint_pair(random_values_[2], random_values_[3]);
+        }
         typename RNGState<>::generator generator;
-        auto random_values = generator(state_.counter, state_.key);
+        random_values_ = generator(state_.counter, state_.key);
         state_.counter.incr();
-        return RandBLAS::promote_uint_pair(random_values[0], random_values[1]);
+        use_second_result_ = !one_result_per_counter_;
+        return RandBLAS::promote_uint_pair(random_values_[0], random_values_[1]);
     }
 
 private:
     RNGState<> state_;
+    bool one_result_per_counter_;
+    typename RNGState<>::ctr_type random_values_;
+    bool use_second_result_;
 };
 
 // Use std::sample over an iota-filled vector to draw vec_nnz distinct indices
@@ -141,41 +155,25 @@ void sample_rejection(
     }
 }
 
-// Apply Floyd's algorithm with an open-addressed hash set to draw vec_nnz
-// distinct indices from [0, n). Expected work and workspace are O(vec_nnz).
+// Apply Floyd's algorithm with std::unordered_set to draw vec_nnz distinct
+// indices from [0, n). Expected work and workspace are O(vec_nnz).
 template <typename RNG>
 void sample_floyd(
     int64_t n, int64_t num_vectors, int64_t vec_nnz, int64_t *samples, RNG &rng
 ) {
-    uint64_t table_size = 1;
-    while (table_size < 2 * static_cast<uint64_t>(vec_nnz)) {
-        table_size *= 2;
-    }
-    uint64_t table_mask = table_size - 1;
-    std::vector<int64_t> table(table_size, -1);
-
-    // Find the slot containing value or the first empty slot in its probe chain.
-    auto find_slot = [&table, table_mask](int64_t value) {
-        constexpr uint64_t multiplier = 11400714819323198485ull;
-        uint64_t slot = static_cast<uint64_t>(value) * multiplier & table_mask;
-        while (table[slot] != -1 && table[slot] != value) {
-            slot = (slot + 1) & table_mask;
-        }
-        return slot;
-    };
-
+    std::unordered_set<int64_t> selected_values;
+    selected_values.reserve(vec_nnz);
     for (int64_t vector = 0; vector < num_vectors; ++vector) {
-        std::fill(table.begin(), table.end(), -1);
+        selected_values.clear();
         for (int64_t entry = 0; entry < vec_nnz; ++entry) {
             int64_t upper_bound = n - vec_nnz + entry;
             std::uniform_int_distribution<int64_t> pick(0, upper_bound);
             int64_t candidate = pick(rng);
-            uint64_t candidate_slot = find_slot(candidate);
-            int64_t selected = table[candidate_slot] == candidate
-                ? upper_bound
-                : candidate;
-            uint64_t selected_slot = find_slot(selected);
-            table[selected_slot] = selected;
+            bool inserted = selected_values.insert(candidate).second;
+            int64_t selected = inserted ? candidate : upper_bound;
+            if (!inserted) {
+                selected_values.insert(selected);
+            }
             samples[vector * vec_nnz + entry] = selected;
         }
     }

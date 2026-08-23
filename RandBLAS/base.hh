@@ -35,10 +35,13 @@
 #include "RandBLAS/random_gen.hh"
 
 #include <blas.hh>
-#include <utility>
 #include <cstring>
 #include <cstdint>
 #include <iostream>
+#include <limits>
+#include <sstream>
+#include <stdexcept>
+#include <utility>
 
 #if defined(RandBLAS_HAS_OpenMP)
 #include <omp.h>
@@ -262,18 +265,32 @@ concept SignedInteger = (std::numeric_limits<T>::is_signed && std::numeric_limit
 
 template <SignedInteger TI, SignedInteger TO = int64_t>
 inline TO safe_int_product(TI a, TI b) {
-    if (a == 0 || b == 0) {
-        return 0;
+    static_assert(
+        std::numeric_limits<TO>::digits >= std::numeric_limits<TI>::digits,
+        "safe_int_product requires an output type at least as wide as its input type."
+    );
+    const TO a_out = static_cast<TO>(a);
+    const TO b_out = static_cast<TO>(b);
+    const TO min_out = std::numeric_limits<TO>::min();
+    const TO max_out = std::numeric_limits<TO>::max();
+    bool overflow = false;
+    if (b_out > 0) {
+        const TO min_safe_a = min_out / b_out;
+        const TO max_safe_a = max_out / b_out;
+        overflow = a_out < min_safe_a || a_out > max_safe_a;
+    } else if (b_out == -1) {
+        overflow = a_out == min_out;
+    } else if (b_out < -1) {
+        const TO min_safe_a = max_out / b_out;
+        const TO max_safe_a = min_out / b_out;
+        overflow = a_out < min_safe_a || a_out > max_safe_a;
     }
-    TO c = a * b;
-    TO b_check = c / a;
-    TO a_check = c / b;
-    if ((a_check != a) || (b_check != b)) {
+    if (overflow) {
         std::stringstream s;
-        s << "Overflow when multiplying a (=" << a << ") and b(=" << b << "), which resulted in " << c << ".\n";
+        s << "Overflow when multiplying a (=" << a << ") and b (=" << b << ").\n";
         throw std::overflow_error(s.str());
     }
-    return c;
+    return a_out * b_out;
 }
 
 

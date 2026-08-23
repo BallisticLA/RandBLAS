@@ -62,9 +62,7 @@ static inline int sparse_sampling_thread_count(
     int64_t active_threads = std::min<int64_t>(
         omp_get_max_threads(), num_major_axis_vectors
     );
-    const int64_t useful_work = safe_int_product(
-        num_major_axis_vectors, vec_nnz
-    );
+    const int64_t useful_work = num_major_axis_vectors * vec_nnz;
     if (useful_work < 1024) {
         return 1;
     }
@@ -141,6 +139,7 @@ static state_t repeated_fisher_yates(
     T *vals
 ) {
     randblas_error_if(vec_nnz > dim_major);
+    const int64_t full_increment = safe_int_product(dim_minor, vec_nnz);
     if (vals != nullptr) {
         randblas_require(state.len_c >= 4);
     }
@@ -188,7 +187,7 @@ static state_t repeated_fisher_yates(
             }
         }
         auto end_counter = base_counter;
-        end_counter.incr(dim_minor);
+        end_counter.incr(full_increment);
         return state_t{end_counter, state.key};
     }
 
@@ -220,7 +219,6 @@ static state_t repeated_fisher_yates(
     }
 
     const auto base_counter = state.counter;
-    const int64_t full_increment = safe_int_product(dim_minor, vec_nnz);
     #pragma omp parallel num_threads(active_threads)
     {
         std::vector<sint_t> vec_work(dim_major);
@@ -229,7 +227,7 @@ static state_t repeated_fisher_yates(
 
         #pragma omp for schedule(static)
         for (int64_t i = 0; i < dim_minor; ++i) {
-            const int64_t offset = safe_int_product(i, vec_nnz);
+            const int64_t offset = i * vec_nnz;
             auto vector_counter = base_counter;
             vector_counter.incr(offset);
             state_t vector_state{vector_counter, state.key};
@@ -353,6 +351,8 @@ struct SparseDist {
     ///  
     ///  This constructor will raise an error if \math{\min\\{\ttt{n_rows}, \ttt{n_cols}\\} \leq 0} or if 
     ///  \math{\vecnnz} does not respect the bounds documented for the \math{\vecnnz} member.
+    ///  It raises an overflow error if \math{\ttt{full_nnz}} cannot be represented by
+    ///  \math{\ttt{int64_t}.}
     SparseDist(
         int64_t n_rows,
         int64_t n_cols,
@@ -361,9 +361,9 @@ struct SparseDist {
     ) : n_rows(n_rows), n_cols(n_cols),
         major_axis(major_axis),
         dim_major((major_axis == Axis::Short) ? std::min(n_rows, n_cols) : std::max(n_rows, n_cols)),
-        dim_minor(n_rows + n_cols - dim_major),
+        dim_minor((major_axis == Axis::Short) ? std::max(n_rows, n_cols) : std::min(n_rows, n_cols)),
         isometry_scale(sparse::isometry_scale(major_axis, vec_nnz, dim_major, dim_minor)),
-        vec_nnz(vec_nnz), full_nnz(vec_nnz * dim_minor) 
+        vec_nnz(vec_nnz), full_nnz(safe_int_product(vec_nnz, dim_minor))
     {   // argument validation
         randblas_require(n_rows > 0);
         randblas_require(n_cols > 0);
@@ -421,10 +421,7 @@ RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
     // Both _considerate_fisher_yates (SASO with vec_nnz > 1) and
     // sample_indices_iid_uniform (SASO with vec_nnz == 1, and LASO) consume
     // exactly one CBRNG counter increment per nonzero.
-    int64_t num_major_axis_vec = (dist.major_axis == Axis::Short)
-        ? std::max(dist.n_rows, dist.n_cols)
-        : std::min(dist.n_rows, dist.n_cols);
-    state.counter.incr(safe_int_product(num_major_axis_vec, dist.vec_nnz));
+    state.counter.incr(dist.full_nnz);
     return state;
 }
 
@@ -738,8 +735,9 @@ state_t fill_sparse_unpacked(
     // sampled major-axis vector could land inside the window). Callers can use this to
     // size (vals, rows, cols) from (D, n_rows_sub, n_cols_sub, ro_s, co_s) alone, rather
     // than reconstructing the axis mapping themselves.
+    const int64_t lane_capacity = safe_int_product(vec_nnz, num_major_sub);
     if (vals == nullptr || rows == nullptr || cols == nullptr) {
-        nnz = vec_nnz * num_major_sub;
+        nnz = lane_capacity;
         return seed_state;
     }
     randblas_require(seed_state.len_c >= 4);
@@ -749,7 +747,7 @@ state_t fill_sparse_unpacked(
     // and LASO) consume exactly vec_nnz counter increments per major-axis vector, so the
     // skip amount is uniform.
     state_t work_state = seed_state;
-    work_state.counter.incr(safe_int_product(num_major_off, vec_nnz));
+    work_state.counter.incr(num_major_off * vec_nnz);
 
     // Identify which output array holds the major-axis coordinate and which holds the
     // minor-axis coordinate (the index of the major-axis vector). We sample directly
@@ -791,7 +789,7 @@ state_t fill_sparse_unpacked(
         #pragma omp parallel for schedule(static) num_threads(active_threads) \
             if(active_threads > 1)
         for (int64_t b = 0; b < num_major_sub; ++b) {
-            const int64_t lane_offset = safe_int_product(b, vec_nnz);
+            const int64_t lane_offset = b * vec_nnz;
             sort_block_by_major(idxs_major + lane_offset, vals + lane_offset, vec_nnz);
         }
     } else {
@@ -806,7 +804,7 @@ state_t fill_sparse_unpacked(
 
             #pragma omp for schedule(static)
             for (int64_t i = 0; i < num_major_sub; ++i) {
-                const int64_t lane_offset = safe_int_product(i, vec_nnz);
+                const int64_t lane_offset = i * vec_nnz;
                 auto vector_counter = base_counter;
                 vector_counter.incr(lane_offset);
                 state_t vector_state{vector_counter, work_state.key};
@@ -827,7 +825,7 @@ state_t fill_sparse_unpacked(
             }
         }
         end_state = work_state;
-        end_state.counter.incr(safe_int_product(num_major_sub, vec_nnz));
+        end_state.counter.incr(lane_capacity);
     }
 
     // Phase 2: pack lanes in increasing logical-vector order and keep only nonzeros in
@@ -835,7 +833,7 @@ state_t fill_sparse_unpacked(
     // source, so this serial pass cannot overwrite an unread lane.
     nnz = 0;
     for (int64_t i = 0; i < num_major_sub; ++i) {
-        const int64_t lane_offset = safe_int_product(i, vec_nnz);
+        const int64_t lane_offset = i * vec_nnz;
         for (int64_t j = 0; j < lane_counts[i]; ++j) {
             const int64_t read = lane_offset + j;
             const sint_t local_major = idxs_major[read]

@@ -36,7 +36,9 @@
 #include <random>
 #include <vector>
 
-class TestSasoSamplingBaselines : public ::testing::Test {
+// MARK: test helpers
+
+class TestSamplers : public ::testing::Test {
 protected:
     static void expect_valid_samples(
         int64_t n, int64_t num_vectors, int64_t vec_nnz,
@@ -56,7 +58,9 @@ protected:
     }
 };
 
-TEST_F(TestSasoSamplingBaselines, std_sample_produces_valid_major_axis_vectors) {
+// MARK: support samplers
+
+TEST_F(TestSamplers, std_sample_produces_valid_major_axis_vectors) {
     constexpr int64_t n = 7;
     constexpr int64_t num_vectors = 11;
     constexpr int64_t vec_nnz = 4;
@@ -70,7 +74,7 @@ TEST_F(TestSasoSamplingBaselines, std_sample_produces_valid_major_axis_vectors) 
     expect_valid_samples(n, num_vectors, vec_nnz, samples);
 }
 
-TEST_F(TestSasoSamplingBaselines, partial_fisher_yates_produces_valid_major_axis_vectors) {
+TEST_F(TestSamplers, partial_fisher_yates_produces_valid_major_axis_vectors) {
     constexpr int64_t n = 7;
     constexpr int64_t num_vectors = 11;
     constexpr int64_t vec_nnz = 4;
@@ -84,7 +88,7 @@ TEST_F(TestSasoSamplingBaselines, partial_fisher_yates_produces_valid_major_axis
     expect_valid_samples(n, num_vectors, vec_nnz, samples);
 }
 
-TEST_F(TestSasoSamplingBaselines, full_shuffle_produces_valid_major_axis_vectors) {
+TEST_F(TestSamplers, full_shuffle_produces_valid_major_axis_vectors) {
     constexpr int64_t n = 7;
     constexpr int64_t num_vectors = 11;
     constexpr int64_t vec_nnz = 4;
@@ -98,7 +102,7 @@ TEST_F(TestSasoSamplingBaselines, full_shuffle_produces_valid_major_axis_vectors
     expect_valid_samples(n, num_vectors, vec_nnz, samples);
 }
 
-TEST_F(TestSasoSamplingBaselines, rejection_produces_valid_major_axis_vectors) {
+TEST_F(TestSamplers, rejection_produces_valid_major_axis_vectors) {
     constexpr int64_t n = 7;
     constexpr int64_t num_vectors = 11;
     constexpr int64_t vec_nnz = 4;
@@ -112,7 +116,7 @@ TEST_F(TestSasoSamplingBaselines, rejection_produces_valid_major_axis_vectors) {
     expect_valid_samples(n, num_vectors, vec_nnz, samples);
 }
 
-TEST_F(TestSasoSamplingBaselines, floyd_produces_valid_major_axis_vectors) {
+TEST_F(TestSamplers, floyd_produces_valid_major_axis_vectors) {
     constexpr int64_t n = 7;
     constexpr int64_t num_vectors = 11;
     constexpr int64_t vec_nnz = 4;
@@ -126,7 +130,9 @@ TEST_F(TestSasoSamplingBaselines, floyd_produces_valid_major_axis_vectors) {
     expect_valid_samples(n, num_vectors, vec_nnz, samples);
 }
 
-TEST_F(TestSasoSamplingBaselines, saso_data_respects_major_axis_orientation) {
+// MARK: end-to-end COO sampling
+
+TEST_F(TestSamplers, saso_data_respects_major_axis_orientation) {
     constexpr int64_t n = 7;
     constexpr int64_t num_vectors = 11;
     constexpr int64_t vec_nnz = 4;
@@ -168,7 +174,9 @@ TEST_F(TestSasoSamplingBaselines, saso_data_respects_major_axis_orientation) {
     }
 }
 
-TEST_F(TestSasoSamplingBaselines, philox_urbg_matches_randblas_stream) {
+// MARK: Philox URBG adapter
+
+TEST_F(TestSamplers, philox_urbg_matches_randblas_stream) {
     constexpr uint64_t seed = 42;
     RandBLAS::RNGState<> state(seed);
     RandBLAS::DefaultRNG generator;
@@ -178,6 +186,22 @@ TEST_F(TestSasoSamplingBaselines, philox_urbg_matches_randblas_stream) {
         auto random_values = generator(state.counter, state.key);
         uint64_t expected = RandBLAS::promote_uint_pair(random_values[0], random_values[1]);
         EXPECT_EQ(rng(), expected);
+        state.counter.incr();
+    }
+}
+
+TEST_F(TestSamplers, philox_urbg_can_use_both_results_per_counter) {
+    constexpr uint64_t seed = 42;
+    RandBLAS::RNGState<> state(seed);
+    RandBLAS::DefaultRNG generator;
+    RandBLAS::testing::PhiloxURBG rng(seed, false);
+
+    for (int64_t counter = 0; counter < 3; ++counter) {
+        auto random_values = generator(state.counter, state.key);
+        uint64_t first = RandBLAS::promote_uint_pair(random_values[0], random_values[1]);
+        uint64_t second = RandBLAS::promote_uint_pair(random_values[2], random_values[3]);
+        EXPECT_EQ(rng(), first);
+        EXPECT_EQ(rng(), second);
         state.counter.incr();
     }
 }

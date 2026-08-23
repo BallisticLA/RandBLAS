@@ -2,6 +2,11 @@
 
 **None of the files in this directory are part of RandBLAS' public API.**
 
+benchmarking.hh.
+
+  Small OpenMP helpers shared by performance benchmarks.
+  The helpers become serial no-ops when RandBLAS is built without OpenMP.
+
 comparison.hh.
 
   This currently holds a single utility function for testing approximate-equality of floating point numbers.

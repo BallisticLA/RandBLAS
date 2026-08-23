@@ -37,6 +37,8 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <cstdint>
+#include <limits>
 #include <numeric>
 #include <thread>
 
@@ -488,5 +490,22 @@ TEST_F(TestDenseSkOpStates, compare_skopless_fill_dense_to_compute_next_state) {
         test_compute_next_state<r123::Philox4x32>(key, 131, 71, sd);
         test_compute_next_state<r123::Philox4x32>(key, 80, 40, sd);
         test_compute_next_state<r123::Philox4x32>(key, 91, 43, sd);
+    }
+}
+
+TEST_F(TestDenseSkOpStates, compute_next_state_avoids_padded_dimension_overflow) {
+    using RNG = r123::Philox4x32;
+    constexpr int64_t max_int64 = std::numeric_limits<int64_t>::max();
+    constexpr uint64_t ctr_size = RNG::ctr_type::static_size;
+    constexpr uint64_t expected_increment = static_cast<uint64_t>(max_int64) / ctr_size + 1;
+    RandBLAS::DenseDist dist(max_int64, 1, RandBLAS::ScalarDist::Gaussian, RandBLAS::Axis::Long);
+    RandBLAS::RNGState<RNG> state(0);
+
+    auto actual = RandBLAS::dense::compute_next_state(dist, state);
+    auto expected = state;
+    expected.counter.incr(expected_increment);
+
+    for (int i = 0; i < RNG::ctr_type::static_size; ++i) {
+        EXPECT_EQ(actual.counter[i], expected.counter[i]);
     }
 }

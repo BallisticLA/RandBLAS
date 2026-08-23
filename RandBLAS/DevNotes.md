@@ -43,6 +43,12 @@ threads. If the first requested vector starts at `initial_counter`, then vector 
 the OpenMP region by adding `num_major_axis_vectors * vec_nnz` to the initial counter. Thread
 scheduling therefore cannot change either the sampled operator or the returned state.
 
+Products that determine addressable output sizes are checked at sampling boundaries before
+inner-loop offsets are formed. Once a boundary check establishes the size, the loops reuse that
+invariant instead of checking every offset. Overflow of Random123's extended-width counter is a
+separate matter: its unsigned wrap-around behavior is intentional and benign, so RandBLAS does
+not treat counter wrap-around as an error.
+
 Short-axis-sparse operators (SASOs) sample without replacement. Each active thread owns a
 restored permutation of length `dim_major` and a pivot array of length `vec_nnz`; no thread
 shares mutable sampling workspace. This gives an `O(T * dim_major)` permutation-workspace cost

@@ -80,9 +80,7 @@
 
 #include "RandBLAS/config.h"
 #include "RandBLAS/sparse_data/spmm_dispatch.hh"
-#if defined(RandBLAS_HAS_OpenMP)
-#include <omp.h>
-#endif
+#include "RandBLAS/testing/benchmarking.hh"
 
 using namespace std::chrono;
 using blas::Layout;
@@ -90,66 +88,13 @@ using blas::Op;
 using RandBLAS::Axis;
 using RandBLAS::SparseDist;
 using RandBLAS::SparseSkOp;
+using RandBLAS::testing::current_threads;
+using RandBLAS::testing::effective_threads;
+using RandBLAS::testing::OpenMPSettingsGuard;
+using RandBLAS::testing::set_threads;
 
 // Machine bandwidth ceiling (GB/s) used as the %STR denominator; <0 disables %STR.
 static double g_stream_gbps = -1.0;
-
-// ---- OpenMP shims (no-ops without OpenMP) ----------------------------------
-static int current_threads() {
-#if defined(RandBLAS_HAS_OpenMP)
-    return omp_get_max_threads();
-#else
-    return 1;
-#endif
-}
-static void set_threads(int t) {
-#if defined(RandBLAS_HAS_OpenMP)
-    omp_set_dynamic(0);
-    omp_set_num_threads(t);
-#else
-    (void)t;
-#endif
-}
-
-static int effective_threads(int requested_threads) {
-#if defined(RandBLAS_HAS_OpenMP)
-    int actual_threads = 1;
-    #pragma omp parallel num_threads(requested_threads)
-    {
-        #pragma omp single
-        {
-            actual_threads = omp_get_num_threads();
-        }
-    }
-    return actual_threads;
-#else
-    (void) requested_threads;
-    return 1;
-#endif
-}
-
-class OpenMPSettingsGuard {
-public:
-    OpenMPSettingsGuard() {
-#if defined(RandBLAS_HAS_OpenMP)
-        dynamic_ = omp_get_dynamic();
-        threads_ = omp_get_max_threads();
-#endif
-    }
-
-    ~OpenMPSettingsGuard() {
-#if defined(RandBLAS_HAS_OpenMP)
-        omp_set_num_threads(threads_);
-        omp_set_dynamic(dynamic_);
-#endif
-    }
-
-private:
-#if defined(RandBLAS_HAS_OpenMP)
-    int dynamic_;
-    int threads_;
-#endif
-};
 
 // Run num_trials repetitions, return {min, median} times in microseconds.
 template <typename Func>
@@ -250,7 +195,7 @@ struct OpSpec {
     Axis     axis;
 };
 
-struct SamplingScalingRow {
+struct SamplingScalingRecord {
     int requested_threads;
     int threads;
     long min_us;
@@ -465,8 +410,8 @@ static bool run_sampling_scaling(
     std::vector<int64_t> expected_cols;
     auto expected_state = seed_state;
     int64_t expected_nnz = -1;
-    std::vector<SamplingScalingRow> scaling_rows;
-    scaling_rows.reserve(threads.size());
+    std::vector<SamplingScalingRecord> scaling_records;
+    scaling_records.reserve(threads.size());
     long baseline_us = 0;
     int baseline_threads = 1;
     bool exact = true;
@@ -485,7 +430,7 @@ static bool run_sampling_scaling(
             dist, dist.n_rows, dist.n_cols, 0, 0, sampled_nnz,
             values.data(), rows.data(), cols.data(), seed_state
         );
-        if (scaling_rows.empty()) {
+        if (scaling_records.empty()) {
             expected_nnz = sampled_nnz;
             expected_values = values;
             expected_rows = rows;
@@ -513,7 +458,7 @@ static bool run_sampling_scaling(
                 values.data(), rows.data(), cols.data(), seed_state
             );
         }, num_trials);
-        if (scaling_rows.empty()) {
+        if (scaling_records.empty()) {
             baseline_us = min_us;
             baseline_threads = actual_threads;
         }
@@ -522,7 +467,7 @@ static bool run_sampling_scaling(
             : -1.0;
         const double relative_threads = static_cast<double>(actual_threads)
             / static_cast<double>(baseline_threads);
-        scaling_rows.push_back({
+        scaling_records.push_back({
             thread_count, actual_threads, min_us, median_us,
             static_cast<double>(min_us) * 1000.0
                 / static_cast<double>(sampled_nnz),
@@ -539,14 +484,14 @@ static bool run_sampling_scaling(
               << std::setw(10) << "Spd(min)"
               << std::setw(10) << "Eff(min)" << "\n"
               << "  " << std::string(65, '-') << "\n";
-    for (const SamplingScalingRow &row : scaling_rows) {
-        std::cout << "  " << std::right << std::setw(6) << row.requested_threads
-                  << std::setw(6) << row.threads
-                  << std::setw(10) << row.min_us
-                  << std::setw(10) << row.median_us
-                  << std::setw(13) << fcell(row.ns_per_nonzero, 2)
-                  << std::setw(10) << fcell(row.speedup, 2)
-                  << std::setw(10) << fcell(row.efficiency, 2) << "\n";
+    for (const SamplingScalingRecord &record : scaling_records) {
+        std::cout << "  " << std::right << std::setw(6) << record.requested_threads
+                  << std::setw(6) << record.threads
+                  << std::setw(10) << record.min_us
+                  << std::setw(10) << record.median_us
+                  << std::setw(13) << fcell(record.ns_per_nonzero, 2)
+                  << std::setw(10) << fcell(record.speedup, 2)
+                  << std::setw(10) << fcell(record.efficiency, 2) << "\n";
     }
     std::cout << "  exact output/state: " << (exact ? "PASS" : "FAIL") << "\n\n";
     return exact;

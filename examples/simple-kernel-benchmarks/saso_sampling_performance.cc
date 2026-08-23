@@ -41,7 +41,7 @@
 //   * partial Fisher-Yates with a fresh length-n iota per vector
 //   * full std::shuffle followed by the first k entries
 //   * uniform draws with linear duplicate rejection
-//   * Floyd's algorithm with a reusable fixed open-addressing table
+//   * Floyd's algorithm with std::unordered_set
 //   * RandBLAS::repeated_fisher_yates
 //
 // The first table is a natural-library comparison: the five alternatives use
@@ -94,11 +94,8 @@
 
 #include <RandBLAS.hh>
 #include "RandBLAS/config.h"
+#include "RandBLAS/testing/benchmarking.hh"
 #include "RandBLAS/testing/samplers.hh"
-
-#if defined(RandBLAS_HAS_OpenMP)
-#include <omp.h>
-#endif
 
 #include <algorithm>
 #include <chrono>
@@ -113,6 +110,11 @@
 #include <utility>
 #include <vector>
 
+using RandBLAS::testing::current_threads;
+using RandBLAS::testing::effective_threads;
+using RandBLAS::testing::OpenMPSettingsGuard;
+using RandBLAS::testing::set_threads;
+
 // MARK: benchmark setup
 
 struct Config {
@@ -121,7 +123,7 @@ struct Config {
     int64_t vec_nnz;
 };
 
-struct Row {
+struct Record {
     std::string label;
     int64_t min_ns = 0;
     int64_t median_ns = 0;
@@ -130,7 +132,7 @@ struct Row {
     std::string notes;
 };
 
-struct ScalingRow {
+struct ScalingRecord {
     int requested_threads;
     int threads;
     int64_t min_ns;
@@ -138,63 +140,6 @@ struct ScalingRow {
     double ns_per_nonzero;
     double speedup;
     double efficiency;
-};
-
-static int current_threads() {
-#if defined(RandBLAS_HAS_OpenMP)
-    return omp_get_max_threads();
-#else
-    return 1;
-#endif
-}
-
-static void set_threads(int thread_count) {
-#if defined(RandBLAS_HAS_OpenMP)
-    omp_set_dynamic(0);
-    omp_set_num_threads(thread_count);
-#else
-    (void) thread_count;
-#endif
-}
-
-static int effective_threads(int requested_threads) {
-#if defined(RandBLAS_HAS_OpenMP)
-    int actual_threads = 1;
-    #pragma omp parallel num_threads(requested_threads)
-    {
-        #pragma omp single
-        {
-            actual_threads = omp_get_num_threads();
-        }
-    }
-    return actual_threads;
-#else
-    (void) requested_threads;
-    return 1;
-#endif
-}
-
-class OpenMPSettingsGuard {
-public:
-    OpenMPSettingsGuard() {
-#if defined(RandBLAS_HAS_OpenMP)
-        dynamic_ = omp_get_dynamic();
-        threads_ = omp_get_max_threads();
-#endif
-    }
-
-    ~OpenMPSettingsGuard() {
-#if defined(RandBLAS_HAS_OpenMP)
-        omp_set_num_threads(threads_);
-        omp_set_dynamic(dynamic_);
-#endif
-    }
-
-private:
-#if defined(RandBLAS_HAS_OpenMP)
-    int dynamic_;
-    int threads_;
-#endif
 };
 
 template <typename Func>
@@ -233,23 +178,24 @@ static void print_table_header(const std::string &title) {
     std::cout << "  " << std::string(105, '-') << "\n";
 }
 
-static void print_table_row(const Row &row) {
-    std::cout << "  " << std::left << std::setw(29) << row.label
-              << std::right << std::setw(13) << row.min_ns
-              << std::setw(13) << row.median_ns
-              << std::setw(13) << format_cell(row.ns_per_nonzero, 2)
-              << std::setw(12) << format_cell(row.speedup_vs_std_sample, 2)
-              << "  " << row.notes << "\n";
+static void print_table_record(const Record &record) {
+    std::cout << "  " << std::left << std::setw(29) << record.label
+              << std::right << std::setw(13) << record.min_ns
+              << std::setw(13) << record.median_ns
+              << std::setw(13) << format_cell(record.ns_per_nonzero, 2)
+              << std::setw(12) << format_cell(record.speedup_vs_std_sample, 2)
+              << "  " << record.notes << "\n";
 }
 
-static void fill_speedups(std::vector<Row> &rows) {
-    if (rows.empty() || rows.front().min_ns <= 0) {
+static void fill_speedups(std::vector<Record> &records) {
+    if (records.empty() || records.front().min_ns <= 0) {
         return;
     }
-    double baseline = static_cast<double>(rows.front().min_ns);
-    for (Row &row : rows) {
-        if (row.min_ns > 0) {
-            row.speedup_vs_std_sample = baseline / static_cast<double>(row.min_ns);
+    double baseline = static_cast<double>(records.front().min_ns);
+    for (Record &record : records) {
+        if (record.min_ns > 0) {
+            record.speedup_vs_std_sample = baseline
+                / static_cast<double>(record.min_ns);
         }
     }
 }
@@ -306,7 +252,7 @@ static bool saso_data_is_valid(
 // MARK: support-only benchmarks
 
 template <typename RNG, typename Sampler>
-static Row benchmark_support_method(
+static Record benchmark_support_method(
     const std::string &label, const std::string &notes, const Config &config,
     int64_t num_trials, uint64_t seed, Sampler sampler
 ) {
@@ -324,16 +270,18 @@ static Row benchmark_support_method(
     bool valid = support_is_valid(config, samples);
     auto [min_ns, median_ns] = run_trials(sample, num_trials);
 
-    Row row;
-    row.label = label;
-    row.min_ns = min_ns;
-    row.median_ns = median_ns;
-    row.ns_per_nonzero = static_cast<double>(min_ns) / static_cast<double>(nnz);
-    row.notes = valid ? notes : "FAIL: invalid support; " + notes;
-    return row;
+    Record record;
+    record.label = label;
+    record.min_ns = min_ns;
+    record.median_ns = median_ns;
+    record.ns_per_nonzero = static_cast<double>(min_ns) / static_cast<double>(nnz);
+    record.notes = valid ? notes : "FAIL: invalid support; " + notes;
+    return record;
 }
 
-static Row benchmark_randblas_support(const Config &config, int64_t num_trials, uint64_t seed) {
+static Record benchmark_randblas_support(
+    const Config &config, int64_t num_trials, uint64_t seed
+) {
     int64_t nnz = config.num_major_axis_vectors * config.vec_nnz;
     std::vector<int64_t> samples(nnz, -1);
     RandBLAS::RNGState<> state(seed);
@@ -348,71 +296,71 @@ static Row benchmark_randblas_support(const Config &config, int64_t num_trials, 
     bool valid = support_is_valid(config, samples);
     auto [min_ns, median_ns] = run_trials(sample, num_trials);
 
-    Row row;
-    row.label = "RandBLAS repeated FY";
-    row.min_ns = min_ns;
-    row.median_ns = median_ns;
-    row.ns_per_nonzero = static_cast<double>(min_ns) / static_cast<double>(nnz);
+    Record record;
+    record.label = "RandBLAS repeated FY";
+    record.min_ns = min_ns;
+    record.median_ns = median_ns;
+    record.ns_per_nonzero = static_cast<double>(min_ns) / static_cast<double>(nnz);
     if (config.vec_nnz == 1) {
-        row.notes = "O(r), specialized i.i.d. path";
+        record.notes = "O(r), specialized i.i.d. path";
     } else {
-        row.notes = "O(n + r*k), restore k swaps";
+        record.notes = "O(n + r*k), restore k swaps";
     }
     if (!valid) {
-        row.notes = "FAIL: invalid support; " + row.notes;
+        record.notes = "FAIL: invalid support; " + record.notes;
     }
-    return row;
+    return record;
 }
 
 template <typename RNG>
-static std::vector<Row> support_rows(
+static std::vector<Record> support_records(
     const Config &config, int64_t num_trials, uint64_t seed
 ) {
     using namespace RandBLAS::testing;
-    std::vector<Row> rows;
-    rows.push_back(benchmark_support_method<RNG>(
+    std::vector<Record> records;
+    records.push_back(benchmark_support_method<RNG>(
         "std::sample(iota vector)", "O(r*n), O(n) workspace",
         config, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_std_sample(n, r, k, output, rng);
         }
     ));
-    rows.push_back(benchmark_support_method<RNG>(
+    records.push_back(benchmark_support_method<RNG>(
         "partial FY + iota reset", "O(r*n), reset dominates for k << n",
         config, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_partial_fisher_yates(n, r, k, output, rng);
         }
     ));
-    rows.push_back(benchmark_support_method<RNG>(
+    records.push_back(benchmark_support_method<RNG>(
         "full std::shuffle", "O(r*n), take first k", config, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_full_shuffle(n, r, k, output, rng);
         }
     ));
-    rows.push_back(benchmark_support_method<RNG>(
+    records.push_back(benchmark_support_method<RNG>(
         "draw/reject + linear find", "O(r*k^2) expected when k << n",
         config, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_rejection(n, r, k, output, rng);
         }
     ));
-    rows.push_back(benchmark_support_method<RNG>(
-        "Floyd + fixed hash", "O(r*k) expected, reusable table",
+    records.push_back(benchmark_support_method<RNG>(
+        "Floyd + unordered_set", "O(r*k) expected",
         config, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_floyd(n, r, k, output, rng);
         }
     ));
-    rows.push_back(benchmark_randblas_support(config, num_trials, seed));
-    fill_speedups(rows);
-    return rows;
+    records.push_back(benchmark_randblas_support(config, num_trials, seed));
+    fill_speedups(records);
+    return records;
 }
 
 // MARK: end-to-end COO benchmarks
 
 template <typename RNG, typename Sampler>
-static Row benchmark_saso_data_method(
+static Record benchmark_saso_data_method(
     const std::string &label, const std::string &notes, const Config &config,
     bool major_is_rows, int64_t num_trials, uint64_t seed, Sampler sampler
 ) {
@@ -432,16 +380,16 @@ static Row benchmark_saso_data_method(
     bool valid = saso_data_is_valid(config, major_is_rows, rows, cols, values);
     auto [min_ns, median_ns] = run_trials(sample, num_trials);
 
-    Row row;
-    row.label = label;
-    row.min_ns = min_ns;
-    row.median_ns = median_ns;
-    row.ns_per_nonzero = static_cast<double>(min_ns) / static_cast<double>(nnz);
-    row.notes = valid ? notes : "FAIL: invalid COO data; " + notes;
-    return row;
+    Record record;
+    record.label = label;
+    record.min_ns = min_ns;
+    record.median_ns = median_ns;
+    record.ns_per_nonzero = static_cast<double>(min_ns) / static_cast<double>(nnz);
+    record.notes = valid ? notes : "FAIL: invalid COO data; " + notes;
+    return record;
 }
 
-static Row benchmark_randblas_saso_data(
+static Record benchmark_randblas_saso_data(
     const Config &config, bool major_is_rows, int64_t num_trials, uint64_t seed
 ) {
     int64_t nnz = config.num_major_axis_vectors * config.vec_nnz;
@@ -472,70 +420,74 @@ static Row benchmark_randblas_saso_data(
         && saso_data_is_valid(config, major_is_rows, rows, cols, values);
     auto [min_ns, median_ns] = run_trials(sample, num_trials);
 
-    Row row;
-    row.label = "RandBLAS fill unpacked";
-    row.min_ns = min_ns;
-    row.median_ns = median_ns;
-    row.ns_per_nonzero = static_cast<double>(min_ns) / static_cast<double>(nnz);
-    row.notes = config.vec_nnz == 1
+    Record record;
+    record.label = "RandBLAS fill unpacked";
+    record.min_ns = min_ns;
+    record.median_ns = median_ns;
+    record.ns_per_nonzero = static_cast<double>(min_ns) / static_cast<double>(nnz);
+    record.notes = config.vec_nnz == 1
         ? "fused support/sign; i.i.d. path; sorted"
         : "fused support/sign; restore swaps; sorted";
     if (!valid) {
-        row.notes = "FAIL: invalid COO data; " + row.notes;
+        record.notes = "FAIL: invalid COO data; " + record.notes;
     }
-    return row;
+    return record;
 }
 
 template <typename RNG>
-static std::vector<Row> saso_data_rows(
+static std::vector<Record> saso_data_records(
     const Config &config, bool major_is_rows, int64_t num_trials, uint64_t seed
 ) {
     using namespace RandBLAS::testing;
-    std::vector<Row> rows;
-    rows.push_back(benchmark_saso_data_method<RNG>(
+    std::vector<Record> records;
+    records.push_back(benchmark_saso_data_method<RNG>(
         "std::sample(iota vector)", "support + minor + sign + sort",
         config, major_is_rows, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_std_sample(n, r, k, output, rng);
         }
     ));
-    rows.push_back(benchmark_saso_data_method<RNG>(
+    records.push_back(benchmark_saso_data_method<RNG>(
         "partial FY + iota reset", "support + minor + sign + sort",
         config, major_is_rows, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_partial_fisher_yates(n, r, k, output, rng);
         }
     ));
-    rows.push_back(benchmark_saso_data_method<RNG>(
+    records.push_back(benchmark_saso_data_method<RNG>(
         "full std::shuffle", "support + minor + sign + sort",
         config, major_is_rows, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_full_shuffle(n, r, k, output, rng);
         }
     ));
-    rows.push_back(benchmark_saso_data_method<RNG>(
+    records.push_back(benchmark_saso_data_method<RNG>(
         "draw/reject + linear find", "support + minor + sign + sort",
         config, major_is_rows, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_rejection(n, r, k, output, rng);
         }
     ));
-    rows.push_back(benchmark_saso_data_method<RNG>(
-        "Floyd + fixed hash", "support + minor + sign + sort",
+    records.push_back(benchmark_saso_data_method<RNG>(
+        "Floyd + unordered_set", "support + minor + sign + sort",
         config, major_is_rows, num_trials, seed,
         [](int64_t n, int64_t r, int64_t k, int64_t *output, auto &rng) {
             sample_floyd(n, r, k, output, rng);
         }
     ));
-    rows.push_back(benchmark_randblas_saso_data(config, major_is_rows, num_trials, seed));
-    fill_speedups(rows);
-    return rows;
+    records.push_back(benchmark_randblas_saso_data(
+        config, major_is_rows, num_trials, seed
+    ));
+    fill_speedups(records);
+    return records;
 }
 
-static void print_rows(const std::string &title, const std::vector<Row> &rows) {
+static void print_records(
+    const std::string &title, const std::vector<Record> &records
+) {
     print_table_header(title);
-    for (const Row &row : rows) {
-        print_table_row(row);
+    for (const Record &record : records) {
+        print_table_record(record);
     }
     std::cout << "\n";
 }
@@ -550,8 +502,8 @@ static bool run_scaling(
     std::vector<int64_t> samples(nnz, -1);
     std::vector<int64_t> expected_samples;
     RandBLAS::RNGState<> expected_state(seed);
-    std::vector<ScalingRow> rows;
-    rows.reserve(thread_counts.size());
+    std::vector<ScalingRecord> records;
+    records.reserve(thread_counts.size());
     bool exact = true;
     int64_t baseline_ns = 0;
     int baseline_threads = 1;
@@ -569,7 +521,7 @@ static bool run_scaling(
             samples.data(), state
         );
         exact = exact && support_is_valid(config, samples);
-        if (rows.empty()) {
+        if (records.empty()) {
             expected_samples = samples;
             expected_state = end_state;
         } else {
@@ -585,7 +537,7 @@ static bool run_scaling(
                 samples.data(), trial_state
             );
         }, num_trials);
-        if (rows.empty()) {
+        if (records.empty()) {
             baseline_ns = min_ns;
             baseline_threads = actual_threads;
         }
@@ -594,7 +546,7 @@ static bool run_scaling(
             : -1.0;
         const double relative_threads = static_cast<double>(actual_threads)
             / static_cast<double>(baseline_threads);
-        rows.push_back({
+        records.push_back({
             thread_count, actual_threads, min_ns, median_ns,
             static_cast<double>(min_ns) / static_cast<double>(nnz),
             speedup, speedup / relative_threads
@@ -617,14 +569,14 @@ static bool run_scaling(
               << std::setw(11) << "Spd(min)"
               << std::setw(11) << "Eff(min)" << "\n"
               << "  " << std::string(74, '-') << "\n";
-    for (const ScalingRow &row : rows) {
-        std::cout << "  " << std::right << std::setw(7) << row.requested_threads
-                  << std::setw(8) << row.threads
-                  << std::setw(13) << row.min_ns
-                  << std::setw(13) << row.median_ns
-                  << std::setw(13) << format_cell(row.ns_per_nonzero, 2)
-                  << std::setw(11) << format_cell(row.speedup, 2)
-                  << std::setw(11) << format_cell(row.efficiency, 2) << "\n";
+    for (const ScalingRecord &record : records) {
+        std::cout << "  " << std::right << std::setw(7) << record.requested_threads
+                  << std::setw(8) << record.threads
+                  << std::setw(13) << record.min_ns
+                  << std::setw(13) << record.median_ns
+                  << std::setw(13) << format_cell(record.ns_per_nonzero, 2)
+                  << std::setw(11) << format_cell(record.speedup, 2)
+                  << std::setw(11) << format_cell(record.efficiency, 2) << "\n";
     }
     std::cout << "\n  Exact output/state check: "
               << (exact ? "PASS" : "FAIL") << "\n\n";
@@ -637,14 +589,14 @@ static void run_support_tables(const Config &config, int64_t num_trials, bool in
               << " r=" << config.num_major_axis_vectors
               << " k=" << config.vec_nnz
               << ", trials=" << num_trials << " ===\n\n";
-    print_rows(
+    print_records(
         "natural C++ RNGs: std::mt19937_64 versus native RandBLAS Philox",
-        support_rows<std::mt19937_64>(config, num_trials, seed)
+        support_records<std::mt19937_64>(config, num_trials, seed)
     );
     if (include_controlled) {
-        print_rows(
+        print_records(
             "controlled engine: Philox for every implementation",
-            support_rows<RandBLAS::testing::PhiloxURBG>(config, num_trials, seed)
+            support_records<RandBLAS::testing::PhiloxURBG>(config, num_trials, seed)
         );
     }
 }
@@ -661,16 +613,16 @@ static void run_saso_data_tables(
               << " r=" << config.num_major_axis_vectors
               << " k=" << config.vec_nnz
               << ", trials=" << num_trials << " ===\n\n";
-    print_rows(
+    print_records(
         "natural C++ RNGs: support, minor coordinates, signs, and sorting",
-        saso_data_rows<std::mt19937_64>(
+        saso_data_records<std::mt19937_64>(
             config, major_is_rows, num_trials, seed
         )
     );
     if (include_controlled) {
-        print_rows(
+        print_records(
             "controlled engine: support, minor coordinates, signs, and sorting",
-            saso_data_rows<RandBLAS::testing::PhiloxURBG>(
+            saso_data_records<RandBLAS::testing::PhiloxURBG>(
                 config, major_is_rows, num_trials, seed
             )
         );
