@@ -41,7 +41,12 @@ using RandBLAS::repeated_fisher_yates;
 #include "RandBLAS/testing/stats.hh"
 #include "RandBLAS/testing/comparison.hh"
 
+#if defined(RandBLAS_HAS_OpenMP)
+#include <omp.h>
+#endif
+
 #include <algorithm>
+#include <array>
 #include <iostream>
 #include <iterator>
 #include <random>
@@ -342,6 +347,150 @@ TEST_F(TestSampleIndices, rngstate_updates_iid) {
 TEST_F(TestSampleIndices, rngstate_updates_fisher_yates) {
     test_updated_rngstates_fisher_yates();
 }
+
+TEST_F(TestSampleIndices, fisher_yates_can_sort_major_axis_vectors) {
+    // Sparse-operator construction needs each major-axis vector in ascending
+    // coordinate order, while the public sampling function preserves the raw
+    // Fisher--Yates order. Generate both forms from the same state, manually
+    // sort each raw (coordinate, value) pair, and compare that reference with
+    // the opt-in sorted result. This also checks that sorting leaves the minor
+    // coordinate and returned RNG state unchanged.
+    constexpr int64_t dim_major = 29;
+    constexpr int64_t num_vectors = 8;
+    constexpr int64_t vec_nnz = 7;
+    constexpr int64_t nnz = num_vectors * vec_nnz;
+    RandBLAS::RNGState<> seed(1729);
+    seed.counter.incr(306);
+    std::vector<int64_t> raw_major(nnz);
+    std::vector<int64_t> raw_minor(nnz);
+    std::vector<double> raw_vals(nnz);
+    std::vector<int64_t> sorted_major(nnz);
+    std::vector<int64_t> sorted_minor(nnz);
+    std::vector<double> sorted_vals(nnz);
+
+    auto raw_state = RandBLAS::sparse::repeated_fisher_yates(
+        seed, vec_nnz, dim_major, num_vectors,
+        raw_major.data(), raw_minor.data(), raw_vals.data(), false
+    );
+    auto sorted_state = RandBLAS::sparse::repeated_fisher_yates(
+        seed, vec_nnz, dim_major, num_vectors,
+        sorted_major.data(), sorted_minor.data(), sorted_vals.data(), true
+    );
+
+    EXPECT_EQ(sorted_state, raw_state);
+    for (int64_t i = 0; i < num_vectors; ++i) {
+        const int64_t offset = i * vec_nnz;
+        std::vector<std::pair<int64_t, double>> expected(vec_nnz);
+        for (int64_t j = 0; j < vec_nnz; ++j) {
+            expected[j] = {raw_major[offset + j], raw_vals[offset + j]};
+        }
+        std::sort(expected.begin(), expected.end());
+        for (int64_t j = 0; j < vec_nnz; ++j) {
+            EXPECT_EQ(sorted_major[offset + j], expected[j].first);
+            EXPECT_EQ(sorted_vals[offset + j], expected[j].second);
+            EXPECT_EQ(sorted_minor[offset + j], i);
+        }
+    }
+}
+
+
+#if defined(RandBLAS_HAS_OpenMP)
+TEST_F(TestSampleIndices, fisher_yates_is_thread_count_independent) {
+    // Parallel sampling must reproduce the serial samples and the serial end
+    // state exactly. Use one thread to define the reference result, then repeat
+    // the same call with one, two, and four threads. The two vec_nnz values
+    // exercise both the single-index fast path and the general Fisher-Yates
+    // path, and the nonzero initial counter catches implementations that
+    // accidentally treat the counter as though it always starts at zero.
+    constexpr int64_t n = 29;
+    constexpr int64_t num_vectors = 2048;
+    constexpr std::array<int64_t, 2> vec_nnz_values{1, 7};
+    constexpr std::array<int, 3> thread_counts{1, 2, 4};
+    const int saved_dynamic = omp_get_dynamic();
+    const int saved_max_threads = omp_get_max_threads();
+    omp_set_dynamic(0);
+
+    for (int64_t vec_nnz : vec_nnz_values) {
+        RandBLAS::RNGState<> seed(1729);
+        seed.counter.incr(306);
+        std::vector<int64_t> expected(num_vectors * vec_nnz, -1);
+
+        omp_set_num_threads(1);
+        auto expected_state = RandBLAS::repeated_fisher_yates(
+            vec_nnz, n, num_vectors, expected.data(), seed
+        );
+
+        for (int thread_count : thread_counts) {
+            std::vector<int64_t> actual(num_vectors * vec_nnz, -1);
+            omp_set_num_threads(thread_count);
+            auto actual_state = RandBLAS::repeated_fisher_yates(
+                vec_nnz, n, num_vectors, actual.data(), seed
+            );
+            EXPECT_EQ(actual, expected);
+            EXPECT_EQ(actual_state, expected_state);
+        }
+    }
+
+    omp_set_num_threads(saved_max_threads);
+    omp_set_dynamic(saved_dynamic);
+}
+
+TEST_F(TestSampleIndices, fisher_yates_is_exact_at_parallel_policy_boundary) {
+    // General Fisher-Yates enters the parallel path when num_vectors * vec_nnz
+    // reaches 1024. With vec_nnz = 4, 255 vectors give 1020 units of useful
+    // work and stay serial, while 256 vectors give 1024 and use the four
+    // available threads. Compare both workloads against one-thread references
+    // to check exactness on either side of that policy boundary.
+    constexpr int64_t n = 29;
+    constexpr int64_t vec_nnz = 4;
+    constexpr std::array<int64_t, 2> num_vectors_values{255, 256};
+    const int saved_dynamic = omp_get_dynamic();
+    const int saved_max_threads = omp_get_max_threads();
+    omp_set_dynamic(0);
+    omp_set_num_threads(4);
+
+    EXPECT_EQ(RandBLAS::sparse::sparse_sampling_thread_count(n, 255, vec_nnz, true), 1);
+    EXPECT_EQ(RandBLAS::sparse::sparse_sampling_thread_count(n, 256, vec_nnz, true), 4);
+
+    RandBLAS::RNGState<> seed(20260822);
+    seed.counter.incr(173);
+    for (int64_t num_vectors : num_vectors_values) {
+        std::vector<int64_t> expected(num_vectors * vec_nnz, -1);
+        std::vector<int64_t> actual(num_vectors * vec_nnz, -1);
+        omp_set_num_threads(1);
+        auto expected_state = RandBLAS::repeated_fisher_yates(
+            vec_nnz, n, num_vectors, expected.data(), seed
+        );
+        omp_set_num_threads(4);
+        auto actual_state = RandBLAS::repeated_fisher_yates(
+            vec_nnz, n, num_vectors, actual.data(), seed
+        );
+
+        EXPECT_EQ(actual, expected);
+        EXPECT_EQ(actual_state, expected_state);
+    }
+
+    omp_set_num_threads(saved_max_threads);
+    omp_set_dynamic(saved_dynamic);
+}
+
+TEST_F(TestSampleIndices, sparse_sampling_thread_policy_uses_available_threads) {
+    // The sampling policy should use the OpenMP threads available to a large
+    // job without paying parallel overhead for a small job. Advertise four
+    // threads, then check one problem above the policy's work threshold and
+    // one below it.
+    const int saved_dynamic = omp_get_dynamic();
+    const int saved_max_threads = omp_get_max_threads();
+    omp_set_dynamic(0);
+    omp_set_num_threads(4);
+
+    EXPECT_EQ(RandBLAS::sparse::sparse_sampling_thread_count(2000, 100000, 4, true), 4);
+    EXPECT_EQ(RandBLAS::sparse::sparse_sampling_thread_count(2000, 100, 4, true), 1);
+
+    omp_set_num_threads(saved_max_threads);
+    omp_set_dynamic(saved_dynamic);
+}
+#endif
 
 
 TEST_F(TestSampleIndices, smoke_3_x_10) {

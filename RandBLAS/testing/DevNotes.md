@@ -2,6 +2,12 @@
 
 **None of the files in this directory are part of RandBLAS' public API.**
 
+benchmarking.hh.
+
+  Small helpers shared by performance benchmarks, including OpenMP settings
+  and command-line thread-list parsing.
+  The OpenMP helpers become serial no-ops when RandBLAS is built without OpenMP.
+
 comparison.hh.
 
   This currently holds a single utility function for testing approximate-equality of floating point numbers.
@@ -17,6 +23,13 @@ linops.hh.
   A given datatype needs to implement to_explicit_buffer, left_apply, and right_apply.
   This file also defines functions reference_left_apply and reference_right_apply,
   which compute an expected answer and a componentwise error tolerance of a given matrix-matrix product.
+
+samplers.hh.
+
+  Baseline samplers shared by tests and benchmarks.
+  Everything here is discrete uniform in some sense: uniform random bits, uniform indices,
+  uniform subsets, or Rademacher signs.
+  Future baseline samplers of this kind should go in this file.
 
 sparse_data.hh.
 

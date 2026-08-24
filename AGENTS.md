@@ -10,6 +10,8 @@ RandBLAS is a header-only C++ library for sketching in randomized linear algebra
 
 - **Web Documentation**: https://randblas.readthedocs.io/en/1.1.0/
 - **Main Repository**: https://github.com/BallisticLA/RandBLAS
+- **Style Guide**: `STYLE_GUIDE.md`. Improvements to this guide are always in
+  scope for any pull request, regardless of that pull request's primary purpose.
 - **DevNotes**: Critical implementation details are in `RandBLAS/DevNotes.md`, `RandBLAS/sparse_data/DevNotes.md`, and `test/DevNotes.md`
 
 ## Architecture and Code Organization

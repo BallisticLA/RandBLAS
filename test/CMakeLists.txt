@@ -64,6 +64,7 @@ if (GTest_FOUND)
         basic_rng/test_discrete.cc
         basic_rng/test_continuous.cc
         basic_rng/test_distortion.cc
+        basic_rng/test_samplers.cc
     )
     add_executable(stat_tests ${STAT_SOURCES})
     target_link_libraries(stat_tests RandBLAS GTest::GTest GTest::Main)
@@ -79,7 +80,12 @@ if (GTest_FOUND)
     #
     #####################################################################
 
-    set(META_SOURCES meta/test_lapack_like.cc meta/test_sparse_data_generators.cc meta/test_comparison.cc)
+    set(META_SOURCES
+        meta/test_benchmarking.cc
+        meta/test_comparison.cc
+        meta/test_lapack_like.cc
+        meta/test_sparse_data_generators.cc
+    )
     add_executable(meta_tests ${META_SOURCES})
     target_link_libraries(meta_tests RandBLAS GTest::GTest GTest::Main)
     randblas_stage_runtime_dlls(meta_tests)

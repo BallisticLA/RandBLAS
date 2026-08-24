@@ -39,6 +39,7 @@
 #include "RandBLAS/sparse_data/csc_spmm_impl.hh"
 #include "RandBLAS/sparse_data/csr_spmm_impl.hh"
 #include "RandBLAS/sparse_data/coo_spmm_impl.hh"
+#include "RandBLAS/util.hh"
 #include "RandBLAS/config.h"
 #if defined(RandBLAS_HAS_MKL)
 #include "RandBLAS/sparse_data/mkl_spmm_impl.hh"
@@ -69,13 +70,9 @@ void left_spmm(
 ) {
     using blas::Layout;
     using blas::Op;
-    // Applying a transposed sparse matrix reduces to the NoTrans case on a
-    // zero-copy transpose view (CSR<->CSC, COO<->COO). MKL, when present,
-    // engages on the recursive NoTrans call: mkl_left_spmm handles all three
-    // formats -- including CSC, which it consumes as a CSR-of-transpose view --
-    // so the transposed CSR no longer needs to be pre-routed to MKL here to
-    // avoid a CSC fallback.
     if (opA == Op::Trans) {
+        // Applying a transposed sparse matrix reduces to the NoTrans case on a
+        // zero-copy transpose view (CSR<->CSC, COO<->COO).
         auto At = A.transpose();
         left_spmm(layout, Op::NoTrans, opB, d, n, m, alpha, At, co_a, ro_a, B, ldb, beta, C, ldc);
         return;
@@ -88,83 +85,65 @@ void left_spmm(
     constexpr bool is_csc = std::is_same_v<SpMat, CSCMatrix<T, sint_t>>;
     randblas_require(is_coo || is_csr || is_csc);
 
-    if constexpr (is_coo) {
-        randblas_require(A.n_rows >= d);
-        randblas_require(A.n_cols >= m);
-    } else {
+    validate_submat_dims(A.n_rows, A.n_cols, d, m, ro_a, co_a);
+    if constexpr (!is_coo) {
         randblas_require(A.n_rows == d);
         randblas_require(A.n_cols == m);
         randblas_require(ro_a == 0);
         randblas_require(co_a == 0);
     }
     
-    // Dimensions of B, rather than \op(B)
-    Layout layout_C = layout;
-    Layout layout_opB;
-    int64_t rows_B, cols_B;
-    if (opB == Op::NoTrans) {
-        rows_B = m;
-        cols_B = n;
-        layout_opB = layout;
-    } else {
-        rows_B = n;
-        cols_B = m;
-        layout_opB = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
-    }
-
-    // Check dimensions and compute C = beta * C.
-    //      Note: both B and C are checked based on "layout"; B is *not* checked on layout_opB.
+    // Check dimensions. Both B and C are checked based on "layout", even
+    // if we end up lying about B's layout later on to resolve a transpose.
+    auto [rows_B, cols_B] = dims_before_op(m, n, opB);
     if (layout == Layout::ColMajor) {
         randblas_require(ldb >= rows_B);
         randblas_require(ldc >= d);
-        for (int64_t i = 0; i < n; ++i)
-            RandBLAS::util::safe_scal(d, beta, &C[i*ldc]);
     } else {
         randblas_require(ldc >= n);
         randblas_require(ldb >= cols_B);
-        for (int64_t i = 0; i < d; ++i)
-            RandBLAS::util::safe_scal(n, beta, &C[i*ldc]);
     }
 
-    if (alpha == (T) 0)
+    if (alpha == (T) 0) {
+        RandBLAS::util::lascl(layout, d, n, beta, C, ldc);
         return;
+    }
 
     // Try MKL-accelerated path if available.
     #if defined(RandBLAS_HAS_MKL)
     if constexpr (sizeof(typename SpMat::index_t) == sizeof(MKL_INT)) {
         // mkl_left_spmm returns false if it can't handle this case
-        // (e.g., COO with submatrix offsets, or opB == Trans). CSC is handled
-        // via a CSR-of-transpose view inside mkl_left_spmm.
-        // Beta is already applied to C above, so pass beta=1 to MKL
-        // so it adds alpha*A*B to the existing (pre-scaled) C.
+        // (e.g., COO with submatrix offsets, or opB == Trans).
         bool handled = RandBLAS::sparse_data::mkl::mkl_left_spmm(
             layout, Op::NoTrans, opB, d, n, m, alpha,
-            A, ro_a, co_a, B, ldb, (T)1, C, ldc
+            A, ro_a, co_a, B, ldb, beta, C, ldc
         );
         if (handled)
             return;
     }
     #endif
 
-    // Fallback: hand-rolled sparse kernels.
+    // RandBLAS-defined implementations
+    Layout layout_opB = (opB == Op::NoTrans) ? layout : flipped_layout(layout);
+    RandBLAS::util::lascl(layout, d, n, beta, C, ldc); // <-- TODO: update to perform beta scaling in SPMM kernels.
     if constexpr (is_coo) {
         using RandBLAS::sparse_data::coo::apply_coo_via_csx;
-        apply_coo_via_csx(alpha, layout_opB, layout_C, d, n, m, A, ro_a, co_a, B, ldb, C, ldc);
+        apply_coo_via_csx(alpha, layout_opB, layout, d, n, m, A, ro_a, co_a, B, ldb, C, ldc);
     } else if constexpr (is_csc) {
-        if (layout_opB == Layout::RowMajor && layout_C == Layout::RowMajor) {
+        if (layout_opB == Layout::RowMajor && layout == Layout::RowMajor) {
             using RandBLAS::sparse_data::csc::apply_csc_kib_1p1_rowmajor;
             apply_csc_kib_1p1_rowmajor(alpha, n, A, B, ldb, C, ldc);
         } else {
             using RandBLAS::sparse_data::csc::apply_csc_jki_p11;
-            apply_csc_jki_p11(alpha, layout_opB, layout_C, n, A, B, ldb, C, ldc);
+            apply_csc_jki_p11(alpha, layout_opB, layout, n, A, B, ldb, C, ldc);
         }
     } else {
-        if  (layout_opB == Layout::RowMajor && layout_C == Layout::RowMajor) {
+        if  (layout_opB == Layout::RowMajor && layout == Layout::RowMajor) {
              using RandBLAS::sparse_data::csr::apply_csr_ikb_p1b_rowmajor;
              apply_csr_ikb_p1b_rowmajor(alpha, d, n, m, A, B, ldb, C, ldc);
         } else {
             using RandBLAS::sparse_data::csr::apply_csr_jik_p11;
-            apply_csr_jik_p11(alpha, layout_opB, layout_C, d, n, m, A, B, ldb, C, ldc);
+            apply_csr_jik_p11(alpha, layout_opB, layout, d, n, m, A, B, ldb, C, ldc);
         }
         
     }
@@ -204,7 +183,7 @@ inline void right_spmm(
     using blas::Layout;
     using blas::Op;
     auto trans_opB = (opB == Op::NoTrans) ? Op::Trans : Op::NoTrans;
-    auto trans_layout = (layout == Layout::ColMajor) ? Layout::RowMajor : Layout::ColMajor;
+    auto trans_layout = flipped_layout(layout);
     left_spmm(
         trans_layout, trans_opB, opA,
         d, m, n, alpha, B, i_off, j_off, A, lda, beta, C, ldc

@@ -36,17 +36,58 @@
 #include "RandBLAS/sparse_data/spmm_dispatch.hh"
 
 #include <blas.hh>
+
+#if defined(RandBLAS_HAS_OpenMP)
+#include <omp.h>
+#endif
+
 #include <iostream>
 #include <cstdio>
 #include <cmath>
+#include <cstdint>
 #include <algorithm>
+#include <exception>
 #include <unordered_map>
+#include <vector>
 #include <numeric>
 
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 namespace RandBLAS::sparse {
+
+static inline int sparse_sampling_thread_count(
+    int64_t dim_major, int64_t num_major_axis_vectors, int64_t vec_nnz, bool uses_perm_work
+) {
+    // Two tests are to this policy's constants.
+    //
+    //  - fisher_yates_is_exact_at_parallel_policy_boundary
+    //  - sparse_sampling_thread_policy_uses_available_threads
+    //
+    // Update those tests if you update this policy!
+#if defined(RandBLAS_HAS_OpenMP)
+    int64_t num_threads = std::min<int64_t>(
+        omp_get_max_threads(), num_major_axis_vectors
+    );
+    const int64_t useful_work = num_major_axis_vectors * vec_nnz;
+    if (useful_work < 1024) {
+        return 1;
+    }
+    if (uses_perm_work) {
+        const int64_t amortized_threads = std::max<int64_t>(
+            1, useful_work / dim_major
+        );
+        num_threads = std::min(num_threads, amortized_threads);
+    }
+    return static_cast<int>(std::max<int64_t>(1, num_threads));
+#else
+    (void) dim_major;
+    (void) num_major_axis_vectors;
+    (void) vec_nnz;
+    (void) uses_perm_work;
+    return 1;
+#endif
+}
 
 template <typename T, SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
 void _considerate_fisher_yates(
@@ -94,6 +135,75 @@ void _considerate_fisher_yates(
     return;
 }
 
+template <typename T, SignedInteger sint_t>
+static void sort_major_axis_vector(sint_t *idxs_major, T *vals, int64_t len) {
+    // Keep values paired with their major coordinates. The minor coordinate is
+    // constant within a vector, so it does not participate in the permutation.
+    // These vectors are normally short, making insertion sort allocation-free
+    // and inexpensive.
+    if (vals == nullptr) {
+        std::sort(idxs_major, idxs_major + len);
+        return;
+    }
+    for (int64_t i = 1; i < len; ++i) {
+        const sint_t major = idxs_major[i];
+        const T val = vals[i];
+        int64_t j = i - 1;
+        for (; j >= 0 && idxs_major[j] > major; --j) {
+            idxs_major[j + 1] = idxs_major[j];
+            vals[j + 1] = vals[j];
+        }
+        idxs_major[j + 1] = major;
+        vals[j + 1] = val;
+    }
+}
+
+template <typename T, SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
+static void sample_singleton_vectors(
+    const state_t &state,
+    int64_t dim_major,
+    int64_t dim_minor,
+    sint_t *idxs_major,
+    sint_t *idxs_minor,
+    T *vals
+) {
+    // Sampling one location without replacement is ordinary uniform sampling.
+    // Give each physical thread one contiguous range of logical vectors so a
+    // thread can process its range with a single batched sampler call.
+    [[maybe_unused]] const int num_threads = sparse_sampling_thread_count(
+        dim_major, dim_minor, 1, false
+    );
+    const auto base_ctr = state.counter;
+    #pragma omp parallel num_threads(num_threads) if(num_threads > 1)
+    {
+        const int tid       = randblas_get_thread_num();
+        const int team_size = randblas_get_num_threads();
+        const int64_t chunk = dim_minor / team_size;
+        const int64_t rem   = dim_minor % team_size;
+        const int64_t begin = tid * chunk + std::min<int64_t>(tid, rem);
+        const int64_t end   = begin + chunk + (tid < rem);
+        auto chunk_ctr = base_ctr;
+        chunk_ctr.incr(begin);
+        state_t chunk_state{chunk_ctr, state.key};
+        if (vals != nullptr) {
+            sample_indices_iid_uniform<T, sint_t, true>(
+                dim_major, end - begin, idxs_major + begin,
+                vals + begin, chunk_state
+            );
+        } else {
+            sample_indices_iid_uniform<sint_t>(
+                dim_major, end - begin, idxs_major + begin, chunk_state
+            );
+        }
+        if (idxs_minor != nullptr) {
+            std::iota(
+                idxs_minor + begin, idxs_minor + end, static_cast<sint_t>(begin)
+            );
+        }
+    }
+}
+
+
 template <typename T, SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
 static state_t repeated_fisher_yates(
     const state_t &state,
@@ -102,43 +212,66 @@ static state_t repeated_fisher_yates(
     int64_t dim_minor,
     sint_t *idxs_major,
     sint_t *idxs_minor,
-    T *vals
+    T *vals,
+    bool apply_sort
 ) {
     randblas_error_if(vec_nnz > dim_major);
+    const int64_t full_incr = safe_int_product(dim_minor, vec_nnz);
+    if (vals != nullptr) {
+        randblas_require(state.len_c >= 4);
+    } else {
+        randblas_require(state.len_c >= 2);
+    }
+    auto end_ctr = state.counter;
+    end_ctr.incr(full_incr);
+    auto out = state_t{end_ctr, state.key};
+
     if (vec_nnz == 1) {
-        // Sampling 1 element without replacement is the same as with replacement,
-        // so delegate to the cheaper i.i.d. sampler in a single batched call.
-        if (idxs_minor != nullptr)
-            std::iota(idxs_minor, idxs_minor + dim_minor, sint_t{0});
-        if (vals != nullptr) {
-            return sample_indices_iid_uniform<T, sint_t, true>(
-                dim_major, dim_minor, idxs_major, vals, state);
-        } else {
-            return sample_indices_iid_uniform<sint_t>(
-                dim_major, dim_minor, idxs_major, state);
-        }
+        sample_singleton_vectors(state, dim_major, dim_minor, idxs_major, idxs_minor, vals);
+        return out;
     }
-    std::vector<sint_t> vec_work(dim_major);
-    std::iota(vec_work.begin(), vec_work.end(), 0);
-    std::vector<sint_t> pivots(vec_nnz);
-    auto [ctr, key] = state;
-    for (sint_t i = 0; i < dim_minor; ++i) {
-        state_t state_work{ctr, state.key};
+
+    // Each thread owns one reusable permutation and pivot workspace. Logical
+    // vector indices, rather than physical thread IDs, determine counter ranges.
+    const int num_threads     = sparse_sampling_thread_count(dim_major, dim_minor, vec_nnz, true);
+    const int64_t perm_size   = safe_int_product(dim_major, static_cast<int64_t>(num_threads));
+    const int64_t pivot_size  = safe_int_product(vec_nnz,   static_cast<int64_t>(num_threads));
+    std::vector<sint_t> perm_works(perm_size);
+    std::vector<sint_t> pivot_works(pivot_size);
+
+    const auto base_ctr = state.counter;
+    auto sample_lane = [&](int64_t i, int tid) {
+        const int64_t offset = i * vec_nnz;
+        auto vec_ctr = base_ctr;
+        vec_ctr.incr(offset);
+        state_t vec_state{vec_ctr, state.key};
+        sint_t *vec_major = idxs_major + offset;
+        sint_t *vec_minor = (idxs_minor == nullptr) ? nullptr : idxs_minor + offset;
+        T      *vec_vals  = (vals       == nullptr) ? nullptr : vals       + offset;
+        sint_t *vec_perm  = perm_works.data()  + tid * dim_major;
+        sint_t *vec_pivs  = pivot_works.data() + tid * vec_nnz;
         _considerate_fisher_yates(
-            state_work, vec_nnz, dim_major,
-            idxs_major, vec_work.data(), pivots.data(), vals
+            vec_state, vec_nnz, dim_major, vec_major, vec_perm, vec_pivs, vec_vals
         );
-        ctr.incr(vec_nnz);
-        idxs_major += vec_nnz;
-        if (idxs_minor != nullptr) {
-            std::fill(idxs_minor, idxs_minor + vec_nnz, i);
-            idxs_minor += vec_nnz;
+        if (vec_minor != nullptr) {
+            std::fill(vec_minor, vec_minor + vec_nnz, static_cast<sint_t>(i));
         }
-        if (vals != nullptr) { 
-            vals += vec_nnz;
+        if (apply_sort) {
+            sort_major_axis_vector(vec_major, vec_vals, vec_nnz);
+        }
+    };
+
+    #pragma omp parallel num_threads(num_threads) if(num_threads > 1)
+    {
+        const int tid = randblas_get_thread_num();
+        sint_t *perm = perm_works.data() + tid * dim_major;
+        std::iota(perm, perm + dim_major, sint_t{0});
+        #pragma omp for schedule(static)
+        for (int64_t i = 0; i < dim_minor; ++i) {
+            sample_lane(i, tid);
         }
     }
-    return state_t {ctr, key};
+    return out;
 }
 
 inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t dim_major, int64_t dim_minor) {
@@ -241,6 +374,8 @@ struct SparseDist {
     ///  
     ///  This constructor will raise an error if \math{\min\\{\ttt{n_rows}, \ttt{n_cols}\\} \leq 0} or if 
     ///  \math{\vecnnz} does not respect the bounds documented for the \math{\vecnnz} member.
+    ///  It raises an overflow error if \math{\ttt{full_nnz}} cannot be represented by
+    ///  \math{\ttt{int64_t}.}
     SparseDist(
         int64_t n_rows,
         int64_t n_cols,
@@ -249,9 +384,9 @@ struct SparseDist {
     ) : n_rows(n_rows), n_cols(n_cols),
         major_axis(major_axis),
         dim_major((major_axis == Axis::Short) ? std::min(n_rows, n_cols) : std::max(n_rows, n_cols)),
-        dim_minor(n_rows + n_cols - dim_major),
+        dim_minor((major_axis == Axis::Short) ? std::max(n_rows, n_cols) : std::min(n_rows, n_cols)),
         isometry_scale(sparse::isometry_scale(major_axis, vec_nnz, dim_major, dim_minor)),
-        vec_nnz(vec_nnz), full_nnz(vec_nnz * dim_minor) 
+        vec_nnz(vec_nnz), full_nnz(safe_int_product(vec_nnz, dim_minor))
     {   // argument validation
         randblas_require(n_rows > 0);
         randblas_require(n_cols > 0);
@@ -287,7 +422,12 @@ struct SparseDist {
 /// without replacement from the index set \math{\\{0,\ldots,n-1\\}.} It uses a special 
 /// implementation of Fisher-Yates shuffling to produce \math{r} such samples in \math{O(n + rk)} time.
 /// These samples are stored by writing to \math{\ttt{samples}} in \math{r} blocks of length \math{k.}
-/// 
+///
+/// When RandBLAS is built with OpenMP, sampling is automatically parallelized over the
+/// \math{r} blocks. The counter range for block \math{i} depends only on \math{i,} so the
+/// samples and returned RNGState do not depend on the number of OpenMP threads or their
+/// scheduling.
+///
 /// The returned RNGState should
 /// be used for the next call to a random sampling function whose output should be statistically
 /// independent from \math{\ttt{samples}.}
@@ -296,7 +436,7 @@ template <SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
 inline state_t repeated_fisher_yates(
     int64_t k, int64_t n, int64_t r, sint_t *samples, const state_t &state
 ) {
-    return sparse::repeated_fisher_yates(state, k, n, r, samples, (sint_t*) nullptr, (double*) nullptr);
+    return sparse::repeated_fisher_yates(state, k, n, r, samples, (sint_t*) nullptr, (double*) nullptr, false);
 }
 
 template <typename RNG = DefaultRNG>
@@ -304,10 +444,7 @@ RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
     // Both _considerate_fisher_yates (SASO with vec_nnz > 1) and
     // sample_indices_iid_uniform (SASO with vec_nnz == 1, and LASO) consume
     // exactly one CBRNG counter increment per nonzero.
-    int64_t num_major_axis_vec = (dist.major_axis == Axis::Short)
-        ? std::max(dist.n_rows, dist.n_cols)
-        : std::min(dist.n_rows, dist.n_cols);
-    state.counter.incr(num_major_axis_vec * dist.vec_nnz);
+    state.counter.incr(dist.full_nnz);
     return state;
 }
 
@@ -532,6 +669,12 @@ void laso_merge_long_axis_vector_coo_data(
 /// defined by \math{(\D,\ttt{seed_state}).} The submatrix is sampled directly, without
 /// materializing the full operator, and is returned in COO format.
 ///
+/// The COO entries are ordered by increasing major-axis-vector index and then by
+/// increasing major coordinate within each vector. When RandBLAS is built with OpenMP,
+/// sampling is automatically parallelized over these vectors. The counter range for a
+/// vector depends only on its logical index, so the sparse representation and returned
+/// RNGState do not depend on the number of OpenMP threads or their scheduling.
+///
 /// If any of \math{(\vals,\rows,\cols)} is null, then no sampling occurs: the required
 /// length of each output array is written to \math{\ttt{nnz},} and \math{\ttt{seed_state}}
 /// is returned unchanged. Use this "workspace query" to size the output arrays.
@@ -573,8 +716,7 @@ state_t fill_sparse_unpacked(
     int64_t &nnz, T* vals, sint_t* rows, sint_t* cols,
     const state_t &seed_state
 ) {
-    randblas_require(D.n_rows >= n_rows_sub + ro_s);
-    randblas_require(D.n_cols >= n_cols_sub + co_s);
+    validate_submat_dims(D.n_rows, D.n_cols, n_rows_sub, n_cols_sub, ro_s, co_s);
 
     // An operator sampled from D is built by drawing D.dim_minor major-axis vectors,
     // each a length-(D.dim_major) sparse vector with vec_nnz nonzeros. Below we call the
@@ -615,17 +757,20 @@ state_t fill_sparse_unpacked(
     // sampled major-axis vector could land inside the window). Callers can use this to
     // size (vals, rows, cols) from (D, n_rows_sub, n_cols_sub, ro_s, co_s) alone, rather
     // than reconstructing the axis mapping themselves.
+    const int64_t lane_cap = safe_int_product(vec_nnz, num_major_sub);
     if (vals == nullptr || rows == nullptr || cols == nullptr) {
-        nnz = vec_nnz * num_major_sub;
+        nnz = lane_cap;
         return seed_state;
     }
+    randblas_require(seed_state.len_c >= 4);
 
     // Skip the RNG counter past the num_major_off major-axis vectors we don't need.
     // Both the Fisher-Yates path (vec_nnz > 1) and the i.i.d.-uniform path (vec_nnz == 1
     // and LASO) consume exactly vec_nnz counter increments per major-axis vector, so the
     // skip amount is uniform.
     state_t work_state = seed_state;
-    work_state.counter.incr(num_major_off * vec_nnz);
+    const int64_t counter_skip = safe_int_product(num_major_off, vec_nnz);
+    work_state.counter.incr(counter_skip);
 
     // Identify which output array holds the major-axis coordinate and which holds the
     // minor-axis coordinate (the index of the major-axis vector). We sample directly
@@ -634,70 +779,92 @@ state_t fill_sparse_unpacked(
     sint_t* idxs_major = major_is_rows ? rows : cols;
     sint_t* idxs_minor = major_is_rows ? cols : rows;
 
-    // Sort a contiguous block of "len" nonzeros into ascending major-coordinate order,
-    // moving the parallel (major, vals) pair together. len is at most vec_nnz, which is
-    // small, so use a no-alloc insertion sort. The idxs_minor array is constant across
-    // these blocks, so the helper doesn't need to look at it.
-    auto sort_block_by_major = [](sint_t* blk_major, T* blk_vals, int64_t len) {
-        for (int64_t a = 1; a < len; ++a) {
-            sint_t key = blk_major[a];
-            T      v   = blk_vals[a];
-            int64_t c = a - 1;
-            for (; c >= 0 && blk_major[c] > key; --c) {
-                blk_major[c+1] = blk_major[c];
-                blk_vals[c+1]  = blk_vals[c];
-            }
-            blk_major[c+1] = key;
-            blk_vals[c+1]  = v;
-        }
-    };
-
-    // Phase 1: sample the num_major_sub requested major-axis vectors directly into the
-    // output buffers, using the same helpers (and hence the same RNG stream) as the full
-    // operator. On exit, the first "total" entries carry full major coordinates and local
-    // minor coordinates (0..num_major_sub-1); "total" is the pre-filter nnz.
-    int64_t total;
+    // Phase 1: sample each requested major-axis vector into a fixed-width output lane.
+    // Fixed lanes let physical threads work independently while logical vector indices
+    // determine counter ranges and output positions.
+    std::vector<int64_t> lane_counts;
     state_t end_state;
     if (D.major_axis == Axis::Short) {
         end_state = sparse::repeated_fisher_yates(
-            work_state, vec_nnz, dim_major, num_major_sub, idxs_major, idxs_minor, vals
+            work_state, vec_nnz, dim_major, num_major_sub, idxs_major, idxs_minor, vals, true
         );
-        total = vec_nnz * num_major_sub;
-        for (int64_t b = 0; b < num_major_sub; ++b) {
-            sort_block_by_major(idxs_major + b * vec_nnz, vals + b * vec_nnz, vec_nnz);
+        if (dim_major_off == 0 && dim_major_sub == dim_major) {
+            nnz = lane_cap;
+            return end_state;
         }
     } else {
-        // LASO: each major-axis vector is sampled with replacement and merged in place,
-        // advancing through the output buffers exactly as the full operator does.
-        std::unordered_map<sint_t, T> loc2count{};
-        std::unordered_map<sint_t, T> loc2scale{};
-        sint_t* im = idxs_major;
-        sint_t* in = idxs_minor;
-        T*      v  = vals;
-        total = 0;
-        end_state = work_state;
-        for (int64_t i = 0; i < num_major_sub; ++i) {
-            end_state = sample_indices_iid_uniform(dim_major, vec_nnz, im, v, end_state);
-            laso_merge_long_axis_vector_coo_data(vec_nnz, v, im, in, i, loc2count, loc2scale);
-            // The merge compacts to the (<= vec_nnz) distinct survivors.
-            int64_t count = (int64_t) loc2count.size();
-            sort_block_by_major(im, v, count);
-            im += count; in += count; v += count; total += count;
+        lane_counts.assign(num_major_sub, 0);
+        const int num_threads = sparse::sparse_sampling_thread_count(
+            dim_major, num_major_sub, vec_nnz, false
+        );
+        std::vector<std::unordered_map<sint_t, T>> count_works(num_threads);
+        std::vector<std::unordered_map<sint_t, T>> scale_works(num_threads);
+        for (int tid = 0; tid < num_threads; ++tid) {
+            count_works[tid].reserve(vec_nnz);
+            scale_works[tid].reserve(vec_nnz);
         }
+        std::exception_ptr sample_error;
+        const auto base_ctr = work_state.counter;
+        #pragma omp parallel num_threads(num_threads) if(num_threads > 1)
+        {
+            const int tid = randblas_get_thread_num();
+            auto &loc2count = count_works[tid];
+            auto &loc2scale = scale_works[tid];
+
+            #pragma omp for schedule(static)
+            for (int64_t i = 0; i < num_major_sub; ++i) {
+                try {
+                    const int64_t lane_offset = i * vec_nnz;
+                    auto vec_ctr = base_ctr;
+                    vec_ctr.incr(lane_offset);
+                    state_t vec_state{vec_ctr, work_state.key};
+                    sint_t *vec_major = idxs_major + lane_offset;
+                    sint_t *vec_minor = idxs_minor + lane_offset;
+                    T *vec_vals = vals + lane_offset;
+
+                    sample_indices_iid_uniform(
+                        dim_major, vec_nnz, vec_major, vec_vals, vec_state
+                    );
+                    laso_merge_long_axis_vector_coo_data(
+                        vec_nnz, vec_vals, vec_major, vec_minor, i,
+                        loc2count, loc2scale
+                    );
+                    const int64_t survivors = static_cast<int64_t>(loc2count.size());
+                    sparse::sort_major_axis_vector(vec_major, vec_vals, survivors);
+                    lane_counts[i] = survivors;
+                } catch (...) {
+                    #pragma omp critical(RandBLAS_laso_sampling_exception)
+                    {
+                        if (sample_error == nullptr) {
+                            sample_error = std::current_exception();
+                        }
+                    }
+                }
+            }
+        }
+        if (sample_error != nullptr) {
+            std::rethrow_exception(sample_error);
+        }
+        end_state = work_state;
+        end_state.counter.incr(lane_cap);
     }
 
-    // Phase 2: compact in place, keeping only nonzeros whose major coordinate lands in
-    // the window [dim_major_off, dim_major_off + dim_major_sub) and shifting those
-    // coordinates down to local indices. The write index nnz never exceeds the read
-    // index k, so reading and writing the same buffers is safe.
+    // Phase 2: pack lanes in increasing logical-vector order and keep only nonzeros in
+    // the requested major-coordinate window. Every destination precedes or equals its
+    // source, so this serial pass cannot overwrite an unread lane.
     nnz = 0;
-    for (int64_t k = 0; k < total; ++k) {
-        sint_t mc = idxs_major[k] - (sint_t) dim_major_off;
-        if (0 <= mc && mc < (sint_t) dim_major_sub) {
-            idxs_major[nnz] = mc;
-            idxs_minor[nnz] = idxs_minor[k];
-            vals[nnz]       = vals[k];
-            nnz++;
+    for (int64_t i = 0; i < num_major_sub; ++i) {
+        const int64_t lane_offset = i * vec_nnz;
+        const int64_t lane_count  = (D.major_axis == Axis::Short) ? vec_nnz : lane_counts[i];
+        for (int64_t j = 0; j < lane_count; ++j) {
+            const int64_t read = lane_offset + j;
+            const sint_t local_major = idxs_major[read] - static_cast<sint_t>(dim_major_off);
+            if (0 <= local_major && local_major < static_cast<sint_t>(dim_major_sub)) {
+                idxs_major[nnz] = local_major;
+                idxs_minor[nnz] = static_cast<sint_t>(i);
+                vals[nnz] = vals[read];
+                ++nnz;
+            }
         }
     }
     return end_state;
@@ -736,6 +903,10 @@ state_t fill_sparse_unpacked_nosub(
 /// If all reference members are are non-null, then we'll assume each of them has length 
 /// at least \math{\ttt{S.dist.full_nnz}.} We'll proceed to populate those members 
 /// (and \math{\ttt{S.nnz}}) with the data for the explicit representation of \math{\ttt{S}.}
+/// When RandBLAS is built with OpenMP, sampling is automatically parallelized over the
+/// operator's major-axis vectors. Each vector receives a counter range determined only by
+/// its logical index, so the explicit representation is independent of the number of
+/// OpenMP threads and their scheduling.
 /// On exit, \math{\ttt{S}} can be equivalently represented by
 /// @verbatim embed:rst:leading-slashes
 ///  .. code:: c++
@@ -844,8 +1015,7 @@ template <typename SparseSkOp, typename T = typename SparseSkOp::scalar_t, typen
 COOMatrix<T, sint_t> submatrix_as_coo(
     const SparseSkOp &S, int64_t n_rows_sub, int64_t n_cols_sub, int64_t ro_s, int64_t co_s
 ) {
-    randblas_require(ro_s + n_rows_sub <= S.n_rows);
-    randblas_require(co_s + n_cols_sub <= S.n_cols);
+    validate_submat_dims(S.n_rows, S.n_cols, n_rows_sub, n_cols_sub, ro_s, co_s);
     const SparseDist &D = S.dist;
 
     // Ask fill_sparse_unpacked (via its workspace-query mode) how large the buffers must
@@ -857,20 +1027,19 @@ COOMatrix<T, sint_t> submatrix_as_coo(
         (T*) nullptr, (sint_t*) nullptr, (sint_t*) nullptr, S.seed_state
     );
 
-    // Allocate the worst-case buffers, sample only the requested submatrix, and attach
-    // the buffers to an owning COOMatrix. We use the standard ctor + manual attach
-    // (rather than reserve()) because the submatrix may be empty (cap or actual nnz == 0)
-    // and reserve() rejects arg_nnz <= 0.
-    T*      vals = new T[cap];
-    sint_t* rows = new sint_t[cap];
-    sint_t* cols = new sint_t[cap];
-    int64_t nnz = 0;
-    fill_sparse_unpacked(D, n_rows_sub, n_cols_sub, ro_s, co_s, nnz, vals, rows, cols, S.seed_state);
-
+    // Attach each worst-case buffer to an owning COOMatrix as soon as it is allocated,
+    // so a later allocation or sampling exception cannot leak an earlier buffer. We use
+    // the standard ctor + manual attach (rather than reserve()) because the submatrix may
+    // be empty (cap or actual nnz == 0) and reserve() rejects arg_nnz <= 0.
     COOMatrix<T, sint_t> A(n_rows_sub, n_cols_sub); // own_memory == true, null arrays.
-    A.vals = vals;
-    A.rows = rows;
-    A.cols = cols;
+    A.vals = new T[cap];
+    A.rows = new sint_t[cap];
+    A.cols = new sint_t[cap];
+    int64_t nnz = 0;
+    fill_sparse_unpacked(
+        D, n_rows_sub, n_cols_sub, ro_s, co_s, nnz, A.vals, A.rows, A.cols, S.seed_state
+    );
+
     A.nnz  = nnz;
     // fill_sparse_unpacked emits each major-axis vector in sorted order, so the sampled
     // submatrix is CSR- or CSC-sorted; label it as such.

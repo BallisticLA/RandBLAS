@@ -185,6 +185,24 @@ TEST_F(TestLeftMultiply_COO_single, submatrix_self) {
     }
 }
 
+TEST_F(TestLeftMultiply_COO_double, submatrix_rejects_out_of_bounds_offset) {
+    // The requested 1-by-2 window has individually valid dimensions, but row
+    // offset 2 places it just beyond this 2-by-3 COO matrix. With alpha zero,
+    // the kernel would otherwise return without accessing data; the expected
+    // exception therefore proves that it validated the complete window first.
+    COOMatrix<double> A(2, 3);
+    const double B[] = {1.0, 1.0};
+    double C = 0.0;
+
+    EXPECT_THROW(
+        left_spmm(
+            Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans,
+            1, 1, 2, 0.0, A, 2, 0, B, 1, 0.0, &C, 1
+        ),
+        RandBLAS::Error
+    );
+}
+
 ////////////////////////////////////////////////////////////////////////
 //
 //     submatrix of other operand in left-multiply
@@ -430,4 +448,3 @@ TEST_F(TestRightMultiply_COO_double, trans_other_times_sparse_rowmajor) {
     transpose_other(key, 7, 22, 5, Layout::RowMajor, 0.10);
     transpose_other(key, 7, 22, 5, Layout::RowMajor, 0.80);
 }
-

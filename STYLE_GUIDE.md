@@ -35,8 +35,11 @@ Follow the declaration you are modifying.
 There is no fixed line-length limit.
 Wrap prose, signatures, and expressions when doing so makes them easier to
 read; do not damage a formula or compact tabular code to hit a column count.
-For a long function signature, put one logical parameter on each line and the
-closing parenthesis on its own line.
+Do not wrap a function signature merely because it has several parameters.
+Keep the parameters together when the declaration fits comfortably and remains
+easy to read. Put one logical parameter on each line only when that layout is
+necessary to make a long or semantically dense signature readable. In that
+case, put the closing parenthesis on its own line.
 
 ### Headers and includes
 
@@ -110,10 +113,12 @@ Use `///` comments for declarations included in the web API reference.
 For a function with a few arguments, explain the contract in plain prose.
 Do not add a field for every parameter merely because Doxygen supports one.
 
-For a long BLAS-like interface, put structured reStructuredText inside
-`@verbatim embed:rst:leading-slashes`.
-The established parameter form is `name - [direction]`, followed by indented
-bullets:
+Use a parameter dropdown only when an interface has many parameters whose
+precise meanings have complicated relationships with one another. Put the
+structured reStructuredText inside
+`@verbatim embed:rst:leading-slashes`. Within such a dropdown, the established
+parameter form is `name - [direction]`, followed by indented bullets. State
+entry and exit behavior when the direction matters:
 
 ```cpp
 // =============================================================================
@@ -131,6 +136,38 @@ bullets:
 ///       * On exit: a value determined by :math:`a` and its old value.
 /// @endverbatim
 void mathfunc(int a, int &b) {
+    // ...
+}
+```
+
+List a natural group of related parameter names together when one description
+captures their shared role:
+
+```cpp
+// =============================================================================
+/// Sample a matrix window into caller-owned storage.
+///
+/// @verbatim embed:rst:leading-slashes
+/// .. dropdown:: Full parameter descriptions
+///    :animate: fade-in-slide-down
+///
+///      n_rows, n_cols
+///       * The dimensions of the window.
+///
+///      row_offset, col_offset
+///       * The position of the window in the full matrix.
+///
+///      nnz
+///       * On exit: the number of entries written to ``values``.
+///
+///      values
+///       * A caller-owned buffer with enough capacity for the requested window.
+/// @endverbatim
+void sample_window(
+    int64_t n_rows, int64_t n_cols,
+    int64_t row_offset, int64_t col_offset,
+    int64_t &nnz, double *values
+) {
     // ...
 }
 ```

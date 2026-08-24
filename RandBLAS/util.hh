@@ -36,6 +36,7 @@
 #include <Random123/philox.h>
 #include <Random123/uniform.hpp>
 
+#include <algorithm>
 #include <iostream>
 #include <iomanip>
 #include <type_traits>
@@ -60,6 +61,48 @@ void safe_scal(int64_t n, T a, T* x) {
         blas::scal(n, a, x, static_cast<int64_t>(1));
     }
 }
+
+
+// =============================================================================
+/// \fn lascl(blas::Layout layout, int64_t m, int64_t n, T alpha, T* A, int64_t lda)
+/// @verbatim embed:rst:leading-slashes
+/// In-place scale a dense :math:`m \times n` matrix:
+///
+///       .. math::
+///           A \leftarrow \alpha \cdot A.
+///
+/// Named after LAPACK's ``?lascl`` for the convention; the signature is
+/// simpler than LAPACK's (no ``CFROM`` / ``CTO`` overflow protection, no
+/// matrix-type flag --- general dense only).
+///
+/// Fast paths:
+///
+///   - :math:`\alpha = 1`: returns immediately.
+///   - :math:`\alpha = 0`: ``std::fill``-based zero out.
+///   - otherwise: per-column (ColMajor) or per-row (RowMajor) ``blas::scal``.
+/// @endverbatim
+template <typename T>
+void lascl(blas::Layout layout, int64_t m, int64_t n, T alpha, T* A, int64_t lda) {
+    if (alpha == T(1)) return;
+    if (alpha == T(0)) {
+        if (layout == blas::Layout::ColMajor) {
+            for (int64_t j = 0; j < n; ++j)
+                std::fill(A + j * lda, A + j * lda + m, T(0));
+        } else {
+            for (int64_t i = 0; i < m; ++i)
+                std::fill(A + i * lda, A + i * lda + n, T(0));
+        }
+        return;
+    }
+    if (layout == blas::Layout::ColMajor) {
+        for (int64_t j = 0; j < n; ++j)
+            blas::scal(m, alpha, A + j * lda, 1);
+    } else {
+        for (int64_t i = 0; i < m; ++i)
+            blas::scal(n, alpha, A + i * lda, 1);
+    }
+}
+
 
 template <typename T>
 void omatcopy(int64_t m, int64_t n, const T* A, int64_t irs_a, int64_t ics_a, T* B, int64_t irs_b, int64_t ics_b) {

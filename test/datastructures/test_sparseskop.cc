@@ -31,8 +31,16 @@
 #include <RandBLAS/sparse_skops.hh>
 #include <RandBLAS/util.hh>
 #include "RandBLAS/testing/comparison.hh"
+
+#if defined(RandBLAS_HAS_OpenMP)
+#include <omp.h>
+#endif
+
 #include <gtest/gtest.h>
+
+#include <array>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <vector>
 
@@ -51,9 +59,52 @@ using RandBLAS::Axis;
 using RandBLAS::fill_sparse;
 using RandBLAS::fill_sparse_unpacked_nosub;
 
+// A sparse sampling call has five observable outputs: the number of stored
+// entries, three COO arrays, and the RNG state that follows the sample. Keep
+// them together so the parallel tests can compare a complete result rather
+// than checking only the sampled coordinates.
+template <typename T, typename sint_t = int64_t>
+struct SparseSnapshot {
+    int64_t nnz;
+    std::vector<T> vals;
+    std::vector<sint_t> rows;
+    std::vector<sint_t> cols;
+    RandBLAS::RNGState<> end_state;
+};
 
-class TestSparseSkOpConstruction : public ::testing::Test
-{
+// Allocate the largest COO buffers permitted by the requested window, sample
+// the window, and trim those buffers to the number of entries actually written.
+// Trimming matters for LASOs, where restricting a sampled vector to a window
+// can remove entries and leave the output shorter than its upper bound.
+template <typename T, typename sint_t = int64_t>
+static SparseSnapshot<T, sint_t> sample_sparse_snapshot(
+    const RandBLAS::SparseDist &dist, int64_t n_rows_sub, int64_t n_cols_sub,
+    int64_t row_offset, int64_t col_offset,
+    const RandBLAS::RNGState<> &seed
+) {
+    const bool short_is_rows = dist.n_rows <= dist.n_cols;
+    const int64_t short_sub = short_is_rows ? n_rows_sub : n_cols_sub;
+    const int64_t long_sub = short_is_rows ? n_cols_sub : n_rows_sub;
+    const int64_t num_vectors = dist.major_axis == RandBLAS::Axis::Short
+        ? long_sub
+        : short_sub;
+    const int64_t capacity = dist.vec_nnz * num_vectors;
+    SparseSnapshot<T, sint_t> result{
+        -1, std::vector<T>(capacity), std::vector<sint_t>(capacity),
+        std::vector<sint_t>(capacity), seed
+    };
+    result.end_state = RandBLAS::fill_sparse_unpacked(
+        dist, n_rows_sub, n_cols_sub, row_offset, col_offset, result.nnz,
+        result.vals.data(), result.rows.data(), result.cols.data(), seed
+    );
+    result.vals.resize(result.nnz);
+    result.rows.resize(result.nnz);
+    result.cols.resize(result.nnz);
+    return result;
+}
+
+
+class TestSparseSkOpConstruction : public ::testing::Test {
     protected:
         std::vector<uint32_t> keys{42, 0, 1};
         std::vector<int64_t> vec_nnzs{(int64_t) 1, (int64_t) 2, (int64_t) 3, (int64_t) 7};     
@@ -302,6 +353,232 @@ class TestSparseSkOpConstruction : public ::testing::Test
     }
 
 };
+
+TEST_F(TestSparseSkOpConstruction, submatrix_sampling_rejects_invalid_windows) {
+    // Submatrix validation must reject each negative argument and every window
+    // that extends past the parent operator. Exercise workspace-query mode so
+    // the check has to run before size arithmetic, allocation, RNG counter
+    // updates, or output writes. The near-INT64_MAX offsets specifically catch
+    // addition-form bounds checks that can overflow before making a decision.
+    struct Window {
+        int64_t n_rows;
+        int64_t n_cols;
+        int64_t row_offset;
+        int64_t col_offset;
+    };
+    constexpr int64_t max_int64 = std::numeric_limits<int64_t>::max();
+    constexpr std::array<Window, 10> invalid_windows{{
+        {-1, 5, 0, 0}, {5, -1, 0, 0}, {5, 5, -1, 0}, {5, 5, 0, -1},
+        {8, 5, 0, 0}, {5, 14, 0, 0}, {7, 5, 1, 0}, {5, 13, 0, 1},
+        {1, 1, max_int64, 0}, {1, 1, 0, max_int64}
+    }};
+    RandBLAS::SparseDist dist(7, 13, 2, RandBLAS::Axis::Short);
+    RandBLAS::RNGState<> seed(314);
+    RandBLAS::SparseSkOp<double> S(dist, seed);
+
+    for (const Window &window : invalid_windows) {
+        int64_t capacity = -1;
+        EXPECT_THROW(
+            RandBLAS::fill_sparse_unpacked(
+                dist, window.n_rows, window.n_cols,
+                window.row_offset, window.col_offset, capacity,
+                static_cast<double *>(nullptr),
+                static_cast<int64_t *>(nullptr),
+                static_cast<int64_t *>(nullptr), seed
+            ),
+            RandBLAS::Error
+        );
+        EXPECT_THROW(
+            RandBLAS::sparse::submatrix_as_coo(
+                S, window.n_rows, window.n_cols,
+                window.row_offset, window.col_offset
+            ),
+            RandBLAS::Error
+        );
+    }
+}
+
+TEST_F(TestSparseSkOpConstruction, submatrix_sampling_accepts_empty_boundary_window) {
+    // A zero-by-zero window at the lower-right corner is inside the parent
+    // operator. Verify that both the workspace query and the owning-COO helper
+    // accept it, report no entries, and leave caller-owned sentinel storage
+    // untouched when the sampling overload receives nonnull buffers.
+    RandBLAS::SparseDist dist(7, 13, 2, RandBLAS::Axis::Short);
+    RandBLAS::RNGState<> seed(2718);
+    int64_t capacity = -1;
+    RandBLAS::fill_sparse_unpacked(
+        dist, 0, 0, 7, 13, capacity,
+        static_cast<double *>(nullptr),
+        static_cast<int64_t *>(nullptr),
+        static_cast<int64_t *>(nullptr), seed
+    );
+    EXPECT_EQ(capacity, 0);
+
+    double val = 1.25;
+    int64_t row = 23;
+    int64_t col = 29;
+    int64_t nnz = -1;
+    RandBLAS::fill_sparse_unpacked(
+        dist, 0, 0, 7, 13, nnz, &val, &row, &col, seed
+    );
+    EXPECT_EQ(nnz, 0);
+    EXPECT_EQ(val, 1.25);
+    EXPECT_EQ(row, 23);
+    EXPECT_EQ(col, 29);
+
+    RandBLAS::SparseSkOp<double> S(dist, seed);
+    auto empty = RandBLAS::sparse::submatrix_as_coo(S, 0, 0, 7, 13);
+    EXPECT_EQ(empty.n_rows, 0);
+    EXPECT_EQ(empty.n_cols, 0);
+    EXPECT_EQ(empty.nnz, 0);
+}
+
+#if defined(RandBLAS_HAS_OpenMP)
+TEST_F(TestSparseSkOpConstruction, sampling_is_thread_count_independent) {
+    // Changing the OpenMP thread count must not change a sampled sparse
+    // operator. For SASOs and LASOs of several shapes and sparsity levels, use
+    // a serial full-operator sample and a serial submatrix sample as reference
+    // results. Repeat each call with one, two, and four threads, then compare
+    // every COO array, the number of entries written, and the returned RNG
+    // state. A nonzero initial counter also checks that work is partitioned
+    // relative to the supplied state rather than an implicit zero state.
+    struct Case {
+        int64_t n_rows;
+        int64_t n_cols;
+        int64_t vec_nnz;
+        RandBLAS::Axis major_axis;
+    };
+    constexpr std::array<Case, 10> cases{{
+        {7, 31, 1, RandBLAS::Axis::Short},
+        {7, 31, 5, RandBLAS::Axis::Short},
+        {31, 7, 5, RandBLAS::Axis::Short},
+        {257, 2048, 1, RandBLAS::Axis::Short},
+        {257, 2048, 12, RandBLAS::Axis::Short},
+        {7, 31, 1, RandBLAS::Axis::Long},
+        {7, 31, 12, RandBLAS::Axis::Long},
+        {31, 7, 12, RandBLAS::Axis::Long},
+        {257, 257, 128, RandBLAS::Axis::Long},
+        {2048, 4096, 1, RandBLAS::Axis::Long}
+    }};
+    constexpr std::array<int, 3> thread_counts{1, 2, 4};
+    const int saved_dynamic = omp_get_dynamic();
+    const int saved_max_threads = omp_get_max_threads();
+    omp_set_dynamic(0);
+
+    RandBLAS::RNGState<> seed(20260817);
+    seed.counter.incr(41);
+    for (const Case &test_case : cases) {
+        RandBLAS::SparseDist dist(
+            test_case.n_rows, test_case.n_cols,
+            test_case.vec_nnz, test_case.major_axis
+        );
+        omp_set_num_threads(1);
+        auto expected_full = sample_sparse_snapshot<double>(
+            dist, dist.n_rows, dist.n_cols, 0, 0, seed
+        );
+        auto expected_sub = sample_sparse_snapshot<double>(
+            dist, dist.n_rows - 2, dist.n_cols - 3, 1, 2, seed
+        );
+
+        for (int thread_count : thread_counts) {
+            omp_set_num_threads(thread_count);
+            auto actual_full = sample_sparse_snapshot<double>(
+                dist, dist.n_rows, dist.n_cols, 0, 0, seed
+            );
+            auto actual_sub = sample_sparse_snapshot<double>(
+                dist, dist.n_rows - 2, dist.n_cols - 3, 1, 2, seed
+            );
+            EXPECT_EQ(actual_full.nnz, expected_full.nnz);
+            EXPECT_EQ(actual_full.vals, expected_full.vals);
+            EXPECT_EQ(actual_full.rows, expected_full.rows);
+            EXPECT_EQ(actual_full.cols, expected_full.cols);
+            EXPECT_EQ(actual_full.end_state, expected_full.end_state);
+            EXPECT_EQ(actual_sub.nnz, expected_sub.nnz);
+            EXPECT_EQ(actual_sub.vals, expected_sub.vals);
+            EXPECT_EQ(actual_sub.rows, expected_sub.rows);
+            EXPECT_EQ(actual_sub.cols, expected_sub.cols);
+            EXPECT_EQ(actual_sub.end_state, expected_sub.end_state);
+        }
+    }
+
+    omp_set_num_threads(saved_max_threads);
+    omp_set_dynamic(saved_dynamic);
+}
+
+TEST_F(TestSparseSkOpConstruction, parallel_saso_k1_writes_full_coo_data) {
+    // SASOs with one nonzero per major-axis vector use a specialized sampling
+    // path. Compare serial and four-thread samples entry-for-entry using float
+    // values and 32-bit indices, so this test checks that the fast path writes
+    // all three COO arrays and advances the RNG state for nondefault types.
+    const int saved_dynamic = omp_get_dynamic();
+    const int saved_max_threads = omp_get_max_threads();
+    omp_set_dynamic(0);
+    RandBLAS::SparseDist dist(257, 2048, 1, RandBLAS::Axis::Short);
+    RandBLAS::RNGState<> seed(991);
+    seed.counter.incr(73);
+
+    omp_set_num_threads(1);
+    auto expected = sample_sparse_snapshot<float, int32_t>(
+        dist, dist.n_rows, dist.n_cols, 0, 0, seed
+    );
+    omp_set_num_threads(4);
+    auto actual = sample_sparse_snapshot<float, int32_t>(
+        dist, dist.n_rows, dist.n_cols, 0, 0, seed
+    );
+
+    EXPECT_EQ(actual.nnz, expected.nnz);
+    EXPECT_EQ(actual.vals, expected.vals);
+    EXPECT_EQ(actual.rows, expected.rows);
+    EXPECT_EQ(actual.cols, expected.cols);
+    EXPECT_EQ(actual.end_state, expected.end_state);
+
+    omp_set_num_threads(saved_max_threads);
+    omp_set_dynamic(saved_dynamic);
+}
+
+TEST_F(TestSparseSkOpConstruction, parallel_sampling_rejects_two_word_rng) {
+    // Signed sparse sampling currently requires a counter-based generator
+    // result with at least four words so one counter can supply the sampled
+    // index and its sign. Force the parallel path with Philox2x32, which has
+    // only two words, and verify that both SASO and LASO sampling reject it
+    // with a RandBLAS error instead of reading nonexistent random words.
+    using TwoWordRNG = r123::Philox2x32;
+    const int saved_dynamic = omp_get_dynamic();
+    const int saved_max_threads = omp_get_max_threads();
+    omp_set_dynamic(0);
+    omp_set_num_threads(4);
+
+    for (RandBLAS::Axis axis : {RandBLAS::Axis::Short, RandBLAS::Axis::Long}) {
+        RandBLAS::SparseDist dist(257, 2048, 4, axis);
+        RandBLAS::RNGState<TwoWordRNG> seed(17);
+        std::vector<double> vals(dist.full_nnz);
+        std::vector<int64_t> rows(dist.full_nnz);
+        std::vector<int64_t> cols(dist.full_nnz);
+        int64_t nnz = -1;
+        EXPECT_THROW(
+            RandBLAS::fill_sparse_unpacked(
+                dist, dist.n_rows, dist.n_cols, 0, 0, nnz,
+                vals.data(), rows.data(), cols.data(), seed
+            ),
+            RandBLAS::Error
+        );
+
+        // The owning-COO convenience path allocates its output buffers before
+        // sampling. It must propagate the same validation error while allowing
+        // those partially constructed buffers to be reclaimed during unwinding.
+        RandBLAS::SparseSkOp<double, TwoWordRNG> S(dist, seed);
+        EXPECT_THROW(
+            RandBLAS::sparse::submatrix_as_coo(
+                S, dist.n_rows, dist.n_cols, 0, 0
+            ),
+            RandBLAS::Error
+        );
+    }
+
+    omp_set_num_threads(saved_max_threads);
+    omp_set_dynamic(saved_dynamic);
+}
+#endif
 
 TEST_F(TestSparseSkOpConstruction, respect_ownership) {
     respect_ownership<int64_t>(7, 20);

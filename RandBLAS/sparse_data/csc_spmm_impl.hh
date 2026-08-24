@@ -126,13 +126,8 @@ static void apply_csc_kib_1p1_rowmajor(
 
     #pragma omp parallel default(shared)
     {
-        #if defined(RandBLAS_HAS_OpenMP)
-            int t = omp_get_thread_num();
-            int num_threads = omp_get_num_threads();
-        #else
-            int t = 0;
-            int num_threads = 1;
-        #endif
+        const int t = randblas_get_thread_num();
+        const int num_threads = randblas_get_num_threads();
 
         int i_lower = (d * t) / num_threads;
         int i_upper = (d * (t + 1)) / num_threads;

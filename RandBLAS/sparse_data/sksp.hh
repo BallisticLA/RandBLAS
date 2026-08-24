@@ -32,6 +32,7 @@
 #include "RandBLAS/base.hh"
 #include "RandBLAS/dense_skops.hh"
 #include "RandBLAS/exceptions.hh"
+#include "RandBLAS/util.hh"
 
 
 namespace RandBLAS::sparse_data {
@@ -162,10 +163,8 @@ void lsksp3(
     } 
     randblas_require( S.buff != nullptr );
     auto [rows_submat_A, cols_submat_A] = dims_before_op(m, n, opA);
-    randblas_require( A.n_rows >= rows_submat_A + ro_a );
-    randblas_require( A.n_cols >= cols_submat_A + co_a );
-    randblas_require( S.n_rows >= rows_submat_S + ro_s );
-    randblas_require( S.n_cols >= cols_submat_S + co_s );
+    validate_submat_dims(A.n_rows, A.n_cols, rows_submat_A, cols_submat_A, ro_a, co_a);
+    validate_submat_dims(S.n_rows, S.n_cols, rows_submat_S, cols_submat_S, ro_s, co_s);
     if (layout == blas::Layout::ColMajor) {
         randblas_require(ldb >= d);
     } else {
@@ -306,10 +305,8 @@ void rsksp3(
     }
     randblas_require( S.buff != nullptr );
     auto [rows_submat_A, cols_submat_A] = dims_before_op(m, n, opA);
-    randblas_require( A.n_rows >= rows_submat_A + ro_a );
-    randblas_require( A.n_cols >= cols_submat_A + co_a );
-    randblas_require( S.n_rows >= rows_submat_S + ro_s );
-    randblas_require( S.n_cols >= cols_submat_S + co_s );
+    validate_submat_dims(A.n_rows, A.n_cols, rows_submat_A, cols_submat_A, ro_a, co_a);
+    validate_submat_dims(S.n_rows, S.n_cols, rows_submat_S, cols_submat_S, ro_s, co_s);
     if (layout == blas::Layout::ColMajor) {
         randblas_require(ldb >= m);
     } else {

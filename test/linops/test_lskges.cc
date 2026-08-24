@@ -218,6 +218,25 @@ TEST_F(TestLSKGES, sketch_laso_colMajor_oneThread)
     }
 }
 
+TEST_F(TestLSKGES, full_shape_submatrix_rejects_nonzero_offset) {
+    // Asking for a submatrix as large as S is valid only at offset (0, 0).
+    // Materialize S before the call so the test exercises the explicit-operator
+    // fast path, which must validate the offset before treating S as the result.
+    SparseDist dist(2, 3, 1, Axis::Short);
+    SparseSkOp<double> S(dist, 0);
+    RandBLAS::fill_sparse(S);
+    const double A[] = {1.0, 1.0, 1.0};
+    double B[] = {0.0, 0.0};
+
+    EXPECT_THROW(
+        RandBLAS::sparse::lskges(
+            blas::Layout::RowMajor, blas::Op::NoTrans, blas::Op::NoTrans,
+            2, 1, 3, 1.0, S, 1, 0, A, 1, 0.0, B, 1
+        ),
+        RandBLAS::Error
+    );
+}
+
 #if defined (RandBLAS_HAS_OpenMP)
 TEST_F(TestLSKGES, sketch_saso_colMajor_fourThreads)
 {

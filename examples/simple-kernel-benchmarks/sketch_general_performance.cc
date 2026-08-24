@@ -80,9 +80,7 @@
 
 #include "RandBLAS/config.h"
 #include "RandBLAS/sparse_data/spmm_dispatch.hh"
-#if defined(RandBLAS_HAS_OpenMP)
-#include <omp.h>
-#endif
+#include "RandBLAS/testing/benchmarking.hh"
 
 using namespace std::chrono;
 using blas::Layout;
@@ -90,25 +88,14 @@ using blas::Op;
 using RandBLAS::Axis;
 using RandBLAS::SparseDist;
 using RandBLAS::SparseSkOp;
+using RandBLAS::testing::current_threads;
+using RandBLAS::testing::effective_threads;
+using RandBLAS::testing::OpenMPSettingsGuard;
+using RandBLAS::testing::parse_thread_counts;
+using RandBLAS::testing::set_threads;
 
 // Machine bandwidth ceiling (GB/s) used as the %STR denominator; <0 disables %STR.
 static double g_stream_gbps = -1.0;
-
-// ---- OpenMP shims (no-ops without OpenMP) ----------------------------------
-static int current_threads() {
-#if defined(RandBLAS_HAS_OpenMP)
-    return omp_get_max_threads();
-#else
-    return 1;
-#endif
-}
-static void set_threads(int t) {
-#if defined(RandBLAS_HAS_OpenMP)
-    omp_set_num_threads(t);
-#else
-    (void)t;
-#endif
-}
 
 // Run num_trials repetitions, return {min, median} times in microseconds.
 template <typename Func>
@@ -207,6 +194,16 @@ struct OpSpec {
     std::string label;
     int64_t vec_nnz;
     Axis     axis;
+};
+
+struct SamplingScalingRecord {
+    int requested_threads;
+    int threads;
+    long min_us;
+    long median_us;
+    double ns_per_nonzero;
+    double speedup;
+    double efficiency;
 };
 
 // ---------------------------------------------------------------------------
@@ -400,20 +397,122 @@ void run_right(int64_t d, int64_t m, int64_t n,
     std::cout << "\n";
 }
 
+static bool run_sampling_scaling(
+    const OpSpec &spec, const SparseDist &dist,
+    const RandBLAS::RNGState<> &seed_state, int num_trials,
+    const std::vector<int> &threads
+) {
+    const int64_t capacity = dist.full_nnz;
+    std::vector<double> values(capacity);
+    std::vector<int64_t> rows(capacity);
+    std::vector<int64_t> cols(capacity);
+    std::vector<double> expected_values;
+    std::vector<int64_t> expected_rows;
+    std::vector<int64_t> expected_cols;
+    auto expected_state = seed_state;
+    int64_t expected_nnz = -1;
+    std::vector<SamplingScalingRecord> scaling_records;
+    scaling_records.reserve(threads.size());
+    long baseline_us = 0;
+    int baseline_threads = 1;
+    bool exact = true;
+
+    for (int thread_count : threads) {
+        set_threads(thread_count);
+        const bool uses_permutation_workspace =
+            dist.major_axis == Axis::Short && dist.vec_nnz > 1;
+        const int policy_threads = RandBLAS::sparse::sparse_sampling_thread_count(
+            dist.dim_major, dist.dim_minor, dist.vec_nnz,
+            uses_permutation_workspace
+        );
+        const int actual_threads = effective_threads(policy_threads);
+        int64_t sampled_nnz = -1;
+        auto end_state = RandBLAS::fill_sparse_unpacked(
+            dist, dist.n_rows, dist.n_cols, 0, 0, sampled_nnz,
+            values.data(), rows.data(), cols.data(), seed_state
+        );
+        if (scaling_records.empty()) {
+            expected_nnz = sampled_nnz;
+            expected_values = values;
+            expected_rows = rows;
+            expected_cols = cols;
+            expected_state = end_state;
+        } else {
+            exact = exact
+                && sampled_nnz == expected_nnz
+                && std::equal(
+                    values.begin(), values.begin() + sampled_nnz, expected_values.begin()
+                )
+                && std::equal(
+                    rows.begin(), rows.begin() + sampled_nnz, expected_rows.begin()
+                )
+                && std::equal(
+                    cols.begin(), cols.begin() + sampled_nnz, expected_cols.begin()
+                )
+                && end_state == expected_state;
+        }
+
+        auto [min_us, median_us] = run_trials([&]() {
+            sampled_nnz = -1;
+            end_state = RandBLAS::fill_sparse_unpacked(
+                dist, dist.n_rows, dist.n_cols, 0, 0, sampled_nnz,
+                values.data(), rows.data(), cols.data(), seed_state
+            );
+        }, num_trials);
+        if (scaling_records.empty()) {
+            baseline_us = min_us;
+            baseline_threads = actual_threads;
+        }
+        const double speedup = min_us > 0
+            ? static_cast<double>(baseline_us) / static_cast<double>(min_us)
+            : -1.0;
+        const double relative_threads = static_cast<double>(actual_threads)
+            / static_cast<double>(baseline_threads);
+        scaling_records.push_back({
+            thread_count, actual_threads, min_us, median_us,
+            static_cast<double>(min_us) * 1000.0
+                / static_cast<double>(sampled_nnz),
+            speedup, speedup / relative_threads
+        });
+    }
+
+    std::cout << "  " << spec.label << " sampling  (nnz=" << expected_nnz << ")\n"
+              << "  " << std::right << std::setw(6) << "Req"
+              << std::setw(6) << "Thr"
+              << std::setw(10) << "Min(us)"
+              << std::setw(10) << "Med(us)"
+              << std::setw(13) << "ns/nonzero"
+              << std::setw(10) << "Spd(min)"
+              << std::setw(10) << "Eff(min)" << "\n"
+              << "  " << std::string(65, '-') << "\n";
+    for (const SamplingScalingRecord &record : scaling_records) {
+        std::cout << "  " << std::right << std::setw(6) << record.requested_threads
+                  << std::setw(6) << record.threads
+                  << std::setw(10) << record.min_us
+                  << std::setw(10) << record.median_us
+                  << std::setw(13) << fcell(record.ns_per_nonzero, 2)
+                  << std::setw(10) << fcell(record.speedup, 2)
+                  << std::setw(10) << fcell(record.efficiency, 2) << "\n";
+    }
+    std::cout << "  exact output/state: " << (exact ? "PASS" : "FAIL") << "\n\n";
+    return exact;
+}
+
 // ---------------------------------------------------------------------------
-// SCALING: re-run the left-sketch ColMajor warm apply at each thread count and
-// report speedup, parallel efficiency, and %STREAM. STREAM is recalibrated per
-// thread count so %STR is apples-to-apples. Note: a memory-bound kernel that has
-// already saturated bandwidth SHOULD show efficiency < 1 -- read efficiency next
-// to %STR, not in isolation.
+// SCALING: re-run sparse sampling and the left-sketch ColMajor warm apply at
+// each thread count. STREAM is recalibrated per thread count for the application
+// table, so %STR is apples-to-apples. Note: a memory-bound kernel that has
+// already saturated bandwidth SHOULD show efficiency < 1 -- read efficiency
+// next to %STR, not in isolation.
 // ---------------------------------------------------------------------------
-void run_scaling(int64_t d, int64_t m, int64_t n, const std::vector<OpSpec>& specs,
+bool run_scaling(int64_t d, int64_t m, int64_t n, const std::vector<OpSpec>& specs,
                  int num_trials, const std::vector<int>& threads, bool do_stream) {
     using T = double;
     namespace rb = RandBLAS;
     uint64_t seed = 12345;
 
-    std::cout << "=== SCALING (left-sketch, ColMajor warm)  d=" << d << " m=" << m
+    std::cout << "=== SCALING (sampling + left-sketch, ColMajor warm)  d="
+              << d << " m=" << m
               << " n=" << n << ",  trials=" << num_trials << " ===\n";
 #if !defined(RandBLAS_HAS_OpenMP)
     std::cout << "  (built without OpenMP -- thread sweep is a no-op)\n";
@@ -424,24 +523,31 @@ void run_scaling(int64_t d, int64_t m, int64_t n, const std::vector<OpSpec>& spe
     rb::DenseDist DA(m, n);
     auto st = rb::fill_dense(DA, A_cm.data(), rb::RNGState<>(seed));
     std::vector<T> B_cm(d * n);
+    bool sampling_exact = true;
 
     for (const auto& spec : specs) {
         SparseDist dist(d, m, spec.vec_nnz, spec.axis);
+        sampling_exact = run_sampling_scaling(
+            spec, dist, st, num_trials, threads
+        ) && sampling_exact;
         SparseSkOp<T> S(dist, st);
         rb::fill_sparse(S);
         int64_t nnz = S.nnz;
 
         std::cout << "  " << spec.label << "  (nnz=" << nnz << ")\n";
-        std::cout << "  " << std::right << std::setw(6) << "Thr"
-                  << std::setw(10) << "Min(us)" << std::setw(10) << "Speedup"
-                  << std::setw(8) << "Eff" << std::setw(9) << "GB/s"
+        std::cout << "  " << std::right << std::setw(6) << "Req"
+                  << std::setw(6) << "Thr"
+                  << std::setw(10) << "Min(us)" << std::setw(10) << "Spd(min)"
+                  << std::setw(10) << "Eff(min)" << std::setw(9) << "GB/s"
                   << std::setw(7) << "%STR" << "\n";
-        std::cout << "  " << std::string(48, '-') << "\n";
+        std::cout << "  " << std::string(56, '-') << "\n";
 
         long base_us = 0;
-        int  base_t  = threads.empty() ? 1 : threads.front();
+        int base_threads = 1;
+        bool first_thread_count = true;
         for (int t : threads) {
             set_threads(t);
+            const int actual_threads = effective_threads(t);
             double stream = do_stream ? measure_stream_gbps() : -1.0;
             auto [mn, md] = run_trials([&]() {
                 std::fill(B_cm.begin(), B_cm.end(), 0.0);
@@ -449,22 +555,29 @@ void run_scaling(int64_t d, int64_t m, int64_t n, const std::vector<OpSpec>& spe
                                    1.0, S, 0, 0, A_cm.data(), m, 0.0, B_cm.data(), d);
             }, num_trials);
             (void)md;
-            if (t == base_t) base_us = mn;
+            if (first_thread_count) {
+                base_us = mn;
+                base_threads = actual_threads;
+                first_thread_count = false;
+            }
             double speedup = (mn > 0) ? (double)base_us / (double)mn : 0.0;
-            double eff = speedup / ((double)t / (double)base_t);
+            double eff = speedup
+                / ((double)actual_threads / (double)base_threads);
             double bytes = (double)(std::min(nnz, m) * n + 2 * d * n) * sizeof(double)
                          + (double)nnz * (sizeof(double) + sizeof(int64_t));
             double gbps = (mn > 0) ? bytes / (double)mn / 1000.0 : -1;
             double pct = (stream > 0 && gbps > 0) ? gbps / stream * 100.0 : -1;
             std::cout << "  " << std::right << std::setw(6) << t
+                      << std::setw(6) << actual_threads
                       << std::setw(10) << mn
                       << std::setw(10) << fcell(speedup, 2)
-                      << std::setw(8) << fcell(eff, 2)
+                      << std::setw(10) << fcell(eff, 2)
                       << std::setw(9) << fcell(gbps, 1)
                       << std::setw(7) << fcell(pct, 0) << "\n";
         }
         std::cout << "\n";
     }
+    return sampling_exact;
 }
 
 // ---------------------------------------------------------------------------
@@ -569,28 +682,25 @@ std::vector<OpSpec> sweep_specs() {
     };
 }
 
-static std::vector<int> parse_threads(const std::string& csv) {
-    std::vector<int> out;
-    std::stringstream ss(csv);
-    std::string tok;
-    while (std::getline(ss, tok, ',')) {
-        if (!tok.empty()) out.push_back(std::atoi(tok.c_str()));
-    }
-    if (out.empty()) out = {1, 2, 4, 8};
-    return out;
-}
-
 int main(int argc, char** argv) {
+    OpenMPSettingsGuard openmp_settings;
     bool no_stream = false, scaling = false, csr_probe = false;
-    std::vector<int> threads = {1, 2, 4, 8};
+    const std::vector<int> default_thread_counts{1, 2, 4, 8};
+    auto thread_config = parse_thread_counts("", default_thread_counts);
     std::vector<std::string> pos;
     for (int i = 1; i < argc; ++i) {
         std::string s = argv[i];
         if (s == "--no-stream")      no_stream = true;
         else if (s == "--scaling")   scaling = true;
         else if (s == "--csr-probe") csr_probe = true;
-        else if (s.rfind("--threads=", 0) == 0) threads = parse_threads(s.substr(10));
+        else if (s.rfind("--threads=", 0) == 0) {
+            thread_config = parse_thread_counts(s.substr(10), default_thread_counts);
+        }
         else pos.push_back(s);
+    }
+    if (!thread_config.valid) {
+        std::cerr << "Invalid thread list. Expected positive integers.\n";
+        return 1;
     }
 
     std::cout << "\n============================================================\n";
@@ -612,8 +722,10 @@ int main(int argc, char** argv) {
             ? std::vector<OpSpec>{{"single", k, axis}} : sweep_specs();
         int64_t sd = have_cfg ? d : 200, sm = have_cfg ? m : 2000, sn = have_cfg ? n : 2000;
         std::cout << "\n";
-        run_scaling(sd, sm, sn, specs, trials, threads, !no_stream);
-        return 0;
+        return run_scaling(
+            sd, sm, sn, specs, trials,
+            thread_config.thread_counts, !no_stream
+        ) ? 0 : 2;
     }
 
     if (!no_stream) {

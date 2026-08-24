@@ -32,13 +32,17 @@
 /// @file
 
 #include "RandBLAS/config.h"
+#include "RandBLAS/exceptions.hh"
 #include "RandBLAS/random_gen.hh"
 
 #include <blas.hh>
-#include <utility>
 #include <cstring>
 #include <cstdint>
 #include <iostream>
+#include <limits>
+#include <sstream>
+#include <stdexcept>
+#include <utility>
 
 #if defined(RandBLAS_HAS_OpenMP)
 #include <omp.h>
@@ -191,6 +195,24 @@ inline blas::Layout flipped_layout(const blas::Layout &layout_before) {
     return (layout_before == Layout::RowMajor) ? Layout::ColMajor : Layout::RowMajor;
 }
 
+/// Return the calling thread's number, or zero when OpenMP is unavailable.
+inline int randblas_get_thread_num() {
+#if defined(RandBLAS_HAS_OpenMP)
+    return omp_get_thread_num();
+#else
+    return 0;
+#endif
+}
+
+/// Return the current OpenMP team size, or one when OpenMP is unavailable.
+inline int randblas_get_num_threads() {
+#if defined(RandBLAS_HAS_OpenMP)
+    return omp_get_num_threads();
+#else
+    return 1;
+#endif
+}
+
 /**
  * Stores stride information for a matrix represented as a buffer.
  * The intended semantics for a buffer "A" and the conceptualized
@@ -204,6 +226,22 @@ struct stride_64t {
     int64_t inter_row_stride; // step down a column
     int64_t inter_col_stride; // step along a row
 };
+
+/// Require a submatrix window to lie within its parent matrix.
+inline void validate_submat_dims(
+    int64_t parent_rows, int64_t parent_cols,
+    int64_t n_rows_sub, int64_t n_cols_sub,
+    int64_t ro, int64_t co
+) {
+    randblas_require(n_rows_sub >= 0);
+    randblas_require(n_cols_sub >= 0);
+    randblas_require(ro >= 0);
+    randblas_require(co >= 0);
+    randblas_require(n_rows_sub <= parent_rows);
+    randblas_require(n_cols_sub <= parent_cols);
+    randblas_require(ro <= parent_rows - n_rows_sub);
+    randblas_require(co <= parent_cols - n_cols_sub);
+}
 
 inline stride_64t layout_to_strides(blas::Layout layout, int64_t ldim) {
     if (layout == blas::Layout::ColMajor) {
@@ -244,10 +282,10 @@ inline submat_spec_64t offset_and_ldim(
 ) {
     if (layout == blas::Layout::ColMajor) {
         int64_t offset = ro_s + n_rows * co_s;
-        return submat_spec_64t{offset, n_rows};
+        return submat_spec_64t{offset, std::max(n_rows, (int64_t)1)};
     } else {
         int64_t offset = ro_s * n_cols + co_s;
-        return submat_spec_64t{offset, n_cols};
+        return submat_spec_64t{offset, std::max(n_cols, (int64_t)1)};
     }
 }
 
@@ -262,18 +300,32 @@ concept SignedInteger = (std::numeric_limits<T>::is_signed && std::numeric_limit
 
 template <SignedInteger TI, SignedInteger TO = int64_t>
 inline TO safe_int_product(TI a, TI b) {
-    if (a == 0 || b == 0) {
-        return 0;
+    static_assert(
+        std::numeric_limits<TO>::digits >= std::numeric_limits<TI>::digits,
+        "safe_int_product requires an output type at least as wide as its input type."
+    );
+    const TO a_out = static_cast<TO>(a);
+    const TO b_out = static_cast<TO>(b);
+    const TO min_out = std::numeric_limits<TO>::min();
+    const TO max_out = std::numeric_limits<TO>::max();
+    bool overflow = false;
+    if (b_out > 0) {
+        const TO min_safe_a = min_out / b_out;
+        const TO max_safe_a = max_out / b_out;
+        overflow = a_out < min_safe_a || a_out > max_safe_a;
+    } else if (b_out == -1) {
+        overflow = a_out == min_out;
+    } else if (b_out < -1) {
+        const TO min_safe_a = max_out / b_out;
+        const TO max_safe_a = min_out / b_out;
+        overflow = a_out < min_safe_a || a_out > max_safe_a;
     }
-    TO c = a * b;
-    TO b_check = c / a;
-    TO a_check = c / b;
-    if ((a_check != a) || (b_check != b)) {
+    if (overflow) {
         std::stringstream s;
-        s << "Overflow when multiplying a (=" << a << ") and b(=" << b << "), which resulted in " << c << ".\n";
+        s << "Overflow when multiplying a (=" << a << ") and b (=" << b << ").\n";
         throw std::overflow_error(s.str());
     }
-    return c;
+    return a_out * b_out;
 }
 
 
