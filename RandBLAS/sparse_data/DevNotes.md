@@ -66,7 +66,7 @@ RandBLAS exposes a SYMM-style API for sparse symmetric matrices via the
 ``spsymm`` family. The design covers four cases based on the structure of the
 two operands (``A`` symmetric vs. the second factor ``B``):
 
-| Tag | Operation                       | A storage           | B storage | Status this PR                                  |
+| Tag | Operation                       | A storage           | B storage | Status                                  |
 |-----|---------------------------------|---------------------|-----------|-------------------------------------------------|
 | A   | dense-symm × dense              | dense, one triangle | dense     | Implemented via ``blas::symm`` in ``sksy.hh``.   |
 | B   | dense-symm × sparse             | dense, one triangle | sparse    | Implemented via ``lsksys`` / ``rsksys`` wrappers in ``sksy.hh`` (validation, beta, window sampling) over the column-driven ``coo_lsksys`` kernel in ``sparse_data/coo_sksys_impl.hh`` (``coo_rsksys`` reduces to it via the transpose identity). Only the named triangle of A is read. |
@@ -94,15 +94,19 @@ dispatches as follows:
 2. Validate: zero-based indices (``A.index_base == IndexBase::Zero``), A
    square of order ``m``, and leading-dimension lower bounds for B and Y
    (mirroring ``left_spmm``).
-3. Apply beta to Y exactly once (``util::lascl``); return early if alpha is
-   zero. Every path below is a pure accumulator.
+3. Handle empty products (a zero dimension, alpha == 0, or a structurally
+   empty operand) by leaving beta * Y, before MKL can reject a valid empty
+   sparse matrix at handle creation (the left_spmm contract).
 4. If RandBLAS was built with MKL and the index width matches ``MKL_INT``,
-   try ``mkl::mkl_spsymm`` with beta = 1. It applies the
-   ``SPARSE_MATRIX_TYPE_SYMMETRIC`` descriptor and calls ``mkl_sparse_?_mm``;
-   CSC goes through the CSR-of-transpose view with ``uplo`` flipped. It
-   returns false only on a runtime ``NOT_SUPPORTED`` (a parameter-validation
-   result, so Y is untouched when it happens); control then falls to step 5.
-5. Format-specific fallback: ``csr_spsymm`` / ``coo_spsymm`` (and
+   try ``mkl::mkl_spsymm`` with the caller's beta (MKL applies alpha and
+   beta itself, as ``left_spmm`` hands beta to ``mkl_left_spmm``). It applies
+   the ``SPARSE_MATRIX_TYPE_SYMMETRIC`` descriptor and calls
+   ``mkl_sparse_?_mm``; CSC goes through the CSR-of-transpose view with
+   ``uplo`` flipped. It returns false only on a runtime ``NOT_SUPPORTED`` (a
+   parameter-validation result, so Y is untouched when it happens); control
+   then falls to step 5.
+5. Format-specific fallback: apply beta via ``util::lascl``, then run
+   ``csr_spsymm`` / ``coo_spsymm`` (and
    ``csc_spsymm``, a three-line delegation to ``csr_spsymm`` on the
    transpose view with ``uplo`` flipped). The kernels are column-driven:
    an OpenMP-parallel outer loop over the n right-hand-side columns of B/Y

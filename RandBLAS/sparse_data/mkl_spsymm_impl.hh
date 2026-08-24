@@ -52,8 +52,9 @@ namespace RandBLAS::sparse_data::mkl {
 // ============================================================================
 // MKL-accelerated symmetric SpMM: Y = alpha * A * B + beta * Y, side=Left by
 // contract. The spsymm dispatcher normalizes side=Right to side=Left (via the
-// layout-flip identity) before this function is reached, and has already
-// applied the caller's beta to Y, so it passes beta=1 here.
+// layout-flip identity) before this function is reached, and passes the
+// caller's beta through: MKL applies alpha and beta itself, matching how
+// left_spmm hands beta to mkl_left_spmm.
 //   A is symmetric sparse (one triangle stored, named by uplo); B and Y dense.
 //
 // Returns true if MKL handled the call, false to signal fallback to the
