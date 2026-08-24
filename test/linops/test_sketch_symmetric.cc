@@ -525,3 +525,70 @@ TEST_F(TestSketchSymmetric, sparse_skop_bad_arguments_throw) {
                                    1.0, S, 1, 0, A.data(), n, 0.0, B.data(), d),
         RandBLAS::Error);
 }
+
+
+// MARK: LEGACY OVERLOADS
+
+// Restores the pre-Uplo API test: the legacy sym_check_tol overloads must
+// reject an asymmetric matrix at runtime, exactly as before.
+TEST_F(TestSketchSymmetric, legacy_symmetry_check_fails_for_asymmetric_matrix) {
+    int64_t n = 3, d = 2;
+    // Column-major 3x3, symmetric except A(0,1)=5 vs A(1,0)=0.
+    std::vector<double> A = {
+        1.0, 0.0, 0.0,
+        5.0, 2.0, 0.0,
+        0.0, 0.0, 3.0
+    };
+    DenseDist D(d, n, ScalarDist::Uniform, Axis::Short);
+    DenseSkOp<double> S(D, 42);
+    RandBLAS::fill_dense(S);
+    std::vector<double> B(d * n, 0.0);
+    try {
+        RandBLAS::sketch_symmetric(Layout::ColMajor, d, n, 1.0, S, 0, 0, A.data(), n, 0.0, B.data(), d);
+        FAIL() << "Expected RandBLAS::Error for asymmetric matrix";
+    } catch (const RandBLAS::Error& e) {
+        std::string msg = e.what();
+        EXPECT_NE(msg.find("Symmetry check failed"), std::string::npos)
+            << "Error message did not mention symmetry check: " << msg;
+    }
+}
+
+// The legacy overloads (both-triangles A, runtime check, sketch_general
+// forwarding) must agree with the Uplo overloads on symmetric input.
+TEST_F(TestSketchSymmetric, legacy_overloads_agree_with_uplo_overloads) {
+    int64_t n = 10, d = 3;
+    std::vector<double> A(n * n, 0.0);
+    random_symmetric_mat(n, A.data(), n, RNGState(7));
+    DenseDist D(d, n, ScalarDist::Uniform);
+    DenseSkOp<double> S(D, 21);
+    RandBLAS::fill_dense(S);
+
+    std::vector<double> B_legacy(d * n, 0.5), B_uplo(d * n, 0.5);
+    // Left sketch, SUBMAT form, beta != 0.
+    RandBLAS::sketch_symmetric(Layout::ColMajor, d, n, 2.0, S, 0, 0, A.data(), n, -1.0, B_legacy.data(), d);
+    RandBLAS::sketch_symmetric(Layout::ColMajor, Uplo::Upper, d, n, 2.0, S, 0, 0, A.data(), n, -1.0, B_uplo.data(), d);
+    auto msg = RandBLAS::testing::matrices_approx_equal(
+        Layout::ColMajor, blas::Op::NoTrans, d, n,
+        B_legacy.data(), d, B_uplo.data(), d,
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__,
+        100 * std::numeric_limits<double>::epsilon(),
+        10 * std::numeric_limits<double>::epsilon()
+    );
+    if (!msg.empty()) FAIL() << msg;
+
+    // Right sketch, FULL form.
+    DenseDist DR(n, d, ScalarDist::Uniform);
+    DenseSkOp<double> SR(DR, 23);
+    RandBLAS::fill_dense(SR);
+    std::vector<double> C_legacy(n * d, 0.0), C_uplo(n * d, 0.0);
+    RandBLAS::sketch_symmetric(Layout::ColMajor, 1.0, A.data(), n, SR, 0.0, C_legacy.data(), n);
+    RandBLAS::sketch_symmetric(Layout::ColMajor, Uplo::Upper, 1.0, A.data(), n, SR, 0.0, C_uplo.data(), n);
+    auto msg2 = RandBLAS::testing::matrices_approx_equal(
+        Layout::ColMajor, blas::Op::NoTrans, n, d,
+        C_legacy.data(), n, C_uplo.data(), n,
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__,
+        100 * std::numeric_limits<double>::epsilon(),
+        10 * std::numeric_limits<double>::epsilon()
+    );
+    if (!msg2.empty()) FAIL() << msg2;
+}

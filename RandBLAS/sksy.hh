@@ -554,4 +554,124 @@ inline void sketch_symmetric(
     sketch_symmetric(layout, uplo, n, d, alpha, A, lda, S, 0, 0, beta, B, ldb);
 }
 
+
+// MARK: LEGACY (sym_check_tol)
+
+// =============================================================================
+// The four overloads below reproduce the pre-Uplo sketch_symmetric API and
+// semantics exactly: mat(A) must be stored in the format of a general matrix
+// with BOTH triangles populated (both are read), a runtime symmetry check
+// runs first (skip it, at your own peril, by passing sym_check_tol < 0), and
+// the operation forwards to sketch_general. They are retained so that
+// existing call sites keep compiling and behaving identically; new code
+// should prefer the blas::Uplo overloads above, which read only the named
+// triangle and skip the O(n^2) runtime check.
+// =============================================================================
+
+// =============================================================================
+/// \fn sketch_symmetric(blas::Layout layout, int64_t d, int64_t n, T alpha,
+///     const SKOP &S, int64_t ro_s, int64_t co_s, const T *A, int64_t lda,
+///     T beta, T *B, int64_t ldb, T sym_check_tol = 0
+/// )
+/// @verbatim embed:rst:leading-slashes
+/// Legacy overload, retained for API compatibility. Check that :math:`\mat(A)`
+/// is symmetric up to tolerance :math:`\texttt{sym_check_tol}` (pass a negative
+/// tolerance to skip the check), then sketch from the left:
+/// :math:`\mat(B) = \alpha \cdot \submat(\mtxS) \cdot \mat(A) + \beta \cdot \mat(B)`.
+/// Requires both triangles of :math:`\mat(A)` populated; both are read.
+/// Prefer the ``blas::Uplo`` overloads for new code.
+/// @endverbatim
+template <SketchingOperator SKOP, typename T = typename SKOP::scalar_t>
+inline void sketch_symmetric(
+    // B = alpha*S*A + beta*B
+    blas::Layout layout,
+    int64_t d, int64_t n,
+    T alpha,
+    const SKOP &S, int64_t ro_s, int64_t co_s,
+    const T* A, int64_t lda,
+    T beta,
+    T* B, int64_t ldb,
+    T sym_check_tol = 0
+) {
+    RandBLAS::util::require_symmetric(layout, A, n, lda, sym_check_tol);
+    sketch_general(layout, blas::Op::NoTrans, blas::Op::NoTrans, d, n, n, alpha, S, ro_s, co_s, A, lda, beta, B, ldb);
+}
+
+// =============================================================================
+/// \fn sketch_symmetric(blas::Layout layout, int64_t n, int64_t d, T alpha,
+///     const T *A, int64_t lda, const SKOP &S, int64_t ro_s, int64_t co_s,
+///     T beta, T *B, int64_t ldb, T sym_check_tol = 0
+/// )
+/// @verbatim embed:rst:leading-slashes
+/// Legacy overload, retained for API compatibility. Same contract as its
+/// left-sketch sibling above, sketching from the right:
+/// :math:`\mat(B) = \alpha \cdot \mat(A) \cdot \submat(\mtxS) + \beta \cdot \mat(B)`.
+/// @endverbatim
+template <SketchingOperator SKOP, typename T = typename SKOP::scalar_t>
+inline void sketch_symmetric(
+    // B = alpha*A*S + beta*B, where A is a symmetric matrix stored in the format of a general matrix.
+    blas::Layout layout,
+    int64_t n, int64_t d,
+    T alpha,
+    const T* A, int64_t lda,
+    const SKOP &S, int64_t ro_s, int64_t co_s,
+    T beta,
+    T* B, int64_t ldb,
+    T sym_check_tol = 0
+) {
+    RandBLAS::util::require_symmetric(layout, A, n, lda, sym_check_tol);
+    sketch_general(layout, blas::Op::NoTrans, blas::Op::NoTrans, n, d, n, alpha, A, lda, S, ro_s, co_s, beta, B, ldb);
+}
+
+// =============================================================================
+/// \fn sketch_symmetric(blas::Layout layout, T alpha, const SKOP &S,
+///     const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0
+/// )
+/// @verbatim embed:rst:leading-slashes
+/// Legacy overload, retained for API compatibility; :math:`\mtxS` used in
+/// full. Same contract as the submatrix legacy overloads.
+/// @endverbatim
+template <SketchingOperator SKOP, typename T = typename SKOP::scalar_t>
+inline void sketch_symmetric(
+    // B = alpha*S*A + beta*B
+    blas::Layout layout,
+    T alpha,
+    const SKOP &S,
+    const T* A, int64_t lda,
+    T beta,
+    T* B, int64_t ldb,
+    T sym_check_tol = 0
+) {
+    int64_t d = S.dist.n_rows;
+    int64_t n = S.dist.n_cols;
+    RandBLAS::util::require_symmetric(layout, A, n, lda, sym_check_tol);
+    sketch_general(layout, blas::Op::NoTrans, blas::Op::NoTrans, d, n, n, alpha, S, 0, 0, A, lda, beta, B, ldb);
+}
+
+// =============================================================================
+/// \fn sketch_symmetric(blas::Layout layout, T alpha, const T *A, int64_t lda,
+///     const SKOP &S, T beta, T *B, int64_t ldb, T sym_check_tol = 0
+/// )
+/// @verbatim embed:rst:leading-slashes
+/// Legacy overload, retained for API compatibility; :math:`\mtxS` used in
+/// full, sketching from the right. Same contract as the submatrix legacy
+/// overloads.
+/// @endverbatim
+template <SketchingOperator SKOP, typename T = typename SKOP::scalar_t>
+inline void sketch_symmetric(
+    // B = alpha*A*S + beta*B, where A is a symmetric matrix stored in the format of a general matrix.
+    blas::Layout layout,
+    T alpha,
+    const T* A, int64_t lda,
+    const SKOP &S,
+    T beta,
+    T* B, int64_t ldb,
+    T sym_check_tol = 0
+) {
+    int64_t n = S.dist.n_rows;
+    int64_t d = S.dist.n_cols;
+    RandBLAS::util::require_symmetric(layout, A, n, lda, sym_check_tol);
+    sketch_general(layout, blas::Op::NoTrans, blas::Op::NoTrans, n, d, n, alpha, A, lda, S, 0, 0, beta, B, ldb);
+}
+
 } // end namespace RandBLAS

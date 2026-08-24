@@ -101,6 +101,28 @@ SparseSkOp access-pattern detail.
       :project: RandBLAS
 
 
+.. dropdown:: Legacy variants (``sym_check_tol``)
+    :animate: fade-in-slide-down
+    :color: light
+
+    These reproduce the pre-``Uplo`` API exactly: :math:`\mtxA` must be stored
+    with both triangles populated (both are read), and a runtime symmetry
+    check runs first (pass a negative tolerance to skip it). They forward to
+    ``sketch_general``. Prefer the ``blas::Uplo`` overloads for new code.
+
+    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, T alpha, const SKOP &S, const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+      :project: RandBLAS
+
+    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, T alpha, const T *A, int64_t lda, const SKOP &S, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+      :project: RandBLAS
+
+    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, int64_t d, int64_t n, T alpha, const SKOP &S, int64_t ro_s, int64_t co_s, const T *A, int64_t lda, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+      :project: RandBLAS
+
+    .. doxygenfunction:: RandBLAS::sketch_symmetric(blas::Layout layout, int64_t n, int64_t d, T alpha, const T *A, int64_t lda, const SKOP &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb, T sym_check_tol = 0)
+      :project: RandBLAS
+
+
 
 Analogs to GEMV
 ---------------
