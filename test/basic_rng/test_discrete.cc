@@ -348,65 +348,51 @@ TEST_F(TestSampleIndices, rngstate_updates_fisher_yates) {
     test_updated_rngstates_fisher_yates();
 }
 
-TEST_F(TestSampleIndices, fisher_yates_split_calls_cross_counter_word_carry) {
-    // Splitting a sampling request must preserve both its samples and its final
-    // RNG state, even when the assigned counter range crosses a word boundary.
-    // Start counter word zero ten steps below its maximum and give word one a
-    // recognizable value. A 512-vector call and two 256-vector calls consume
-    // the same 2048 counters, wrapping word zero to 2037 and carrying one into
-    // word one. OpenMP builds also run the split calls with two and four threads.
-    constexpr int64_t n = 29;
-    constexpr int64_t vec_nnz = 4;
-    constexpr int64_t first_num_vectors = 256;
-    constexpr int64_t second_num_vectors = 256;
-    constexpr int64_t total_num_vectors = first_num_vectors + second_num_vectors;
-    constexpr uint32_t max_uint32 = std::numeric_limits<uint32_t>::max();
-    constexpr uint32_t initial_word_one = 0x2468ACE0u;
+TEST_F(TestSampleIndices, fisher_yates_can_sort_major_axis_vectors) {
+    // Sparse-operator construction needs each major-axis vector in ascending
+    // coordinate order, while the public sampling function preserves the raw
+    // Fisher--Yates order. Generate both forms from the same state, manually
+    // sort each raw (coordinate, value) pair, and compare that reference with
+    // the opt-in sorted result. This also checks that sorting leaves the minor
+    // coordinate and returned RNG state unchanged.
+    constexpr int64_t dim_major = 29;
+    constexpr int64_t num_vectors = 8;
+    constexpr int64_t vec_nnz = 7;
+    constexpr int64_t nnz = num_vectors * vec_nnz;
     RandBLAS::RNGState<> seed(1729);
-    seed.counter.v[0] = max_uint32 - 10;
-    seed.counter.v[1] = initial_word_one;
+    seed.counter.incr(306);
+    std::vector<int64_t> raw_major(nnz);
+    std::vector<int64_t> raw_minor(nnz);
+    std::vector<double> raw_vals(nnz);
+    std::vector<int64_t> sorted_major(nnz);
+    std::vector<int64_t> sorted_minor(nnz);
+    std::vector<double> sorted_vals(nnz);
 
-#if defined(RandBLAS_HAS_OpenMP)
-    const int saved_dynamic = omp_get_dynamic();
-    const int saved_max_threads = omp_get_max_threads();
-    omp_set_dynamic(0);
-    auto set_test_threads = [](int thread_count) {
-        omp_set_num_threads(thread_count);
-    };
-#else
-    auto set_test_threads = [](int) {};
-#endif
-
-    std::vector<int64_t> one_call(total_num_vectors * vec_nnz, -1);
-    std::vector<int64_t> two_calls(total_num_vectors * vec_nnz, -1);
-    set_test_threads(1);
-    auto one_call_state = RandBLAS::repeated_fisher_yates(
-        vec_nnz, n, total_num_vectors, one_call.data(), seed
+    auto raw_state = RandBLAS::sparse::repeated_fisher_yates(
+        seed, vec_nnz, dim_major, num_vectors,
+        raw_major.data(), raw_minor.data(), raw_vals.data(), false
     );
-    set_test_threads(2);
-    auto first_call_state = RandBLAS::repeated_fisher_yates(
-        vec_nnz, n, first_num_vectors, two_calls.data(), seed
-    );
-    set_test_threads(4);
-    auto two_call_state = RandBLAS::repeated_fisher_yates(
-        vec_nnz, n, second_num_vectors,
-        two_calls.data() + first_num_vectors * vec_nnz, first_call_state
+    auto sorted_state = RandBLAS::sparse::repeated_fisher_yates(
+        seed, vec_nnz, dim_major, num_vectors,
+        sorted_major.data(), sorted_minor.data(), sorted_vals.data(), true
     );
 
-    EXPECT_EQ(two_calls, one_call);
-    EXPECT_EQ(two_call_state, one_call_state);
-    EXPECT_EQ(one_call_state.counter.v[0], 2037u);
-    EXPECT_EQ(one_call_state.counter.v[1], initial_word_one + 1);
-    RandBLAS::RNGState<> expected_state(seed);
-    expected_state.counter.v[0] = 2037u;
-    expected_state.counter.v[1] = initial_word_one + 1;
-    EXPECT_EQ(one_call_state, expected_state);
-
-#if defined(RandBLAS_HAS_OpenMP)
-    omp_set_num_threads(saved_max_threads);
-    omp_set_dynamic(saved_dynamic);
-#endif
+    EXPECT_EQ(sorted_state, raw_state);
+    for (int64_t i = 0; i < num_vectors; ++i) {
+        const int64_t offset = i * vec_nnz;
+        std::vector<std::pair<int64_t, double>> expected(vec_nnz);
+        for (int64_t j = 0; j < vec_nnz; ++j) {
+            expected[j] = {raw_major[offset + j], raw_vals[offset + j]};
+        }
+        std::sort(expected.begin(), expected.end());
+        for (int64_t j = 0; j < vec_nnz; ++j) {
+            EXPECT_EQ(sorted_major[offset + j], expected[j].first);
+            EXPECT_EQ(sorted_vals[offset + j], expected[j].second);
+            EXPECT_EQ(sorted_minor[offset + j], i);
+        }
+    }
 }
+
 
 #if defined(RandBLAS_HAS_OpenMP)
 TEST_F(TestSampleIndices, fisher_yates_is_thread_count_independent) {

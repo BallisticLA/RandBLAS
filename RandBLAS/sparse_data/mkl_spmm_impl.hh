@@ -46,6 +46,7 @@
 #include "RandBLAS/sparse_data/coo_matrix.hh"
 #include "RandBLAS/sparse_data/csr_matrix.hh"
 #include "RandBLAS/sparse_data/csc_matrix.hh"
+#include "RandBLAS/util.hh"
 
 namespace RandBLAS::sparse_data::mkl {
 
@@ -260,9 +261,6 @@ MKLSparseHandle make_mkl_handle(const SpMat& A) {
 // MKL-accelerated left_spmm: C = alpha * op(A) * op(B) + beta * C
 //   where A is sparse, B and C are dense.
 //
-// NOTE: The caller (spmm_dispatch.hh) has already applied beta scaling to C,
-//   so this function is called with beta=0.
-//
 // For COO matrices with submatrix offsets (ro_a, co_a != 0), we fall back
 //   to the existing RandBLAS implementation since MKL doesn't support
 //   submatrix views on COO.
@@ -303,6 +301,16 @@ bool mkl_left_spmm(
     if (opB != blas::Op::NoTrans)
         return false;
 
+    // MKL rejects some valid empty sparse matrices when creating its handle.
+    // Handle those products directly. An empty output needs no work, while an
+    // empty contraction or an all-zero sparse operand leaves beta * C.
+    if (d == 0 || n == 0)
+        return true;
+    if (m == 0 || A.nnz == 0) {
+        RandBLAS::util::lascl(layout, d, n, beta, C, ldc);
+        return true;
+    }
+
     // Build the MKL sparse handle and the operation to apply to it.
     //   CSR / COO: the handle wraps A directly; the operation is opA.
     //   CSC: mkl_sparse_?_mm does not accept CSC, but a CSC matrix's arrays ARE
@@ -341,6 +349,9 @@ bool mkl_left_spmm(
             B, (MKL_INT)n, (MKL_INT)ldb,
             beta, C, (MKL_INT)ldc
         );
+    } else {
+        // unsupported floating point type.
+        return false;
     }
     check_mkl_status(status, "mkl_sparse_mm");
     return true;  // signal: MKL handled it

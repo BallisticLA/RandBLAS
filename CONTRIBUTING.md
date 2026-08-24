@@ -5,7 +5,8 @@ reproducible random-number generation. This guide explains the project
 constraints and development workflow that matter when changing it.
 
 Follow the [`STYLE_GUIDE.md`](STYLE_GUIDE.md) for source and documentation
-conventions.
+conventions. Improvements to the style guide are always in scope for any pull
+request, even when they are not required by its primary purpose.
 
 ## Before you start
 

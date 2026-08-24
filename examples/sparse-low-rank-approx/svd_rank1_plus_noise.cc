@@ -157,8 +157,13 @@ void make_signal_matrix(double signal_scale, double* u, int64_t m, double* v, in
     double uv_scale = 1.0 / std::sqrt((double) vec_nnz);
 
 
-    auto v_state    = RandBLAS::sparse::repeated_fisher_yates(u_state, vec_nnz, m, 1, work_idxs, trash, work_vals);
-    auto next_state = RandBLAS::sparse::repeated_fisher_yates(v_state, vec_nnz, n, 1, work_idxs+vec_nnz, trash, work_vals+vec_nnz);
+    auto v_state = RandBLAS::sparse::repeated_fisher_yates(
+        u_state, vec_nnz, m, 1, work_idxs, trash, work_vals, /*apply_sort=*/false
+    );
+    auto next_state = RandBLAS::sparse::repeated_fisher_yates(
+        v_state, vec_nnz, n, 1, work_idxs+vec_nnz, trash, work_vals+vec_nnz,
+        /*apply_sort=*/false
+    );
     for (int j = 0; j < vec_nnz; ++j) {
         for (int i = 0; i < vec_nnz; ++i) {
             int temp = i + j*vec_nnz;
