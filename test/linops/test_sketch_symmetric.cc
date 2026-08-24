@@ -166,14 +166,11 @@ class TestSketchSymmetric : public ::testing::Test {
         return;
     }
 
-    // Note: an earlier `test_error_on_asymmetric` test verified that
-    // sketch_symmetric threw on asymmetric input via require_symmetric. With
-    // the SYMM-based dispatch (project-plans/randblas-symm-plan.md, Phase 1),
-    // only the triangle named by `uplo` is read; the opposite triangle
-    // contributing wrong values is undefined behavior at the caller, not a
-    // RandBLAS check. The test was removed accordingly. Error paths that ARE
-    // checked (leading dims, submatrix window bounds) are covered under
-    // MARK: ERROR PATHS below.
+    // Note on symmetry checking: the blas::Uplo overloads read only the
+    // named triangle, so they perform no runtime symmetry check; the legacy
+    // sym_check_tol overloads retain the check (covered under MARK: LEGACY
+    // OVERLOADS below). Error paths for the Uplo overloads (leading dims,
+    // submatrix window bounds) are covered under MARK: ERROR PATHS.
 
     // =============================================================================
     // Case B exerciser: sparse SkOp x dense symmetric A. Reference is the

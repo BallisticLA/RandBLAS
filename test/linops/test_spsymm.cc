@@ -55,7 +55,7 @@ using RandBLAS::ScalarDist;
 
 
 class TestSpsymm : public ::testing::Test {
-protected:
+    protected:
     template <typename T>
     static void fill_sym_dense(int64_t n, T* A, int64_t lda, uint32_t seed) {
         DenseDist D(lda, lda, ScalarDist::Uniform);
@@ -198,6 +198,8 @@ protected:
         // Random sparse B as a ColMajor dense buffer first, then convert to SpMatB.
         std::vector<T> B_dense(m_BY * n_BY, T(0));
         {
+            // std::mt19937_64 rather than a RandBLAS sampler: B here is
+            // arbitrary fixed test data, not a sketching operator.
             std::mt19937_64 rng(static_cast<uint64_t>(seed_B));
             std::uniform_real_distribution<double> uni01(0.0, 1.0);
             std::uniform_real_distribution<double> univ(-1.0, 1.0);
@@ -254,56 +256,62 @@ protected:
 // 24-cell coverage: {COO, CSR, CSC} x {ColMajor, RowMajor} x {Upper, Lower} x {Left, Right}.
 // Each TEST_F sweeps the (layout, uplo) plane internally for one (format, side) combination.
 
-TEST_F(TestSpsymm, CSR_Left)  { sweep_layout_uplo<CSRMatrix<double>>(Side::Left,  10, 4, 1.5, -0.5); }
-TEST_F(TestSpsymm, CSR_Right) { sweep_layout_uplo<CSRMatrix<double>>(Side::Right, 10, 4, 1.5, -0.5); }
-TEST_F(TestSpsymm, CSC_Left)  { sweep_layout_uplo<CSCMatrix<double>>(Side::Left,  10, 4, 1.5, -0.5); }
-TEST_F(TestSpsymm, CSC_Right) { sweep_layout_uplo<CSCMatrix<double>>(Side::Right, 10, 4, 1.5, -0.5); }
-TEST_F(TestSpsymm, COO_Left)  { sweep_layout_uplo<COOMatrix<double>>(Side::Left,  10, 4, 1.5, -0.5); }
-TEST_F(TestSpsymm, COO_Right) { sweep_layout_uplo<COOMatrix<double>>(Side::Right, 10, 4, 1.5, -0.5); }
+TEST_F(TestSpsymm, csr_left_matches_dense_symm_reference)  { sweep_layout_uplo<CSRMatrix<double>>(Side::Left,  10, 4, 1.5, -0.5); }
+TEST_F(TestSpsymm, csr_right_matches_dense_symm_reference) { sweep_layout_uplo<CSRMatrix<double>>(Side::Right, 10, 4, 1.5, -0.5); }
+TEST_F(TestSpsymm, csc_left_matches_dense_symm_reference)  { sweep_layout_uplo<CSCMatrix<double>>(Side::Left,  10, 4, 1.5, -0.5); }
+TEST_F(TestSpsymm, csc_right_matches_dense_symm_reference) { sweep_layout_uplo<CSCMatrix<double>>(Side::Right, 10, 4, 1.5, -0.5); }
+TEST_F(TestSpsymm, coo_left_matches_dense_symm_reference)  { sweep_layout_uplo<COOMatrix<double>>(Side::Left,  10, 4, 1.5, -0.5); }
+TEST_F(TestSpsymm, coo_right_matches_dense_symm_reference) { sweep_layout_uplo<COOMatrix<double>>(Side::Right, 10, 4, 1.5, -0.5); }
 
 // Float coverage for one representative format
-TEST_F(TestSpsymm, CSR_Left_Float)  { sweep_layout_uplo<CSRMatrix<float>>(Side::Left,  10, 4, 1.5, -0.5); }
+TEST_F(TestSpsymm, csr_left_float_matches_dense_symm_reference)  { sweep_layout_uplo<CSRMatrix<float>>(Side::Left,  10, 4, 1.5, -0.5); }
 
 // beta=0 (init-from-zero) edge case
-TEST_F(TestSpsymm, CSR_Left_Beta0) {
+TEST_F(TestSpsymm, csr_left_beta_zero_overwrites_output) {
     for (auto layout : {Layout::ColMajor, Layout::RowMajor})
         for (auto uplo : {Uplo::Upper, Uplo::Lower})
             run_case<CSRMatrix<double>>(layout, Side::Left, uplo, 10, 4, 1.0, 0.0, 0, 2);
 }
 
 // alpha=0 (only beta-scaling) edge case
-TEST_F(TestSpsymm, CSR_Left_Alpha0) {
+TEST_F(TestSpsymm, csr_left_alpha_zero_scales_by_beta) {
     run_case<CSRMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 10, 4, 0.0, 0.5, 0, 3);
 }
 
 
 // Format-pair sweep: 3 A-formats x 3 B-formats x both sides + an uplo and
 // edge-case sample. MKL handles all 9 pairs via make_mkl_handle.
-TEST_F(TestSpsymm, CaseD_CSR_CSR_Left) {
+TEST_F(TestSpsymm, sparse_times_sparse_csr_csr_left_matches_reference) {
     run_case_d<CSRMatrix<double>, CSRMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 1.5, -0.5, 0, 1);
     run_case_d<CSRMatrix<double>, CSRMatrix<double>>(Layout::RowMajor, Side::Left, Uplo::Lower, 8, 3, 1.5, -0.5, 0, 1);
 }
-TEST_F(TestSpsymm, CaseD_CSC_CSC_Left) {
+TEST_F(TestSpsymm, sparse_times_sparse_csc_csc_left_matches_reference) {
     run_case_d<CSCMatrix<double>, CSCMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 1.5, -0.5, 0, 1);
     run_case_d<CSCMatrix<double>, CSCMatrix<double>>(Layout::RowMajor, Side::Left, Uplo::Lower, 8, 3, 1.5, -0.5, 0, 1);
 }
-TEST_F(TestSpsymm, CaseD_COO_COO_Left) {
+TEST_F(TestSpsymm, sparse_times_sparse_coo_coo_left_matches_reference) {
     run_case_d<COOMatrix<double>, COOMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 1.5, -0.5, 0, 1);
     run_case_d<COOMatrix<double>, COOMatrix<double>>(Layout::RowMajor, Side::Left, Uplo::Lower, 8, 3, 1.5, -0.5, 0, 1);
 }
-TEST_F(TestSpsymm, CaseD_Mixed_Format_Left) {
+TEST_F(TestSpsymm, sparse_times_sparse_mixed_formats_match_reference) {
+    // All six mixed (A, B) format pairings; the three same-format pairings
+    // are covered by the tests above.
     run_case_d<CSRMatrix<double>, CSCMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 1.0, 0.0, 0, 1);
     run_case_d<CSCMatrix<double>, CSRMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Lower, 8, 3, 1.0, 0.0, 0, 1);
     run_case_d<COOMatrix<double>, CSRMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 1.0, 0.0, 0, 1);
+    run_case_d<CSRMatrix<double>, COOMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 1.0, 0.0, 0, 1);
+    run_case_d<COOMatrix<double>, CSCMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Lower, 8, 3, 1.0, 0.0, 0, 1);
+    run_case_d<CSCMatrix<double>, COOMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 1.0, 0.0, 0, 1);
 }
-TEST_F(TestSpsymm, CaseD_CSR_CSR_Right) {
+TEST_F(TestSpsymm, sparse_times_sparse_right_side_matches_reference) {
     run_case_d<CSRMatrix<double>, CSRMatrix<double>>(Layout::ColMajor, Side::Right, Uplo::Upper, 8, 3, 1.5, -0.5, 0, 1);
     run_case_d<CSRMatrix<double>, CSRMatrix<double>>(Layout::RowMajor, Side::Right, Uplo::Lower, 8, 3, 1.5, -0.5, 0, 1);
+    run_case_d<COOMatrix<double>, CSCMatrix<double>>(Layout::ColMajor, Side::Right, Uplo::Upper, 8, 3, 1.5, -0.5, 0, 1);
 }
-TEST_F(TestSpsymm, CaseD_Float) {
+TEST_F(TestSpsymm, sparse_times_sparse_float_matches_reference) {
     run_case_d<CSRMatrix<float>, CSRMatrix<float>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 1.5f, -0.5f, 0, 1);
 }
-TEST_F(TestSpsymm, CaseD_AlphaZero_BetaScale) {
+TEST_F(TestSpsymm, sparse_times_sparse_alpha_zero_scales_by_beta) {
     // alpha=0 path: just beta-scales Y, doesn't even touch A or B.
     run_case_d<CSRMatrix<double>, CSRMatrix<double>>(Layout::ColMajor, Side::Left, Uplo::Upper, 8, 3, 0.0, 0.5, 0, 1);
 }
@@ -312,7 +320,7 @@ TEST_F(TestSpsymm, CaseD_AlphaZero_BetaScale) {
 // overload instead of the lower-level RandBLAS::sparse_data::spsymm.
 // All other setup (dense reference, comparison tolerance) is identical
 // to run_case; we set route_via_wrapper=true to flip the dispatch.
-TEST_F(TestSpsymm, SymmetricWrapper) {
+TEST_F(TestSpsymm, symmetric_wrapper_routes_to_same_result) {
     run_case<CSRMatrix<double>>(
         Layout::ColMajor, Side::Left, Uplo::Upper,
         /*n_A=*/8, /*d=*/3,
@@ -363,7 +371,7 @@ TEST_F(TestSpsymm, one_based_indices_throw) {
 // Case D with int32 indices: exercises whichever branch the build selects
 // (expand-A + spgemm when the index width matches MKL_INT, the densify-B
 // composition otherwise). Both must produce the same answer.
-TEST_F(TestSpsymm, CaseD_Int32_Indices) {
+TEST_F(TestSpsymm, sparse_times_sparse_int32_indices_match_reference) {
     // A_sym = [[2, 1, 0], [1, 3, 0], [0, 0, 4]], upper triangle stored.
     double  a_vals[] = {2.0, 1.0, 3.0, 4.0};
     int32_t a_rows[] = {0, 0, 1, 2};
@@ -382,4 +390,27 @@ TEST_F(TestSpsymm, CaseD_Int32_Indices) {
     std::vector<double> expect = {2.0, 1.0, 8.0, 5.0, 15.0, 0.0};
     for (size_t i = 0; i < expect.size(); ++i)
         EXPECT_NEAR(Y[i], expect[i], 1e-14) << "mismatch at flat index " << i;
+}
+
+// Empty operands leave beta * Y, matching the left_spmm contract from #196
+// (MKL rejects some valid empty sparse matrices at handle creation, so the
+// dispatcher must not reach it).
+TEST_F(TestSpsymm, empty_sparse_operands_leave_beta_scaled_output) {
+    int64_t n_A = 4, d = 2;
+    CSRMatrix<double> A_empty(n_A, n_A);  // nnz == 0
+    std::vector<double> B(n_A * d, 1.0);
+    std::vector<double> Y(n_A * d, 2.0);
+    // Case C with structurally empty A: Y <- 0.5 * Y.
+    RandBLAS::sparse_data::spsymm(Layout::ColMajor, Side::Left, Uplo::Upper, n_A, d,
+                                  1.0, A_empty, B.data(), n_A, 0.5, Y.data(), n_A);
+    for (auto y : Y) EXPECT_DOUBLE_EQ(y, 1.0);
+
+    // Case D with structurally empty B: Y <- 0.5 * Y again.
+    COOMatrix<double> B_empty(n_A, d);    // nnz == 0
+    double a_vals[] = {1.0};
+    int64_t a_rows[] = {0}, a_cols[] = {0};
+    COOMatrix<double> A_one(n_A, n_A, 1, a_vals, a_rows, a_cols);
+    RandBLAS::sparse_data::spsymm(Layout::ColMajor, Side::Left, Uplo::Upper, n_A, d,
+                                  1.0, A_one, B_empty, 0.5, Y.data(), n_A);
+    for (auto y : Y) EXPECT_DOUBLE_EQ(y, 0.5);
 }

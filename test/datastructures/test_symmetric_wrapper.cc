@@ -46,7 +46,7 @@ class TestSymmetricWrapper : public ::testing::Test {};
 // trait aliases. The wrapper does not require any actual data, since it only
 // stores a reference + uplo.
 
-TEST_F(TestSymmetricWrapper, ConstructFromCOO) {
+TEST_F(TestSymmetricWrapper, constructs_from_coo) {
     COOMatrix<double> A(4, 4);
     auto wrapped = as_symmetric(A, blas::Uplo::Upper);
     EXPECT_EQ(&wrapped.A, &A);
@@ -57,7 +57,7 @@ TEST_F(TestSymmetricWrapper, ConstructFromCOO) {
                   "Symmetric<COOMatrix<double>>::scalar_t must be double");
 }
 
-TEST_F(TestSymmetricWrapper, ConstructFromCSR) {
+TEST_F(TestSymmetricWrapper, constructs_from_csr) {
     CSRMatrix<float> A(5, 5);
     auto wrapped = as_symmetric(A, blas::Uplo::Lower);
     EXPECT_EQ(&wrapped.A, &A);
@@ -67,7 +67,7 @@ TEST_F(TestSymmetricWrapper, ConstructFromCSR) {
                   "Symmetric<CSRMatrix<float>>::scalar_t must be float");
 }
 
-TEST_F(TestSymmetricWrapper, ConstructFromCSC) {
+TEST_F(TestSymmetricWrapper, constructs_from_csc) {
     CSCMatrix<double> A(3, 3);
     auto wrapped = as_symmetric(A, blas::Uplo::Upper);
     EXPECT_EQ(&wrapped.A, &A);
@@ -75,7 +75,7 @@ TEST_F(TestSymmetricWrapper, ConstructFromCSC) {
     EXPECT_EQ(wrapped.A.n_rows, 3);
 }
 
-TEST_F(TestSymmetricWrapper, NamespacingExportsAtRandBLASScope) {
+TEST_F(TestSymmetricWrapper, exports_at_randblas_scope) {
     // The wrapper and the helper must be accessible via the top-level
     // RandBLAS:: namespace (re-exported from sparse_data::).
     COOMatrix<double> A(2, 2);
@@ -85,7 +85,7 @@ TEST_F(TestSymmetricWrapper, NamespacingExportsAtRandBLASScope) {
     EXPECT_EQ(wrapped_sugar.uplo, blas::Uplo::Lower);
 }
 
-TEST_F(TestSymmetricWrapper, NonSquareRejectedAtConstruction) {
+TEST_F(TestSymmetricWrapper, non_square_rejected_at_construction) {
     COOMatrix<double> A(3, 4); // not square
     EXPECT_THROW({
         auto wrapped = as_symmetric(A, blas::Uplo::Upper);
