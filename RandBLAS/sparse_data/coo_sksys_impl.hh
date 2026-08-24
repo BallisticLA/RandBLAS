@@ -136,14 +136,11 @@ void coo_rsksys(
     T *B,
     int64_t ldb
 ) {
-    auto flipped_layout = (layout == blas::Layout::ColMajor)
-        ? blas::Layout::RowMajor
-        : blas::Layout::ColMajor;
     auto flipped_uplo = (uplo == blas::Uplo::Upper)
         ? blas::Uplo::Lower
         : blas::Uplo::Upper;
     auto St = Scoo.transpose();
-    coo_lsksys(flipped_layout, flipped_uplo, d, n, alpha,
+    coo_lsksys(flipped_layout(layout), flipped_uplo, d, n, alpha,
                St, co_s, ro_s, A, lda, B, ldb);
 }
 

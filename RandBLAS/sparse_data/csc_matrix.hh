@@ -262,7 +262,7 @@ namespace RandBLAS::sparse_data::csc {
 using namespace RandBLAS::sparse_data;
 using blas::Layout;
 
-template <typename T, typename sint_t = int64_t>
+template <typename T, SignedInteger sint_t = int64_t>
 void csc_to_dense(const CSCMatrix<T, sint_t> &spmat, int64_t stride_row, int64_t stride_col, T *mat) {
     randblas_require(spmat.index_base == IndexBase::Zero);
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
@@ -282,7 +282,7 @@ void csc_to_dense(const CSCMatrix<T, sint_t> &spmat, int64_t stride_row, int64_t
     return;
 }
 
-template <typename T, typename sint_t = int64_t>
+template <typename T, SignedInteger sint_t = int64_t>
 void csc_to_dense(const CSCMatrix<T, sint_t> &spmat, Layout layout, T *mat) {
     if (layout == Layout::ColMajor) {
         csc_to_dense(spmat, 1, spmat.n_rows, mat);

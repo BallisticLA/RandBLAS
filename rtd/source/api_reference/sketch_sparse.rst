@@ -124,6 +124,13 @@ Deterministic operations
     .. doxygenfunction:: RandBLAS::spsymm(blas::Layout layout, int64_t m, int64_t n, T alpha, const Symmetric<SpMat> &A_sym, const T *B, int64_t ldb, T beta, T *Y, int64_t ldy)
       :project: RandBLAS
 
+    .. doxygenstruct:: RandBLAS::sparse_data::Symmetric
+      :project: RandBLAS
+      :members:
+
+    .. doxygenfunction:: RandBLAS::sparse_data::as_symmetric(const SpMat &A, blas::Uplo uplo)
+      :project: RandBLAS
+
     Only the triangle named by ``uplo`` is read from :math:`\mtxA`. With Intel MKL,
     the call dispatches to ``mkl_sparse_d_mm`` with a symmetric ``matrix_descr``
     for the fast path; otherwise it uses a hand-rolled per-format kernel

@@ -380,7 +380,7 @@ void dense_to_coo(Layout layout, T* mat, T abs_tol, COOMatrix<T> &spmat) {
     }
 }
 
-template <typename T, typename sint_t = int64_t>
+template <typename T, SignedInteger sint_t = int64_t>
 void coo_to_dense(const COOMatrix<T, sint_t> &spmat, int64_t stride_row, int64_t stride_col, T *mat) {
     #define MAT(_i, _j) mat[(_i) * stride_row + (_j) * stride_col]
     for (int64_t i = 0; i < spmat.n_rows; ++i) {
@@ -404,7 +404,7 @@ void coo_to_dense(const COOMatrix<T, sint_t> &spmat, int64_t stride_row, int64_t
     return;
 }
 
-template <typename T, typename sint_t = int64_t>
+template <typename T, SignedInteger sint_t = int64_t>
 void coo_to_dense(const COOMatrix<T, sint_t> &spmat, Layout layout, T *mat) {
     if (layout == Layout::ColMajor) {
         coo_to_dense(spmat, 1, spmat.n_rows, mat);

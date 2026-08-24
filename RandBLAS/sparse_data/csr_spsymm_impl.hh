@@ -39,22 +39,22 @@ namespace RandBLAS::sparse_data {
 
 
 // =============================================================================
-/// CSR fallback for the symmetric sparse-times-dense kernel (side=Left).
-///
-/// Accumulates Y += alpha * A * B, where A is m-by-m symmetric with only the
-/// triangle named by uplo structurally stored, and B, Y are dense m-by-n.
-/// The caller (the spsymm dispatcher) has already validated the arguments,
-/// applied beta scaling to Y, and normalized side=Right away, so this kernel
-/// is a pure accumulator. Entries outside the named triangle are silently
-/// skipped, so the kernel is robust against callers who store both triangles
-/// by mistake (it just behaves like the "correctly stored" case).
-///
-/// The loop is column-driven: each dense right-hand-side column c of B/Y is
-/// processed independently, so the outer loop parallelizes without races and
-/// the inner updates are unit-stride in ColMajor. Each stored off-diagonal
-/// entry A(i, j) = v contributes twice per column (the entry itself and the
-/// implied symmetric A(j, i) = v); diagonal entries contribute once.
-template <typename T, typename sint_t>
+// CSR fallback for the symmetric sparse-times-dense kernel (side=Left).
+//
+// Accumulates Y += alpha * A * B, where A is m-by-m symmetric with only the
+// triangle named by uplo structurally stored, and B, Y are dense m-by-n.
+// The caller (the spsymm dispatcher) has already validated the arguments,
+// applied beta scaling to Y, and normalized side=Right away, so this kernel
+// is a pure accumulator. Entries outside the named triangle are silently
+// skipped, so the kernel is robust against callers who store both triangles
+// by mistake (it just behaves like the "correctly stored" case).
+//
+// The loop is column-driven: each dense right-hand-side column c of B/Y is
+// processed independently, so the outer loop parallelizes without races and
+// the inner updates are unit-stride in ColMajor. Each stored off-diagonal
+// entry A(i, j) = v contributes twice per column (the entry itself and the
+// implied symmetric A(j, i) = v); diagonal entries contribute once.
+template <typename T, SignedInteger sint_t>
 void csr_spsymm(
     blas::Layout layout,
     blas::Uplo uplo,

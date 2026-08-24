@@ -34,10 +34,13 @@
 #include "RandBLAS/skge.hh"
 #include "RandBLAS/sparse_data/coo_sksys_impl.hh"
 
+#include <type_traits>
+#include <vector>
+
 
 // =============================================================================
-// Symmetric sketching helpers (SYMM-backed). See project-plans/randblas-symm-plan.md
-// for the four-case API design and the implementation status of each case.
+// Symmetric sketching helpers (SYMM-backed). See sparse_data/DevNotes.md for
+// the four-case design (dense/sparse symmetric operand x dense/sparse factor).
 //   - lsksy3, rsksy3: Case A (dense-symm A x dense Omega), via blas::symm.
 //   - lsksys, rsksys: Case B (dense-symm A x sparse SkOp). Thin wrappers
 //     handling validation, beta, and SparseSkOp materialization; the actual
@@ -70,21 +73,21 @@ inline std::vector<T> transpose_copy_to_layout(
 }
 
 // =============================================================================
-/// LSKSY3: SYMM-backed left-sketch with a symmetric matrix A.
-///
-/// Computes B = alpha * submat(S) * mat(A) + beta * B, where:
-///   - mat(A) is n-by-n symmetric. Only the triangle named by `uplo` is read.
-///   - submat(S) is the d-by-n view of S at (ro_s, co_s).
-///   - mat(B) is d-by-n.
-///
-/// When S has no materialized buffer, the submatrix is realized via
-/// `submatrix_as_blackbox` (same pattern as `lskge3`). When the buffered S's
-/// storage layout matches the caller's `layout`, the final call is
-/// `blas::symm` with `side = Right` (since A is on the right of S in the
-/// operation). When layouts mismatch, SYMM cannot transpose S on the fly, so
-/// we transpose-copy S into a tight buffer matching the caller's layout (cost:
-/// `O(d * n)` for the copy) and then call SYMM on the copy. This keeps the
-/// SYMM speedup on the matvec, at the cost of the one-time copy.
+// LSKSY3: SYMM-backed left-sketch with a symmetric matrix A.
+//
+// Computes B = alpha * submat(S) * mat(A) + beta * B, where:
+//   - mat(A) is n-by-n symmetric. Only the triangle named by `uplo` is read.
+//   - submat(S) is the d-by-n view of S at (ro_s, co_s).
+//   - mat(B) is d-by-n.
+//
+// When S has no materialized buffer, the submatrix is realized via
+// `submatrix_as_blackbox` (same pattern as `lskge3`). When the buffered S's
+// storage layout matches the caller's `layout`, the final call is
+// `blas::symm` with `side = Right` (since A is on the right of S in the
+// operation). When layouts mismatch, SYMM cannot transpose S on the fly, so
+// we transpose-copy S into a tight buffer matching the caller's layout (cost:
+// `O(d * n)` for the copy) and then call SYMM on the copy. This keeps the
+// SYMM speedup on the matvec, at the cost of the one-time copy.
 template <typename T, typename DenseSkOp>
 void lsksy3(
     blas::Layout layout,
@@ -100,7 +103,7 @@ void lsksy3(
     T beta,
     T *B,
     int64_t ldb
-){
+) {
     constexpr bool maybe_denseskop = !std::is_same_v<std::remove_cv_t<DenseSkOp>, BLASFriendlyOperator<T>>;
     if constexpr (maybe_denseskop) {
         if (!S.buff) {
@@ -110,8 +113,7 @@ void lsksy3(
         }
     }
     randblas_require( S.buff != nullptr );
-    randblas_require( S.n_rows >= d + ro_s );
-    randblas_require( S.n_cols >= n + co_s );
+    validate_submat_dims(S.n_rows, S.n_cols, d, n, ro_s, co_s);
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= n);
         randblas_require(ldb >= d);
@@ -138,15 +140,15 @@ void lsksy3(
 
 
 // =============================================================================
-/// RSKSY3: SYMM-backed right-sketch with a symmetric matrix A.
-///
-/// Computes B = alpha * mat(A) * submat(S) + beta * B, where:
-///   - mat(A) is n-by-n symmetric. Only the triangle named by `uplo` is read.
-///   - submat(S) is the n-by-d view of S at (ro_s, co_s).
-///   - mat(B) is n-by-d.
-///
-/// Same materialization and layout-mismatch fallback semantics as `lsksy3`.
-/// Final call (matching layout): `blas::symm` with `side = Left`.
+// RSKSY3: SYMM-backed right-sketch with a symmetric matrix A.
+//
+// Computes B = alpha * mat(A) * submat(S) + beta * B, where:
+//   - mat(A) is n-by-n symmetric. Only the triangle named by `uplo` is read.
+//   - submat(S) is the n-by-d view of S at (ro_s, co_s).
+//   - mat(B) is n-by-d.
+//
+// Same materialization and layout-mismatch fallback semantics as `lsksy3`.
+// Final call (matching layout): `blas::symm` with `side = Left`.
 template <typename T, typename DenseSkOp>
 void rsksy3(
     blas::Layout layout,
@@ -162,7 +164,7 @@ void rsksy3(
     T beta,
     T *B,
     int64_t ldb
-){
+) {
     constexpr bool maybe_denseskop = !std::is_same_v<std::remove_cv_t<DenseSkOp>, BLASFriendlyOperator<T>>;
     if constexpr (maybe_denseskop) {
         if (!S.buff) {
@@ -172,8 +174,7 @@ void rsksy3(
         }
     }
     randblas_require( S.buff != nullptr );
-    randblas_require( S.n_rows >= n + ro_s );
-    randblas_require( S.n_cols >= d + co_s );
+    validate_submat_dims(S.n_rows, S.n_cols, n, d, ro_s, co_s);
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= n);
         randblas_require(ldb >= n);
@@ -203,19 +204,19 @@ void rsksy3(
 namespace RandBLAS::sparse {
 
 // =============================================================================
-/// LSKSYS: dense symmetric A on the right of a SparseSkOp.
-///
-/// Computes B = alpha * submat(S) * mat(A) + beta * B, where:
-///   - mat(A) is n-by-n dense symmetric, with only the `uplo` triangle stored.
-///   - submat(S) is the d-by-n view of S at (ro_s, co_s); S is a SparseSkOp.
-///   - mat(B) is d-by-n dense.
-///
-/// Validation mirrors the dense-path lsksy3. When S is unmaterialized, only
-/// the requested d-by-n window is sampled (submatrix_as_coo, the same pattern
-/// lskges uses); a materialized S is consumed through a lightweight COO view
-/// with the window filtered inside the kernel. The kernel itself
-/// (sparse_data::coo_lsksys) is a column-driven pure accumulator; beta is
-/// applied here, exactly once.
+// LSKSYS: dense symmetric A on the right of a SparseSkOp.
+//
+// Computes B = alpha * submat(S) * mat(A) + beta * B, where:
+//   - mat(A) is n-by-n dense symmetric, with only the `uplo` triangle stored.
+//   - submat(S) is the d-by-n view of S at (ro_s, co_s); S is a SparseSkOp.
+//   - mat(B) is d-by-n dense.
+//
+// Validation mirrors the dense-path lsksy3. When S is unmaterialized, only
+// the requested d-by-n window is sampled (submatrix_as_coo, the same pattern
+// lskges uses); a materialized S is consumed through a lightweight COO view
+// with the window filtered inside the kernel. The kernel itself
+// (sparse_data::coo_lsksys) is a column-driven pure accumulator; beta is
+// applied here, exactly once.
 template <typename T, typename RNG, SignedInteger sint_t>
 void lsksys(
     blas::Layout layout,
@@ -232,8 +233,7 @@ void lsksys(
     T *B,
     int64_t ldb
 ) {
-    randblas_require( S.n_rows >= d + ro_s );
-    randblas_require( S.n_cols >= n + co_s );
+    validate_submat_dims(S.n_rows, S.n_cols, d, n, ro_s, co_s);
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= n);
         randblas_require(ldb >= d);
@@ -261,16 +261,16 @@ void lsksys(
 
 
 // =============================================================================
-/// RSKSYS: dense symmetric A on the left of a SparseSkOp.
-///
-/// Computes B = alpha * mat(A) * submat(S) + beta * B, where:
-///   - mat(A) is n-by-n dense symmetric, with only the `uplo` triangle stored.
-///   - submat(S) is the n-by-d view of S at (ro_s, co_s); S is a SparseSkOp.
-///   - mat(B) is n-by-d dense.
-///
-/// Same validation, window-sampling, and beta conventions as lsksys; the
-/// kernel (sparse_data::coo_rsksys) reduces to coo_lsksys via the transpose
-/// identity.
+// RSKSYS: dense symmetric A on the left of a SparseSkOp.
+//
+// Computes B = alpha * mat(A) * submat(S) + beta * B, where:
+//   - mat(A) is n-by-n dense symmetric, with only the `uplo` triangle stored.
+//   - submat(S) is the n-by-d view of S at (ro_s, co_s); S is a SparseSkOp.
+//   - mat(B) is n-by-d dense.
+//
+// Same validation, window-sampling, and beta conventions as lsksys; the
+// kernel (sparse_data::coo_rsksys) reduces to coo_lsksys via the transpose
+// identity.
 template <typename T, typename RNG, SignedInteger sint_t>
 void rsksys(
     blas::Layout layout,
@@ -287,8 +287,7 @@ void rsksys(
     T *B,
     int64_t ldb
 ) {
-    randblas_require( S.n_rows >= n + ro_s );
-    randblas_require( S.n_cols >= d + co_s );
+    validate_submat_dims(S.n_rows, S.n_cols, n, d, ro_s, co_s);
     if (layout == blas::Layout::ColMajor) {
         randblas_require(lda >= n);
         randblas_require(ldb >= n);
@@ -385,7 +384,7 @@ using namespace RandBLAS::sparse;
 ///       * Defines :math:`\submat(\mtxS).` DenseSkOp dispatches to a SYMM-backed
 ///         kernel (Case A); SparseSkOp dispatches to a column-driven
 ///         accumulation kernel that reads only the named triangle of
-///         :math:`A` (Case B). See `project-plans/randblas-symm-plan.md`.
+///         :math:`A`. See ``RandBLAS/sparse_data/DevNotes.md``.
 ///
 ///      ro_s - [in]
 ///       * A nonnegative integer.

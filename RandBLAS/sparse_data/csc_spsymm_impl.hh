@@ -36,14 +36,14 @@
 namespace RandBLAS::sparse_data {
 
 // =============================================================================
-/// CSC fallback for symmetric sparse-times-dense (side=Left).
-///
-/// A symmetric CSC matrix's arrays, read as CSR, describe A^T = A over the
-/// same buffers, with the stored triangle name flipped: a CSC Upper entry at
-/// (i, j) with i <= j appears in the CSR view at (j, i), which is Lower.
-/// So this kernel is a delegation to csr_spsymm on the lightweight
-/// A.transpose() view with uplo flipped. Same identity as the MKL path.
-template <typename T, typename sint_t>
+// CSC fallback for symmetric sparse-times-dense (side=Left).
+//
+// A symmetric CSC matrix's arrays, read as CSR, describe A^T = A over the
+// same buffers, with the stored triangle name flipped: a CSC Upper entry at
+// (i, j) with i <= j appears in the CSR view at (j, i), which is Lower.
+// So this kernel is a delegation to csr_spsymm on the lightweight
+// A.transpose() view with uplo flipped. Same identity as the MKL path.
+template <typename T, SignedInteger sint_t>
 void csc_spsymm(
     blas::Layout layout,
     blas::Uplo uplo,

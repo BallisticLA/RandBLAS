@@ -59,8 +59,8 @@ namespace RandBLAS::sparse_data {
 /// (``A.n_rows == A.n_cols``) via :math:`\ttt{randblas\_require}`.
 ///
 /// This wrapper is the carrier for symmetric sparse matrices into the
-/// :math:`\ttt{spsymm}`-family kernels (project-plans/randblas-symm-plan.md
-/// Case C and beyond). It is intentionally separate from the underlying
+/// :math:`\ttt{spsymm}`-family kernels (see
+/// ``RandBLAS/sparse_data/DevNotes.md``). It is intentionally separate from the underlying
 /// :math:`\ttt{SparseMatrix}` concept so that calling
 /// :math:`\ttt{spmm}` / :math:`\ttt{spgemm}` with a ``Symmetric<SpMat>``
 /// argument fails to compile rather than silently treating the matrix as

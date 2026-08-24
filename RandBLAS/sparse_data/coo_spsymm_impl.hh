@@ -38,19 +38,19 @@
 namespace RandBLAS::sparse_data {
 
 // =============================================================================
-/// COO fallback for symmetric sparse-times-dense (side=Left).
-///
-/// Accumulates Y += alpha * A * B over the stored (row, col, val) triples;
-/// no assumption on their order. For uplo=Upper, structurally populated
-/// entries satisfy row <= col; for uplo=Lower, row >= col. Entries outside
-/// the named triangle are silently skipped. The caller (the spsymm
-/// dispatcher) has already validated the arguments, applied beta scaling to
-/// Y, and normalized side=Right away, so this kernel is a pure accumulator.
-///
-/// Column-driven for the same reasons as csr_spsymm: the outer loop over
-/// dense right-hand-side columns is race-free under OpenMP and the inner
-/// updates are unit-stride in ColMajor.
-template <typename T, typename sint_t>
+// COO fallback for symmetric sparse-times-dense (side=Left).
+//
+// Accumulates Y += alpha * A * B over the stored (row, col, val) triples;
+// no assumption on their order. For uplo=Upper, structurally populated
+// entries satisfy row <= col; for uplo=Lower, row >= col. Entries outside
+// the named triangle are silently skipped. The caller (the spsymm
+// dispatcher) has already validated the arguments, applied beta scaling to
+// Y, and normalized side=Right away, so this kernel is a pure accumulator.
+//
+// Column-driven for the same reasons as csr_spsymm: the outer loop over
+// dense right-hand-side columns is race-free under OpenMP and the inner
+// updates are unit-stride in ColMajor.
+template <typename T, SignedInteger sint_t>
 void coo_spsymm(
     blas::Layout layout,
     blas::Uplo uplo,
