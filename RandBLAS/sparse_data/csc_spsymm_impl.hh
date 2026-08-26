@@ -51,13 +51,13 @@ void csc_spsymm(
     T alpha,
     const CSCMatrix<T, sint_t>& A,
     const T* B, int64_t ldb,
-    T* Y, int64_t ldy
+    T* C, int64_t ldc
 ) {
     auto At = A.transpose();
     blas::Uplo uplo_flipped = (uplo == blas::Uplo::Upper)
         ? blas::Uplo::Lower
         : blas::Uplo::Upper;
-    csr_spsymm(layout, uplo_flipped, m, n, alpha, At, B, ldb, Y, ldy);
+    csr_spsymm(layout, uplo_flipped, m, n, alpha, At, B, ldb, C, ldc);
 }
 
 } // namespace RandBLAS::sparse_data

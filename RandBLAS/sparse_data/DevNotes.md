@@ -84,18 +84,18 @@ two operands (``A`` symmetric vs. the second factor ``B``):
 
 ### Case C dispatch (``spsymm_dispatch.hh``)
 
-``RandBLAS::sparse_data::spsymm(layout, side, uplo, m, n, alpha, A, B, ldb, beta, Y, ldy)``
+``RandBLAS::sparse_data::spsymm(layout, side, uplo, m, n, alpha, A, B, ldb, beta, C, ldc)``
 dispatches as follows:
 
-1. Normalize side=Right to side=Left: since ``A == A^T``, ``Y = B*A`` equals
-   ``Y^T = A*B^T``, and reinterpreting the B and Y buffers in the opposite
-   layout presents them as ``B^T`` and ``Y^T`` with the same leading
+1. Normalize side=Right to side=Left: since ``A == A^T``, ``C = B*A`` equals
+   ``C^T = A*B^T``, and reinterpreting the B and C buffers in the opposite
+   layout presents them as ``B^T`` and ``C^T`` with the same leading
    dimensions. ``uplo`` is unchanged. Everything below assumes side=Left.
 2. Validate: zero-based indices (``A.index_base == IndexBase::Zero``), A
-   square of order ``m``, and leading-dimension lower bounds for B and Y
+   square of order ``m``, and leading-dimension lower bounds for B and C
    (mirroring ``left_spmm``).
 3. Handle empty products (a zero dimension, alpha == 0, or a structurally
-   empty operand) by leaving beta * Y, before MKL can reject a valid empty
+   empty operand) by leaving beta * C, before MKL can reject a valid empty
    sparse matrix at handle creation (the left_spmm contract).
 4. If RandBLAS was built with MKL and the index width matches ``MKL_INT``,
    try ``mkl::mkl_spsymm`` with the caller's beta (MKL applies alpha and
@@ -103,13 +103,13 @@ dispatches as follows:
    the ``SPARSE_MATRIX_TYPE_SYMMETRIC`` descriptor and calls
    ``mkl_sparse_?_mm``; CSC goes through the CSR-of-transpose view with
    ``uplo`` flipped. It returns false only on a runtime ``NOT_SUPPORTED`` (a
-   parameter-validation result, so Y is untouched when it happens); control
+   parameter-validation result, so C is untouched when it happens); control
    then falls to step 5.
 5. Format-specific fallback: apply beta via ``util::lascl``, then run
    ``csr_spsymm`` / ``coo_spsymm`` (and
    ``csc_spsymm``, a three-line delegation to ``csr_spsymm`` on the
    transpose view with ``uplo`` flipped). The kernels are column-driven:
-   an OpenMP-parallel outer loop over the n right-hand-side columns of B/Y
+   an OpenMP-parallel outer loop over the n right-hand-side columns of B/C
    (each column is owned by one thread, so there are no races), with a scan
    of the stored triangle inside. Each stored off-diagonal entry
    ``A(i,j) = v`` contributes twice per column (the entry and its implied
@@ -119,11 +119,15 @@ dispatches as follows:
 
 The public-facing wrappers in the top-level ``RandBLAS::`` namespace are:
 
-  - ``spsymm(layout, uplo, m, n, alpha, A, B, ldb, beta, Y, ldy)``,
-    convenience for side=Left.
-  - ``spsymm(layout, m, n, alpha, Symmetric<SpMat> A_sym, B, ldb, beta, Y, ldy)``,
-    routes via the ``Symmetric<SpMat>`` carrier so the uplo annotation
-    travels with the matrix.
+  - ``spsymm(layout, uplo, n, alpha, A, B, ldb, beta, C, ldc)``,
+    convenience for side=Left. The order of A comes from the matrix itself
+    (A must be square), so the single dimension argument is ``n``, the
+    column count of B and C -- the same convention as MKL's
+    ``mkl_sparse_?_mm``.
+  - ``spmm(layout, n, alpha, Symmetric<SpMat> A_sym, B, ldb, beta, C, ldc)``,
+    an overload of the general ``spmm``: the ``Symmetric<SpMat>`` carrier
+    requests symmetric semantics through the type system, so the uplo
+    annotation travels with the matrix.
 
 ### Case B: column-driven COO kernel in ``coo_sksys_impl.hh``
 

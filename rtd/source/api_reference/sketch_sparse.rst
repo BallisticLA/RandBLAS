@@ -114,14 +114,14 @@ Deterministic operations
        This function requires Intel MKL and only supports single and double precision (``float`` and ``double``),
        in contrast to other RandBLAS kernels that work with any scalar type.
 
-.. dropdown:: :math:`\mtxY = \alpha \cdot \mtxA \cdot \mtxB + \beta \cdot \mtxY,` with sparse symmetric :math:`\mtxA` (spsymm)
+.. dropdown:: :math:`\mtxC = \alpha \cdot \mtxA \cdot \mtxB + \beta \cdot \mtxC,` with sparse symmetric :math:`\mtxA`
     :animate: fade-in-slide-down
     :color: light
 
-    .. doxygenfunction:: RandBLAS::spsymm(blas::Layout layout, blas::Uplo uplo, int64_t m, int64_t n, T alpha, const SpMat &A, const T *B, int64_t ldb, T beta, T *Y, int64_t ldy)
+    .. doxygenfunction:: RandBLAS::spsymm(blas::Layout layout, blas::Uplo uplo, int64_t n, T alpha, const SpMat &A, const T *B, int64_t ldb, T beta, T *C, int64_t ldc)
       :project: RandBLAS
 
-    .. doxygenfunction:: RandBLAS::spsymm(blas::Layout layout, int64_t m, int64_t n, T alpha, const Symmetric<SpMat> &A_sym, const T *B, int64_t ldb, T beta, T *Y, int64_t ldy)
+    .. doxygenfunction:: RandBLAS::spmm(blas::Layout layout, int64_t n, T alpha, const Symmetric<SpMat> &A_sym, const T *B, int64_t ldb, T beta, T *C, int64_t ldc)
       :project: RandBLAS
 
     .. doxygenstruct:: RandBLAS::sparse_data::Symmetric
@@ -131,37 +131,9 @@ Deterministic operations
     .. doxygenfunction:: RandBLAS::sparse_data::as_symmetric(const SpMat &A, blas::Uplo uplo)
       :project: RandBLAS
 
-    Only the triangle named by ``uplo`` is read from :math:`\mtxA`. With Intel MKL,
-    the call dispatches to ``mkl_sparse_d_mm`` with a symmetric ``matrix_descr``
-    for the fast path; otherwise it uses a hand-rolled per-format kernel
-    (CSR / CSC / COO). See ``RandBLAS/sparse_data/DevNotes.md`` for the dispatch
-    flow and the broader 4-case design that ``spsymm`` belongs to.
-
-    .. note::
-
-       The ``Symmetric<SpMat>`` carrier (a non-owning wrapper holding a
-       ``const SpMat &`` and a ``blas::Uplo``) is the type-safety hook that
-       prevents a symmetric sparse matrix from being accidentally passed to
-       the general ``spmm`` / ``spgemm`` routines.
-
-       The "dense-symm A times sparse SkOp" case (Case B) is also implemented:
-       it lives in ``sketch_symmetric`` (the SparseSkOp branch) and uses a
-       column-driven accumulation kernel that reads only the named
-       triangle of A. See ``RandBLAS/sparse_data/DevNotes.md`` for the
-       access pattern.
-
-       The "sparse-symm A times sparse RHS, dense output" case (Case D) is
-       implemented via a two-``SparseMatrix``-arg ``spsymm`` overload,
-       covering all 3 x 3 = 9 sparse-format pairings for ``(A, B)``.
-       ``mkl_sparse_sp2m`` rejects symmetric descriptors and
-       ``mkl_sparse_?_spmmd`` takes no descriptor, so the symmetric
-       expansion happens on the RandBLAS side: on MKL builds the stored
-       triangle of ``A`` is expanded to a general sparse matrix in
-       ``O(nnz)`` memory and the existing sparse-times-sparse routine runs
-       with a GENERAL descriptor, keeping ``B`` sparse. Non-MKL builds
-       (and index widths mismatched with ``MKL_INT``) fall back to
-       densifying ``B`` into a temporary ``m``-by-``n`` buffer and
-       composing through the Case-C dispatcher.
+    Only the triangle of :math:`\mtxA` named by ``uplo`` is read; the opposite
+    triangle is implied by symmetry. :math:`\mtxA` must be square, and its
+    order is taken from the matrix itself.
 
 .. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)^{-1} \cdot \mtxB,` with sparse triangular :math:`\mtxA`
     :animate: fade-in-slide-down

@@ -7,10 +7,10 @@ How do I do this and that?
 --------------------------
 
 How do I sketch a const symmetric matrix that's only stored in an upper or lower triangle?
-  You can only do this with dense sketching operators.
-  You'll have to prepare the plain buffer representation yourself with 
-  :cpp:any:`RandBLAS::fill_dense_unpacked`,
-  and then you'll have to use that buffer in your own SYMM function.
+  Call sketch_symmetric and pass the ``blas::Uplo`` value naming the stored triangle.
+  This works with dense and sparse sketching operators alike, and the opposite
+  triangle is never read. If the symmetric matrix is sparse rather than dense,
+  wrap it with ``as_symmetric`` and pass the wrapper to ``spmm``.
 
 How do I sketch a submatrix of a sparse matrix?
   You can only do this if the sparse matrix in COO format.
@@ -109,16 +109,6 @@ No support for negative values of "incx" or "incy" in sketch_vector.
   SPMV implementation that supported negative increments. If someone wants to volunteer 
   to extend our SPMV kernels to support that, then we'd happily accept such a contribution.
   (It shouldn't be hard! We just haven't gotten around to this.)
-
-sketch_symmetric supports both DenseSkOp and SparseSkOp.
-  ``sketch_symmetric`` now takes a ``blas::Uplo`` and exploits symmetry of :math:`A`:
-  the ``DenseSkOp`` branch dispatches to ``blas::symm`` (via ``lsksy3`` / ``rsksy3``)
-  and the ``SparseSkOp`` branch dispatches to a column-driven accumulation kernel
-  (``lsksys`` / ``rsksys``) that reads only the triangle of :math:`A` named by
-  ``uplo``. See ``RandBLAS/sparse_data/DevNotes.md`` for the access-pattern detail.
-
-Layout-mismatched ``DenseSkOp`` in ``sketch_symmetric`` transpose-copies the operand.
-  When the ``DenseSkOp``'s storage layout differs from the caller's ``layout`` parameter, ``sketch_symmetric`` transpose-copies the operand into a tight buffer in the caller's layout and then calls ``blas::symm``. The copy is ``O(d * n)``; ``blas::symm`` has no on-the-fly transpose flag for the dense operand, so this is what it costs to keep the SYMM speedup over a ``blas::gemm`` fallback. The layout-matched case skips the copy.
 
 
 Language interoperability

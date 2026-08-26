@@ -41,15 +41,15 @@ namespace RandBLAS::sparse_data {
 // =============================================================================
 // CSR fallback for the symmetric sparse-times-dense kernel (side=Left).
 //
-// Accumulates Y += alpha * A * B, where A is m-by-m symmetric with only the
-// triangle named by uplo structurally stored, and B, Y are dense m-by-n.
+// Accumulates C += alpha * A * B, where A is m-by-m symmetric with only the
+// triangle named by uplo structurally stored, and B, C are dense m-by-n.
 // The caller (the spsymm dispatcher) has already validated the arguments,
-// applied beta scaling to Y, and normalized side=Right away, so this kernel
+// applied beta scaling to C, and normalized side=Right away, so this kernel
 // is a pure accumulator. Entries outside the named triangle are silently
 // skipped, so the kernel is robust against callers who store both triangles
 // by mistake (it just behaves like the "correctly stored" case).
 //
-// The loop is column-driven: each dense right-hand-side column c of B/Y is
+// The loop is column-driven: each dense right-hand-side column c of B/C is
 // processed independently, so the outer loop parallelizes without races and
 // the inner updates are unit-stride in ColMajor. Each stored off-diagonal
 // entry A(i, j) = v contributes twice per column (the entry itself and the
@@ -62,29 +62,29 @@ void csr_spsymm(
     T alpha,
     const CSRMatrix<T, sint_t>& A,
     const T* B, int64_t ldb,
-    T* Y, int64_t ldy
+    T* C, int64_t ldc
 ) {
     (void) m;
     // Plain locals rather than structured bindings: clang does not (yet)
     // support referencing structured bindings inside OpenMP regions.
     stride_64t sb = layout_to_strides(layout, ldb);
-    stride_64t sy = layout_to_strides(layout, ldy);
+    stride_64t sc = layout_to_strides(layout, ldc);
     int64_t irs_b = sb.inter_row_stride, ics_b = sb.inter_col_stride;
-    int64_t irs_y = sy.inter_row_stride, ics_y = sy.inter_col_stride;
+    int64_t irs_c = sc.inter_row_stride, ics_c = sc.inter_col_stride;
     bool upper = (uplo == blas::Uplo::Upper);
 
     #pragma omp parallel for schedule(static)
     for (int64_t c = 0; c < n; ++c) {
         const T* B_c = &B[c * ics_b];
-        T*       Y_c = &Y[c * ics_y];
+        T*       C_c = &C[c * ics_c];
         for (int64_t i = 0; i < A.n_rows; ++i) {
             for (int64_t p = A.rowptr[i]; p < A.rowptr[i+1]; ++p) {
                 int64_t j = (int64_t) A.colidxs[p];
                 if (upper ? (j < i) : (j > i)) continue;
                 T av = alpha * A.vals[p];
-                Y_c[i * irs_y] += av * B_c[j * irs_b];
+                C_c[i * irs_c] += av * B_c[j * irs_b];
                 if (i != j)
-                    Y_c[j * irs_y] += av * B_c[i * irs_b];
+                    C_c[j * irs_c] += av * B_c[i * irs_b];
             }
         }
     }

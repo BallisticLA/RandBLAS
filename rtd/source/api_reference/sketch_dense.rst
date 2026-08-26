@@ -68,12 +68,8 @@ Analogs to SYMM
 ---------------
 
 These overloads accept a ``blas::Uplo`` parameter naming the triangle of
-:math:`\mtxA` that is structurally stored; the opposite triangle is implied
-by symmetry and is **not** read. Both ``DenseSkOp`` and ``SparseSkOp`` are
-supported: DenseSkOp dispatches to ``blas::symm`` via ``lsksy3`` / ``rsksy3``,
-SparseSkOp dispatches to a column-driven accumulation kernel via
-``lsksys`` / ``rsksys``. See ``RandBLAS/sparse_data/DevNotes.md`` for the
-SparseSkOp access-pattern detail.
+:math:`\mtxA` that is stored; the opposite triangle is implied by symmetry
+and is not read. Both dense and sparse sketching operators are supported.
 
 .. dropdown:: :math:`\mtxB = \alpha \cdot \mtxS \cdot \mtxA + \beta \cdot \mtxB`
   :animate: fade-in-slide-down

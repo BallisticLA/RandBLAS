@@ -58,13 +58,12 @@ namespace RandBLAS::sparse_data {
 /// contract). Construction does enforce that :math:`A` is square
 /// (``A.n_rows == A.n_cols``) via :math:`\ttt{randblas\_require}`.
 ///
-/// This wrapper is the carrier for symmetric sparse matrices into the
-/// :math:`\ttt{spsymm}`-family kernels (see
-/// ``RandBLAS/sparse_data/DevNotes.md``). It is intentionally separate from the underlying
-/// :math:`\ttt{SparseMatrix}` concept so that calling
-/// :math:`\ttt{spmm}` / :math:`\ttt{spgemm}` with a ``Symmetric<SpMat>``
-/// argument fails to compile rather than silently treating the matrix as
-/// general: a type-system guard against accidental loss of symmetry.
+/// This wrapper is how a caller requests symmetric semantics: passing a
+/// ``Symmetric<SpMat>`` to :math:`\ttt{spmm}` dispatches to the
+/// symmetry-aware kernels, while passing the bare :math:`\ttt{SparseMatrix}`
+/// treats the stored entries as a general matrix. The wrapper type is
+/// intentionally separate from the :math:`\ttt{SparseMatrix}` concept so the
+/// two meanings cannot be confused by accident.
 ///
 /// The wrapper is non-owning: it holds a reference to :math:`A`, not a copy.
 /// Keep the named object alive for the lifetime of the wrapper. Wrapping a

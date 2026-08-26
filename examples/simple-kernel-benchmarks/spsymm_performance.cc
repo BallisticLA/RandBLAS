@@ -50,7 +50,7 @@
 // NOTATION:
 //   A_symm  - symmetric matrix of order n_A (dense or sparse, one triangle)
 //   B       - dense matrix (n_A x d for side=Left)
-//   Y       - dense result matrix (same shape as B)
+//   C       - dense result matrix (same shape as B)
 //   density - fraction of upper-triangle entries of A_symm that are nonzero
 //             (the implied lower-triangle entries follow by symmetry)
 //
@@ -179,7 +179,7 @@ void print_row(const std::string& name, int64_t min_us, int64_t med_us, int64_t 
 
 // ============================================================================
 // run_config: one (n_A, d, density) point. Every method writes its own copy
-// of Y, is checked against the dense blas::symm reference, and is then timed.
+// of C, is checked against the dense blas::symm reference, and is then timed.
 // ============================================================================
 void run_config(int64_t n_A, int64_t d, double density, int num_trials) {
     uint64_t seed = 12345;
@@ -213,37 +213,37 @@ void run_config(int64_t n_A, int64_t d, double density, int num_trials) {
     }
 
     // Dense blas::symm reference output (also the timed dense baseline).
-    std::vector<T> Y_ref(static_cast<size_t>(n_A) * d, T(0));
+    std::vector<T> C_ref(static_cast<size_t>(n_A) * d, T(0));
     blas::symm(layout, Side::Left, Uplo::Upper, n_A, d,
-               alpha, A_full.data(), n_A, B.data(), n_A, beta, Y_ref.data(), n_A);
+               alpha, A_full.data(), n_A, B.data(), n_A, beta, C_ref.data(), n_A);
 
-    std::cout << "\n  SPARSE (side=Left, Y = A*B):\n";
+    std::cout << "\n  SPARSE (side=Left, C = A*B):\n";
     std::cout << "  " << std::setw(40) << std::left << "kernel"
               << std::setw(10) << std::right << "min(us)"
               << std::setw(10) << "med(us)"
               << std::setw(10) << "ratio" << "  check\n";
 
-    std::vector<T> Y(static_cast<size_t>(n_A) * d, T(0));
+    std::vector<T> C(static_cast<size_t>(n_A) * d, T(0));
 
     // 1. One-triangle storage through RandBLAS::spsymm.
-    RandBLAS::spsymm(layout, Uplo::Upper, n_A, d,
-                     alpha, A_csr_upper, B.data(), n_A, beta, Y.data(), n_A);
-    bool ok1 = max_rel_error(Y, Y_ref) <= check_tol;
+    RandBLAS::spsymm(layout, Uplo::Upper, d,
+                     alpha, A_csr_upper, B.data(), n_A, beta, C.data(), n_A);
+    bool ok1 = max_rel_error(C, C_ref) <= check_tol;
     auto [t1_min, t1_med] = run_trials([&] {
-        RandBLAS::spsymm(layout, Uplo::Upper, n_A, d,
+        RandBLAS::spsymm(layout, Uplo::Upper, d,
                          alpha, A_csr_upper, B.data(), n_A,
-                         beta, Y.data(), n_A);
+                         beta, C.data(), n_A);
     }, num_trials);
 
     // 2. Both-triangles workaround through general RandBLAS::spmm.
     RandBLAS::spmm(layout, Op::NoTrans, Op::NoTrans, n_A, d, n_A,
-                   alpha, A_csr_full, B.data(), n_A, beta, Y.data(), n_A);
-    bool ok2 = max_rel_error(Y, Y_ref) <= check_tol;
+                   alpha, A_csr_full, B.data(), n_A, beta, C.data(), n_A);
+    bool ok2 = max_rel_error(C, C_ref) <= check_tol;
     auto [t2_min, t2_med] = run_trials([&] {
         RandBLAS::spmm(layout, Op::NoTrans, Op::NoTrans,
                        n_A, d, n_A,
                        alpha, A_csr_full, B.data(), n_A,
-                       beta, Y.data(), n_A);
+                       beta, C.data(), n_A);
     }, num_trials);
 
     // 3. Dense blas::symm on the fully populated dense A: does not exploit
@@ -251,7 +251,7 @@ void run_config(int64_t n_A, int64_t d, double density, int num_trials) {
     auto [t3_min, t3_med] = run_trials([&] {
         blas::symm(layout, Side::Left, Uplo::Upper, n_A, d,
                    alpha, A_full.data(), n_A, B.data(), n_A,
-                   beta, Y.data(), n_A);
+                   beta, C.data(), n_A);
     }, num_trials);
 
     print_row("RandBLAS::spsymm (one triangle)",   t1_min, t1_med, t1_min, ok1);
@@ -279,12 +279,12 @@ void run_config(int64_t n_A, int64_t d, double density, int num_trials) {
 
     // 1. SYMM-backed sketch_symmetric.
     RandBLAS::sketch_symmetric(layout, Uplo::Upper, n_A, d,
-                               alpha, A_full.data(), n_A, S, 0, 0, beta, Y.data(), n_A);
-    bool ok3 = max_rel_error(Y, Ysk_ref) <= check_tol;
+                               alpha, A_full.data(), n_A, S, 0, 0, beta, C.data(), n_A);
+    bool ok3 = max_rel_error(C, Ysk_ref) <= check_tol;
     auto [s1_min, s1_med] = run_trials([&] {
         RandBLAS::sketch_symmetric(layout, Uplo::Upper, n_A, d,
                                    alpha, A_full.data(), n_A, S, 0, 0,
-                                   beta, Y.data(), n_A);
+                                   beta, C.data(), n_A);
     }, num_trials);
 
     // 2. Equivalent call via sketch_general (GEMM, no symmetry exploited;
@@ -293,7 +293,7 @@ void run_config(int64_t n_A, int64_t d, double density, int num_trials) {
         RandBLAS::sketch_general(layout, Op::NoTrans, Op::NoTrans,
                                  n_A, d, n_A,
                                  alpha, A_full.data(), n_A, S, 0, 0,
-                                 beta, Y.data(), n_A);
+                                 beta, C.data(), n_A);
     }, num_trials);
 
     print_row("sketch_symmetric (SYMM path)",      s1_min, s1_med, s1_min, ok3);

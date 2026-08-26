@@ -59,7 +59,7 @@ namespace RandBLAS::sparse_data {
 /// Computes
 ///
 /// .. math::
-///     \mat(Y) = \alpha \cdot \op_{\ttt{side}}(\mat(A), \mat(B)) + \beta \cdot \mat(Y),
+///     \mat(C) = \alpha \cdot \op_{\ttt{side}}(\mat(A), \mat(B)) + \beta \cdot \mat(C),
 ///
 /// where:
 ///
@@ -67,20 +67,20 @@ namespace RandBLAS::sparse_data {
 ///     CSC format, with zero-based indices. Only the triangle named by
 ///     :math:`\ttt{uplo}` is read. The opposite triangle is implied by
 ///     symmetry. The matrix is required to be square.
-///   - :math:`\mat(B)` and :math:`\mat(Y)` are dense, both m-by-n.
+///   - :math:`\mat(B)` and :math:`\mat(C)` are dense, both m-by-n.
 ///   - For :math:`\ttt{side} = \ttt{Left}`, :math:`\mat(A)` is m-by-m and the
-///     operation is :math:`\mat(Y) = \alpha A B + \beta Y`.
+///     operation is :math:`\mat(C) = \alpha A B + \beta C`.
 ///   - For :math:`\ttt{side} = \ttt{Right}`, :math:`\mat(A)` is n-by-n and
-///     the operation is :math:`\mat(Y) = \alpha B A + \beta Y`.
+///     the operation is :math:`\mat(C) = \alpha B A + \beta C`.
 ///
 /// Arguments are validated at entry. Empty products (a zero dimension, a
 /// structurally empty :math:`\mat(A)`, or :math:`\alpha = 0`) leave
-/// :math:`\beta \cdot \mat(Y)`.
+/// :math:`\beta \cdot \mat(C)`.
 /// @endverbatim
 //
 // Dispatch mechanics (see also sparse_data/DevNotes.md): side=Right is
-// normalized to side=Left at entry (A == A^T, so Y = B*A is Y^T = A*B^T with
-// the B/Y buffers reinterpreted in the flipped layout). On MKL builds with
+// normalized to side=Left at entry (A == A^T, so C = B*A is C^T = A*B^T with
+// the B/C buffers reinterpreted in the flipped layout). On MKL builds with
 // the index width matching MKL_INT, mkl_spsymm runs with the caller's beta
 // (SPARSE_MATRIX_TYPE_SYMMETRIC descriptor; CSC consumed as a
 // CSR-of-transpose view with uplo flipped). The per-format hand kernels are
@@ -97,15 +97,15 @@ void spsymm(
     const SpMat& A,
     const T* B, int64_t ldb,
     T beta,
-    T* Y, int64_t ldy
+    T* C, int64_t ldc
 ) {
     using blas::Layout;
     if (side == blas::Side::Right) {
-        // A == A^T, so Y = alpha B A + beta Y is Y^T = alpha A B^T + beta Y^T
-        // with B^T and Y^T read from the same buffers in the flipped layout.
-        // The dimensions of Y^T are n-by-m; uplo is unchanged (the equation
+        // A == A^T, so C = alpha B A + beta C is C^T = alpha A B^T + beta C^T
+        // with B^T and C^T read from the same buffers in the flipped layout.
+        // The dimensions of C^T are n-by-m; uplo is unchanged (the equation
         // transpose does not change which physical entries of A are stored).
-        spsymm(flipped_layout(layout), blas::Side::Left, uplo, n, m, alpha, A, B, ldb, beta, Y, ldy);
+        spsymm(flipped_layout(layout), blas::Side::Left, uplo, n, m, alpha, A, B, ldb, beta, C, ldc);
         return;
     }
 
@@ -116,25 +116,25 @@ void spsymm(
     static_assert(is_coo || is_csr || is_csc,
                   "RandBLAS::sparse_data::spsymm requires COO, CSR, or CSC.");
 
-    // side is Left from here on: A is m-by-m, B and Y are m-by-n.
+    // side is Left from here on: A is m-by-m, B and C are m-by-n.
     randblas_require(A.index_base == IndexBase::Zero);
     randblas_require(A.n_rows == A.n_cols);
     randblas_require(A.n_rows == m);
     if (layout == Layout::ColMajor) {
         randblas_require(ldb >= m);
-        randblas_require(ldy >= m);
+        randblas_require(ldc >= m);
     } else {
         randblas_require(ldb >= n);
-        randblas_require(ldy >= n);
+        randblas_require(ldc >= n);
     }
 
     // Empty products: no output elements, or nothing to accumulate beyond
-    // beta * Y. Handled here because MKL rejects some valid empty sparse
+    // beta * C. Handled here because MKL rejects some valid empty sparse
     // matrices at handle creation (same contract as left_spmm).
     if (m == 0 || n == 0)
         return;
     if (alpha == T(0) || A.nnz == 0) {
-        RandBLAS::util::lascl(layout, m, n, beta, Y, ldy);
+        RandBLAS::util::lascl(layout, m, n, beta, C, ldc);
         return;
     }
 
@@ -142,7 +142,7 @@ void spsymm(
     if constexpr (sizeof(sint_t) == sizeof(MKL_INT)) {
         // MKL applies beta itself.
         bool handled = mkl::mkl_spsymm(
-            layout, uplo, m, n, alpha, A, B, ldb, beta, Y, ldy
+            layout, uplo, m, n, alpha, A, B, ldb, beta, C, ldc
         );
         if (handled) return;
     }
@@ -150,14 +150,14 @@ void spsymm(
 
     // Fallback path: apply beta here, then run a pure-accumulator hand
     // kernel. Safe after an MKL NOT_SUPPORTED, which is a parameter
-    // validation result: Y is untouched when it fires.
-    RandBLAS::util::lascl(layout, m, n, beta, Y, ldy);
+    // validation result: C is untouched when it fires.
+    RandBLAS::util::lascl(layout, m, n, beta, C, ldc);
     if constexpr (is_csr) {
-        csr_spsymm(layout, uplo, m, n, alpha, A, B, ldb, Y, ldy);
+        csr_spsymm(layout, uplo, m, n, alpha, A, B, ldb, C, ldc);
     } else if constexpr (is_csc) {
-        csc_spsymm(layout, uplo, m, n, alpha, A, B, ldb, Y, ldy);
+        csc_spsymm(layout, uplo, m, n, alpha, A, B, ldb, C, ldc);
     } else if constexpr (is_coo) {
-        coo_spsymm(layout, uplo, m, n, alpha, A, B, ldb, Y, ldy);
+        coo_spsymm(layout, uplo, m, n, alpha, A, B, ldb, C, ldc);
     }
 }
 
@@ -197,7 +197,7 @@ void spsymm(
     const SpMatA& A,
     const SpMatB& B,
     T beta,
-    T* Y, int64_t ldy
+    T* C, int64_t ldc
 ) {
     using blas::Layout;
     static_assert(std::is_same_v<T, typename SpMatB::scalar_t>,
@@ -206,11 +206,11 @@ void spsymm(
     if (side == blas::Side::Right) {
         // Same identity as Case C; B^T is a lightweight transpose view.
         auto Bt = B.transpose();
-        spsymm(flipped_layout(layout), blas::Side::Left, uplo, n, m, alpha, A, Bt, beta, Y, ldy);
+        spsymm(flipped_layout(layout), blas::Side::Left, uplo, n, m, alpha, A, Bt, beta, C, ldc);
         return;
     }
 
-    // side is Left from here on: A is m-by-m, B and Y are m-by-n.
+    // side is Left from here on: A is m-by-m, B and C are m-by-n.
     randblas_require(A.index_base == IndexBase::Zero);
     randblas_require(B.index_base == IndexBase::Zero);
     randblas_require(A.n_rows == A.n_cols);
@@ -218,18 +218,18 @@ void spsymm(
     randblas_require(B.n_rows == m);
     randblas_require(B.n_cols == n);
     if (layout == Layout::ColMajor) {
-        randblas_require(ldy >= m);
+        randblas_require(ldc >= m);
     } else {
-        randblas_require(ldy >= n);
+        randblas_require(ldc >= n);
     }
 
     // Empty products: no output elements, or nothing to accumulate beyond
-    // beta * Y. Handled here because MKL rejects some valid empty sparse
+    // beta * C. Handled here because MKL rejects some valid empty sparse
     // matrices at handle creation (same contract as left_spmm).
     if (m == 0 || n == 0)
         return;
     if (alpha == T(0) || A.nnz == 0 || B.nnz == 0) {
-        RandBLAS::util::lascl(layout, m, n, beta, Y, ldy);
+        RandBLAS::util::lascl(layout, m, n, beta, C, ldc);
         return;
     }
 
@@ -241,7 +241,7 @@ void spsymm(
         // mkl_spgemm_to_dense applies beta itself.
         auto A_general = expand_symmetric_to_general(A, uplo);
         mkl::mkl_spgemm_to_dense(
-            layout, blas::Op::NoTrans, alpha, A_general, B, beta, Y, ldy
+            layout, blas::Op::NoTrans, alpha, A_general, B, beta, C, ldc
         );
         return;
     }
@@ -264,7 +264,7 @@ void spsymm(
     }
 
     spsymm(layout, blas::Side::Left, uplo, m, n,
-           alpha, A, B_dense.data(), ldb_dense, beta, Y, ldy);
+           alpha, A, B_dense.data(), ldb_dense, beta, C, ldc);
 }
 
 } // end namespace RandBLAS::sparse_data
@@ -275,42 +275,49 @@ namespace RandBLAS {
 // =============================================================================
 /// Convenience wrapper for symmetric sparse-times-dense matmul.
 ///
-/// Computes \math{Y = \alpha A B + \beta Y} (side=Left default), where
-/// \math{A} is the symmetric sparse matrix and only the triangle named by
-/// uplo is read.
+/// Computes \math{C = \alpha A B + \beta C}, where \math{A} is the symmetric
+/// sparse matrix and only the triangle named by uplo is read. \math{A} must
+/// be square; its order is taken from the matrix itself, so the only
+/// dimension argument is \math{n}, the number of columns in \math{B} and
+/// \math{C}.
 template <SparseMatrix SpMat, typename T = typename SpMat::scalar_t>
 inline void spsymm(
     blas::Layout layout,
     blas::Uplo uplo,
-    int64_t m, int64_t n,
+    int64_t n,
     T alpha,
     const SpMat& A,
     const T* B, int64_t ldb,
     T beta,
-    T* Y, int64_t ldy
+    T* C, int64_t ldc
 ) {
     RandBLAS::sparse_data::spsymm(
-        layout, blas::Side::Left, uplo, m, n,
-        alpha, A, B, ldb, beta, Y, ldy
+        layout, blas::Side::Left, uplo, A.n_rows, n,
+        alpha, A, B, ldb, beta, C, ldc
     );
 }
 
 // =============================================================================
-/// Convenience overload taking a Symmetric<SpMat> wrapper. The uplo is read
-/// from the wrapper. Defaults to side=Left.
+/// Overload of spmm for a sparse matrix tagged as symmetric.
+///
+/// Computes \math{C = \alpha A B + \beta C}, where the Symmetric wrapper
+/// supplies the matrix and the triangle to read; the opposite triangle is
+/// implied by symmetry. The order of \math{A} is taken from the wrapped
+/// matrix, so the only dimension argument is \math{n}, the number of columns
+/// in \math{B} and \math{C}.
 template <SparseMatrix SpMat, typename T = typename SpMat::scalar_t>
-inline void spsymm(
+inline void spmm(
     blas::Layout layout,
-    int64_t m, int64_t n,
+    int64_t n,
     T alpha,
     const Symmetric<SpMat>& A_sym,
     const T* B, int64_t ldb,
     T beta,
-    T* Y, int64_t ldy
+    T* C, int64_t ldc
 ) {
     RandBLAS::sparse_data::spsymm(
-        layout, blas::Side::Left, A_sym.uplo, m, n,
-        alpha, A_sym.A, B, ldb, beta, Y, ldy
+        layout, blas::Side::Left, A_sym.uplo, A_sym.A.n_rows, n,
+        alpha, A_sym.A, B, ldb, beta, C, ldc
     );
 }
 

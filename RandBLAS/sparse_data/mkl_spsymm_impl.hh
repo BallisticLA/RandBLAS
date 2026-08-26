@@ -50,12 +50,12 @@
 namespace RandBLAS::sparse_data::mkl {
 
 // ============================================================================
-// MKL-accelerated symmetric SpMM: Y = alpha * A * B + beta * Y, side=Left by
+// MKL-accelerated symmetric SpMM: C = alpha * A * B + beta * C, side=Left by
 // contract. The spsymm dispatcher normalizes side=Right to side=Left (via the
 // layout-flip identity) before this function is reached, and passes the
 // caller's beta through: MKL applies alpha and beta itself, matching how
 // left_spmm hands beta to mkl_left_spmm.
-//   A is symmetric sparse (one triangle stored, named by uplo); B and Y dense.
+//   A is symmetric sparse (one triangle stored, named by uplo); B and C dense.
 //
 // Returns true if MKL handled the call, false to signal fallback to the
 // hand-rolled per-format kernel. Fallback triggers:
@@ -83,8 +83,8 @@ bool mkl_spsymm(
     const T *B,
     int64_t ldb,
     T beta,
-    T *Y,
-    int64_t ldy
+    T *C,
+    int64_t ldc
 ) {
     (void) m;
     using sint_t = typename SpMat::index_t;
@@ -96,7 +96,7 @@ bool mkl_spsymm(
             ? blas::Uplo::Lower
             : blas::Uplo::Upper;
         return mkl_spsymm(layout, uplo_flipped, m, n,
-                          alpha, At, B, ldb, beta, Y, ldy);
+                          alpha, At, B, ldb, beta, C, ldc);
     }
 
     auto h = make_mkl_handle(A);
@@ -111,7 +111,7 @@ bool mkl_spsymm(
     sparse_status_t status = mkl_sparse_mm_call(
         SPARSE_OPERATION_NON_TRANSPOSE, alpha, h.handle, descr,
         to_mkl_layout(layout),
-        B, n, ldb, beta, Y, ldy
+        B, n, ldb, beta, C, ldc
     );
 
     // Some MKL versions return NOT_SUPPORTED for combinations we could not
