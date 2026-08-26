@@ -40,6 +40,10 @@
 #include "RandBLAS/sparse_data/csr_spsymm_impl.hh"
 #include "RandBLAS/sparse_data/csc_spsymm_impl.hh"
 #include "RandBLAS/sparse_data/symmetric.hh"
+// Pulls in the two general RandBLAS::spmm overloads so any TU that sees the
+// Symmetric<SpMat> overload below sees the full RandBLAS::spmm overload set,
+// not just the one declared in this file.
+#include "RandBLAS/sparse_data/spmm_dispatch.hh"
 #include "RandBLAS/config.h"
 
 #if defined(RandBLAS_HAS_MKL)
@@ -302,9 +306,9 @@ inline void spsymm(
 ///
 /// Computes \math{C = \alpha A B + \beta C}, where the Symmetric wrapper
 /// supplies the matrix and the triangle to read; the opposite triangle is
-/// implied by symmetry. The order of \math{A} is taken from the wrapped
-/// matrix, so the only dimension argument is \math{n}, the number of columns
-/// in \math{B} and \math{C}.
+/// implied by symmetry. Same dimension convention as the spsymm overload
+/// above: the only dimension argument is \math{n}, the number of columns in
+/// \math{B} and \math{C}.
 template <SparseMatrix SpMat, typename T = typename SpMat::scalar_t>
 inline void spmm(
     blas::Layout layout,
@@ -315,10 +319,7 @@ inline void spmm(
     T beta,
     T* C, int64_t ldc
 ) {
-    RandBLAS::sparse_data::spsymm(
-        layout, blas::Side::Left, A_sym.uplo, A_sym.A.n_rows, n,
-        alpha, A_sym.A, B, ldb, beta, C, ldc
-    );
+    RandBLAS::spsymm(layout, A_sym.uplo, n, alpha, A_sym.A, B, ldb, beta, C, ldc);
 }
 
 } // end namespace RandBLAS

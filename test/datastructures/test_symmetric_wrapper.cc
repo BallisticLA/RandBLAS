@@ -53,6 +53,8 @@ TEST_F(TestSymmetricWrapper, constructs_from_coo) {
     EXPECT_EQ(wrapped.uplo, blas::Uplo::Upper);
     EXPECT_EQ(wrapped.A.n_rows, 4);
     EXPECT_EQ(wrapped.A.n_cols, 4);
+    EXPECT_EQ(wrapped.n_rows, 4);
+    EXPECT_EQ(wrapped.n_cols, 4);
     static_assert(std::is_same_v<typename decltype(wrapped)::scalar_t, double>,
                   "Symmetric<COOMatrix<double>>::scalar_t must be double");
 }

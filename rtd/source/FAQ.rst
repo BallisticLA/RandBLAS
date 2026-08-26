@@ -7,10 +7,15 @@ How do I do this and that?
 --------------------------
 
 How do I sketch a const symmetric matrix that's only stored in an upper or lower triangle?
-  Call sketch_symmetric and pass the ``blas::Uplo`` value naming the stored triangle.
-  This works with dense and sparse sketching operators alike, and the opposite
-  triangle is never read. If the symmetric matrix is sparse rather than dense,
-  wrap it with ``as_symmetric`` and pass the wrapper to ``spmm``.
+  If the matrix is dense, call sketch_symmetric and pass the ``blas::Uplo`` value naming the
+  stored triangle. This works with dense and sparse sketching operators alike, and the opposite
+  triangle is never read.
+
+  There is no symmetry-exploiting sketch for a sparse matrix. Either sketch it as a general
+  sparse matrix with sketch_sparse (which reads exactly the entries you populate, so this only
+  gives a correct answer if you first materialize both triangles), or, if what you actually want
+  is a deterministic product against a sparse symmetric matrix rather than a sketch of it, wrap
+  it with ``as_symmetric`` and pass the wrapper to ``spmm``.
 
 How do I sketch a submatrix of a sparse matrix?
   You can only do this if the sparse matrix in COO format.
@@ -106,9 +111,15 @@ No support for DenseSkOps with Rademachers:
 No support for negative values of "incx" or "incy" in sketch_vector.
   The BLAS function GEMV supports negative strides between input and output vector elements.
   It would be easy to extend sketch_vector to support this if we had a proper
-  SPMV implementation that supported negative increments. If someone wants to volunteer 
+  SPMV implementation that supported negative increments. If someone wants to volunteer
   to extend our SPMV kernels to support that, then we'd happily accept such a contribution.
   (It shouldn't be hard! We just haven't gotten around to this.)
+
+No zero-copy path for a layout-mismatched DenseSkOp in sketch_symmetric.
+  ``blas::symm`` has no on-the-fly transpose flag for the dense operand, so if a ``DenseSkOp``'s
+  storage layout differs from the caller's ``layout`` argument, ``sketch_symmetric`` pays an
+  ``O(d * n)`` allocation and transpose-copy of the operand to keep the SYMM speedup over a
+  ``blas::gemm`` fallback. Matching the operand's layout to the call's ``layout`` avoids the copy.
 
 
 Language interoperability
@@ -165,10 +176,11 @@ Functions that implement the overload-free conventions
    C++ code should prefer overloaded sketch_general
  * [L/R]sksp3 for sketching a sparse matrix from the left (L) (L) or right (R) with a DenseSkOp.
    C++ code should prefer overloaded sketch_sparse, unless operating on a submatrix of a COO-format sparse data matrix is needed.
+ * [L/R]sksy[X] for sketching a matrix with *explicit symmetry*, both for a DenseSkOp (3) and a SparseSkOp (s).
+   C++ code should prefer overloaded sketch_symmetric.
 
 Functions that are missing implementations of this convention
  * [L/R]skve[X] for sketching vectors. This functionality is availabile in C++ with sketch_vector
- * [L/R]sksy[X] for sketching a matrix with *explicit symmetry*. This functionality is availabile in C++ with sketch_symmetric.
 
 Some discussion
 

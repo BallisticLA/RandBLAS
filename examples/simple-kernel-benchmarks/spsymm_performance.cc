@@ -273,14 +273,14 @@ void run_config(int64_t n_A, int64_t d, double density, int num_trials) {
     // Reference for the sketching comparison: the GEMM-forwarding
     // sketch_general result (reads the full symmetric matrix, so it is the
     // trusted baseline; the check below is SYMM-path vs GEMM-path agreement).
-    std::vector<T> Ysk_ref(static_cast<size_t>(n_A) * d, T(0));
+    std::vector<T> C_sk_ref(static_cast<size_t>(n_A) * d, T(0));
     RandBLAS::sketch_general(layout, Op::NoTrans, Op::NoTrans, n_A, d, n_A,
-                             alpha, A_full.data(), n_A, S, 0, 0, beta, Ysk_ref.data(), n_A);
+                             alpha, A_full.data(), n_A, S, 0, 0, beta, C_sk_ref.data(), n_A);
 
     // 1. SYMM-backed sketch_symmetric.
     RandBLAS::sketch_symmetric(layout, Uplo::Upper, n_A, d,
                                alpha, A_full.data(), n_A, S, 0, 0, beta, C.data(), n_A);
-    bool ok3 = max_rel_error(C, Ysk_ref) <= check_tol;
+    bool ok3 = max_rel_error(C, C_sk_ref) <= check_tol;
     auto [s1_min, s1_med] = run_trials([&] {
         RandBLAS::sketch_symmetric(layout, Uplo::Upper, n_A, d,
                                    alpha, A_full.data(), n_A, S, 0, 0,

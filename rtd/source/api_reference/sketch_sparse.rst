@@ -135,6 +135,17 @@ Deterministic operations
     triangle is implied by symmetry. :math:`\mtxA` must be square, and its
     order is taken from the matrix itself.
 
+.. dropdown:: :math:`\mtxC = \alpha \cdot \mtxA \cdot \mtxB + \beta \cdot \mtxC,` with sparse symmetric :math:`\mtxA` and sparse :math:`\mtxB`
+    :animate: fade-in-slide-down
+    :color: light
+
+    .. doxygenfunction:: RandBLAS::sparse_data::spsymm(blas::Layout layout, blas::Side side, blas::Uplo uplo, int64_t m, int64_t n, T alpha, const SpMatA &A, const SpMatB &B, T beta, T *C, int64_t ldc)
+      :project: RandBLAS
+
+    Only the triangle of :math:`\mtxA` named by ``uplo`` is read; the opposite
+    triangle is implied by symmetry. Requires Intel MKL for the accelerated
+    path; without it, :math:`\mtxB` is densified into a temporary buffer.
+
 .. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)^{-1} \cdot \mtxB,` with sparse triangular :math:`\mtxA`
     :animate: fade-in-slide-down
     :color: light

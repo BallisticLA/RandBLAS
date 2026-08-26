@@ -131,8 +131,9 @@ class TestSpsymm : public ::testing::Test {
         // Under test: spsymm on the one-triangle sparse A. By default we
         // call the low-level dispatcher directly; if `route_via_wrapper` is
         // set, we go through the public RandBLAS::spmm(Symmetric<SpMat>)
-        // overload to exercise the wrapper-routing path. side=Left only
-        // for the wrapper path since the public wrapper defaults side=Left.
+        // overload to exercise the wrapper-routing path. side=Left only for
+        // the wrapper path since the public overload has no side parameter
+        // (it is unconditionally side=Left).
         if (route_via_wrapper) {
             randblas_require(side == Side::Left);
             auto A_sym = RandBLAS::as_symmetric(A_sparse, uplo);
@@ -403,7 +404,7 @@ TEST_F(TestSpsymm, empty_sparse_operands_leave_beta_scaled_output) {
     // Case C with structurally empty A: C <- 0.5 * C.
     RandBLAS::sparse_data::spsymm(Layout::ColMajor, Side::Left, Uplo::Upper, n_A, d,
                                   1.0, A_empty, B.data(), n_A, 0.5, C.data(), n_A);
-    for (auto y : C) EXPECT_DOUBLE_EQ(y, 1.0);
+    for (auto c : C) EXPECT_DOUBLE_EQ(c, 1.0);
 
     // Case D with structurally empty B: C <- 0.5 * C again.
     COOMatrix<double> B_empty(n_A, d);    // nnz == 0
@@ -412,5 +413,5 @@ TEST_F(TestSpsymm, empty_sparse_operands_leave_beta_scaled_output) {
     COOMatrix<double> A_one(n_A, n_A, 1, a_vals, a_rows, a_cols);
     RandBLAS::sparse_data::spsymm(Layout::ColMajor, Side::Left, Uplo::Upper, n_A, d,
                                   1.0, A_one, B_empty, 0.5, C.data(), n_A);
-    for (auto y : C) EXPECT_DOUBLE_EQ(y, 0.5);
+    for (auto c : C) EXPECT_DOUBLE_EQ(c, 0.5);
 }
