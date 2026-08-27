@@ -988,8 +988,11 @@ build_examples() {
 # command silently builds something different from what was just installed --
 # and for --blas=custom it would not run at all.
 #
-# Written as if-blocks rather than "[[ test ]] && append": under set -e a
-# false test at the end of a list exits the script.
+# if-blocks rather than "[[ test ]] && append" for readability. Note the
+# set -e hazard with that construct is narrower than it looks: a top-level
+# "[[ test ]] && cmd" with a false test does NOT exit (the failing command is
+# exempt as part of a && list); it only bites as the last statement of a
+# function, where the test's failure becomes the function's return status.
 EXAMPLES_COMMAND="bash $SCRIPT_DIR/install.sh --examples --blas=$BLAS_BACKEND --project-dir=$PROJECT_DIR"
 if [[ -n "$PREFIX_OVERRIDE" ]]; then
     EXAMPLES_COMMAND+=" --prefix=$PREFIX_OVERRIDE"
