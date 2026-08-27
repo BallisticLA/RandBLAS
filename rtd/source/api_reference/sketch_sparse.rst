@@ -70,18 +70,37 @@ Operations with sparse matrices
 Sketching
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. dropdown:: :math:`\mtxB = \alpha \cdot \op(\submat(\mtxS))\cdot \op(\mtxA) + \beta \cdot \mtxB`
+``sketch_sparse`` accepts either a dense or a sparse sketching operator. The dense-operator
+overloads dispatch to ``left_spmm`` / ``right_spmm`` (a materialized dense operand); the
+sparse-operator overloads dispatch to ``spgemm`` and so require Intel MKL, and (unlike the
+dense-operator overloads) :math:`\mtxA` must be passed in full, not as a submatrix.
+
+.. dropdown:: :math:`\mtxB = \alpha \cdot \op(\submat(\mtxS))\cdot \op(\mtxA) + \beta \cdot \mtxB,` :math:`\mtxS` dense
     :animate: fade-in-slide-down
     :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, const DenseSkOp &S, int64_t S_ro, int64_t S_co, const SpMat &A, T beta, T *B, int64_t ldb) 
+    .. doxygenfunction:: RandBLAS::sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, const DenseSkOp &S, int64_t S_ro, int64_t S_co, const SpMat &A, T beta, T *B, int64_t ldb)
       :project: RandBLAS
 
-.. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)\cdot \op(\submat(\mtxS)) + \beta \cdot \mtxB`
+.. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)\cdot \op(\submat(\mtxS)) + \beta \cdot \mtxB,` :math:`\mtxS` dense
     :animate: fade-in-slide-down
     :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_sparse(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const SpMat &A, const DenseSkOp &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb) 
+    .. doxygenfunction:: RandBLAS::sketch_sparse(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const SpMat &A, const DenseSkOp &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb)
+      :project: RandBLAS
+
+.. dropdown:: :math:`\mtxB = \alpha \cdot \op(\submat(\mtxS))\cdot \op(\mtxA) + \beta \cdot \mtxB,` :math:`\mtxS` sparse
+    :animate: fade-in-slide-down
+    :color: light
+
+    .. doxygenfunction:: RandBLAS::sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, const SparseSkOp<T,RNG,sint_t> &S, int64_t ro_s, int64_t co_s, const SpMat &A, T beta, T *B, int64_t ldb)
+      :project: RandBLAS
+
+.. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)\cdot \op(\submat(\mtxS)) + \beta \cdot \mtxB,` :math:`\mtxS` sparse
+    :animate: fade-in-slide-down
+    :color: light
+
+    .. doxygenfunction:: RandBLAS::sketch_sparse(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const SpMat &A, const SparseSkOp<T,RNG,sint_t> &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb)
       :project: RandBLAS
 
 

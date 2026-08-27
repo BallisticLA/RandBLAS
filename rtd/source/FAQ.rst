@@ -174,8 +174,9 @@ We have a consistent naming convention for functions that involve sketching oper
 Functions that implement the overload-free conventions
  * [L/R]skge[X] for sketching a general matrix from the left (L) or right (R) with a matrix whose structure is indicated by [X].
    C++ code should prefer overloaded sketch_general
- * [L/R]sksp3 for sketching a sparse matrix from the left (L) (L) or right (R) with a DenseSkOp.
+ * [L/R]sksp[X] for sketching a sparse matrix from the left (L) or right (R), both for a DenseSkOp (3) and a SparseSkOp (s).
    C++ code should prefer overloaded sketch_sparse, unless operating on a submatrix of a COO-format sparse data matrix is needed.
+   The SparseSkOp form requires Intel MKL and, unlike the DenseSkOp form, does not support a submatrix of the sparse matrix being sketched.
  * [L/R]sksy[X] for sketching a matrix with *explicit symmetry*, both for a DenseSkOp (3) and a SparseSkOp (s).
    C++ code should prefer overloaded sketch_symmetric.
 
