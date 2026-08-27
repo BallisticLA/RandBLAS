@@ -442,12 +442,17 @@ BLASPP_URL="https://github.com/icl-utk-edu/blaspp.git"
 # 2026-08-27); also contains the MSVC portability fix (PR #132). Not in a
 # release yet -- the latest tag, v2025.05.28, predates both. Move to a tag
 # once one includes them.
-BLASPP_REF="2d8d4e937ac46fffab33d4174a4fc7659726dbda"
+# TEMPORARY PIN -- the head of icl-utk-edu/blaspp#137 (space-split fix),
+# fetchable from upstream via its pull ref. Replace with the merge commit
+# the moment #137 lands; the PR carrying this stays a draft until then.
+BLASPP_REF="c3ef942a0b9c86dc6c66952b58b7151f938747ca"
 
 LAPACKPP_URL="https://github.com/icl-utk-edu/lapackpp.git"
 # The commit that merged the LAPACK++ half of new-Accelerate support
 # (lapackpp PR #88, 2026-08-27).
-LAPACKPP_REF="b9439cf3c26d1655d88e7f510ae8b4f82fbeb687"
+# TEMPORARY PIN -- the head of icl-utk-edu/lapackpp#90 (Accelerate-ILP64
+# aliasing fix). Replace with the merge commit when #90 lands.
+LAPACKPP_REF="f891adcb8e06afa7744ac046d96d1282bbe5388a"
 
 RANDOM123_URL="https://github.com/DEShawResearch/Random123.git"
 RANDOM123_REF="v1.14.0"
@@ -988,8 +993,11 @@ build_examples() {
 # command silently builds something different from what was just installed --
 # and for --blas=custom it would not run at all.
 #
-# Written as if-blocks rather than "[[ test ]] && append": under set -e a
-# false test at the end of a list exits the script.
+# if-blocks rather than "[[ test ]] && append" for readability. Note the
+# set -e hazard with that construct is narrower than it looks: a top-level
+# "[[ test ]] && cmd" with a false test does NOT exit (the failing command is
+# exempt as part of a && list); it only bites as the last statement of a
+# function, where the test's failure becomes the function's return status.
 EXAMPLES_COMMAND="bash $SCRIPT_DIR/install.sh --examples --blas=$BLAS_BACKEND --project-dir=$PROJECT_DIR"
 if [[ -n "$PREFIX_OVERRIDE" ]]; then
     EXAMPLES_COMMAND+=" --prefix=$PREFIX_OVERRIDE"
