@@ -1,4 +1,4 @@
-# Exercises install/install.sh itself -- the one artifact the core workflows
+# Exercises installers/install.sh itself -- the one artifact the core workflows
 # never run, since they hand-replicate the build recipe instead. What each lane
 # proves:
 #   1. a fresh checkout run non-interactively builds, and its tests pass;
@@ -96,7 +96,7 @@ jobs:
       - name: run the installer, capturing output for the escape-sequence check
         run: |
           set -euo pipefail
-          bash RandBLAS/install/install.sh --yes \
+          bash RandBLAS/installers/install.sh --yes \
             --blas=${{ matrix.backend }} \
             --project-dir "$GITHUB_WORKSPACE/RandNLA-project" \
             2>&1 | tee installer.out
@@ -135,7 +135,7 @@ jobs:
       - name: re-run the installer in place (idempotency)
         run: |
           set -euo pipefail
-          bash RandBLAS/install/install.sh --yes \
+          bash RandBLAS/installers/install.sh --yes \
             --blas=${{ matrix.backend }} \
             --project-dir "$GITHUB_WORKSPACE/RandNLA-project" | tee rerun.out
           grep -q 'already built' rerun.out \
@@ -147,7 +147,7 @@ jobs:
           BLASPP_INSTALL_DIR="$GITHUB_WORKSPACE/RandNLA-project/install/blaspp-${{ matrix.backend }}-install" \
           RANDOM123_INSTALL_DIR="$GITHUB_WORKSPACE/RandNLA-project/install/Random123-install" \
           GTEST_ROOT="$GITHUB_WORKSPACE/RandNLA-project/install/googletest-install" \
-          bash RandBLAS-discovery/install/install.sh --yes \
+          bash RandBLAS-discovery/installers/install.sh --yes \
             --blas=${{ matrix.backend }} \
             --project-dir "$GITHUB_WORKSPACE/RandNLA-project-discovery" | tee discovery.out
           grep -q 'external install' discovery.out \
@@ -169,30 +169,36 @@ jobs:
       - name: install libomp
         run: brew install libomp
 
-      # Accelerate is the default on macOS and is LP64-only: BLAS++ implements
-      # only Apple's legacy interface, so there is no ILP64 lane to run here.
+      # Accelerate is the default on macOS. The pinned BLAS++ supports Apple's
+      # new interface (icl-utk-edu/blaspp#134), which carries ILP64 on
+      # macOS >= 13.3, so the width default resolves to ILP64 here just like
+      # MKL on Linux -- and the summary line proves it, rather than trusting
+      # what was requested.
       - name: run the installer
         run: |
           set -euo pipefail
-          bash RandBLAS/install/install.sh --yes \
+          bash RandBLAS/installers/install.sh --yes \
             --project-dir "$GITHUB_WORKSPACE/RandNLA-project" | tee installer.out
-          grep -qE '^  Backend  *accelerate' installer.out
+          grep -qE '^  Backend  *accelerate, ILP64' installer.out
 
       - name: run the test suite
         run: ctest --test-dir RandNLA-project/build/RandBLAS-build --output-on-failure
 
       - name: re-run the installer in place (idempotency)
         run: |
-          bash RandBLAS/install/install.sh --yes \
+          bash RandBLAS/installers/install.sh --yes \
             --project-dir "$GITHUB_WORKSPACE/RandNLA-project"
 
-      - name: asking for ILP64 on Accelerate is refused, not silently downgraded
+      # The explicit-LP64 route stays supported and stays tested: with every
+      # auto run now resolving to ILP64, this is the one place the legacy
+      # 32-bit-integer width on Accelerate is still exercised.
+      - name: explicit --blas-int=lp64 still builds LP64
         run: |
-          if bash RandBLAS/install/install.sh --yes --blas=accelerate --blas-int=ilp64 \
-               --project-dir "$GITHUB_WORKSPACE/RandNLA-project-ilp64" > refuse.out 2>&1; then
-            echo "The installer accepted an impossible configuration."; cat refuse.out; exit 1
-          fi
-          grep -q 'not available with Accelerate' refuse.out
+          set -euo pipefail
+          bash RandBLAS/installers/install.sh --yes --blas=accelerate --blas-int=lp64 \
+            --project-dir "$GITHUB_WORKSPACE/RandNLA-project-lp64" | tee lp64.out
+          grep -qE '^  Backend  *accelerate, LP64' lp64.out
+          ctest --test-dir RandNLA-project-lp64/build/RandBLAS-build --output-on-failure
 
   packager:
     # The contract conda-forge and Spack rely on: dependencies already

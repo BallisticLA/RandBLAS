@@ -81,17 +81,17 @@ function Clone-Pinned {
 
 #------------------------------------------------------------------ pins ------
 # Immutable refs only: a tag or a full commit hash, never a branch. These match
-# install/install.sh and the refs RandLAPACK validated, so the two installers
+# installers/install.sh and the refs RandLAPACK validated, so the two installers
 # and CI cannot disagree about what they built.
 #
-# BLAS++ and LAPACK++ previously came from personal forks carrying one-line
-# MSVC fixes. Both merged upstream on 2026-08-06 (icl-utk-edu/blaspp#132,
-# icl-utk-edu/lapackpp#87), so both now come from icl-utk-edu, pinned to the
-# merge commits: the latest release of each, v2025.05.28, predates the fixes.
+# Pinned to the commits that merged new-Apple-Accelerate support on 2026-08-27
+# (icl-utk-edu/blaspp#134, icl-utk-edu/lapackpp#88); they also contain the MSVC
+# portability fixes (blaspp#132, lapackpp#87). The latest release of each,
+# v2025.05.28, predates all of these.
 $BlasppUrl    = "https://github.com/icl-utk-edu/blaspp.git"
-$BlasppRef    = "30571853f980d3a2a1737124ea4789e025a5e045"
+$BlasppRef    = "2d8d4e937ac46fffab33d4174a4fc7659726dbda"
 $LapackppUrl  = "https://github.com/icl-utk-edu/lapackpp.git"
-$LapackppRef  = "40b9d0daf29b6f1f3fa58bc3f22bd6cfb2c67fe4"
+$LapackppRef  = "b9439cf3c26d1655d88e7f510ae8b4f82fbeb687"
 $Random123Url = "https://github.com/DEShawResearch/Random123.git"
 $Random123Ref = "v1.14.0"
 $GTestUrl     = "https://github.com/google/googletest.git"
