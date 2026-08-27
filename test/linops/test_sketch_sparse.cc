@@ -649,6 +649,10 @@ TEST_F(TestRSKSP3, submatrix_s_single)
 //
 ////////////////////////////////////////////////////////////////////////
 
+// These dispatch through spgemm, which is a compile-time error without
+// Intel MKL, so the whole block is gated the same way test_spgemm.cc is.
+#if defined(RandBLAS_HAS_MKL)
+
 using RandBLAS::SparseSkOp;
 using RandBLAS::SparseDist;
 
@@ -867,3 +871,5 @@ TEST_F(TestRSKSPS, sketch_eye_double_rowmajor) {
 TEST_F(TestRSKSPS, sketch_eye_single) {
     sketch_eye<float>(0, 12, 5, Layout::ColMajor);
 }
+
+#endif // RandBLAS_HAS_MKL
