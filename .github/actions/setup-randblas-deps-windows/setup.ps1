@@ -81,7 +81,7 @@ function Clone-Pinned {
 
 #------------------------------------------------------------------ pins ------
 # Immutable refs only: a tag or a full commit hash, never a branch. These match
-# install/install.sh and the refs RandLAPACK validated, so the two installers
+# installers/install.sh and the refs RandLAPACK validated, so the two installers
 # and CI cannot disagree about what they built.
 #
 # Pinned to the commits that merged new-Apple-Accelerate support on 2026-08-27

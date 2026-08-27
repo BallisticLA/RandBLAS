@@ -22,7 +22,7 @@ usage() {
     # the latter silently starts printing unrelated code the moment anyone
     # adds a line above it.
     cat <<'USAGE'
-Usage: bash install/install.sh [options]
+Usage: bash installers/install.sh [options]
 
 Backend selection:
   --blas=BACKEND        auto | openblas | mkl | accelerate | custom

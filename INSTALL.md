@@ -9,11 +9,11 @@ builds RandBLAS and every dependency it needs into a self-contained
 and does not touch your shell configuration.
 
 ```bash
-bash install/install.sh            # Linux and macOS
+bash installers/install.sh            # Linux and macOS
 ```
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File install\install.ps1    # Windows
+powershell -ExecutionPolicy Bypass -File installers\install.ps1    # Windows
 ```
 
 **You supply the toolchain; the installer supplies everything above it.** You
@@ -509,7 +509,7 @@ nothing. If you have an ILP64 OpenBLAS (on Debian or Ubuntu,
 `libopenblas64-dev`), point at it explicitly rather than hoping it is found:
 
 ```bash
-bash install/install.sh --blas=custom --blas-int=ilp64 \
+bash installers/install.sh --blas=custom --blas-int=ilp64 \
   --blas-libraries=/usr/lib/x86_64-linux-gnu/libopenblas64.so
 ```
 

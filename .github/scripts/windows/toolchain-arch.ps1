@@ -1,4 +1,4 @@
-# Toolchain architecture detection, shared by install/install.ps1 (user-facing
+# Toolchain architecture detection, shared by installers/install.ps1 (user-facing
 # preflight) and .github/actions/setup-randlapack-deps-windows/setup.ps1 (which
 # also runs standalone in CI). Dot-source it; it defines functions only.
 #
