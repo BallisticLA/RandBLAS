@@ -472,8 +472,9 @@ Anything not listed may well work; it is simply untested.
 | Ubuntu (latest) | gcc | OpenBLAS | LP64 | yes | release, debug+ASan, release+UBSan |
 | Ubuntu (latest) | gcc | oneMKL | ILP64 | yes | enables the MKL sparse path |
 | Ubuntu (latest) | clang | OpenBLAS | LP64 | yes | release, ASan, TSan |
-| macOS 14 | Apple Clang | Accelerate | LP64 | **no** | Apple Clang ships no OpenMP runtime |
-| macOS 15 | Homebrew LLVM | Accelerate | LP64 | yes | via Homebrew `libomp` |
+| macOS 14 | Apple Clang | Accelerate (new interface) | ILP64 | **no** | Apple Clang ships no OpenMP runtime |
+| macOS 15 | Homebrew LLVM | Accelerate (new interface) | ILP64 | yes | via Homebrew `libomp` |
+| macOS (latest) | Apple Clang | Accelerate (new interface) | LP64 | **no** | installer lane, explicit `--blas-int=lp64` |
 | Windows | MSVC | oneMKL | ILP64 | yes (`/openmp:llvm`) | x64 only |
 
 Compiler floor: RandBLAS uses C++20 [concepts](https://en.cppreference.com/w/cpp/language/constraints),
@@ -498,7 +499,7 @@ provide it, and falls back to LP64 with a warning where it cannot**:
 |---|---|---|
 | oneMKL | ILP64 | `mkl_intel_ilp64` is a distinct library, so the choice is real and verifiable |
 | OpenBLAS | LP64 | see below |
-| Accelerate | LP64 | BLAS++ implements only Apple's legacy interface ([lapackpp#43](https://github.com/icl-utk-edu/lapackpp/issues/43)) |
+| Accelerate | ILP64 | Apple's new interface (macOS ≥ 13.3) ships ILP64 inside the framework; BLAS++ supports it as of [blaspp#134](https://github.com/icl-utk-edu/blaspp/pull/134). On older macOS the `int64` probe fails and `auto` falls back to LP64 with a warning |
 
 **OpenBLAS is the subtle one.** BLAS++ probes `int32` before `int64` and uses
 `blas_int` only to filter library *names*. For MKL that is enough. For

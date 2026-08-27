@@ -30,7 +30,7 @@ Backend selection:
                         when MKLROOT is set, otherwise OpenBLAS)
   --blas-int=WIDTH      ilp64 | lp64. Default is ilp64 wherever the backend
                         can provide it, falling back to lp64 with a warning.
-                        Accelerate is lp64-only and rejects ilp64.
+                        Accelerate ILP64 requires macOS 13.3 or newer.
   --blas-libraries=L    Link line for --blas=custom, e.g.
                         "/opt/aocl/lib/libblis.so;/opt/aocl/lib/libflame.so"
 
@@ -438,13 +438,16 @@ source_is_current() {  # <dest> <url> <ref>
 # branch name. These match the refs RandLAPACK's Windows provisioner validated.
 #==============================================================================
 BLASPP_URL="https://github.com/icl-utk-edu/blaspp.git"
-# The commit that merged the MSVC portability fix (blaspp PR #132, 2026-08-06).
-# Not in a release yet -- the latest tag, v2025.05.28, predates it. Move to a
-# tag once one includes it.
-BLASPP_REF="30571853f980d3a2a1737124ea4789e025a5e045"
+# The commit that merged new-Apple-Accelerate support (blaspp PR #134,
+# 2026-08-27); also contains the MSVC portability fix (PR #132). Not in a
+# release yet -- the latest tag, v2025.05.28, predates both. Move to a tag
+# once one includes them.
+BLASPP_REF="2d8d4e937ac46fffab33d4174a4fc7659726dbda"
 
 LAPACKPP_URL="https://github.com/icl-utk-edu/lapackpp.git"
-LAPACKPP_REF="40b9d0daf29b6f1f3fa58bc3f22bd6cfb2c67fe4"
+# The commit that merged the LAPACK++ half of new-Accelerate support
+# (lapackpp PR #88, 2026-08-27).
+LAPACKPP_REF="b9439cf3c26d1655d88e7f510ae8b4f82fbeb687"
 
 RANDOM123_URL="https://github.com/DEShawResearch/Random123.git"
 RANDOM123_REF="v1.14.0"
@@ -487,26 +490,18 @@ fi
 # int64_t regardless of the underlying width -- so this choice is about what
 # the BLAS underneath can represent, not about RandBLAS's interface.
 #
-# Accelerate is the one backend with no ILP64 route at all. Apple has shipped
-# an ILP64 interface since macOS 13.3, behind ACCELERATE_NEW_LAPACK and
-# ACCELERATE_LAPACK_ILP64, but BLAS++ does not implement it: BLASFinder.cmake
-# emits only "-framework Accelerate", the legacy LP64 path. Tracked upstream as
-# icl-utk-edu/lapackpp#43.
+# Accelerate: Apple has shipped an ILP64 interface since macOS 13.3, behind
+# ACCELERATE_NEW_LAPACK and ACCELERATE_LAPACK_ILP64, and BLAS++ implements it
+# as of the pinned commit (icl-utk-edu/blaspp#134: requesting int64 with the
+# new interface defines ACCELERATE_LAPACK_ILP64 in blas/config.h). On macOS
+# older than 13.3 the int64 probe fails and "auto" falls back to LP64 with the
+# usual warning; an explicit --blas-int=ilp64 fails the build rather than
+# silently downgrading.
 WIDTH_ORDER=()
-case "$BLAS_BACKEND" in
-    accelerate)
-        if [[ "$BLAS_INT_CHOICE" == "ilp64" ]]; then
-            die "--blas-int=ilp64 is not available with Accelerate: BLAS++ implements only Apple's legacy LP64 interface (see icl-utk-edu/lapackpp#43). Use --blas=openblas or --blas=mkl for ILP64."
-        fi
-        WIDTH_ORDER=(int32)
-        ;;
-    *)
-        case "$BLAS_INT_CHOICE" in
-            ilp64) WIDTH_ORDER=(int64) ;;
-            lp64)  WIDTH_ORDER=(int32) ;;
-            auto)  WIDTH_ORDER=(int64 int32) ;;   # ILP64 first, LP64 as fallback
-        esac
-        ;;
+case "$BLAS_INT_CHOICE" in
+    ilp64) WIDTH_ORDER=(int64) ;;
+    lp64)  WIDTH_ORDER=(int32) ;;
+    auto)  WIDTH_ORDER=(int64 int32) ;;   # ILP64 first, LP64 as fallback
 esac
 
 # blaspp's own backend selector. Its matcher accepts "apple" or "accelerate".
