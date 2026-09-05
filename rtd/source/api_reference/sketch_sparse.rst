@@ -70,18 +70,37 @@ Operations with sparse matrices
 Sketching
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. dropdown:: :math:`\mtxB = \alpha \cdot \op(\submat(\mtxS))\cdot \op(\mtxA) + \beta \cdot \mtxB`
+``sketch_sparse`` accepts either a dense or a sparse sketching operator. The dense-operator
+overloads dispatch to ``left_spmm`` / ``right_spmm`` (a materialized dense operand); the
+sparse-operator overloads dispatch to ``spgemm`` and so require Intel MKL, and (unlike the
+dense-operator overloads) :math:`\mtxA` must be passed in full, not as a submatrix.
+
+.. dropdown:: :math:`\mtxB = \alpha \cdot \op(\submat(\mtxS))\cdot \op(\mtxA) + \beta \cdot \mtxB,` :math:`\mtxS` dense
     :animate: fade-in-slide-down
     :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, const DenseSkOp &S, int64_t S_ro, int64_t S_co, const SpMat &A, T beta, T *B, int64_t ldb) 
+    .. doxygenfunction:: RandBLAS::sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, const DenseSkOp &S, int64_t S_ro, int64_t S_co, const SpMat &A, T beta, T *B, int64_t ldb)
       :project: RandBLAS
 
-.. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)\cdot \op(\submat(\mtxS)) + \beta \cdot \mtxB`
+.. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)\cdot \op(\submat(\mtxS)) + \beta \cdot \mtxB,` :math:`\mtxS` dense
     :animate: fade-in-slide-down
     :color: light
 
-    .. doxygenfunction:: RandBLAS::sketch_sparse(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const SpMat &A, const DenseSkOp &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb) 
+    .. doxygenfunction:: RandBLAS::sketch_sparse(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const SpMat &A, const DenseSkOp &S, int64_t S_ro, int64_t S_co, T beta, T *B, int64_t ldb)
+      :project: RandBLAS
+
+.. dropdown:: :math:`\mtxB = \alpha \cdot \op(\submat(\mtxS))\cdot \op(\mtxA) + \beta \cdot \mtxB,` :math:`\mtxS` sparse
+    :animate: fade-in-slide-down
+    :color: light
+
+    .. doxygenfunction:: RandBLAS::sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m, T alpha, const SparseSkOp<T,RNG,sint_t> &S, int64_t ro_s, int64_t co_s, const SpMat &A, T beta, T *B, int64_t ldb)
+      :project: RandBLAS
+
+.. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)\cdot \op(\submat(\mtxS)) + \beta \cdot \mtxB,` :math:`\mtxS` sparse
+    :animate: fade-in-slide-down
+    :color: light
+
+    .. doxygenfunction:: RandBLAS::sketch_sparse(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n, T alpha, const SpMat &A, const SparseSkOp<T,RNG,sint_t> &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb)
       :project: RandBLAS
 
 
@@ -113,6 +132,38 @@ Deterministic operations
 
        This function requires Intel MKL and only supports single and double precision (``float`` and ``double``),
        in contrast to other RandBLAS kernels that work with any scalar type.
+
+.. dropdown:: :math:`\mtxC = \alpha \cdot \mtxA \cdot \mtxB + \beta \cdot \mtxC,` with sparse symmetric :math:`\mtxA`
+    :animate: fade-in-slide-down
+    :color: light
+
+    .. doxygenfunction:: RandBLAS::spsymm(blas::Layout layout, blas::Uplo uplo, int64_t n, T alpha, const SpMat &A, const T *B, int64_t ldb, T beta, T *C, int64_t ldc)
+      :project: RandBLAS
+
+    .. doxygenfunction:: RandBLAS::spmm(blas::Layout layout, int64_t n, T alpha, const Symmetric<SpMat> &A_sym, const T *B, int64_t ldb, T beta, T *C, int64_t ldc)
+      :project: RandBLAS
+
+    .. doxygenstruct:: RandBLAS::sparse_data::Symmetric
+      :project: RandBLAS
+      :members:
+
+    .. doxygenfunction:: RandBLAS::sparse_data::as_symmetric(const SpMat &A, blas::Uplo uplo)
+      :project: RandBLAS
+
+    Only the triangle of :math:`\mtxA` named by ``uplo`` is read; the opposite
+    triangle is implied by symmetry. :math:`\mtxA` must be square, and its
+    order is taken from the matrix itself.
+
+.. dropdown:: :math:`\mtxC = \alpha \cdot \mtxA \cdot \mtxB + \beta \cdot \mtxC,` with sparse symmetric :math:`\mtxA` and sparse :math:`\mtxB`
+    :animate: fade-in-slide-down
+    :color: light
+
+    .. doxygenfunction:: RandBLAS::sparse_data::spsymm(blas::Layout layout, blas::Side side, blas::Uplo uplo, int64_t m, int64_t n, T alpha, const SpMatA &A, const SpMatB &B, T beta, T *C, int64_t ldc)
+      :project: RandBLAS
+
+    Only the triangle of :math:`\mtxA` named by ``uplo`` is read; the opposite
+    triangle is implied by symmetry. Requires Intel MKL for the accelerated
+    path; without it, :math:`\mtxB` is densified into a temporary buffer.
 
 .. dropdown:: :math:`\mtxB = \alpha \cdot \op(\mtxA)^{-1} \cdot \mtxB,` with sparse triangular :math:`\mtxA`
     :animate: fade-in-slide-down
