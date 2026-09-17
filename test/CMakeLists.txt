@@ -22,6 +22,7 @@ if (GTest_FOUND)
 
         linops/test_sketch_vector.cc
         linops/test_sketch_symmetric.cc
+        linops/test_symmetric_locality.cc
     )
     add_executable(densedata_tests ${DENSEDATA_SOURCES})
     target_link_libraries(densedata_tests RandBLAS GTest::GTest GTest::Main)

@@ -142,16 +142,20 @@ the arguments (mirroring the dense-path ``lsksy3`` / ``rsksy3``), beta-scale
 split keeps ``sksy.hh`` focused on SkOp dispatch and puts the format-specific
 work next to the other COO kernels.
 
-The kernel is column-driven: an OpenMP-parallel outer loop over the n
-columns of B (each column owned by one thread, race-free), with a scan of
-the window nonzeros of S inside. The contribution of nonzero
-``(row_S, col_S, v)`` to column c is
-``B(row_S - ro_s, c) += alpha * v * sym(A, uplo)(col_S - co_s, c)``, where
-the symmetric element read resolves to the stored triangle by swapping the
-index pair when it falls outside it. There is one address computation for A
-(a two-way in-triangle test) instead of a per-``uplo``-per-layout grid of
-strided AXPY range splits. SparseSkOp is COO internally, so submatrix
-filtering is a direct ``if (row < ro_s ...) continue`` on the COO triples.
+For RowMajor left products with n >= 128 and at least n nonzeros in the
+requested window, the kernel packs 64-column panels of the symmetric matrix.
+Each panel then applies sparse entries through contiguous vector updates.
+This also covers ColMajor right products after the transpose reduction.
+Only the named triangle is read. Entries retain their original order,
+including duplicates, and each output panel belongs to one thread.
+
+Filtering happens once before the panel loop. Workspace is allocated before
+OpenMP so allocation failures propagate to the caller. Storage is
+O(64*(n+d)) per active thread plus O(COO nonzeros); there is no full
+mirrored matrix. The thread count is bounded by the number of panels.
+ColMajor left products, small matrices, and windows with fewer than n entries
+retain the scalar column-driven accumulation. Beta is still applied only in
+the wrapper. RNG generation and the SparseSkOp representation are unchanged.
 
 For an unmaterialized SparseSkOp, ``lsksys`` / ``rsksys`` sample only the
 requested window via ``submatrix_as_coo`` (the same pattern ``lskges``

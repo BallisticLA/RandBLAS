@@ -36,6 +36,8 @@
 
 #include <blas.hh>
 
+#include <algorithm>
+#include <vector>
 
 namespace RandBLAS::sparse_data {
 
@@ -51,9 +53,10 @@ namespace RandBLAS::sparse_data {
 // nonzeros (row_S, col_S, v) of Scoo, the contribution
 //     B(row_S - ro_s, c) += alpha * v * sym(A, uplo)(col_S - co_s, c),
 // where the symmetric element read resolves to the stored triangle by
-// swapping the index pair when it falls outside it. Columns are independent,
-// so the outer loop parallelizes without races, and the accesses to A and B
-// walk down single columns in ColMajor.
+// swapping the index pair when it falls outside it. Columns are independent.
+// For sufficiently populated RowMajor products, pack column panels of sym(A)
+// and use contiguous vector updates instead of scalar scatter accumulation.
+// ColMajor, small, and very sparse products retain the original traversal.
 //
 // Beta-scaling of B and the alpha==0 short-circuit are the caller's
 // responsibility (so that this kernel can be composed with other accumulators
@@ -74,7 +77,77 @@ void coo_lsksys(
     T *B,
     int64_t ldb
 ) {
-    if (alpha == T(0)) return;
+    if (alpha == T(0) || n == 0 || d == 0 || Scoo.nnz == 0) return;
+
+    if (layout == blas::Layout::RowMajor && n >= 128 && Scoo.nnz >= n) {
+        struct Entry {
+            int64_t row, col;
+            T value;
+        };
+        std::vector<Entry> entries;
+        entries.reserve(Scoo.nnz);
+        for (int64_t p = 0; p < Scoo.nnz; ++p) {
+            int64_t row = static_cast<int64_t>(Scoo.rows[p]) - ro_s;
+            int64_t col = static_cast<int64_t>(Scoo.cols[p]) - co_s;
+            if (row >= 0 && row < d && col >= 0 && col < n) {
+                entries.push_back({row, col, alpha * Scoo.vals[p]});
+            }
+        }
+        // Packing touches n^2 entries; do not pay for it on a sparse window.
+        if (static_cast<int64_t>(entries.size()) >= n) {
+            constexpr int64_t panel_width = 64;
+            [[maybe_unused]] int num_threads = 1;
+#if defined(RandBLAS_HAS_OpenMP)
+            num_threads = static_cast<int>(std::min<int64_t>(
+                omp_get_max_threads(), 1 + (n - 1) / panel_width));
+#endif
+            const int64_t panel_size = safe_int_product(panel_width, n);
+            const int64_t accum_size = safe_int_product(panel_width, d);
+            // Allocate before OpenMP so allocation failures propagate normally.
+            std::vector<T> panels(safe_int_product(panel_size, int64_t(num_threads)));
+            std::vector<T> accumulators(safe_int_product(accum_size, int64_t(num_threads)));
+            const bool upper = uplo == blas::Uplo::Upper;
+            #pragma omp parallel num_threads(num_threads)
+            {
+                const int tid = randblas_get_thread_num();
+                T *panel = panels.data() + tid * panel_size;
+                T *accum = accumulators.data() + tid * accum_size;
+                #pragma omp for schedule(static)
+                for (int64_t first = 0; first < n; first += panel_width) {
+                    const int64_t count = std::min(panel_width, n - first);
+                    for (int64_t i = 0; i < d; ++i) {
+                        for (int64_t c = 0; c < count; ++c) {
+                            accum[c + i * panel_width] = B[i * ldb + first + c];
+                        }
+                    }
+                    for (int64_t r = 0; r < n; ++r) {
+                        for (int64_t c = 0; c < count; ++c) {
+                            const int64_t col = first + c;
+                            const bool stored = upper ? r <= col : r >= col;
+                            panel[c + r * panel_width] = stored
+                                ? A[r * lda + col] : A[col * lda + r];
+                        }
+                    }
+                    // Entry order is unchanged, including duplicate indices.
+                    for (const auto &entry : entries) {
+                        const T *x = panel + entry.col * panel_width;
+                        T *y = accum + entry.row * panel_width;
+                        const T value = entry.value;
+                        #pragma omp simd
+                        for (int64_t c = 0; c < count; ++c) {
+                            y[c] += value * x[c];
+                        }
+                    }
+                    for (int64_t i = 0; i < d; ++i) {
+                        for (int64_t c = 0; c < count; ++c) {
+                            B[i * ldb + first + c] = accum[c + i * panel_width];
+                        }
+                    }
+                }
+            }
+            return;
+        }
+    }
 
     // Plain locals rather than structured bindings: clang does not (yet)
     // support referencing structured bindings inside OpenMP regions.
