@@ -165,7 +165,10 @@ void flip_layout(blas::Layout layout_in, int64_t m, int64_t n, std::vector<T> &A
 /// for all :math:`i,j \in \\{0,\ldots,n-1\\}.` An error is raised if any such check fails.
 /// This function returns immediately without performing any checks if :math:`\ttt{tol} < 0.`
 /// @endverbatim
-/// sketch_symmetric calls this function with \math{\ttt{tol} = 0} by default.
+/// (The legacy sketch_symmetric overloads, which take a trailing
+/// \math{\ttt{sym_check_tol}}, call this function before sketching. The
+/// blas::Uplo overloads read only the named triangle, so they never invoke
+/// it; it also remains available as a standalone validator.)
 /// 
 template <typename T>
 void require_symmetric(blas::Layout layout, const T* A, int64_t n, int64_t lda, T tol) { 

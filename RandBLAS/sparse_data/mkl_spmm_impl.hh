@@ -42,6 +42,7 @@
 #include <type_traits>
 
 #include "RandBLAS/exceptions.hh"
+#include "RandBLAS/util.hh"
 #include "RandBLAS/sparse_data/base.hh"
 #include "RandBLAS/sparse_data/coo_matrix.hh"
 #include "RandBLAS/sparse_data/csr_matrix.hh"
@@ -258,6 +259,38 @@ MKLSparseHandle make_mkl_handle(const SpMat& A) {
 }
 
 // ============================================================================
+// Type-dispatched wrapper around mkl_sparse_d_mm / mkl_sparse_s_mm.
+// Shared between mkl_left_spmm (general A) and mkl_spsymm (symmetric A);
+// the caller controls the matrix_descr (general vs symmetric) and the
+// `op` flag, plus the post-call status interpretation.
+// ============================================================================
+template <typename T>
+inline sparse_status_t mkl_sparse_mm_call(
+    sparse_operation_t op, T alpha, sparse_matrix_t A_handle,
+    const struct matrix_descr& descr,
+    sparse_layout_t mkl_layout,
+    const T* B, int64_t n_rhs, int64_t ldb,
+    T beta, T* C, int64_t ldc
+) {
+    if constexpr (std::is_same_v<T, double>) {
+        return mkl_sparse_d_mm(
+            op, alpha, A_handle, descr, mkl_layout,
+            B, (MKL_INT)n_rhs, (MKL_INT)ldb,
+            beta, C, (MKL_INT)ldc
+        );
+    } else if constexpr (std::is_same_v<T, float>) {
+        return mkl_sparse_s_mm(
+            op, alpha, A_handle, descr, mkl_layout,
+            B, (MKL_INT)n_rhs, (MKL_INT)ldb,
+            beta, C, (MKL_INT)ldc
+        );
+    } else {
+        static_assert(sizeof(T) == 0, "MKL sparse BLAS only supports float and double.");
+        // see GitHub PR #155 for why we don't use static_assert(false, ...).
+    }
+}
+
+// ============================================================================
 // MKL-accelerated left_spmm: C = alpha * op(A) * op(B) + beta * C
 //   where A is sparse, B and C are dense.
 //
@@ -334,25 +367,11 @@ bool mkl_left_spmm(
     struct matrix_descr descr;
     descr.type = SPARSE_MATRIX_TYPE_GENERAL;
 
-    sparse_status_t status;
-    if constexpr (std::is_same_v<T, double>) {
-        status = mkl_sparse_d_mm(
-            mkl_op, alpha, h.handle, descr,
-            to_mkl_layout(layout),
-            B, (MKL_INT)n, (MKL_INT)ldb,
-            beta, C, (MKL_INT)ldc
-        );
-    } else if constexpr (std::is_same_v<T, float>) {
-        status = mkl_sparse_s_mm(
-            mkl_op, alpha, h.handle, descr,
-            to_mkl_layout(layout),
-            B, (MKL_INT)n, (MKL_INT)ldb,
-            beta, C, (MKL_INT)ldc
-        );
-    } else {
-        // unsupported floating point type.
-        return false;
-    }
+    sparse_status_t status = mkl_sparse_mm_call(
+        mkl_op, alpha, h.handle, descr,
+        to_mkl_layout(layout),
+        B, n, ldb, beta, C, ldc
+    );
     check_mkl_status(status, "mkl_sparse_mm");
     return true;  // signal: MKL handled it
 }
@@ -394,20 +413,8 @@ void mkl_spgemm_to_dense(
     //   3. C = alpha * temp + C (if needed)
 
     if (alpha == (T)0) {
-        // Just scale C by beta
-        if (beta == (T)0) {
-            int64_t total = (layout == blas::Layout::ColMajor) ? ldc * n : ldc * m;
-            std::fill(C, C + total, (T)0);
-        } else if (beta != (T)1) {
-            // Scale each column/row of C
-            if (layout == blas::Layout::ColMajor) {
-                for (int64_t j = 0; j < n; ++j)
-                    blas::scal(m, beta, &C[j * ldc], 1);
-            } else {
-                for (int64_t i = 0; i < m; ++i)
-                    blas::scal(n, beta, &C[i * ldc], 1);
-            }
-        }
+        // Just scale C by beta.
+        RandBLAS::util::lascl(layout, m, n, beta, C, ldc);
         return;
     }
 
@@ -437,17 +444,14 @@ void mkl_spgemm_to_dense(
     check_mkl_status(status, "mkl_sparse_spmmd");
 
     if (!direct_write) {
-        // C = alpha * target + beta * C
+        // C = alpha * target + beta * C: hoist the scale, then per-vector axpy.
+        RandBLAS::util::lascl(layout, m, n, beta, C, ldc);
         if (layout == blas::Layout::ColMajor) {
-            for (int64_t j = 0; j < n; ++j) {
-                blas::scal(m, beta, &C[j * ldc], 1);
+            for (int64_t j = 0; j < n; ++j)
                 blas::axpy(m, alpha, &target[j * ldc], 1, &C[j * ldc], 1);
-            }
         } else {
-            for (int64_t i = 0; i < m; ++i) {
-                blas::scal(n, beta, &C[i * ldc], 1);
+            for (int64_t i = 0; i < m; ++i)
                 blas::axpy(n, alpha, &target[i * ldc], 1, &C[i * ldc], 1);
-            }
         }
     }
 }

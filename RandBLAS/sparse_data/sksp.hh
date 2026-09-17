@@ -33,6 +33,7 @@
 #include "RandBLAS/dense_skops.hh"
 #include "RandBLAS/exceptions.hh"
 #include "RandBLAS/util.hh"
+#include "RandBLAS/sparse_skops.hh"
 
 
 namespace RandBLAS::sparse_data {
@@ -322,6 +323,163 @@ void rsksp3(
     return;
 }
 
+// MARK: LSKSPS
+
+// =============================================================================
+/// \fn lsksps(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d,
+///     int64_t n, int64_t m, T alpha, const SparseSkOp<T,RNG,sint_t> &S, int64_t ro_s, int64_t co_s,
+///     const SpMat &A, int64_t ro_a, int64_t co_a, T beta, T *B, int64_t ldb
+/// )
+/// @verbatim embed:rst:leading-slashes
+/// Sketch from the left in an SpMM-like operation
+///
+/// .. math::
+///     \mat(B) = \alpha \cdot \underbrace{\op(\submat(\mtxS))}_{d \times m} \cdot \underbrace{\op(\mtxA)}_{m \times n} + \beta \cdot \underbrace{\mat(B)}_{d \times n},    \tag{$\star$}
+///
+/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(\mtxX)` either returns a matrix :math:`\mtxX`
+/// or its transpose, and both :math:`\mtxA` and :math:`\mtxS` are sparse.
+/// @endverbatim
+//
+// The sparse-times-sparse backend (spgemm, MKL-backed) has no submatrix
+// parameters for either operand and no op flag for its second operand, so
+// this function differs from lsksp3 in two ways: A must be passed in full
+// (ro_a == co_a == 0; spgemm has nothing to extract a submatrix into without
+// first copying A, which this PR does not do), and op(A) is folded into a
+// transpose *view* of A (A.transpose(), the same lightweight technique
+// spsymm_dispatch.hh's Case D uses) rather than passed as a flag. S keeps
+// full submatrix support: submatrix_as_coo / coo_view_of_skop already build
+// exactly the owning or non-owning COOMatrix window spgemm's first operand
+// needs, mirroring how LSKGES handles a SparseSkOp against a dense operand.
+template <typename T, SparseMatrix SpMat, typename RNG, SignedInteger sint_t>
+void lsksps(
+    blas::Layout layout,
+    blas::Op opS,
+    blas::Op opA,
+    int64_t d, // B is d-by-n
+    int64_t n, // op(A) is m-by-n
+    int64_t m, // op(submat(S)) is d-by-m
+    T alpha,
+    const SparseSkOp<T,RNG,sint_t> &S,
+    int64_t ro_s,
+    int64_t co_s,
+    const SpMat &A,
+    int64_t ro_a,
+    int64_t co_a,
+    T beta,
+    T *B,
+    int64_t ldb
+) {
+    randblas_require(ro_a == 0 && co_a == 0);
+    randblas_require(A.index_base == IndexBase::Zero);
+    auto [rows_submat_S, cols_submat_S] = dims_before_op(d, m, opS);
+    validate_submat_dims(S.n_rows, S.n_cols, rows_submat_S, cols_submat_S, ro_s, co_s);
+    randblas_require(A.n_rows == m && A.n_cols == n);
+    if (layout == blas::Layout::ColMajor) {
+        randblas_require(ldb >= d);
+    } else {
+        randblas_require(ldb >= n);
+    }
+
+    if (d == 0 || n == 0)
+        return;
+    bool full_operator = (S.n_rows == rows_submat_S && S.n_cols == cols_submat_S && ro_s == 0 && co_s == 0);
+    if (alpha == T(0) || A.nnz == 0) {
+        RandBLAS::util::lascl(layout, d, n, beta, B, ldb);
+        return;
+    }
+
+    // A submatrix of S must be materialized to know its nnz (there is no
+    // cheap structural check for a windowed operator), so this second empty
+    // check runs after building Scoo rather than before.
+    COOMatrix<T, sint_t> Scoo = full_operator
+        ? RandBLAS::sparse::coo_view_of_skop(S)
+        : RandBLAS::sparse::submatrix_as_coo(S, rows_submat_S, cols_submat_S, ro_s, co_s);
+    if (Scoo.nnz == 0) {
+        RandBLAS::util::lascl(layout, d, n, beta, B, ldb);
+        return;
+    }
+
+    if (opA == blas::Op::NoTrans) {
+        spgemm(layout, opS, alpha, Scoo, A, beta, B, ldb);
+    } else {
+        auto At = A.transpose();
+        spgemm(layout, opS, alpha, Scoo, At, beta, B, ldb);
+    }
+    return;
+}
+
+// MARK: RSKSPS
+
+// =============================================================================
+/// \fn rsksps(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m,
+///     int64_t d, int64_t n, T alpha, const SpMat &A, int64_t ro_a, int64_t co_a,
+///     const SparseSkOp<T,RNG,sint_t> &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb
+/// )
+/// @verbatim embed:rst:leading-slashes
+/// Sketch from the right in an SpMM-like operation
+///
+/// .. math::
+///     \mat(B) = \alpha \cdot \underbrace{\op(\mtxA)}_{m \times n} \cdot \underbrace{\op(\submat(\mtxS))}_{n \times d} + \beta \cdot \underbrace{\mat(B)}_{m \times d},    \tag{$\star$}
+///
+/// where :math:`\alpha` and :math:`\beta` are real scalars, :math:`\op(\mtxX)` either returns a matrix :math:`\mtxX`
+/// or its transpose, and both :math:`\mtxA` and :math:`\mtxS` are sparse. Same restrictions as
+/// lsksps: A must be passed in full, and op(submat(S)) is folded into a transpose view when needed.
+/// @endverbatim
+template <typename T, SparseMatrix SpMat, typename RNG, SignedInteger sint_t>
+void rsksps(
+    blas::Layout layout,
+    blas::Op opA,
+    blas::Op opS,
+    int64_t m, // B is m-by-d
+    int64_t d, // op(submat(S)) is n-by-d
+    int64_t n, // op(A) is m-by-n
+    T alpha,
+    const SpMat &A,
+    int64_t ro_a,
+    int64_t co_a,
+    const SparseSkOp<T,RNG,sint_t> &S,
+    int64_t ro_s,
+    int64_t co_s,
+    T beta,
+    T *B,
+    int64_t ldb
+) {
+    randblas_require(ro_a == 0 && co_a == 0);
+    randblas_require(A.index_base == IndexBase::Zero);
+    auto [rows_submat_S, cols_submat_S] = dims_before_op(n, d, opS);
+    validate_submat_dims(S.n_rows, S.n_cols, rows_submat_S, cols_submat_S, ro_s, co_s);
+    randblas_require(A.n_rows == m && A.n_cols == n);
+    if (layout == blas::Layout::ColMajor) {
+        randblas_require(ldb >= m);
+    } else {
+        randblas_require(ldb >= d);
+    }
+
+    if (m == 0 || d == 0)
+        return;
+    if (alpha == T(0) || A.nnz == 0) {
+        RandBLAS::util::lascl(layout, m, d, beta, B, ldb);
+        return;
+    }
+
+    bool full_operator = (S.n_rows == rows_submat_S && S.n_cols == cols_submat_S && ro_s == 0 && co_s == 0);
+    COOMatrix<T, sint_t> Scoo = full_operator
+        ? RandBLAS::sparse::coo_view_of_skop(S)
+        : RandBLAS::sparse::submatrix_as_coo(S, rows_submat_S, cols_submat_S, ro_s, co_s);
+    if (Scoo.nnz == 0) {
+        RandBLAS::util::lascl(layout, m, d, beta, B, ldb);
+        return;
+    }
+
+    if (opS == blas::Op::NoTrans) {
+        spgemm(layout, opA, alpha, A, Scoo, beta, B, ldb);
+    } else {
+        auto St = Scoo.transpose();
+        spgemm(layout, opA, alpha, A, St, beta, B, ldb);
+    }
+    return;
+}
+
 }  // end namespace RandBLAS::sparse_data
 
 
@@ -532,6 +690,72 @@ inline void sketch_sparse(
     int64_t ldb
 ) {
     sparse_data::rsksp3(layout, opA, opS, m, d, n, alpha, A, 0, 0, S, ro_s, co_s, beta, B, ldb);
+    return;
+}
+
+
+// MARK: SKSP overloads, sparse sketching operator
+
+// =============================================================================
+/// \fn sketch_sparse(blas::Layout layout, blas::Op opS, blas::Op opA, int64_t d, int64_t n, int64_t m,
+///     T alpha, const SparseSkOp<T,RNG,sint_t> &S, int64_t ro_s, int64_t co_s, const SpMat &A, T beta, T *B, int64_t ldb
+/// )
+/// @verbatim embed:rst:leading-slashes
+/// Sketch a sparse matrix from the left with a sparse sketching operator.
+/// Same equation as the DenseSkOp overload above. Requires Intel MKL (the
+/// sparse-times-sparse backend has no non-MKL fallback) and :math:`\mtxA` in
+/// full: a submatrix of :math:`\mtxA` is not supported through this
+/// overload. :math:`\submat(\mtxS)` is fully supported.
+/// @endverbatim
+template <SparseMatrix SpMat, typename RNG, SignedInteger sint_t, typename T = SpMat::scalar_t>
+inline void sketch_sparse(
+    blas::Layout layout,
+    blas::Op opS,
+    blas::Op opA,
+    int64_t d, // B is d-by-n
+    int64_t n, // A is m-by-n
+    int64_t m, // op(submat(\mtxS)) is d-by-m
+    T alpha,
+    const SparseSkOp<T,RNG,sint_t> &S,
+    int64_t ro_s,
+    int64_t co_s,
+    const SpMat &A,
+    T beta,
+    T *B,
+    int64_t ldb
+) {
+    sparse_data::lsksps(layout, opS, opA, d, n, m, alpha, S, ro_s, co_s, A, 0, 0, beta, B, ldb);
+    return;
+}
+
+// =============================================================================
+/// \fn sketch_sparse(blas::Layout layout, blas::Op opA, blas::Op opS, int64_t m, int64_t d, int64_t n,
+///     T alpha, const SpMat &A, const SparseSkOp<T,RNG,sint_t> &S, int64_t ro_s, int64_t co_s, T beta, T *B, int64_t ldb
+/// )
+/// @verbatim embed:rst:leading-slashes
+/// Sketch a sparse matrix from the right with a sparse sketching operator.
+/// Same equation as the DenseSkOp overload above, and the same restrictions
+/// as the left-sketching overload just above: requires Intel MKL, and
+/// :math:`\mtxA` must be passed in full.
+/// @endverbatim
+template <SparseMatrix SpMat, typename RNG, SignedInteger sint_t, typename T = SpMat::scalar_t>
+inline void sketch_sparse(
+    blas::Layout layout,
+    blas::Op opA,
+    blas::Op opS,
+    int64_t m, // B is m-by-d
+    int64_t d, // op(submat(\mtxA)) is m-by-n
+    int64_t n, // op(submat(\mtxS)) is n-by-d
+    T alpha,
+    const SpMat &A,
+    const SparseSkOp<T,RNG,sint_t> &S,
+    int64_t ro_s,
+    int64_t co_s,
+    T beta,
+    T *B,
+    int64_t ldb
+) {
+    sparse_data::rsksps(layout, opA, opS, m, d, n, alpha, A, 0, 0, S, ro_s, co_s, beta, B, ldb);
     return;
 }
 

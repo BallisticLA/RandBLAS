@@ -639,3 +639,237 @@ TEST_F(TestRSKSP3, submatrix_s_single)
             Layout::ColMajor
         );
 }
+
+
+////////////////////////////////////////////////////////////////////////
+//
+//
+//      LSKSPS / RSKSPS: sketching a sparse matrix with a SparseSkOp
+//
+//
+////////////////////////////////////////////////////////////////////////
+
+// These dispatch through spgemm, which is a compile-time error without
+// Intel MKL, so the whole block is gated the same way test_spgemm.cc is.
+#if defined(RandBLAS_HAS_MKL)
+
+using RandBLAS::SparseSkOp;
+using RandBLAS::SparseDist;
+
+// Adapted from test_left_submat_sketch_of_eye above, with the DenseSkOp
+// replaced by a SparseSkOp and lsksp3 replaced by lsksps.
+template <typename T, typename RNG, RandBLAS::SignedInteger sint_t, SparseMatrix SpMat = COOMatrix<T,int64_t>>
+void test_left_submat_sketch_of_eye_sparse(
+    T alpha, SparseSkOp<T,RNG,sint_t> &S0, int64_t d1, int64_t m1, int64_t S_ro, int64_t S_co, Layout layout, T beta = 0.0
+) {
+    auto [d0, m0] = dimensions(S0);
+    randblas_require(d0 >= d1);
+    randblas_require(m0 >= m1);
+    bool is_colmajor = layout == Layout::ColMajor;
+    int64_t ldb = (is_colmajor) ? d1 : m1;
+
+    auto I = eye<SpMat>(m1);
+    auto B = std::get<0>(random_matrix<T>(d1, m1, RNGState(42)));
+    std::vector<T> B_backup(B);
+
+    lsksps(
+        layout, Op::NoTrans, Op::NoTrans, d1, m1, m1,
+        alpha, S0, S_ro, S_co, I, 0, 0, beta, B.data(), ldb
+    );
+
+    T *expect = new T[d0 * m0];
+    to_explicit_buffer(S0, expect, layout);
+    int64_t ld_expect = (is_colmajor) ? d0 : m0;
+    auto [row_stride_s, col_stride_s] = layout_to_strides(layout, ld_expect);
+    auto [row_stride_b, col_stride_b] = layout_to_strides(layout, ldb);
+    int64_t offset = row_stride_s * S_ro + col_stride_s * S_co;
+    #define MAT_ES(_i, _j) expect[offset + (_i)*row_stride_s + (_j)*col_stride_s]
+    #define MAT_BS(_i, _j) B_backup[       (_i)*row_stride_b + (_j)*col_stride_b]
+    for (int i = 0; i < d1; ++i) {
+        for (int j = 0; j < m1; ++j) {
+            MAT_ES(i,j) = alpha * MAT_ES(i,j) + beta * MAT_BS(i, j);
+        }
+    }
+
+    auto msg = RandBLAS::testing::matrices_approx_equal(
+        layout, Op::NoTrans,
+        d1, m1,
+        B.data(), ldb,
+        &expect[offset], ld_expect,
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
+    );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
+    delete [] expect;
+}
+
+// B = S^T * eye, mirroring test_left_transposed_sketch_of_eye above.
+template <typename T, typename RNG, RandBLAS::SignedInteger sint_t, SparseMatrix SpMat = COOMatrix<T,int64_t>>
+void test_left_transposed_sketch_of_eye_sparse(SparseSkOp<T,RNG,sint_t> &S, Layout layout) {
+    auto [m, d] = dimensions(S);
+    auto I = eye<SpMat>(m);
+    std::vector<T> B(d * m, 0.0);
+    bool is_colmajor = (Layout::ColMajor == layout);
+    int64_t ldb = (is_colmajor) ? d : m;
+    int64_t lds = (is_colmajor) ? m : d;
+
+    lsksps(
+        layout, Op::Trans, Op::NoTrans, d, m, m,
+        (T) 1.0, S, 0, 0, I, 0, 0, (T) 0.0, B.data(), ldb
+    );
+
+    std::vector<T> S_dense(m * d, 0.0);
+    to_explicit_buffer(S, S_dense.data(), layout);
+    auto msg = RandBLAS::testing::matrices_approx_equal(
+        layout, Op::Trans, d, m,
+        B.data(), ldb, S_dense.data(), lds,
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
+    );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
+}
+
+// B = eye * S, via the public sketch_sparse(SparseSkOp) overload rather than
+// the low-level rsksps kernel, so the public entry point gets covered too.
+template <typename T, typename RNG, RandBLAS::SignedInteger sint_t, SparseMatrix SpMat = COOMatrix<T,int64_t>>
+void test_right_sketch_of_eye_sparse(SparseSkOp<T,RNG,sint_t> &S, Layout layout) {
+    auto [n, d] = dimensions(S);
+    auto I = eye<SpMat>(n);
+    std::vector<T> B(n * d, 0.0);
+    bool is_colmajor = (Layout::ColMajor == layout);
+    int64_t ldb = (is_colmajor) ? n : d;
+    int64_t lds = (is_colmajor) ? n : d;
+
+    sketch_sparse(
+        layout, Op::NoTrans, Op::NoTrans, n, d, n,
+        (T) 1.0, I, S, 0, 0, (T) 0.0, B.data(), ldb
+    );
+
+    std::vector<T> S_dense(n * d, 0.0);
+    to_explicit_buffer(S, S_dense.data(), layout);
+    auto msg = RandBLAS::testing::matrices_approx_equal(
+        layout, Op::NoTrans, n, d,
+        B.data(), ldb, S_dense.data(), lds,
+        __RANDBLAS_PRETTY_FUNCTION__, __FILE__, __LINE__
+    );
+    if (msg.size() > 0) {
+        FAIL() << msg;
+    }
+}
+
+
+class TestLSKSPS : public ::testing::Test
+{
+    protected:
+
+    virtual void SetUp(){};
+
+    virtual void TearDown(){};
+
+    template <typename T>
+    static void sketch_eye(uint32_t seed, int64_t m, int64_t d, Layout layout) {
+        SparseDist D(d, m, std::min(int64_t(3), std::min(d, m)));
+        SparseSkOp<T> S0(D, seed);
+        fill_sparse(S0);
+        test_left_submat_sketch_of_eye_sparse<T>(1.0, S0, d, m, 0, 0, layout, 0.0);
+    }
+
+    template <typename T>
+    static void transpose_S(uint32_t seed, int64_t m, int64_t d, Layout layout) {
+        SparseDist Dt(m, d, std::min(int64_t(3), std::min(m, d)));
+        SparseSkOp<T> S0(Dt, seed);
+        fill_sparse(S0);
+        test_left_transposed_sketch_of_eye_sparse<T>(S0, layout);
+    }
+
+    template <typename T>
+    static void submatrix_S(
+        uint32_t seed, int64_t d, int64_t m, int64_t d0, int64_t m0,
+        int64_t S_ro, int64_t S_co, Layout layout
+    ) {
+        randblas_require(d0 > d);
+        randblas_require(m0 > m);
+        SparseDist D(d0, m0, std::min(int64_t(3), std::min(d0, m0)));
+        SparseSkOp<T> S0(D, seed);
+        fill_sparse(S0);
+        test_left_submat_sketch_of_eye_sparse<T>(1.0, S0, d, m, S_ro, S_co, layout, 0.0);
+    }
+
+    template <typename T>
+    static void nontrivial_alpha_beta(uint32_t seed, int64_t m, int64_t d, Layout layout) {
+        SparseDist D(d, m, std::min(int64_t(3), std::min(d, m)));
+        SparseSkOp<T> S0(D, seed);
+        fill_sparse(S0);
+        test_left_submat_sketch_of_eye_sparse<T>(1.7, S0, d, m, 0, 0, layout, -0.4);
+    }
+};
+
+TEST_F(TestLSKSPS, sketch_eye_double_colmajor) {
+    sketch_eye<double>(0, 12, 5, Layout::ColMajor);
+}
+
+TEST_F(TestLSKSPS, sketch_eye_double_rowmajor) {
+    sketch_eye<double>(0, 12, 5, Layout::RowMajor);
+}
+
+TEST_F(TestLSKSPS, sketch_eye_single) {
+    sketch_eye<float>(0, 12, 5, Layout::ColMajor);
+}
+
+TEST_F(TestLSKSPS, transpose_double_colmajor) {
+    transpose_S<double>(0, 12, 5, Layout::ColMajor);
+}
+
+TEST_F(TestLSKSPS, transpose_double_rowmajor) {
+    transpose_S<double>(0, 12, 5, Layout::RowMajor);
+}
+
+TEST_F(TestLSKSPS, submatrix_s_double_colmajor) {
+    submatrix_S<double>(0, 5, 8, 9, 12, 2, 1, Layout::ColMajor);
+}
+
+TEST_F(TestLSKSPS, submatrix_s_double_rowmajor) {
+    submatrix_S<double>(0, 5, 8, 9, 12, 2, 1, Layout::RowMajor);
+}
+
+TEST_F(TestLSKSPS, nontrivial_alpha_beta_colmajor) {
+    nontrivial_alpha_beta<double>(0, 12, 5, Layout::ColMajor);
+}
+
+TEST_F(TestLSKSPS, nontrivial_alpha_beta_rowmajor) {
+    nontrivial_alpha_beta<double>(0, 12, 5, Layout::RowMajor);
+}
+
+
+class TestRSKSPS : public ::testing::Test
+{
+    protected:
+
+    virtual void SetUp(){};
+
+    virtual void TearDown(){};
+
+    template <typename T>
+    static void sketch_eye(uint32_t seed, int64_t n, int64_t d, Layout layout) {
+        SparseDist D(n, d, std::min(int64_t(3), std::min(n, d)));
+        SparseSkOp<T> S(D, seed);
+        fill_sparse(S);
+        test_right_sketch_of_eye_sparse<T>(S, layout);
+    }
+};
+
+TEST_F(TestRSKSPS, sketch_eye_double_colmajor) {
+    sketch_eye<double>(0, 12, 5, Layout::ColMajor);
+}
+
+TEST_F(TestRSKSPS, sketch_eye_double_rowmajor) {
+    sketch_eye<double>(0, 12, 5, Layout::RowMajor);
+}
+
+TEST_F(TestRSKSPS, sketch_eye_single) {
+    sketch_eye<float>(0, 12, 5, Layout::ColMajor);
+}
+
+#endif // RandBLAS_HAS_MKL
