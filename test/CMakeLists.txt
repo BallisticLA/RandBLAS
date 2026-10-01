@@ -22,6 +22,7 @@ if (GTest_FOUND)
 
         linops/test_sketch_vector.cc
         linops/test_sketch_symmetric.cc
+        linops/test_symmetric_locality.cc
     )
     add_executable(densedata_tests ${DENSEDATA_SOURCES})
     target_link_libraries(densedata_tests RandBLAS GTest::GTest GTest::Main)
@@ -39,12 +40,14 @@ if (GTest_FOUND)
         datastructures/test_csr_matrix.cc
         datastructures/test_coo_matrix.cc
         datastructures/test_spmat_conversions.cc
+        datastructures/test_symmetric_wrapper.cc
 
         linops/test_spgemm.cc
         linops/test_sparse_trsm.cc
         linops/test_spmm/test_spmm_csc.cc
         linops/test_spmm/test_spmm_csr.cc
         linops/test_spmm/test_spmm_coo.cc
+        linops/test_spsymm.cc
 
         linops/test_sketch_sparse.cc
     )

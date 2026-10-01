@@ -1,4 +1,4 @@
-// Copyright, 2024. See LICENSE for copyright holder information.
+// Copyright, 2026. See LICENSE for copyright holder information.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
@@ -27,18 +27,37 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef RandBLAS_HH
-#define RandBLAS_HH
+#pragma once
 
-#include <RandBLAS/config.h>
-#include <RandBLAS/base.hh>
-#include <RandBLAS/util.hh>
-#include <RandBLAS/sparse_skops.hh>
-#include <RandBLAS/dense_skops.hh>
-#include <RandBLAS/skge.hh>
-#include <RandBLAS/skve.hh>
-#include <RandBLAS/sksy.hh>
-#include <RandBLAS/sparse_data/sksp.hh>
-#include <RandBLAS/sparse_data/spsymm_dispatch.hh>
+#include "RandBLAS/sparse_data/csc_matrix.hh"
+#include "RandBLAS/sparse_data/csr_spsymm_impl.hh"
+#include <blas.hh>
 
-#endif
+namespace RandBLAS::sparse_data {
+
+// =============================================================================
+// CSC fallback for symmetric sparse-times-dense (side=Left).
+//
+// A symmetric CSC matrix's arrays, read as CSR, describe A^T = A over the
+// same buffers, with the stored triangle name flipped: a CSC Upper entry at
+// (i, j) with i <= j appears in the CSR view at (j, i), which is Lower.
+// So this kernel is a delegation to csr_spsymm on the lightweight
+// A.transpose() view with uplo flipped. Same identity as the MKL path.
+template <typename T, SignedInteger sint_t>
+void csc_spsymm(
+    blas::Layout layout,
+    blas::Uplo uplo,
+    int64_t m, int64_t n,
+    T alpha,
+    const CSCMatrix<T, sint_t>& A,
+    const T* B, int64_t ldb,
+    T* C, int64_t ldc
+) {
+    auto At = A.transpose();
+    blas::Uplo uplo_flipped = (uplo == blas::Uplo::Upper)
+        ? blas::Uplo::Lower
+        : blas::Uplo::Upper;
+    csr_spsymm(layout, uplo_flipped, m, n, alpha, At, B, ldb, C, ldc);
+}
+
+} // namespace RandBLAS::sparse_data
