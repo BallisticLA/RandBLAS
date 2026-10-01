@@ -133,7 +133,10 @@ void coo_lsksys(
                         const T *x = panel + entry.col * panel_width;
                         T *y = accum + entry.row * panel_width;
                         const T value = entry.value;
+                        // MSVC /openmp:llvm does not support the simd directive.
+                        #if !defined(_MSC_VER)
                         #pragma omp simd
+                        #endif
                         for (int64_t c = 0; c < count; ++c) {
                             y[c] += value * x[c];
                         }
