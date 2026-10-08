@@ -57,7 +57,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}\..\windows-deps\blaspp-install
-        key: windows-msvc-blaspp-windows-portability-ilp64-sequential-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+        key: windows-msvc-blaspp-windows-portability-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: cache Random123 installation
       uses: actions/cache@v4
@@ -70,7 +70,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}\..\windows-deps\lapackpp-install
-        key: windows-msvc-lapackpp-msvc-compatibility-blaspp-windows-portability-ilp64-sequential-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+        key: windows-msvc-lapackpp-msvc-compatibility-blaspp-windows-portability-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: build missing Windows dependencies
       id: setup
