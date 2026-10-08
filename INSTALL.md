@@ -298,7 +298,10 @@ set "PATH=%MKLROOT%\bin;%PATH%"
 After the install succeeds, `C:\randblas-work\vcpkg-scratch` can be deleted;
 the installed prefix is self-contained.
 
-Build a shared, sequential, ILP64 BLAS++:
+Build a shared, ILP64 BLAS++ on oneMKL's Intel OpenMP threading layer.
+`libiomp5md.lib` is the import library of Intel's OpenMP runtime, which vcpkg
+installs with oneMKL; RandBLAS's own OpenMP code then runs on the same runtime
+as oneMKL's threads:
 
 ```bat
 git clone --branch windows-portability ^
@@ -313,9 +316,9 @@ cmake --fresh ^
   -DCMAKE_INSTALL_PREFIX=C:/randblas-work/install/blaspp ^
   -DBUILD_SHARED_LIBS=ON ^
   -Duse_cmake_find_blas=false ^
-  -DBLAS_LIBRARIES="C:/randblas-work/vcpkg-installed/x64-windows/lib/mkl_intel_ilp64_dll.lib;C:/randblas-work/vcpkg-installed/x64-windows/lib/mkl_sequential_dll.lib;C:/randblas-work/vcpkg-installed/x64-windows/lib/mkl_core_dll.lib" ^
+  -DBLAS_LIBRARIES="C:/randblas-work/vcpkg-installed/x64-windows/lib/mkl_intel_ilp64_dll.lib;C:/randblas-work/vcpkg-installed/x64-windows/lib/mkl_intel_thread_dll.lib;C:/randblas-work/vcpkg-installed/x64-windows/lib/mkl_core_dll.lib;C:/randblas-work/vcpkg-installed/x64-windows/lib/libiomp5md.lib" ^
   -Dblas_int=ilp64 ^
-  -Dblas_threaded=false ^
+  -Dblas_threaded=true ^
   -Duse_openmp=false ^
   -Dgpu_backend=none ^
   -Dbuild_tests=OFF
@@ -359,16 +362,18 @@ cmake --fresh ^
 cmake --build C:/randblas-work/build/googletest --target install
 ```
 
-MSVC supplies OpenMP support. RandBLAS's CMake configuration automatically
-selects `/openmp:llvm` under MSVC. The classic `/openmp` mode implements only
-OpenMP 2.0, which rejects the `omp simd` directive the sparse kernels use, as
-well as 64-bit loop indices and the `collapse` clause downstream consumers
-such as RandLAPACK rely on. No OpenMP flag needs to be added manually; to
-choose a different mode, set `-DOpenMP_CXX_FLAGS=...` at configure time.
+MSVC supplies OpenMP support at compile time (at run time RandBLAS's OpenMP
+calls go to Intel's runtime, shared with oneMKL). RandBLAS's CMake
+configuration automatically selects `/openmp:llvm` under MSVC. The classic
+`/openmp` mode implements only OpenMP 2.0, which rejects the `omp simd`
+directive the sparse kernels use, as well as 64-bit loop indices and the
+`collapse` clause downstream consumers such as RandLAPACK rely on. No OpenMP
+flag needs to be added manually; to choose a different mode, set
+`-DOpenMP_CXX_FLAGS=...` at configure time.
 
-OpenMP is optional. To request a serial build explicitly, add
+OpenMP is optional. To build RandBLAS's own loops serially, add
 `-DCMAKE_DISABLE_FIND_PACKAGE_OpenMP=TRUE` to the RandBLAS configuration
-command in the next section.
+command in the next section; oneMKL stays multithreaded.
 
 ### A.3. Building, installing, and testing RandBLAS
 
