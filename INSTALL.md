@@ -473,7 +473,7 @@ Anything not listed may well work; it is simply untested.
 | Ubuntu (latest) | gcc | oneMKL | ILP64 | yes | enables the MKL sparse path |
 | Ubuntu (latest) | clang | OpenBLAS | LP64 | yes | release, ASan, TSan |
 | macOS 14 | Apple Clang | Accelerate (new interface) | ILP64 | **no** | Apple Clang ships no OpenMP runtime |
-| macOS 15 | Homebrew LLVM | Accelerate (new interface) | ILP64 | yes | via Homebrew `libomp` |
+| macOS 15 | Homebrew LLVM | Accelerate (new interface) | ILP64 | yes | release, release+ASan; via Homebrew `libomp` |
 | macOS (latest) | Apple Clang | Accelerate (new interface) | LP64 | **no** | installer lane, explicit `--blas-int=lp64` |
 | Windows | MSVC | oneMKL | ILP64 | yes (`/openmp:llvm`) | x64 only |
 
