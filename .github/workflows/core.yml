@@ -97,25 +97,11 @@ jobs:
             sanitizer: asan
             openmp: false
 
-          # macOS 14 / Homebrew LLVM / Accelerate — OpenMP build.
-          - label: macos14-llvm-accelerate-release
-            os: macos-14
-            cc: brew-llvm-clang
-            cxx: brew-llvm-clang++
-            blas-backend: accelerate
-            build-type: Release
-            sanitizer: none
-            openmp: true
-
-          # macOS 14 / Homebrew LLVM / Accelerate — Release + ASan with OpenMP.
-          - label: macos14-llvm-accelerate-release-asan
-            os: macos-14
-            cc: brew-llvm-clang
-            cxx: brew-llvm-clang++
-            blas-backend: accelerate
-            build-type: Release
-            sanitizer: asan
-            openmp: true
+          # No macOS 14 Homebrew LLVM lanes: Homebrew ranks macOS 14 as a
+          # Tier 3 platform and no longer ships LLVM bottles for it, so
+          # `brew install llvm` there builds LLVM from source (about two
+          # hours) and then fails at `brew link`. OpenMP coverage on macOS
+          # lives on macOS 15; macOS 14 keeps the Apple Clang lanes above.
 
           # macOS 15 / Homebrew LLVM / Accelerate — track latest macOS runner.
           - label: macos15-llvm-accelerate-release
@@ -125,6 +111,16 @@ jobs:
             blas-backend: accelerate
             build-type: Release
             sanitizer: none
+            openmp: true
+
+          # macOS 15 / Homebrew LLVM / Accelerate: Release + ASan with OpenMP.
+          - label: macos15-llvm-accelerate-release-asan
+            os: macos-15
+            cc: brew-llvm-clang
+            cxx: brew-llvm-clang++
+            blas-backend: accelerate
+            build-type: Release
+            sanitizer: asan
             openmp: true
 
     steps:
