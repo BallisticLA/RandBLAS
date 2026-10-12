@@ -339,9 +339,10 @@ void sketch_to_tqrcp(SpMat &A, int64_t k, T* Q, int64_t ldq,  T* Y, int64_t ldy,
     lapack::geqp3(k, n, Y, ldy, piv, tau), "GEQP3 : ")
 
     // ================================================================
-    // Step 2: copy A(:, piv(0)-1), ..., A(:, piv(k)-1) into dense Q
+    // Step 2: copy A(:, piv(0)-1), ..., A(:, piv(k)-1) into dense Q.
+    // Zero the m-by-k destination block in one pass before scattering.
+    RandBLAS::util::lascl(blas::Layout::ColMajor, m, k, 0.0, Q, ldq);
     for (int64_t j = 0; j < k; ++j) {
-        RandBLAS::util::safe_scal(m, 0.0, Q + j*ldq);
         for (int64_t ell = A.colptr[piv[j]-1]; ell < A.colptr[piv[j]]; ++ell) {
             int64_t i = A.rowidxs[ell];
             Q[i + ldq*j] = A.vals[ell];
