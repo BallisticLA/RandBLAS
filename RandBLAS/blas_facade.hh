@@ -31,16 +31,28 @@
 /// @file
 ///
 /// BLAS backend selector. Include this header instead of <blas.hh> throughout
-/// RandBLAS. The backend is chosen at configure time via RandBLAS_BLAS_BACKEND:
+/// RandBLAS. The backend is chosen by the following priority chain:
 ///
-///   blaspp  (default) — uses BLAS++ (<blas.hh>) for all BLAS operations.
-///   builtin           — uses RandBLAS's own implementations (blas_builtin.hh).
+///   1. RANDBLAS_BLAS_HEADER (preprocessor macro, highest priority)
+///        Define this macro to the quoted path of any header that provides
+///        the blas:: namespace (Layout, Op, scal, gemm, …).  Use this to
+///        supply a CBLAS wrapper (see blas_backend/cblas.hh) or your own
+///        implementation without touching CMake:
+///          -DRANDBLAS_BLAS_HEADER='"RandBLAS/blas_backend/cblas.hh"'
 ///
-/// Either way, code sees the same blas::Layout, blas::Op, blas::scal, etc.
+///   2. RandBLAS_HAS_BLASPP (set by CMake when BLAS++ is found)
+///        Uses BLAS++ (<blas.hh>).
+///
+///   3. Builtin fallback (CMake option RandBLAS_BLAS_BACKEND=builtin)
+///        Uses RandBLAS's own portable implementations.
+///
+/// All three paths expose the same blas::Layout, blas::Op, blas::scal, etc.
 
 #include "RandBLAS/config.h"
 
-#if defined(RandBLAS_HAS_BLASPP)
+#if defined(RANDBLAS_BLAS_HEADER)
+    #include RANDBLAS_BLAS_HEADER
+#elif defined(RandBLAS_HAS_BLASPP)
     #include <blas.hh>
 #else
     #include "RandBLAS/blas_backend/builtin.hh"
