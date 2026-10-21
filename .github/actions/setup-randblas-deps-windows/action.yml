@@ -33,6 +33,16 @@ outputs:
 runs:
   using: composite
   steps:
+    # The BLAS++/LAPACK++ commits from installers/dependency-pins.env, found
+    # relative to this action. Their hashes go into the BLAS++/LAPACK++ cache
+    # keys below: hashFiles() of setup.ps1 no longer changes with a pin.
+    - name: read dependency pins
+      id: pins
+      shell: pwsh
+      run: |
+        . "$env:GITHUB_ACTION_PATH/../../scripts/windows/dependency-pins.ps1"
+        Export-DependencyPins "$env:GITHUB_ACTION_PATH/../../../installers/dependency-pins.env"
+
     - name: cache vcpkg oneMKL installation
       uses: actions/cache@v4
       with:
@@ -57,7 +67,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}\..\windows-deps\blaspp-install
-        key: windows-msvc-blaspp-windows-portability-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+        key: windows-msvc-blaspp-${{ steps.pins.outputs.BLASPP_REF }}-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: cache Random123 installation
       uses: actions/cache@v4
@@ -70,7 +80,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}\..\windows-deps\lapackpp-install
-        key: windows-msvc-lapackpp-msvc-compatibility-blaspp-windows-portability-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+        key: windows-msvc-lapackpp-${{ steps.pins.outputs.LAPACKPP_REF }}-blaspp-${{ steps.pins.outputs.BLASPP_REF }}-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: build missing Windows dependencies
       id: setup

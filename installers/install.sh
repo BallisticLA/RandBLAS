@@ -422,10 +422,16 @@ clone_pinned() {  # <url> <dest> <ref>
     local url="$1" dest="$2" ref="$3"
     rm -rf "$dest"
     mkdir -p "$dest"
-    git -C "$dest" init --quiet
-    git -C "$dest" remote add origin "$url"
-    git -C "$dest" fetch --quiet --depth 1 origin "$ref"
-    git -C "$dest" checkout --quiet FETCH_HEAD
+    # Chained explicitly: run_step calls this inside an `if`, where set -e is
+    # off, so an unchained failed fetch would still reach write_stamp.
+    git -C "$dest" init --quiet &&
+        git -C "$dest" remote add origin "$url" &&
+        git -C "$dest" fetch --quiet --depth 1 origin "$ref" &&
+        git -C "$dest" checkout --quiet FETCH_HEAD || return 1
+    # A full commit hash must come back as itself: proof the fetch got it.
+    if [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+        [[ "$(git -C "$dest" rev-parse HEAD)" == "$ref" ]] || return 1
+    fi
     write_stamp "$dest" "$url@$ref"
 }
 
@@ -435,19 +441,24 @@ source_is_current() {  # <dest> <url> <ref>
 
 #==============================================================================
 # Dependency pins. Immutable refs only: a tag or a full commit hash, never a
-# branch name. These match the refs RandLAPACK's Windows provisioner validated.
+# branch name. BLAS++ and LAPACK++ come from installers/dependency-pins.env,
+# the one file every build lane reads (this script, the Windows provisioner,
+# CI and docker/tsan), so no two of them can disagree about what they build.
+# RandLAPACK pins the same commits, and its CI checks that the two agree.
 #==============================================================================
-BLASPP_URL="https://github.com/icl-utk-edu/blaspp.git"
-# The commit that merged new-Apple-Accelerate support (blaspp PR #134,
-# 2026-08-27); also contains the MSVC portability fix (PR #132). Not in a
-# release yet -- the latest tag, v2025.05.28, predates both. Move to a tag
-# once one includes them.
-BLASPP_REF="2d8d4e937ac46fffab33d4174a4fc7659726dbda"
-
-LAPACKPP_URL="https://github.com/icl-utk-edu/lapackpp.git"
-# The commit that merged the LAPACK++ half of new-Accelerate support
-# (lapackpp PR #88, 2026-08-27).
-LAPACKPP_REF="b9439cf3c26d1655d88e7f510ae8b4f82fbeb687"
+PINS_FILE="$SCRIPT_DIR/dependency-pins.env"
+[[ -f "$PINS_FILE" ]] || die "Missing $PINS_FILE; this clone looks incomplete."
+# Sourced, carriage returns stripped first: a checkout that ignored
+# .gitattributes has CRLF endings, which would put a \r into every value. eval
+# rather than `source <(...)`, which bash 3.2 (macOS) reads as empty.
+eval "$(tr -d '\r' < "$PINS_FILE")"
+for pin in BLASPP_REF LAPACKPP_REF; do
+    [[ "${!pin:-}" =~ ^[0-9a-f]{40}$ ]] \
+        || die "$PINS_FILE: $pin must be a full 40-character commit hash, not '${!pin:-}'."
+done
+for pin in BLASPP_URL LAPACKPP_URL; do
+    [[ -n "${!pin:-}" ]] || die "$PINS_FILE: $pin is empty."
+done
 
 RANDOM123_URL="https://github.com/DEShawResearch/Random123.git"
 RANDOM123_REF="v1.14.0"
@@ -772,7 +783,7 @@ if (( BUILD_RANDOM123 )); then
     else
         install_random123() {
             local src="$PROJECT_DIR/lib/Random123"
-            clone_pinned "$RANDOM123_URL" "$src" "$RANDOM123_REF"
+            clone_pinned "$RANDOM123_URL" "$src" "$RANDOM123_REF" || return 1
             rm -rf "$RANDOM123_INSTALL/include/Random123"
             mkdir -p "$RANDOM123_INSTALL/include"
             cp -r "$src/include/Random123" "$RANDOM123_INSTALL/include/Random123"
@@ -951,7 +962,7 @@ build_examples() {
         skip_step "LAPACK++ ... reusing external install"
     else
         local src="$PROJECT_DIR/lib/lapackpp"
-        local stamp="$LAPACKPP_URL@$LAPACKPP_REF blaspp=$BLASPP_CMAKE_DIR"
+        local stamp="$LAPACKPP_URL@$LAPACKPP_REF blaspp=$BLASPP_URL@$BLASPP_REF:$BLASPP_CMAKE_DIR"
         if (( ! FRESH )) && stamp_matches "$LAPACKPP_INSTALL" "$stamp"; then
             skip_step "LAPACK++ source ... already present"
             skip_step "LAPACK++ ... reusing existing install"

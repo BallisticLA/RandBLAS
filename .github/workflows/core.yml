@@ -296,6 +296,14 @@ jobs:
         with:
           arch: x64
 
+      # The BLAS++ commit setup.ps1 will build, for the cache key below.
+      - name: read dependency pins
+        id: pins
+        shell: pwsh
+        run: |
+          . .github/scripts/windows/dependency-pins.ps1
+          Export-DependencyPins installers/dependency-pins.env
+
       - name: cache oneMKL installer downloads
         uses: actions/cache@v4
         with:
@@ -312,7 +320,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}\..\windows-deps-vsvcpkg\blaspp-install
-          key: windows-vsvcpkg-blaspp-windows-portability-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+          key: windows-vsvcpkg-blaspp-${{ steps.pins.outputs.BLASPP_REF }}-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
       - name: run native Windows core validation
         shell: pwsh

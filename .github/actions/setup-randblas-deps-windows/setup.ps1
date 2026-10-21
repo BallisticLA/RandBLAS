@@ -76,22 +76,30 @@ function Clone-Pinned {
     Invoke-Checked -Program "git" -Arguments @("-C", $Destination, "remote", "add", "origin", $Url)
     Invoke-Checked -Program "git" -Arguments @("-C", $Destination, "fetch", "--quiet", "--depth", "1", "origin", $Ref)
     Invoke-Checked -Program "git" -Arguments @("-C", $Destination, "checkout", "--quiet", "FETCH_HEAD")
+    # A full commit hash must come back as itself: proof the fetch got it.
+    if ($Ref -cmatch '^[0-9a-f]{40}$') {
+        $head = (& git -C $Destination rev-parse HEAD)
+        if ($head -ne $Ref) { throw "$Destination is at $head after fetching $Url@$Ref." }
+    }
     Set-Content -LiteralPath $stampPath -Value $stamp -Encoding ascii
 }
 
 #------------------------------------------------------------------ pins ------
-# Immutable refs only: a tag or a full commit hash, never a branch. These match
-# installers/install.sh and the refs RandLAPACK validated, so the two installers
-# and CI cannot disagree about what they built.
-#
-# Pinned to the commits that merged new-Apple-Accelerate support on 2026-08-27
-# (icl-utk-edu/blaspp#134, icl-utk-edu/lapackpp#88); they also contain the MSVC
-# portability fixes (blaspp#132, lapackpp#87). The latest release of each,
-# v2025.05.28, predates all of these.
-$BlasppUrl    = "https://github.com/icl-utk-edu/blaspp.git"
-$BlasppRef    = "2d8d4e937ac46fffab33d4174a4fc7659726dbda"
-$LapackppUrl  = "https://github.com/icl-utk-edu/lapackpp.git"
-$LapackppRef  = "b9439cf3c26d1655d88e7f510ae8b4f82fbeb687"
+# Immutable refs only: a tag or a full commit hash, never a branch. BLAS++ and
+# LAPACK++ come from installers/dependency-pins.env, the file installers/
+# install.sh and CI read too (and RandLAPACK pins the same commits), so no two
+# of them can disagree about what they build. The parser is shared with
+# action.yml, which puts the same hashes into the cache keys.
+$pinsHelper = Join-Path $PSScriptRoot "..\..\scripts\windows\dependency-pins.ps1"
+if (-not (Test-Path -LiteralPath $pinsHelper)) {
+    throw "Missing $pinsHelper. This clone looks incomplete."
+}
+. $pinsHelper
+$pins = Read-DependencyPins (Join-Path $PSScriptRoot "..\..\..\installers\dependency-pins.env")
+$BlasppUrl    = $pins.BLASPP_URL
+$BlasppRef    = $pins.BLASPP_REF
+$LapackppUrl  = $pins.LAPACKPP_URL
+$LapackppRef  = $pins.LAPACKPP_REF
 $Random123Url = "https://github.com/DEShawResearch/Random123.git"
 $Random123Ref = "v1.14.0"
 $GTestUrl     = "https://github.com/google/googletest.git"

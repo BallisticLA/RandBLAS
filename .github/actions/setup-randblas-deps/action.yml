@@ -80,29 +80,20 @@ runs:
             ;;
         esac
 
-    - name: resolve blaspp HEAD commit
-      id: blaspp-rev
+    # The BLAS++/LAPACK++ commits from installers/dependency-pins.env, found
+    # relative to this action. They are fetched by hash below and go into the
+    # cache keys, so changing a pin rebuilds both.
+    - name: read dependency pins
+      id: pins
       shell: bash
-      run: |
-        set -euxo pipefail
-        sha="$(git ls-remote https://github.com/icl-utk-edu/blaspp.git HEAD | awk '{print $1}')"
-        echo "sha=${sha}" >> "$GITHUB_OUTPUT"
-
-    - name: resolve lapackpp HEAD commit
-      if: inputs.install-lapackpp == 'true'
-      id: lapackpp-rev
-      shell: bash
-      run: |
-        set -euxo pipefail
-        sha="$(git ls-remote https://github.com/icl-utk-edu/lapackpp.git HEAD | awk '{print $1}')"
-        echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+      run: bash "$GITHUB_ACTION_PATH/../../scripts/dependency-pins.sh" export "$GITHUB_ACTION_PATH/../../../installers/dependency-pins.env"
 
     - name: cache blaspp install
       id: blaspp-cache
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/../blaspp-install
-        key: blaspp-accel1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}
+        key: blaspp-accel1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.pins.outputs.BLASPP_REF }}
 
     - name: build blaspp
       if: steps.blaspp-cache.outputs.cache-hit != 'true'
@@ -110,11 +101,13 @@ runs:
       env:
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
+        BLASPP_URL: ${{ steps.pins.outputs.BLASPP_URL }}
+        BLASPP_REF: ${{ steps.pins.outputs.BLASPP_REF }}
       run: |
         set -euxo pipefail
         cd ..
         rm -rf blaspp blaspp-build blaspp-install
-        git clone --depth 1 https://github.com/icl-utk-edu/blaspp.git
+        bash "$GITHUB_ACTION_PATH/../../scripts/dependency-pins.sh" fetch "$BLASPP_URL" "$BLASPP_REF" blaspp
         mkdir blaspp-build
         cd blaspp-build
         blas_arg=""
@@ -164,7 +157,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/../lapackpp-install
-        key: lapackpp-accel1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}-${{ steps.lapackpp-rev.outputs.sha }}
+        key: lapackpp-accel1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.pins.outputs.BLASPP_REF }}-${{ steps.pins.outputs.LAPACKPP_REF }}
 
     - name: build lapackpp
       if: inputs.install-lapackpp == 'true' && steps.lapackpp-cache.outputs.cache-hit != 'true'
@@ -172,11 +165,13 @@ runs:
       env:
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
+        LAPACKPP_URL: ${{ steps.pins.outputs.LAPACKPP_URL }}
+        LAPACKPP_REF: ${{ steps.pins.outputs.LAPACKPP_REF }}
       run: |
         set -euxo pipefail
         cd ..
         rm -rf lapackpp lapackpp-build lapackpp-install
-        git clone --depth 1 https://github.com/icl-utk-edu/lapackpp.git
+        bash "$GITHUB_ACTION_PATH/../../scripts/dependency-pins.sh" fetch "$LAPACKPP_URL" "$LAPACKPP_REF" lapackpp
         mkdir lapackpp-build
         cd lapackpp-build
         # Match the int width of the blaspp we link against (ILP64 for MKL

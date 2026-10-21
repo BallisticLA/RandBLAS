@@ -218,10 +218,19 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -qq -y g++ gfortran cmake git libopenblas-dev libgtest-dev
 
+      - name: read dependency pins
+        id: pins
+        run: bash .github/scripts/dependency-pins.sh export installers/dependency-pins.env
+
+      # BLAS++ at the pinned commit, as a recipe would fetch a fixed release.
       - name: build BLAS++ and Random123 into a prefix
+        env:
+          BLASPP_URL: ${{ steps.pins.outputs.BLASPP_URL }}
+          BLASPP_REF: ${{ steps.pins.outputs.BLASPP_REF }}
         run: |
+          set -euo pipefail
           PREFIX="$GITHUB_WORKSPACE/deps"
-          git clone --quiet --depth 1 https://github.com/icl-utk-edu/blaspp.git blaspp-src
+          bash .github/scripts/dependency-pins.sh fetch "$BLASPP_URL" "$BLASPP_REF" blaspp-src
           cmake -S blaspp-src -B blaspp-build -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="$PREFIX" -Dblas=openblas -Dbuild_tests=OFF
           cmake --build blaspp-build -j"$(nproc)" --target install
