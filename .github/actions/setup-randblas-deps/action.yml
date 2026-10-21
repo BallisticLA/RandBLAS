@@ -88,12 +88,21 @@ runs:
       shell: bash
       run: bash "$GITHUB_ACTION_PATH/../../scripts/dependency-pins.sh" export "$GITHUB_ACTION_PATH/../../../installers/dependency-pins.env"
 
+    # Paths start from runner.workspace, the checkout's parent: actions/cache
+    # refuses to save a path containing ".." ("Invalid pattern ... Relative
+    # pathing '.' and '..' is not allowed"), so the old github.workspace/../
+    # spelling restored caches that were never saved.
+    #
+    # The keys name the calling workflow because callers prepare different
+    # environments first, and BLAS++ records what it finds: thread-sanitizer
+    # installs libomp-dev, so its clang-built BLAS++ exports an OpenMP
+    # dependency that core's clang lanes, without libomp, cannot satisfy.
     - name: cache blaspp install
       id: blaspp-cache
       uses: actions/cache@v4
       with:
-        path: ${{ github.workspace }}/../blaspp-install
-        key: blaspp-accel1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.pins.outputs.BLASPP_REF }}
+        path: ${{ runner.workspace }}/blaspp-install
+        key: blaspp-accel1-${{ github.workflow }}-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.pins.outputs.BLASPP_REF }}
 
     - name: build blaspp
       if: steps.blaspp-cache.outputs.cache-hit != 'true'
@@ -158,8 +167,8 @@ runs:
       id: lapackpp-cache
       uses: actions/cache@v4
       with:
-        path: ${{ github.workspace }}/../lapackpp-install
-        key: lapackpp-accel1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.pins.outputs.BLASPP_REF }}-${{ steps.pins.outputs.LAPACKPP_REF }}
+        path: ${{ runner.workspace }}/lapackpp-install
+        key: lapackpp-accel1-${{ github.workflow }}-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.pins.outputs.BLASPP_REF }}-${{ steps.pins.outputs.LAPACKPP_REF }}
 
     - name: build lapackpp
       if: inputs.install-lapackpp == 'true' && steps.lapackpp-cache.outputs.cache-hit != 'true'
