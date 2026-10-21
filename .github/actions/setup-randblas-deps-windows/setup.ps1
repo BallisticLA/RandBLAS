@@ -260,6 +260,24 @@ foreach ($path in @($mklInclude, $mklBin, (Join-Path $mklBin "libiomp5md.dll")) 
 $env:MKLROOT = $mklRoot
 $env:PATH = "$mklBin;$env:PATH"
 
+# Under GitHub Actions only, deliberately hand BLAS++ the import libraries
+# from a path WITH a space, emulating Intel's default install location
+# (C:\Program Files (x86)\...). This is the standing regression proof for
+# icl-utk-edu/blaspp#137 (issue #188): the pinned BLAS++ must not split
+# BLAS_LIBRARIES entries on spaces. Import libraries only name their DLL,
+# which still loads from $mklBin at run time, so relocating them is safe.
+# installers/install.ps1 runs this script too, and a user's install has no
+# reason to link against such copies.
+if ($env:GITHUB_ACTIONS -eq "true") {
+    $spacedLibDir = Join-Path $DependencyRoot "path with spaces"
+    New-Item -ItemType Directory -Force -Path $spacedLibDir | Out-Null
+    $mklLibraries = @($mklLibraries | ForEach-Object {
+        $target = Join-Path $spacedLibDir (Split-Path $_ -Leaf)
+        Copy-Item -LiteralPath $_ -Destination $target -Force
+        $target
+    })
+}
+
 $gtestSource = Join-Path $DependencyRoot "googletest"
 $gtestVariant = if ($SanitizeAddress) { "googletest-asan" } else { "googletest" }
 $gtestBuild = Join-Path $DependencyRoot "$gtestVariant-build"
