@@ -475,6 +475,7 @@ Anything not listed may well work; it is simply untested.
 | OS | Compiler | BLAS backend | Integer width | OpenMP | Notes |
 |---|---|---|---|---|---|
 | Ubuntu (latest) | gcc | OpenBLAS | LP64 | yes | release, debug+ASan, release+UBSan |
+| Ubuntu (latest) | gcc | OpenBLAS (`libopenblas64` only) | ILP64 | yes | installer lane |
 | Ubuntu (latest) | gcc | oneMKL | ILP64 | yes | enables the MKL sparse path |
 | Ubuntu (latest) | clang | OpenBLAS | LP64 | yes | release, ASan, TSan |
 | macOS 14 | Apple Clang | Accelerate (new interface) | ILP64 | **no** | Apple Clang ships no OpenMP runtime |
@@ -503,15 +504,19 @@ provide it, and falls back to LP64 with a warning where it cannot**:
 | Backend | Width | Why |
 |---|---|---|
 | oneMKL | ILP64 | `mkl_intel_ilp64` is a distinct library, so the choice is real and verifiable |
-| OpenBLAS | LP64 | see below |
+| OpenBLAS | LP64, or ILP64 when `libopenblas64` is the only OpenBLAS installed | see below |
 | Accelerate | ILP64 | Apple's new interface (macOS ≥ 13.3) ships ILP64 inside the framework; BLAS++ supports it as of [blaspp#134](https://github.com/icl-utk-edu/blaspp/pull/134). On older macOS the `int64` probe fails and `auto` falls back to LP64 with a warning |
 
-**OpenBLAS is the subtle one.** BLAS++ probes `int32` before `int64` and uses
-`blas_int` only to filter library *names*. For MKL that is enough. For
-OpenBLAS there is only ever `-lopenblas`, so an LP64 build passes the `int32`
-probe and is accepted — a successful `blas_int=int64` configure proves
-nothing. If you have an ILP64 OpenBLAS (on Debian or Ubuntu,
-`libopenblas64-dev`), point at it explicitly rather than hoping it is found:
+**OpenBLAS is the subtle one.** The pinned BLAS++ looks for plain
+`-lopenblas` first and for the ILP64 `-lopenblas64` second
+([blaspp#129](https://github.com/icl-utk-edu/blaspp/pull/129)). Its `int64`
+BLAS probe cannot tell the widths apart, so an LP64 `libopenblas` passes it by
+accident; the LAPACK probe then catches the mismatch and fails the configure
+before `-lopenblas64` is ever tried, and the installer falls back to LP64 with
+a warning. So with `libopenblas64` as the only OpenBLAS installed (on Debian or
+Ubuntu, `libopenblas64-dev` without `libopenblas-dev`), `--blas=openblas`
+gives ILP64. With both installed, or with an ILP64 OpenBLAS under another name,
+point at it explicitly:
 
 ```bash
 bash installers/install.sh --blas=custom --blas-int=ilp64 \

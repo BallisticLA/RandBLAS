@@ -743,13 +743,13 @@ if (( BUILD_BLASPP )); then
         # The width actually built, read back from BLAS++'s own generated
         # header rather than inferred from which configure attempt succeeded.
         #
-        # Those two can differ. BLAS++ probes int32 first and int64 second
-        # (BLASFinder.cmake), while blas_int only filters which *library names*
-        # to consider. For MKL that is enough, because mkl_intel_lp64 and
-        # mkl_intel_ilp64 are different libraries. For OpenBLAS there is only
-        # -lopenblas, so asking for int64 and getting a configure success tells
-        # us nothing -- an LP64 OpenBLAS passes the int32 probe and is accepted.
-        # Trusting the request here would stamp an LP64 install as ILP64, and
+        # BLAS++ decides by probing (BLASFinder.cmake), and blas_int only
+        # narrows which library names and widths it tries. Its int64 BLAS
+        # probe cannot tell the widths apart -- an LP64 OpenBLAS passes it, and
+        # only the LAPACK probe after it rejects the pairing -- so the request
+        # alone proves nothing. For MKL the names already settle it
+        # (mkl_intel_lp64 and mkl_intel_ilp64 are different libraries).
+        # Trusting the request here could stamp an LP64 install as ILP64, and
         # every later run would reuse it believing it had ILP64.
         if grep -q '^#define BLAS_ILP64' "$BLASPP_INSTALL/include/blas/defines.h" 2>/dev/null; then
             BLAS_INT_BUILT="int64"
@@ -762,7 +762,19 @@ if (( BUILD_BLASPP )); then
         BLAS_INT_RESOLVED="$BLAS_INT_BUILT"
 
         if [[ "$BLAS_INT_RESOLVED" == "int32" && "${WIDTH_ORDER[0]}" == "int64" ]]; then
-            record_warning "No ILP64 $BLAS_BACKEND was available, so BLAS++ was built LP64 (32-bit BLAS integers). RandBLAS works either way, but individual BLAS dimensions are then capped at 2^31 and the MKL sparse path is unavailable. For an ILP64 OpenBLAS, install one (on Debian or Ubuntu: libopenblas64-dev) and pass its library explicitly with --blas=custom --blas-libraries=... --blas-int=ilp64, because BLAS++ only ever looks for plain -lopenblas."
+            # BLAS++ (as pinned, icl-utk-edu/blaspp#129) also looks for the
+            # ILP64 -lopenblas64, but only after plain -lopenblas: an LP64
+            # libopenblas passes its int64 BLAS probe by accident, then fails
+            # the LAPACK probe, which ends the configure before -lopenblas64
+            # is ever tried.
+            WIDTH_HINT=""
+            if [[ "$BLAS_BACKEND" == "openblas" && "$UNAME_S" == "Darwin" ]]; then
+                # Homebrew's OpenBLAS is named explicitly, so nothing is searched.
+                WIDTH_HINT=" An ILP64 OpenBLAS has to be named explicitly with --blas=custom --blas-libraries=... --blas-int=ilp64."
+            elif [[ "$BLAS_BACKEND" == "openblas" ]]; then
+                WIDTH_HINT=" BLAS++ finds an ILP64 OpenBLAS (libopenblas64, e.g. from Debian/Ubuntu's libopenblas64-dev) only when no LP64 libopenblas is installed beside it; otherwise name it explicitly with --blas=custom --blas-libraries=... --blas-int=ilp64."
+            fi
+            record_warning "No ILP64 $BLAS_BACKEND was available, so BLAS++ was built LP64 (32-bit BLAS integers). RandBLAS works either way, but individual BLAS dimensions are then capped at 2^31 and the MKL sparse path is unavailable.$WIDTH_HINT"
         fi
 
         write_stamp "$BLASPP_INSTALL" "$BLASPP_STAMP_BASE width=$BLAS_INT_RESOLVED"

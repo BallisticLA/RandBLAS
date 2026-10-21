@@ -118,8 +118,10 @@ runs:
         # macOS >= 13.3 ships ILP64 inside the framework, so these lanes cover
         # new-Accelerate ILP64 (issue #150) at no extra dependency cost.
         # OpenBLAS stays LP64 -- blaspp's public API is int64_t regardless, so
-        # RandBLAS is unaffected, and an ILP64 OpenBLAS is a separate library
-        # BLAS++ cannot discover (issue #194).
+        # RandBLAS is unaffected. These lanes install the LP64
+        # libopenblas-openmp-dev, which BLAS++ tries before the ILP64
+        # -lopenblas64 it can now also find (icl-utk-edu/blaspp#129); the
+        # installer's openblas64 lane covers that one.
         blas_int_arg=""
         case "${{ inputs.blas-backend }}" in
           openblas)   blas_arg="-Dblas=openblas" ;;
