@@ -101,11 +101,27 @@ We give recipes for installing BLAS++ and Random123 below.
 Later on, we'll assume these recipes were executed from a directory
 that contains (or will contain) the ``RandBLAS`` project directory as a subdirectory.
 
+BLAS++ comes from the BallisticLA fork. It carries three fixes that are open as
+upstream pull requests but not yet merged or released (icl-utk-edu/blaspp#137,
+#141 and #142), and upstream's latest release, `v2025.05.28`, also predates
+fixes the installers rely on, such as ILP64 OpenBLAS discovery and Apple's new
+Accelerate interface (see Appendix B.2). The fork's
+[BALLISTIC.md](https://github.com/BallisticLA/blaspp/blob/main/BALLISTIC.md)
+lists what it carries, and issue
+[#203](https://github.com/BallisticLA/RandBLAS/issues/203)
+tracks the return to upstream. The BLAS++ recipe below builds the tag
+`ballistic-2026.10.22`, which marks the commit pinned in
+[`installers/dependency-pins.env`](installers/dependency-pins.env), the file
+the installers and CI build from. For `examples/`, the only part of RandBLAS
+that needs LAPACK++, the installer builds it from the
+[BallisticLA/lapackpp](https://github.com/BallisticLA/lapackpp) fork at the
+same tag.
+
 One can compile and install BLAS++ from
-[source](https://bitbucket.org/icl/blaspp/src/master/) using CMake by running the following.
+[source](https://github.com/BallisticLA/blaspp) using CMake by running the following.
 Note that all CMake and system terms for BLAS++ use the name ``blaspp`` instead of ``BLAS++``.
 ```shell
-git clone https://github.com/icl-utk-edu/blaspp.git
+git clone --branch ballistic-2026.10.22 https://github.com/BallisticLA/blaspp.git
 mkdir blaspp-build
 cd blaspp-build
 cmake -DCMAKE_BUILD_TYPE=Release \
@@ -304,8 +320,8 @@ installs with oneMKL; RandBLAS's own OpenMP code then runs on the same runtime
 as oneMKL's threads:
 
 ```bat
-git clone --branch windows-portability ^
-  https://github.com/RaphaelArkadyMeyerNYU/blaspp.git ^
+git clone --branch ballistic-2026.10.22 ^
+  https://github.com/BallisticLA/blaspp.git ^
   C:\randblas-work\src\blaspp
 
 cmake --fresh ^
@@ -325,6 +341,10 @@ cmake --fresh ^
 
 cmake --build C:/randblas-work/build/blaspp --target install
 ```
+
+This is the BLAS++ fork and tag from Section 1. Its `BLAS_LIBRARIES` entries
+may contain spaces, so a oneMKL at Intel's default location under
+`C:\Program Files (x86)\Intel\oneAPI` can be named the same way.
 
 Random123 is header-only. Copy its public headers into a stable installation
 prefix so the installed RandBLAS package does not depend on retaining the
@@ -481,7 +501,7 @@ Anything not listed may well work; it is simply untested.
 | macOS 14 | Apple Clang | Accelerate (new interface) | ILP64 | **no** | Apple Clang ships no OpenMP runtime |
 | macOS 15 | Homebrew LLVM | Accelerate (new interface) | ILP64 | yes | release, release+ASan; via Homebrew `libomp` |
 | macOS (latest) | Apple Clang | Accelerate (new interface) | LP64 | **no** | installer lane, explicit `--blas-int=lp64` |
-| Windows | MSVC | oneMKL | ILP64 | yes (`/openmp:llvm`) | x64 only |
+| Windows | MSVC | oneMKL | ILP64 | yes (`/openmp:llvm`) | x64 only; BLAS++ is given the oneMKL import libraries at a path with spaces |
 
 Compiler floor: RandBLAS uses C++20 [concepts](https://en.cppreference.com/w/cpp/language/constraints),
 which in practice means **gcc ≥ 13**. Older gcc will not compile it. CMake
