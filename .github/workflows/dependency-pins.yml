@@ -1,0 +1,30 @@
+# Checks installers/dependency-pins.env against the remotes it names: each
+# *_REF must be fetchable from its *_URL, and a non-empty *_TAG must point at
+# its *_REF there. Every other lane reads the same file, so a pin that does
+# not resolve would fail them all; this says why, in seconds. RandLAPACK runs
+# the same check and also compares its pins with its RandBLAS submodule's.
+name: dependency-pins
+
+on:
+  pull_request:
+  workflow_dispatch:
+  # Only main. A branch with an open pull request is already covered by the
+  # pull_request event, and firing on both runs every job twice per commit.
+  push:
+    branches:
+      - main
+
+# One run per ref. Superseding is only safe for pull requests: on main every
+# commit should be validated, not just the newest.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: the pins resolve at their URLs
+        run: bash .github/scripts/dependency-pins.sh lint installers/dependency-pins.env

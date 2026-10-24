@@ -296,23 +296,33 @@ jobs:
         with:
           arch: x64
 
+      # The BLAS++ commit setup.ps1 will build, for the cache key below.
+      - name: read dependency pins
+        id: pins
+        shell: pwsh
+        run: |
+          . .github/scripts/windows/dependency-pins.ps1
+          Export-DependencyPins installers/dependency-pins.env
+
+      # Cache paths start from runner.workspace, the checkout's parent;
+      # setup-randblas-deps-windows/action.yml says why.
       - name: cache oneMKL installer downloads
         uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}\..\windows-deps-vsvcpkg\vcpkg-scratch\downloads
+          path: ${{ runner.workspace }}\windows-deps-vsvcpkg\vcpkg-scratch\downloads
           key: windows-vsvcpkg-mkl-downloads-1-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
       - name: cache GoogleTest installation
         uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}\..\windows-deps-vsvcpkg\googletest-install
+          path: ${{ runner.workspace }}\windows-deps-vsvcpkg\googletest-install
           key: windows-vsvcpkg-googletest-1.17.0-1
 
       - name: cache BLAS++ installation
         uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}\..\windows-deps-vsvcpkg\blaspp-install
-          key: windows-vsvcpkg-blaspp-windows-portability-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+          path: ${{ runner.workspace }}\windows-deps-vsvcpkg\blaspp-install
+          key: windows-vsvcpkg-blaspp-${{ steps.pins.outputs.BLASPP_REF }}-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
       - name: run native Windows core validation
         shell: pwsh

@@ -33,44 +33,58 @@ outputs:
 runs:
   using: composite
   steps:
+    # The BLAS++/LAPACK++ commits from installers/dependency-pins.env, found
+    # relative to this action. Their hashes go into the BLAS++/LAPACK++ cache
+    # keys below: hashFiles() of setup.ps1 no longer changes with a pin.
+    - name: read dependency pins
+      id: pins
+      shell: pwsh
+      run: |
+        . "$env:GITHUB_ACTION_PATH/../../scripts/windows/dependency-pins.ps1"
+        Export-DependencyPins "$env:GITHUB_ACTION_PATH/../../../installers/dependency-pins.env"
+
+    # Paths start from runner.workspace, the checkout's parent: actions/cache
+    # refuses to save a path containing ".." ("Invalid pattern ... Relative
+    # pathing '.' and '..' is not allowed"), so the old github.workspace\..\
+    # spelling restored caches that were never saved.
     - name: cache vcpkg oneMKL installation
       uses: actions/cache@v4
       with:
-        path: ${{ github.workspace }}\..\windows-deps\vcpkg-installed
+        path: ${{ runner.workspace }}\windows-deps\vcpkg-installed
         key: windows-vcpkg-intel-mkl-2025.2.0-1-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: cache GoogleTest installation
       if: inputs.sanitize-address != 'true'
       uses: actions/cache@v4
       with:
-        path: ${{ github.workspace }}\..\windows-deps\googletest-install
+        path: ${{ runner.workspace }}\windows-deps\googletest-install
         key: windows-msvc-googletest-1.17.0-1
 
     - name: cache AddressSanitizer GoogleTest installation
       if: inputs.sanitize-address == 'true'
       uses: actions/cache@v4
       with:
-        path: ${{ github.workspace }}\..\windows-deps\googletest-asan-install
+        path: ${{ runner.workspace }}\windows-deps\googletest-asan-install
         key: windows-msvc-googletest-asan-1.17.0-1-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: cache BLAS++ installation
       uses: actions/cache@v4
       with:
-        path: ${{ github.workspace }}\..\windows-deps\blaspp-install
-        key: windows-msvc-blaspp-windows-portability-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+        path: ${{ runner.workspace }}\windows-deps\blaspp-install
+        key: windows-msvc-blaspp-${{ steps.pins.outputs.BLASPP_REF }}-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: cache Random123 installation
       uses: actions/cache@v4
       with:
-        path: ${{ github.workspace }}\..\windows-deps\Random123-install
+        path: ${{ runner.workspace }}\windows-deps\Random123-install
         key: windows-random123-2-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: cache LAPACK++ installation
       if: inputs.install-lapackpp == 'true'
       uses: actions/cache@v4
       with:
-        path: ${{ github.workspace }}\..\windows-deps\lapackpp-install
-        key: windows-msvc-lapackpp-msvc-compatibility-blaspp-windows-portability-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+        path: ${{ runner.workspace }}\windows-deps\lapackpp-install
+        key: windows-msvc-lapackpp-${{ steps.pins.outputs.LAPACKPP_REF }}-blaspp-${{ steps.pins.outputs.BLASPP_REF }}-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
     - name: build missing Windows dependencies
       id: setup

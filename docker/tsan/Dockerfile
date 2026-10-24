@@ -3,12 +3,14 @@
 # Darwin). The container is Linux, where TSan + libomp is reliable on both
 # arm64 and amd64.
 #
-# Build:   docker build -t randblas-tsan docker/tsan/
+# Build:   ./docker/tsan/run.sh rebuild-image   (run.sh builds on first use)
 # Run:     ./docker/tsan/run.sh
 #
 # The image bakes blaspp + Random123 into /opt so that iterating on RandBLAS
-# itself is fast — only RandBLAS gets rebuilt per session. Bump the upstream
-# refs in this Dockerfile to refresh those dependencies.
+# itself is fast — only RandBLAS gets rebuilt per session. BLAS++ comes from
+# installers/dependency-pins.env, which run.sh passes in as build arguments
+# and also folds into the image tag, so changing the pin builds a new image.
+# A bare `docker build` without them fails rather than guessing a commit.
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -27,8 +29,17 @@ RUN apt-get update -qq && apt-get install -qq -y --no-install-recommends \
 ENV CC=clang
 ENV CXX=clang++
 
-# blaspp: pinned to upstream HEAD at image build time; rebuild image to refresh.
-RUN git clone --depth 1 https://github.com/icl-utk-edu/blaspp.git /tmp/blaspp \
+# blaspp: fetched by commit hash, which must come back as itself. Declared
+# here rather than at the top so that a new pin does not invalidate the
+# apt layer above.
+ARG BLASPP_URL
+ARG BLASPP_REF
+RUN test -n "$BLASPP_URL" && test -n "$BLASPP_REF" \
+        || { echo "BLASPP_URL and BLASPP_REF are required build arguments; use docker/tsan/run.sh" >&2; exit 1; } \
+    && git init --quiet /tmp/blaspp \
+    && git -C /tmp/blaspp fetch --quiet --depth 1 "$BLASPP_URL" "$BLASPP_REF" \
+    && git -C /tmp/blaspp checkout --quiet --detach FETCH_HEAD \
+    && test "$(git -C /tmp/blaspp rev-parse HEAD)" = "$BLASPP_REF" \
     && cmake -S /tmp/blaspp -B /tmp/blaspp-build \
         -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
         -DCMAKE_BUILD_TYPE=Release \
