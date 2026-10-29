@@ -32,6 +32,7 @@
 #include "RandBLAS/base.hh"
 #include <blas.hh>
 #include <vector>
+#include <numeric> // std::iota, used below
 
 #ifdef __cpp_concepts
 #include <concepts>
