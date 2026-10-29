@@ -1,4 +1,4 @@
-# Exercises install/install.sh itself -- the one artifact the core workflows
+# Exercises installers/install.sh itself -- the one artifact the core workflows
 # never run, since they hand-replicate the build recipe instead. What each lane
 # proves:
 #   1. a fresh checkout run non-interactively builds, and its tests pass;
@@ -32,16 +32,22 @@ concurrency:
 
 jobs:
   install-linux:
-    name: linux-${{ matrix.backend }}
+    name: linux-${{ matrix.lane }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # openblas exercises the LP64 path and, with it, the warning the
-        # installer emits when ILP64 was preferred but is unavailable.
-        # mkl exercises the ILP64 path, which is the default wherever the
-        # backend can actually provide it.
-        backend: [openblas, mkl]
+        # openblas: apt's LP64 OpenBLAS, so the installer's ILP64 preference
+        #   must fall back, with the warning that has to accompany that.
+        # openblas64: Debian/Ubuntu's ILP64 libopenblas64 as the only
+        #   OpenBLAS, which the pinned BLAS++ finds itself
+        #   (icl-utk-edu/blaspp#129), so --blas=openblas must give ILP64.
+        # mkl: the ILP64 path, the default wherever the backend can actually
+        #   provide it.
+        include:
+          - { lane: openblas,   backend: openblas, width: LP64 }
+          - { lane: openblas64, backend: openblas, width: ILP64 }
+          - { lane: mkl,        backend: mkl,      width: ILP64 }
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,16 +63,28 @@ jobs:
           export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update -qq
           sudo apt-get install -qq -y g++ gfortran cmake git
-          if [ "${{ matrix.backend }}" = "openblas" ]; then
-            sudo apt-get install -qq -y libopenblas-dev
-          else
-            wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
-              | sudo gpg --dearmor -o /usr/share/keyrings/oneapi.gpg
-            echo "deb [signed-by=/usr/share/keyrings/oneapi.gpg] https://apt.repos.intel.com/oneapi all main" \
-              | sudo tee /etc/apt/sources.list.d/oneAPI.list
-            sudo apt-get update -qq
-            sudo apt-get install -qq -y intel-oneapi-mkl-devel
-          fi
+          case "${{ matrix.lane }}" in
+            openblas)
+              sudo apt-get install -qq -y libopenblas-dev
+              ;;
+            openblas64)
+              sudo apt-get install -qq -y libopenblas64-dev
+              # The lane's premise: BLAS++ tries plain -lopenblas first, so
+              # an LP64 libopenblas on the link path would win.
+              if [ "$(gcc -print-file-name=libopenblas.so)" != "libopenblas.so" ]; then
+                echo "::error::an LP64 libopenblas is on the link path; this lane needs libopenblas64 alone"
+                exit 1
+              fi
+              ;;
+            mkl)
+              wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+                | sudo gpg --dearmor -o /usr/share/keyrings/oneapi.gpg
+              echo "deb [signed-by=/usr/share/keyrings/oneapi.gpg] https://apt.repos.intel.com/oneapi all main" \
+                | sudo tee /etc/apt/sources.list.d/oneAPI.list
+              sudo apt-get update -qq
+              sudo apt-get install -qq -y intel-oneapi-mkl-devel
+              ;;
+          esac
 
       # oneAPI's apt packages do not put MKL on the linker's search path;
       # setvars.sh is what exports LIBRARY_PATH, LD_LIBRARY_PATH and MKLROOT.
@@ -96,7 +114,7 @@ jobs:
       - name: run the installer, capturing output for the escape-sequence check
         run: |
           set -euo pipefail
-          bash RandBLAS/install/install.sh --yes \
+          bash RandBLAS/installers/install.sh --yes \
             --blas=${{ matrix.backend }} \
             --project-dir "$GITHUB_WORKSPACE/RandNLA-project" \
             2>&1 | tee installer.out
@@ -114,20 +132,30 @@ jobs:
           fi
           echo "OK: no escape sequences in redirected output."
 
+      # Checked three ways: the installer's summary (from a compiled
+      # conftest), BLAS++'s generated defines.h, and, for openblas64, the
+      # library BLAS++ actually links.
       - name: the reported integer width matches the backend
         run: |
+          set -euo pipefail
           grep -E '^  Backend ' installer.out
-          if [ "${{ matrix.backend }}" = "mkl" ]; then
-            grep -qE '^  Backend .*ILP64' installer.out \
-              || { echo "MKL should have produced an ILP64 build."; exit 1; }
-          else
-            # OpenBLAS from apt is LP64, so the installer must both fall back
-            # and say that it did.
-            grep -qE '^  Backend .*LP64' installer.out \
-              || { echo "Expected an LP64 build for stock OpenBLAS."; exit 1; }
-            grep -q 'No ILP64 openblas was available' installer.out \
-              || { echo "The LP64 fallback happened without warning about it."; exit 1; }
-          fi
+          grep -qE '^  Backend  *${{ matrix.backend }}, ${{ matrix.width }} ' installer.out \
+            || { echo "Expected a ${{ matrix.width }} build for ${{ matrix.lane }}."; exit 1; }
+          install="RandNLA-project/install/blaspp-${{ matrix.backend }}-install"
+          test -f "$install/include/blas/defines.h"
+          if grep -q '^#define BLAS_ILP64' "$install/include/blas/defines.h"; then built=ILP64; else built=LP64; fi
+          [ "$built" = "${{ matrix.width }}" ] \
+            || { echo "BLAS++'s defines.h says $built, expected ${{ matrix.width }}."; exit 1; }
+          case "${{ matrix.lane }}" in
+            openblas)
+              grep -q 'No ILP64 openblas was available' installer.out \
+                || { echo "The LP64 fallback happened without warning about it."; exit 1; }
+              ;;
+            openblas64)
+              ldd "$(find "$install" -name 'libblaspp.so' | head -n1)" | grep -q 'libopenblas64' \
+                || { echo "BLAS++ does not link libopenblas64."; exit 1; }
+              ;;
+          esac
 
       - name: run the test suite
         run: ctest --test-dir RandNLA-project/build/RandBLAS-build --output-on-failure
@@ -135,7 +163,7 @@ jobs:
       - name: re-run the installer in place (idempotency)
         run: |
           set -euo pipefail
-          bash RandBLAS/install/install.sh --yes \
+          bash RandBLAS/installers/install.sh --yes \
             --blas=${{ matrix.backend }} \
             --project-dir "$GITHUB_WORKSPACE/RandNLA-project" | tee rerun.out
           grep -q 'already built' rerun.out \
@@ -147,7 +175,7 @@ jobs:
           BLASPP_INSTALL_DIR="$GITHUB_WORKSPACE/RandNLA-project/install/blaspp-${{ matrix.backend }}-install" \
           RANDOM123_INSTALL_DIR="$GITHUB_WORKSPACE/RandNLA-project/install/Random123-install" \
           GTEST_ROOT="$GITHUB_WORKSPACE/RandNLA-project/install/googletest-install" \
-          bash RandBLAS-discovery/install/install.sh --yes \
+          bash RandBLAS-discovery/installers/install.sh --yes \
             --blas=${{ matrix.backend }} \
             --project-dir "$GITHUB_WORKSPACE/RandNLA-project-discovery" | tee discovery.out
           grep -q 'external install' discovery.out \
@@ -169,30 +197,36 @@ jobs:
       - name: install libomp
         run: brew install libomp
 
-      # Accelerate is the default on macOS and is LP64-only: BLAS++ implements
-      # only Apple's legacy interface, so there is no ILP64 lane to run here.
+      # Accelerate is the default on macOS. The pinned BLAS++ supports Apple's
+      # new interface (icl-utk-edu/blaspp#134), which carries ILP64 on
+      # macOS >= 13.3, so the width default resolves to ILP64 here just like
+      # MKL on Linux -- and the summary line proves it, rather than trusting
+      # what was requested.
       - name: run the installer
         run: |
           set -euo pipefail
-          bash RandBLAS/install/install.sh --yes \
+          bash RandBLAS/installers/install.sh --yes \
             --project-dir "$GITHUB_WORKSPACE/RandNLA-project" | tee installer.out
-          grep -qE '^  Backend  *accelerate' installer.out
+          grep -qE '^  Backend  *accelerate, ILP64' installer.out
 
       - name: run the test suite
         run: ctest --test-dir RandNLA-project/build/RandBLAS-build --output-on-failure
 
       - name: re-run the installer in place (idempotency)
         run: |
-          bash RandBLAS/install/install.sh --yes \
+          bash RandBLAS/installers/install.sh --yes \
             --project-dir "$GITHUB_WORKSPACE/RandNLA-project"
 
-      - name: asking for ILP64 on Accelerate is refused, not silently downgraded
+      # The explicit-LP64 route stays supported and stays tested: with every
+      # auto run now resolving to ILP64, this is the one place the legacy
+      # 32-bit-integer width on Accelerate is still exercised.
+      - name: explicit --blas-int=lp64 still builds LP64
         run: |
-          if bash RandBLAS/install/install.sh --yes --blas=accelerate --blas-int=ilp64 \
-               --project-dir "$GITHUB_WORKSPACE/RandNLA-project-ilp64" > refuse.out 2>&1; then
-            echo "The installer accepted an impossible configuration."; cat refuse.out; exit 1
-          fi
-          grep -q 'not available with Accelerate' refuse.out
+          set -euo pipefail
+          bash RandBLAS/installers/install.sh --yes --blas=accelerate --blas-int=lp64 \
+            --project-dir "$GITHUB_WORKSPACE/RandNLA-project-lp64" | tee lp64.out
+          grep -qE '^  Backend  *accelerate, LP64' lp64.out
+          ctest --test-dir RandNLA-project-lp64/build/RandBLAS-build --output-on-failure
 
   packager:
     # The contract conda-forge and Spack rely on: dependencies already
@@ -212,10 +246,19 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -qq -y g++ gfortran cmake git libopenblas-dev libgtest-dev
 
+      - name: read dependency pins
+        id: pins
+        run: bash .github/scripts/dependency-pins.sh export installers/dependency-pins.env
+
+      # BLAS++ at the pinned commit, as a recipe would fetch a fixed release.
       - name: build BLAS++ and Random123 into a prefix
+        env:
+          BLASPP_URL: ${{ steps.pins.outputs.BLASPP_URL }}
+          BLASPP_REF: ${{ steps.pins.outputs.BLASPP_REF }}
         run: |
+          set -euo pipefail
           PREFIX="$GITHUB_WORKSPACE/deps"
-          git clone --quiet --depth 1 https://github.com/icl-utk-edu/blaspp.git blaspp-src
+          bash .github/scripts/dependency-pins.sh fetch "$BLASPP_URL" "$BLASPP_REF" blaspp-src
           cmake -S blaspp-src -B blaspp-build -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="$PREFIX" -Dblas=openblas -Dbuild_tests=OFF
           cmake --build blaspp-build -j"$(nproc)" --target install

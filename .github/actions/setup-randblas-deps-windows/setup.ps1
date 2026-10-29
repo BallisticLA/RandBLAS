@@ -76,22 +76,30 @@ function Clone-Pinned {
     Invoke-Checked -Program "git" -Arguments @("-C", $Destination, "remote", "add", "origin", $Url)
     Invoke-Checked -Program "git" -Arguments @("-C", $Destination, "fetch", "--quiet", "--depth", "1", "origin", $Ref)
     Invoke-Checked -Program "git" -Arguments @("-C", $Destination, "checkout", "--quiet", "FETCH_HEAD")
+    # A full commit hash must come back as itself: proof the fetch got it.
+    if ($Ref -cmatch '^[0-9a-f]{40}$') {
+        $head = (& git -C $Destination rev-parse HEAD)
+        if ($head -ne $Ref) { throw "$Destination is at $head after fetching $Url@$Ref." }
+    }
     Set-Content -LiteralPath $stampPath -Value $stamp -Encoding ascii
 }
 
 #------------------------------------------------------------------ pins ------
-# Immutable refs only: a tag or a full commit hash, never a branch. These match
-# install/install.sh and the refs RandLAPACK validated, so the two installers
-# and CI cannot disagree about what they built.
-#
-# BLAS++ and LAPACK++ previously came from personal forks carrying one-line
-# MSVC fixes. Both merged upstream on 2026-08-06 (icl-utk-edu/blaspp#132,
-# icl-utk-edu/lapackpp#87), so both now come from icl-utk-edu, pinned to the
-# merge commits: the latest release of each, v2025.05.28, predates the fixes.
-$BlasppUrl    = "https://github.com/icl-utk-edu/blaspp.git"
-$BlasppRef    = "30571853f980d3a2a1737124ea4789e025a5e045"
-$LapackppUrl  = "https://github.com/icl-utk-edu/lapackpp.git"
-$LapackppRef  = "40b9d0daf29b6f1f3fa58bc3f22bd6cfb2c67fe4"
+# Immutable refs only: a tag or a full commit hash, never a branch. BLAS++ and
+# LAPACK++ come from installers/dependency-pins.env, the file installers/
+# install.sh and CI read too (and RandLAPACK pins the same commits), so no two
+# of them can disagree about what they build. The parser is shared with
+# action.yml, which puts the same hashes into the cache keys.
+$pinsHelper = Join-Path $PSScriptRoot "..\..\scripts\windows\dependency-pins.ps1"
+if (-not (Test-Path -LiteralPath $pinsHelper)) {
+    throw "Missing $pinsHelper. This clone looks incomplete."
+}
+. $pinsHelper
+$pins = Read-DependencyPins (Join-Path $PSScriptRoot "..\..\..\installers\dependency-pins.env")
+$BlasppUrl    = $pins.BLASPP_URL
+$BlasppRef    = $pins.BLASPP_REF
+$LapackppUrl  = $pins.LAPACKPP_URL
+$LapackppRef  = $pins.LAPACKPP_REF
 $Random123Url = "https://github.com/DEShawResearch/Random123.git"
 $Random123Ref = "v1.14.0"
 $GTestUrl     = "https://github.com/google/googletest.git"
@@ -163,11 +171,46 @@ $mklRoot = Join-Path $vcpkgInstall "x64-windows"
 $mklInclude = Join-Path $mklRoot "include"
 $mklLib = Join-Path $mklRoot "lib"
 $mklBin = Join-Path $mklRoot "bin"
+# oneMKL's Intel OpenMP threading layer (mkl_intel_thread) and its runtime,
+# Intel's libiomp5md, which vcpkg's intel-mkl port installs alongside for
+# this dynamic-CRT triplet. RandBLAS's own OpenMP code (/openmp:llvm)
+# resolves to that same runtime, because libiomp5md.lib travels in BLAS++'s
+# link interface ahead of the compiler's default OpenMP library, so one
+# runtime and one thread pool serve both. The sequential layer would run
+# every BLAS call on one core.
 $mklLibraries = @(
     (Join-Path $mklLib "mkl_intel_ilp64_dll.lib"),
-    (Join-Path $mklLib "mkl_sequential_dll.lib"),
-    (Join-Path $mklLib "mkl_core_dll.lib")
+    (Join-Path $mklLib "mkl_intel_thread_dll.lib"),
+    (Join-Path $mklLib "mkl_core_dll.lib"),
+    (Join-Path $mklLib "libiomp5md.lib")
 )
+# Installs of BLAS++/LAPACK++ record the source pin and the BLAS library set
+# they were built from, and are rebuilt when either changes, so an existing
+# install keeps no stale configuration (for example, one built on the
+# sequential layer, or from an older pin).
+$blasLibrarySet = ($mklLibraries | ForEach-Object { Split-Path $_ -Leaf }) -join ";"
+
+function Test-InstallStamp {
+    param(
+        [Parameter(Mandatory = $true)][string] $InstallDir,
+        [Parameter(Mandatory = $true)][string] $Expected
+    )
+    $stamp = Join-Path $InstallDir ".randblas-build-stamp"
+    if (-not (Test-Path -LiteralPath $stamp)) { return $false }
+    # Get-Content -Raw returns $null for an empty file (and a [string] cast
+    # keeps it $null in Windows PowerShell 5.1), so test before trimming.
+    $content = Get-Content -Raw -LiteralPath $stamp
+    return ($null -ne $content) -and ($content.Trim() -eq $Expected)
+}
+
+function Write-InstallStamp {
+    param(
+        [Parameter(Mandatory = $true)][string] $InstallDir,
+        [Parameter(Mandatory = $true)][string] $Expected
+    )
+    Set-Content -LiteralPath (Join-Path $InstallDir ".randblas-build-stamp") `
+        -Value $Expected -Encoding ascii
+}
 
 if (-not (Test-Path -LiteralPath $mklLibraries[0])) {
     # Manifest mode is the only mode every vcpkg distribution supports: the
@@ -209,13 +252,31 @@ if (-not (Test-Path -LiteralPath $mklLibraries[0])) {
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue `
         (Join-Path $vcpkgScratch "buildtrees"), (Join-Path $vcpkgScratch "packages")
 }
-foreach ($path in @($mklInclude, $mklBin) + $mklLibraries) {
+foreach ($path in @($mklInclude, $mklBin, (Join-Path $mklBin "libiomp5md.dll")) + $mklLibraries) {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "Expected vcpkg oneMKL path does not exist: $path"
     }
 }
 $env:MKLROOT = $mklRoot
 $env:PATH = "$mklBin;$env:PATH"
+
+# Under GitHub Actions only, deliberately hand BLAS++ the import libraries
+# from a path WITH a space, emulating Intel's default install location
+# (C:\Program Files (x86)\...). This is the standing regression proof for
+# icl-utk-edu/blaspp#137 (issue #188): the pinned BLAS++ must not split
+# BLAS_LIBRARIES entries on spaces. Import libraries only name their DLL,
+# which still loads from $mklBin at run time, so relocating them is safe.
+# installers/install.ps1 runs this script too, and a user's install has no
+# reason to link against such copies.
+if ($env:GITHUB_ACTIONS -eq "true") {
+    $spacedLibDir = Join-Path $DependencyRoot "path with spaces"
+    New-Item -ItemType Directory -Force -Path $spacedLibDir | Out-Null
+    $mklLibraries = @($mklLibraries | ForEach-Object {
+        $target = Join-Path $spacedLibDir (Split-Path $_ -Leaf)
+        Copy-Item -LiteralPath $_ -Destination $target -Force
+        $target
+    })
+}
 
 $gtestSource = Join-Path $DependencyRoot "googletest"
 $gtestVariant = if ($SanitizeAddress) { "googletest-asan" } else { "googletest" }
@@ -260,7 +321,17 @@ $blasppInstall = Join-Path $DependencyRoot "blaspp-install"
 $blasppConfig = Get-ChildItem -LiteralPath $blasppInstall -Recurse -File `
     -Filter "blasppConfig.cmake" -ErrorAction SilentlyContinue |
     Select-Object -First 1
+$blasppStamp = "$BlasppUrl@$BlasppRef|$blasLibrarySet"
+if ($blasppConfig -and -not (Test-InstallStamp -InstallDir $blasppInstall -Expected $blasppStamp)) {
+    Write-Host "Rebuilding BLAS++: the existing install was built from a different source or BLAS library set."
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue -LiteralPath $blasppInstall
+    $blasppConfig = $null
+}
 if (-not $blasppConfig) {
+    # Always a fresh build tree: re-configuring an existing BLAS++ build in
+    # place takes BLAS++'s cached path, which regenerates blas/defines.h
+    # without the backend defines (BLAS_ILP64 among them).
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue -LiteralPath $blasppBuild
     Clone-Pinned -Url $BlasppUrl -Destination $blasppSource -Ref $BlasppRef
     $blasLibraryArgument = ($mklLibraries | ForEach-Object {
         Convert-ToCMakePath $_
@@ -275,7 +346,7 @@ if (-not $blasppConfig) {
         "-Duse_cmake_find_blas=false",
         "-DBLAS_LIBRARIES=$blasLibraryArgument",
         "-Dblas_int=ilp64",
-        "-Dblas_threaded=false",
+        "-Dblas_threaded=true",
         "-Duse_openmp=false",
         "-Dgpu_backend=none",
         "-Dbuild_tests=OFF"
@@ -283,6 +354,7 @@ if (-not $blasppConfig) {
     Invoke-Checked -Program "cmake" -Arguments @(
         "--build", $blasppBuild, "--target", "install"
     )
+    Write-InstallStamp -InstallDir $blasppInstall -Expected $blasppStamp
 }
 $blasppDir = Find-PackageConfigDirectory `
     -Root $blasppInstall -ConfigName "blasppConfig.cmake"
@@ -295,7 +367,15 @@ if ($InstallLapackpp) {
     $lapackppConfig = Get-ChildItem -LiteralPath $lapackppInstall -Recurse -File `
         -Filter "lapackppConfig.cmake" -ErrorAction SilentlyContinue |
         Select-Object -First 1
+    # LAPACK++ is built against BLAS++, so its stamp also carries the BLAS++ pin.
+    $lapackppStamp = "$LapackppUrl@$LapackppRef|blaspp@$BlasppRef|$blasLibrarySet"
+    if ($lapackppConfig -and -not (Test-InstallStamp -InstallDir $lapackppInstall -Expected $lapackppStamp)) {
+        Write-Host "Rebuilding LAPACK++: the existing install was built from a different source or BLAS library set."
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue -LiteralPath $lapackppInstall
+        $lapackppConfig = $null
+    }
     if (-not $lapackppConfig) {
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue -LiteralPath $lapackppBuild
         Clone-Pinned -Url $LapackppUrl -Destination $lapackppSource -Ref $LapackppRef
 
         Invoke-Checked -Program "cmake" -Arguments @(
@@ -312,6 +392,7 @@ if ($InstallLapackpp) {
         Invoke-Checked -Program "cmake" -Arguments @(
             "--build", $lapackppBuild, "--target", "install"
         )
+        Write-InstallStamp -InstallDir $lapackppInstall -Expected $lapackppStamp
     }
     $lapackppDir = Find-PackageConfigDirectory `
         -Root $lapackppInstall -ConfigName "lapackppConfig.cmake"

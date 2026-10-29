@@ -8,7 +8,6 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-image_tag="randblas-tsan"
 subcommand="${1:-shell}"
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -16,15 +15,24 @@ if ! command -v docker >/dev/null 2>&1; then
     exit 1
 fi
 
+# BLAS++ comes from the same pins file as every other build lane; the image is
+# tagged with the pinned commit so that changing the pin builds a new image
+# instead of silently reusing one built from the old commit.
+pins="$(GITHUB_OUTPUT= bash "${repo_root}/.github/scripts/dependency-pins.sh" export "${repo_root}/installers/dependency-pins.env")"
+blaspp_url="$(sed -n 's/^BLASPP_URL=//p' <<< "${pins}")"
+blaspp_ref="$(sed -n 's/^BLASPP_REF=//p' <<< "${pins}")"
+image_tag="randblas-tsan:blaspp-${blaspp_ref:0:12}"
+build_args=(--build-arg "BLASPP_URL=${blaspp_url}" --build-arg "BLASPP_REF=${blaspp_ref}")
+
 ensure_image() {
     if ! docker image inspect "${image_tag}" >/dev/null 2>&1; then
-        docker build -t "${image_tag}" "${repo_root}/docker/tsan/"
+        docker build "${build_args[@]}" -t "${image_tag}" "${repo_root}/docker/tsan/"
     fi
 }
 
 case "${subcommand}" in
     rebuild-image)
-        docker build --no-cache -t "${image_tag}" "${repo_root}/docker/tsan/"
+        docker build --no-cache "${build_args[@]}" -t "${image_tag}" "${repo_root}/docker/tsan/"
         ;;
 
     shell)

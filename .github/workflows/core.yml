@@ -97,25 +97,11 @@ jobs:
             sanitizer: asan
             openmp: false
 
-          # macOS 14 / Homebrew LLVM / Accelerate — OpenMP build.
-          - label: macos14-llvm-accelerate-release
-            os: macos-14
-            cc: brew-llvm-clang
-            cxx: brew-llvm-clang++
-            blas-backend: accelerate
-            build-type: Release
-            sanitizer: none
-            openmp: true
-
-          # macOS 14 / Homebrew LLVM / Accelerate — Release + ASan with OpenMP.
-          - label: macos14-llvm-accelerate-release-asan
-            os: macos-14
-            cc: brew-llvm-clang
-            cxx: brew-llvm-clang++
-            blas-backend: accelerate
-            build-type: Release
-            sanitizer: asan
-            openmp: true
+          # No macOS 14 Homebrew LLVM lanes: Homebrew ranks macOS 14 as a
+          # Tier 3 platform and no longer ships LLVM bottles for it, so
+          # `brew install llvm` there builds LLVM from source (about two
+          # hours) and then fails at `brew link`. OpenMP coverage on macOS
+          # lives on macOS 15; macOS 14 keeps the Apple Clang lanes above.
 
           # macOS 15 / Homebrew LLVM / Accelerate — track latest macOS runner.
           - label: macos15-llvm-accelerate-release
@@ -125,6 +111,16 @@ jobs:
             blas-backend: accelerate
             build-type: Release
             sanitizer: none
+            openmp: true
+
+          # macOS 15 / Homebrew LLVM / Accelerate: Release + ASan with OpenMP.
+          - label: macos15-llvm-accelerate-release-asan
+            os: macos-15
+            cc: brew-llvm-clang
+            cxx: brew-llvm-clang++
+            blas-backend: accelerate
+            build-type: Release
+            sanitizer: asan
             openmp: true
 
     steps:
@@ -300,23 +296,33 @@ jobs:
         with:
           arch: x64
 
+      # The BLAS++ commit setup.ps1 will build, for the cache key below.
+      - name: read dependency pins
+        id: pins
+        shell: pwsh
+        run: |
+          . .github/scripts/windows/dependency-pins.ps1
+          Export-DependencyPins installers/dependency-pins.env
+
+      # Cache paths start from runner.workspace, the checkout's parent;
+      # setup-randblas-deps-windows/action.yml says why.
       - name: cache oneMKL installer downloads
         uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}\..\windows-deps-vsvcpkg\vcpkg-scratch\downloads
+          path: ${{ runner.workspace }}\windows-deps-vsvcpkg\vcpkg-scratch\downloads
           key: windows-vsvcpkg-mkl-downloads-1-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
       - name: cache GoogleTest installation
         uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}\..\windows-deps-vsvcpkg\googletest-install
+          path: ${{ runner.workspace }}\windows-deps-vsvcpkg\googletest-install
           key: windows-vsvcpkg-googletest-1.17.0-1
 
       - name: cache BLAS++ installation
         uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}\..\windows-deps-vsvcpkg\blaspp-install
-          key: windows-vsvcpkg-blaspp-windows-portability-ilp64-sequential-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
+          path: ${{ runner.workspace }}\windows-deps-vsvcpkg\blaspp-install
+          key: windows-vsvcpkg-blaspp-${{ steps.pins.outputs.BLASPP_REF }}-ilp64-intel-thread-3-${{ hashFiles('.github/actions/setup-randblas-deps-windows/setup.ps1') }}
 
       - name: run native Windows core validation
         shell: pwsh

@@ -3,7 +3,7 @@
 RandBLAS facilitates implementation of high-level randomized linear algebra algorithms, like randomized low-rank SVD.
 It does this by providing basic functionality for sketching with a BLAS-like interface.
 
-Right now RandBLAS' main use is to provide the sketching backend for [RandLAPACK](https://github.com/BallisticLA/RandBLAS).
+Right now RandBLAS' main use is to provide the sketching backend for [RandLAPACK](https://github.com/BallisticLA/RandLAPACK).
 Our goal is for RandBLAS to become a standard like the BLAS, in that hardware vendors might
 release their own optimized implementations of algorithms which conform to the RandBLAS API.
 

@@ -22,7 +22,7 @@ usage() {
     # the latter silently starts printing unrelated code the moment anyone
     # adds a line above it.
     cat <<'USAGE'
-Usage: bash install/install.sh [options]
+Usage: bash installers/install.sh [options]
 
 Backend selection:
   --blas=BACKEND        auto | openblas | mkl | accelerate | custom
@@ -30,7 +30,7 @@ Backend selection:
                         when MKLROOT is set, otherwise OpenBLAS)
   --blas-int=WIDTH      ilp64 | lp64. Default is ilp64 wherever the backend
                         can provide it, falling back to lp64 with a warning.
-                        Accelerate is lp64-only and rejects ilp64.
+                        Accelerate ILP64 requires macOS 13.3 or newer.
   --blas-libraries=L    Link line for --blas=custom, e.g.
                         "/opt/aocl/lib/libblis.so;/opt/aocl/lib/libflame.so"
 
@@ -422,10 +422,16 @@ clone_pinned() {  # <url> <dest> <ref>
     local url="$1" dest="$2" ref="$3"
     rm -rf "$dest"
     mkdir -p "$dest"
-    git -C "$dest" init --quiet
-    git -C "$dest" remote add origin "$url"
-    git -C "$dest" fetch --quiet --depth 1 origin "$ref"
-    git -C "$dest" checkout --quiet FETCH_HEAD
+    # Chained explicitly: run_step calls this inside an `if`, where set -e is
+    # off, so an unchained failed fetch would still reach write_stamp.
+    git -C "$dest" init --quiet &&
+        git -C "$dest" remote add origin "$url" &&
+        git -C "$dest" fetch --quiet --depth 1 origin "$ref" &&
+        git -C "$dest" checkout --quiet FETCH_HEAD || return 1
+    # A full commit hash must come back as itself: proof the fetch got it.
+    if [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+        [[ "$(git -C "$dest" rev-parse HEAD)" == "$ref" ]] || return 1
+    fi
     write_stamp "$dest" "$url@$ref"
 }
 
@@ -435,16 +441,24 @@ source_is_current() {  # <dest> <url> <ref>
 
 #==============================================================================
 # Dependency pins. Immutable refs only: a tag or a full commit hash, never a
-# branch name. These match the refs RandLAPACK's Windows provisioner validated.
+# branch name. BLAS++ and LAPACK++ come from installers/dependency-pins.env,
+# the one file every build lane reads (this script, the Windows provisioner,
+# CI and docker/tsan), so no two of them can disagree about what they build.
+# RandLAPACK pins the same commits, and its CI checks that the two agree.
 #==============================================================================
-BLASPP_URL="https://github.com/icl-utk-edu/blaspp.git"
-# The commit that merged the MSVC portability fix (blaspp PR #132, 2026-08-06).
-# Not in a release yet -- the latest tag, v2025.05.28, predates it. Move to a
-# tag once one includes it.
-BLASPP_REF="30571853f980d3a2a1737124ea4789e025a5e045"
-
-LAPACKPP_URL="https://github.com/icl-utk-edu/lapackpp.git"
-LAPACKPP_REF="40b9d0daf29b6f1f3fa58bc3f22bd6cfb2c67fe4"
+PINS_FILE="$SCRIPT_DIR/dependency-pins.env"
+[[ -f "$PINS_FILE" ]] || die "Missing $PINS_FILE; this clone looks incomplete."
+# Sourced, carriage returns stripped first: a checkout that ignored
+# .gitattributes has CRLF endings, which would put a \r into every value. eval
+# rather than `source <(...)`, which bash 3.2 (macOS) reads as empty.
+eval "$(tr -d '\r' < "$PINS_FILE")"
+for pin in BLASPP_REF LAPACKPP_REF; do
+    [[ "${!pin:-}" =~ ^[0-9a-f]{40}$ ]] \
+        || die "$PINS_FILE: $pin must be a full 40-character commit hash, not '${!pin:-}'."
+done
+for pin in BLASPP_URL LAPACKPP_URL; do
+    [[ -n "${!pin:-}" ]] || die "$PINS_FILE: $pin is empty."
+done
 
 RANDOM123_URL="https://github.com/DEShawResearch/Random123.git"
 RANDOM123_REF="v1.14.0"
@@ -487,26 +501,18 @@ fi
 # int64_t regardless of the underlying width -- so this choice is about what
 # the BLAS underneath can represent, not about RandBLAS's interface.
 #
-# Accelerate is the one backend with no ILP64 route at all. Apple has shipped
-# an ILP64 interface since macOS 13.3, behind ACCELERATE_NEW_LAPACK and
-# ACCELERATE_LAPACK_ILP64, but BLAS++ does not implement it: BLASFinder.cmake
-# emits only "-framework Accelerate", the legacy LP64 path. Tracked upstream as
-# icl-utk-edu/lapackpp#43.
+# Accelerate: Apple has shipped an ILP64 interface since macOS 13.3, behind
+# ACCELERATE_NEW_LAPACK and ACCELERATE_LAPACK_ILP64, and BLAS++ implements it
+# as of the pinned commit (icl-utk-edu/blaspp#134: requesting int64 with the
+# new interface defines ACCELERATE_LAPACK_ILP64 in blas/config.h). On macOS
+# older than 13.3 the int64 probe fails and "auto" falls back to LP64 with the
+# usual warning; an explicit --blas-int=ilp64 fails the build rather than
+# silently downgrading.
 WIDTH_ORDER=()
-case "$BLAS_BACKEND" in
-    accelerate)
-        if [[ "$BLAS_INT_CHOICE" == "ilp64" ]]; then
-            die "--blas-int=ilp64 is not available with Accelerate: BLAS++ implements only Apple's legacy LP64 interface (see icl-utk-edu/lapackpp#43). Use --blas=openblas or --blas=mkl for ILP64."
-        fi
-        WIDTH_ORDER=(int32)
-        ;;
-    *)
-        case "$BLAS_INT_CHOICE" in
-            ilp64) WIDTH_ORDER=(int64) ;;
-            lp64)  WIDTH_ORDER=(int32) ;;
-            auto)  WIDTH_ORDER=(int64 int32) ;;   # ILP64 first, LP64 as fallback
-        esac
-        ;;
+case "$BLAS_INT_CHOICE" in
+    ilp64) WIDTH_ORDER=(int64) ;;
+    lp64)  WIDTH_ORDER=(int32) ;;
+    auto)  WIDTH_ORDER=(int64 int32) ;;   # ILP64 first, LP64 as fallback
 esac
 
 # blaspp's own backend selector. Its matcher accepts "apple" or "accelerate".
@@ -737,13 +743,13 @@ if (( BUILD_BLASPP )); then
         # The width actually built, read back from BLAS++'s own generated
         # header rather than inferred from which configure attempt succeeded.
         #
-        # Those two can differ. BLAS++ probes int32 first and int64 second
-        # (BLASFinder.cmake), while blas_int only filters which *library names*
-        # to consider. For MKL that is enough, because mkl_intel_lp64 and
-        # mkl_intel_ilp64 are different libraries. For OpenBLAS there is only
-        # -lopenblas, so asking for int64 and getting a configure success tells
-        # us nothing -- an LP64 OpenBLAS passes the int32 probe and is accepted.
-        # Trusting the request here would stamp an LP64 install as ILP64, and
+        # BLAS++ decides by probing (BLASFinder.cmake), and blas_int only
+        # narrows which library names and widths it tries. Its int64 BLAS
+        # probe cannot tell the widths apart -- an LP64 OpenBLAS passes it, and
+        # only the LAPACK probe after it rejects the pairing -- so the request
+        # alone proves nothing. For MKL the names already settle it
+        # (mkl_intel_lp64 and mkl_intel_ilp64 are different libraries).
+        # Trusting the request here could stamp an LP64 install as ILP64, and
         # every later run would reuse it believing it had ILP64.
         if grep -q '^#define BLAS_ILP64' "$BLASPP_INSTALL/include/blas/defines.h" 2>/dev/null; then
             BLAS_INT_BUILT="int64"
@@ -756,7 +762,19 @@ if (( BUILD_BLASPP )); then
         BLAS_INT_RESOLVED="$BLAS_INT_BUILT"
 
         if [[ "$BLAS_INT_RESOLVED" == "int32" && "${WIDTH_ORDER[0]}" == "int64" ]]; then
-            record_warning "No ILP64 $BLAS_BACKEND was available, so BLAS++ was built LP64 (32-bit BLAS integers). RandBLAS works either way, but individual BLAS dimensions are then capped at 2^31 and the MKL sparse path is unavailable. For an ILP64 OpenBLAS, install one (on Debian or Ubuntu: libopenblas64-dev) and pass its library explicitly with --blas=custom --blas-libraries=... --blas-int=ilp64, because BLAS++ only ever looks for plain -lopenblas."
+            # BLAS++ (as pinned, icl-utk-edu/blaspp#129) also looks for the
+            # ILP64 -lopenblas64, but only after plain -lopenblas: an LP64
+            # libopenblas passes its int64 BLAS probe by accident, then fails
+            # the LAPACK probe, which ends the configure before -lopenblas64
+            # is ever tried.
+            WIDTH_HINT=""
+            if [[ "$BLAS_BACKEND" == "openblas" && "$UNAME_S" == "Darwin" ]]; then
+                # Homebrew's OpenBLAS is named explicitly, so nothing is searched.
+                WIDTH_HINT=" An ILP64 OpenBLAS has to be named explicitly with --blas=custom --blas-libraries=... --blas-int=ilp64."
+            elif [[ "$BLAS_BACKEND" == "openblas" ]]; then
+                WIDTH_HINT=" BLAS++ finds an ILP64 OpenBLAS (libopenblas64, e.g. from Debian/Ubuntu's libopenblas64-dev) only when no LP64 libopenblas is installed beside it; otherwise name it explicitly with --blas=custom --blas-libraries=... --blas-int=ilp64."
+            fi
+            record_warning "No ILP64 $BLAS_BACKEND was available, so BLAS++ was built LP64 (32-bit BLAS integers). RandBLAS works either way, but individual BLAS dimensions are then capped at 2^31 and the MKL sparse path is unavailable.$WIDTH_HINT"
         fi
 
         write_stamp "$BLASPP_INSTALL" "$BLASPP_STAMP_BASE width=$BLAS_INT_RESOLVED"
@@ -777,7 +795,7 @@ if (( BUILD_RANDOM123 )); then
     else
         install_random123() {
             local src="$PROJECT_DIR/lib/Random123"
-            clone_pinned "$RANDOM123_URL" "$src" "$RANDOM123_REF"
+            clone_pinned "$RANDOM123_URL" "$src" "$RANDOM123_REF" || return 1
             rm -rf "$RANDOM123_INSTALL/include/Random123"
             mkdir -p "$RANDOM123_INSTALL/include"
             cp -r "$src/include/Random123" "$RANDOM123_INSTALL/include/Random123"
@@ -956,7 +974,7 @@ build_examples() {
         skip_step "LAPACK++ ... reusing external install"
     else
         local src="$PROJECT_DIR/lib/lapackpp"
-        local stamp="$LAPACKPP_URL@$LAPACKPP_REF blaspp=$BLASPP_CMAKE_DIR"
+        local stamp="$LAPACKPP_URL@$LAPACKPP_REF blaspp=$BLASPP_URL@$BLASPP_REF:$BLASPP_CMAKE_DIR"
         if (( ! FRESH )) && stamp_matches "$LAPACKPP_INSTALL" "$stamp"; then
             skip_step "LAPACK++ source ... already present"
             skip_step "LAPACK++ ... reusing existing install"
@@ -993,8 +1011,11 @@ build_examples() {
 # command silently builds something different from what was just installed --
 # and for --blas=custom it would not run at all.
 #
-# Written as if-blocks rather than "[[ test ]] && append": under set -e a
-# false test at the end of a list exits the script.
+# if-blocks rather than "[[ test ]] && append" for readability. Note the
+# set -e hazard with that construct is narrower than it looks: a top-level
+# "[[ test ]] && cmd" with a false test does NOT exit (the failing command is
+# exempt as part of a && list); it only bites as the last statement of a
+# function, where the test's failure becomes the function's return status.
 EXAMPLES_COMMAND="bash $SCRIPT_DIR/install.sh --examples --blas=$BLAS_BACKEND --project-dir=$PROJECT_DIR"
 if [[ -n "$PREFIX_OVERRIDE" ]]; then
     EXAMPLES_COMMAND+=" --prefix=$PREFIX_OVERRIDE"

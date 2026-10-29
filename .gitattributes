@@ -1,0 +1,3 @@
+# Read by bash, PowerShell, the CI workflows and Docker alike; LF everywhere
+# keeps a Windows checkout from putting a carriage return into every value.
+installers/dependency-pins.env text eol=lf

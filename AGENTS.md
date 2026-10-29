@@ -303,6 +303,7 @@ All CI tests must pass before merging.
 ### Dependency Notes
 
 - BLAS++ configuration heavily affects performance - users should inspect CMake output
+- BLAS++ and LAPACK++ are built from the BallisticLA forks (https://github.com/BallisticLA/blaspp, https://github.com/BallisticLA/lapackpp) at the commits in `installers/dependency-pins.env`, which the installers, CI and `docker/tsan` all read; each fork's `BALLISTIC.md` lists the upstream fixes it carries. Change a pin only in that file, and never copy a commit hash into docs. RandLAPACK pins the same commits, and its CI checks that the two files agree.
 - Random123 headers must be in include path for downstream projects
 - OpenMP detection can fail on macOS with default system compilers (check for alternatives via homebrew, spack, or Environment Modules).
 

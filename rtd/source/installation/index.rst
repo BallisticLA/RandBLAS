@@ -5,6 +5,9 @@ Installation
 RandBLAS is a header-only C++20 library with two required dependencies. One of these
 dependencies (`Random123 <https://github.com/DEShawResearch/random123>`_) is header-only,
 while the other (`BLAS++ <https://github.com/icl-utk-edu/blaspp>`_) needs to be compiled.
+RandBLAS's installers and CI build BLAS++ from the
+`BallisticLA fork <https://github.com/BallisticLA/blaspp>`_, which carries fixes not yet
+in an upstream release. INSTALL.md gives the tag to build.
 
 Having a compiled dependency makes setting up RandBLAS a little more complicated than
 setting up other header-only libraries. RandBLAS also has OpenMP and GoogleTest as 

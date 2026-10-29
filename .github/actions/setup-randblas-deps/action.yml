@@ -80,29 +80,29 @@ runs:
             ;;
         esac
 
-    - name: resolve blaspp HEAD commit
-      id: blaspp-rev
+    # The BLAS++/LAPACK++ commits from installers/dependency-pins.env, found
+    # relative to this action. They are fetched by hash below and go into the
+    # cache keys, so changing a pin rebuilds both.
+    - name: read dependency pins
+      id: pins
       shell: bash
-      run: |
-        set -euxo pipefail
-        sha="$(git ls-remote https://github.com/icl-utk-edu/blaspp.git HEAD | awk '{print $1}')"
-        echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+      run: bash "$GITHUB_ACTION_PATH/../../scripts/dependency-pins.sh" export "$GITHUB_ACTION_PATH/../../../installers/dependency-pins.env"
 
-    - name: resolve lapackpp HEAD commit
-      if: inputs.install-lapackpp == 'true'
-      id: lapackpp-rev
-      shell: bash
-      run: |
-        set -euxo pipefail
-        sha="$(git ls-remote https://github.com/icl-utk-edu/lapackpp.git HEAD | awk '{print $1}')"
-        echo "sha=${sha}" >> "$GITHUB_OUTPUT"
-
+    # Paths start from runner.workspace, the checkout's parent: actions/cache
+    # refuses to save a path containing ".." ("Invalid pattern ... Relative
+    # pathing '.' and '..' is not allowed"), so the old github.workspace/../
+    # spelling restored caches that were never saved.
+    #
+    # The keys name the calling workflow because callers prepare different
+    # environments first, and BLAS++ records what it finds: thread-sanitizer
+    # installs libomp-dev, so its clang-built BLAS++ exports an OpenMP
+    # dependency that core's clang lanes, without libomp, cannot satisfy.
     - name: cache blaspp install
       id: blaspp-cache
       uses: actions/cache@v4
       with:
-        path: ${{ github.workspace }}/../blaspp-install
-        key: blaspp-mklfix2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}
+        path: ${{ runner.workspace }}/blaspp-install
+        key: blaspp-accel1-${{ github.workflow }}-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.pins.outputs.BLASPP_REF }}
 
     - name: build blaspp
       if: steps.blaspp-cache.outputs.cache-hit != 'true'
@@ -110,26 +110,36 @@ runs:
       env:
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
+        BLASPP_URL: ${{ steps.pins.outputs.BLASPP_URL }}
+        BLASPP_REF: ${{ steps.pins.outputs.BLASPP_REF }}
       run: |
         set -euxo pipefail
         cd ..
         rm -rf blaspp blaspp-build blaspp-install
-        git clone --depth 1 https://github.com/icl-utk-edu/blaspp.git
+        bash "$GITHUB_ACTION_PATH/../../scripts/dependency-pins.sh" fetch "$BLASPP_URL" "$BLASPP_REF" blaspp
         mkdir blaspp-build
         cd blaspp-build
         blas_arg=""
-        # ILP64 only for MKL: it makes MKL_INT 64-bit, which RandBLAS's MKL
+        # ILP64 for MKL: it makes MKL_INT 64-bit, which RandBLAS's MKL
         # spgemm path (test_spgemm, compiled only under RandBLAS_HAS_MKL)
-        # requires to match its int64_t sparse indices. Other backends stay
-        # LP64 -- blaspp's public API is int64_t regardless, so RandBLAS is
-        # unaffected, and this avoids needing ILP64 OpenBLAS/Accelerate libs.
+        # requires to match its int64_t sparse indices. ILP64 for Accelerate:
+        # BLAS++ supports Apple's new interface (icl-utk-edu/blaspp#134), and
+        # macOS >= 13.3 ships ILP64 inside the framework, so these lanes cover
+        # new-Accelerate ILP64 (issue #150) at no extra dependency cost.
+        # OpenBLAS stays LP64 -- blaspp's public API is int64_t regardless, so
+        # RandBLAS is unaffected. These lanes install the LP64
+        # libopenblas-openmp-dev, which BLAS++ tries before the ILP64
+        # -lopenblas64 it can now also find (icl-utk-edu/blaspp#129); the
+        # installer's openblas64 lane covers that one.
         blas_int_arg=""
         case "${{ inputs.blas-backend }}" in
           openblas)   blas_arg="-Dblas=openblas" ;;
           mkl)        blas_arg="-Dblas=mkl"; blas_int_arg="-Dblas_int=int64" ;;
-          accelerate) blas_arg="-Dblas=accelerate" ;;
+          accelerate) blas_arg="-Dblas=accelerate"; blas_int_arg="-Dblas_int=int64" ;;
           auto)       blas_arg="" ;;
         esac
+        # A silent fall-back to Apple's legacy interface would test the wrong
+        # BLAS; the generated defines.h is checked after the install below.
         cmake \
           -DCMAKE_C_COMPILER="${CC}" \
           -DCMAKE_CXX_COMPILER="${CXX}" \
@@ -145,14 +155,20 @@ runs:
           jobs="$(nproc)"
         fi
         make -j"${jobs}" install
+        if [[ "${{ inputs.blas-backend }}" == "accelerate" ]]; then
+          grep -q ACCELERATE_NEW_LAPACK ../blaspp-install/include/blas/defines.h \
+            || { echo "::error::BLAS++ did not select Apple's new Accelerate interface"; exit 1; }
+          grep -q '^#define BLAS_ILP64' ../blaspp-install/include/blas/defines.h \
+            || { echo "::error::BLAS++ did not select Accelerate ILP64"; exit 1; }
+        fi
 
     - name: cache lapackpp install
       if: inputs.install-lapackpp == 'true'
       id: lapackpp-cache
       uses: actions/cache@v4
       with:
-        path: ${{ github.workspace }}/../lapackpp-install
-        key: lapackpp-mklfix2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.blaspp-rev.outputs.sha }}-${{ steps.lapackpp-rev.outputs.sha }}
+        path: ${{ runner.workspace }}/lapackpp-install
+        key: lapackpp-accel1-${{ github.workflow }}-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cc }}-${{ inputs.blas-backend }}-${{ steps.pins.outputs.BLASPP_REF }}-${{ steps.pins.outputs.LAPACKPP_REF }}
 
     - name: build lapackpp
       if: inputs.install-lapackpp == 'true' && steps.lapackpp-cache.outputs.cache-hit != 'true'
@@ -160,16 +176,19 @@ runs:
       env:
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
+        LAPACKPP_URL: ${{ steps.pins.outputs.LAPACKPP_URL }}
+        LAPACKPP_REF: ${{ steps.pins.outputs.LAPACKPP_REF }}
       run: |
         set -euxo pipefail
         cd ..
         rm -rf lapackpp lapackpp-build lapackpp-install
-        git clone --depth 1 https://github.com/icl-utk-edu/lapackpp.git
+        bash "$GITHUB_ACTION_PATH/../../scripts/dependency-pins.sh" fetch "$LAPACKPP_URL" "$LAPACKPP_REF" lapackpp
         mkdir lapackpp-build
         cd lapackpp-build
-        # Match the int width of the blaspp we link against (ILP64 only for MKL).
+        # Match the int width of the blaspp we link against (ILP64 for MKL
+        # and Accelerate, per the blaspp step above).
         blas_int_arg=""
-        if [[ "${{ inputs.blas-backend }}" == "mkl" ]]; then
+        if [[ "${{ inputs.blas-backend }}" == "mkl" || "${{ inputs.blas-backend }}" == "accelerate" ]]; then
           blas_int_arg="-Dblas_int=int64"
         fi
         cmake \
