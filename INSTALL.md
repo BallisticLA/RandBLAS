@@ -110,7 +110,7 @@ Accelerate interface (see Appendix B.2). The fork's
 lists what it carries, and issue
 [#203](https://github.com/BallisticLA/RandBLAS/issues/203)
 tracks the return to upstream. The BLAS++ recipe below builds the tag
-`ballistic-2026.10.22`, which marks the commit pinned in
+`ballistic-2026.10.29`, which marks the commit pinned in
 [`installers/dependency-pins.env`](installers/dependency-pins.env), the file
 the installers and CI build from. For `examples/`, the only part of RandBLAS
 that needs LAPACK++, the installer builds it from the
@@ -121,7 +121,7 @@ One can compile and install BLAS++ from
 [source](https://github.com/BallisticLA/blaspp) using CMake by running the following.
 Note that all CMake and system terms for BLAS++ use the name ``blaspp`` instead of ``BLAS++``.
 ```shell
-git clone --branch ballistic-2026.10.22 https://github.com/BallisticLA/blaspp.git
+git clone --branch ballistic-2026.10.29 https://github.com/BallisticLA/blaspp.git
 mkdir blaspp-build
 cd blaspp-build
 cmake -DCMAKE_BUILD_TYPE=Release \
@@ -320,7 +320,7 @@ installs with oneMKL; RandBLAS's own OpenMP code then runs on the same runtime
 as oneMKL's threads:
 
 ```bat
-git clone --branch ballistic-2026.10.22 ^
+git clone --branch ballistic-2026.10.29 ^
   https://github.com/BallisticLA/blaspp.git ^
   C:\randblas-work\src\blaspp
 
