@@ -12,9 +12,9 @@ for our user guide.
    you're using.
 
  * `RandBLAS/sparse_skops.hh` has code for representing and sampling sparse sketching operators.
-   The sampling code has a customized method for repeatedly sampling from an index set without
-   replacement, which is needed to quickly generate the structures used in statistically reliable
-   sparse sketching operators. See [Sparse sampling and OpenMP](#sparse-sampling-and-openmp)
+   For short-axis-major operators, the sampling code places nonzeros either one per block of a
+   fixed partition (the default) or with a customized method for repeatedly sampling from an index
+   set without replacement. See [Sparse sampling and OpenMP](#sparse-sampling-and-openmp)
    for details.
 
  * [BLAS++ (aka blaspp)](https://github.com/icl-utk-edu/blaspp) is our portability layer for BLAS.
@@ -49,15 +49,28 @@ invariant instead of checking every offset. Overflow of Random123's extended-wid
 separate matter: its unsigned wrap-around behavior is intentional and benign, so RandBLAS does
 not treat counter wrap-around as an error.
 
-Short-axis-sparse operators (SASOs) sample without replacement. Each active thread owns a
+Short-axis-sparse operators (SASOs) are blocked by default (`SparseBlocking::Blocked`): the
+short axis is split into `vec_nnz` contiguous blocks, the first `dim_major % vec_nnz` of them
+one coordinate longer, and vector `i` draws block `j`'s location and sign from counter
+`initial_counter + i * vec_nnz + j`. That is the same counter budget as unblocked sampling, so
+the returned state and submatrix skipping do not depend on the blocking. Blocked sampling needs
+no workspace, and its vectors come out sorted because blocks are visited in increasing order.
+It uses the same thread policy as the other paths without the permutation-amortization limit,
+counting the drawn blocks as each vector's work.
+For a submatrix whose short-axis window misses some blocks, only the blocks that meet the window
+are drawn; each keeps its counter, so the result equals the restriction of the full operator.
+With `vec_nnz == 1` there is one block, so both blockings use the `vec_nnz == 1` path below
+(blocked sampling skips it for an empty short-axis window) and produce identical operators.
+
+Unblocked SASOs (`SparseBlocking::Unblocked`) sample without replacement. Each active thread owns a
 restored permutation of length `dim_major` and a pivot array of length `vec_nnz`; no thread
 shares mutable sampling workspace. This gives an `O(T * dim_major)` permutation-workspace cost
 for `T` active threads. An internal policy limits `T` by the available OpenMP threads, the number
 of major-axis vectors, the amount of sampling work, and the work available to amortize each
 permutation. Workspace storage is allocated before entering an OpenMP region, while each thread
 initializes its own permutation. The specialized `vec_nnz == 1` path does not allocate
-permutation workspace. A full-major-coordinate SASO is already packed after its per-vector sort;
-only a partial window needs the serial filtering pass.
+permutation workspace. A full-major-coordinate SASO of either blocking is already packed after
+sampling; only a partial window needs the serial filtering pass.
 
 Long-axis-sparse operators (LASOs) sample with replacement. Vector `i` first occupies a lane of
 length `vec_nnz` at offset `i * vec_nnz`. A thread-private pair of hash maps merges duplicate

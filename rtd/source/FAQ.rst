@@ -38,9 +38,8 @@ Why the name RandBLAS?
   libraries that already wrap BLAS might find it straightforward to define similar wrappers for RandBLAS.
 
 DenseDist and SparseDist are simple structs. Why bother having constructors for these classes, when you could just use initialization lists?
-  Both of these types only have four user-decidable parameters.
-  We tried to implement and document these structs only using four members each.
-  This was doable, but very cumbersome.
+  DenseDist has four user-decidable parameters and SparseDist has five.
+  Implementing and documenting these structs with only those parameters as members is doable but very cumbersome.
   In order to write clearer documentation we introduced several additional members whose values are semantically meaningful
   but ultimately dependent on the others.
   Using constructors makes it possible for us to ensure all members are initialized consistently.

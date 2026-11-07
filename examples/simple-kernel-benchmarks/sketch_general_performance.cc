@@ -419,8 +419,8 @@ static bool run_sampling_scaling(
 
     for (int thread_count : threads) {
         set_threads(thread_count);
-        const bool uses_permutation_workspace =
-            dist.major_axis == Axis::Short && dist.vec_nnz > 1;
+        const bool uses_permutation_workspace = dist.major_axis == Axis::Short
+            && dist.blocking == RandBLAS::SparseBlocking::Unblocked && dist.vec_nnz > 1;
         const int policy_threads = RandBLAS::sparse::sparse_sampling_thread_count(
             dist.dim_major, dist.dim_minor, dist.vec_nnz,
             uses_permutation_workspace

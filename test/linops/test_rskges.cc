@@ -70,9 +70,11 @@ class TestRSKGES : public ::testing::Test
         Layout layout,
         int64_t key_index,
         int64_t nnz_index,
-        int threads
+        int threads,
+        RandBLAS::SparseBlocking blocking = RandBLAS::SparseBlocking::Blocked
     ) {
-        SparseDist D(n, d, vec_nnzs[nnz_index], major_axis);
+        if (major_axis == RandBLAS::Axis::Long) blocking = RandBLAS::SparseBlocking::Unblocked;
+        SparseDist D(n, d, vec_nnzs[nnz_index], major_axis, blocking);
         SparseSkOp<T> S0(D, keys[key_index]);
         RandBLAS::fill_sparse(S0);
         test_right_apply_to_random<T>(1.0, S0, m, layout, 0.0, threads);
@@ -181,6 +183,34 @@ TEST_F(TestRSKGES, sketch_saso_rowMajor_oneThread)
             );
             apply<float>(RandBLAS::Axis::Short,
                 12, 19, 201, Layout::RowMajor, k_idx, nz_idx, 1
+            );
+        }
+    }
+}
+
+TEST_F(TestRSKGES, sketch_unblocked_saso_row_major_one_thread) {
+    const auto unblocked = RandBLAS::SparseBlocking::Unblocked;
+    for (int64_t k_idx : {0, 1, 2}) {
+        for (int64_t nz_idx: {1, 2, 3, 0}) {
+            apply<double>(
+                RandBLAS::Axis::Short, 12, 19, 201, Layout::RowMajor, k_idx, nz_idx, 1, unblocked
+            );
+            apply<float>(
+                RandBLAS::Axis::Short, 12, 19, 201, Layout::RowMajor, k_idx, nz_idx, 1, unblocked
+            );
+        }
+    }
+}
+
+TEST_F(TestRSKGES, sketch_unblocked_saso_col_major_one_thread) {
+    const auto unblocked = RandBLAS::SparseBlocking::Unblocked;
+    for (int64_t k_idx : {0, 1, 2}) {
+        for (int64_t nz_idx: {1, 2, 3, 0}) {
+            apply<double>(
+                RandBLAS::Axis::Short, 12, 19, 201, Layout::ColMajor, k_idx, nz_idx, 1, unblocked
+            );
+            apply<float>(
+                RandBLAS::Axis::Short, 12, 19, 201, Layout::ColMajor, k_idx, nz_idx, 1, unblocked
             );
         }
     }

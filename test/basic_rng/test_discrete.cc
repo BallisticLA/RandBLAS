@@ -47,6 +47,7 @@ using RandBLAS::repeated_fisher_yates;
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <iostream>
 #include <iterator>
 #include <random>
@@ -57,6 +58,7 @@ using RandBLAS::repeated_fisher_yates;
 #include <cstdint>
 #include <numeric>
 #include <tuple>
+#include <utility>
 #include <cassert>
 #include <gtest/gtest.h>
 
@@ -334,6 +336,61 @@ class TestSampleIndices : public ::testing::Test
         }
     }
 
+    //
+    // MARK: Blocked Short-Axis Vectors
+    //
+
+    // Sample num_vectors blocked short-axis vectors of length dim_major and check
+    // two properties of their distribution: within each block the location is
+    // uniform (a Kolmogorov-Smirnov test per block), and the signs are balanced.
+    static void test_blocked_saso_distribution(int64_t dim_major, int64_t vec_nnz, double significance, int64_t num_vectors, uint32_t seed) {
+        using RandBLAS::testing::ks_check_critval;
+        using RandBLAS::testing::KolmogorovSmirnovConstants::critical_value_rep_mutator;
+        // This call replaces num_vectors by the smallest tabulated sample size at least
+        // num_vectors, and significance by the largest tabulated level not above it, so
+        // it must come before sampling.
+        auto critical_value = critical_value_rep_mutator(num_vectors, significance);
+        randblas_require(dim_major <= num_vectors);
+        RandBLAS::SparseDist dist(dim_major, num_vectors, vec_nnz, RandBLAS::Axis::Short, RandBLAS::SparseBlocking::Blocked);
+        vector<double> vals(dist.full_nnz);
+        vector<int64_t> rows(dist.full_nnz);
+        vector<int64_t> cols(dist.full_nnz);
+        int64_t nnz = 0;
+        RandBLAS::fill_sparse_unpacked(dist, dim_major, num_vectors, 0, 0, nnz, vals.data(), rows.data(), cols.data(), RNGState(seed));
+        ASSERT_EQ(nnz, dist.full_nnz);
+
+        const int64_t len = dim_major / vec_nnz;
+        const int64_t num_long = dim_major % vec_nnz;
+        for (int64_t j = 0; j < vec_nnz; ++j) {
+            const int64_t lo = j * len + std::min(j, num_long);
+            const int64_t block_len = len + ((j < num_long) ? 1 : 0);
+            vector<float> empirical_cdf(block_len, 0.0f);
+            vector<float> true_cdf(block_len, 1.0f);
+            for (int64_t i = 0; i < num_vectors; ++i) {
+                const int64_t offset = rows[i * vec_nnz + j] - lo;
+                ASSERT_GE(offset, 0);
+                ASSERT_LT(offset, block_len);
+                empirical_cdf[offset] += 1.0f;
+            }
+            weights_to_cdf(block_len, empirical_cdf.data());
+            weights_to_cdf(block_len, true_cdf.data());
+            std::pair<int, double> result = ks_check_critval(true_cdf, empirical_cdf, critical_value);
+            EXPECT_EQ(result.first, -1)
+                << "\nKS test failed at index " << result.first
+                << " with difference " << result.second << " and critical value " << critical_value
+                << "\nTest parameters: dim_major=" << dim_major << " vec_nnz=" << vec_nnz
+                << " block=" << j << " num_vectors=" << num_vectors << std::endl;
+        }
+
+        // The count of +1 values is Binomial(nnz, 1/2); allow five standard deviations.
+        int64_t num_positive = 0;
+        for (double v : vals) {
+            ASSERT_TRUE(v == 1.0 || v == -1.0);
+            num_positive += (v > 0) ? 1 : 0;
+        }
+        const double frac = static_cast<double>(num_positive) / static_cast<double>(nnz);
+        EXPECT_LT(std::abs(frac - 0.5), 5.0 * 0.5 / std::sqrt(static_cast<double>(nnz)));
+    }
 };
 
 TEST_F(TestSampleIndices, rngstate_updates_iid_uniform) {
@@ -594,4 +651,13 @@ TEST_F(TestSampleIndices, fisher_yates_ks_skeptical)
     test_fisher_yates_kolmogorov_smirnov(10, s, 10000, 0);
     test_fisher_yates_kolmogorov_smirnov(100, s, 10000, 0);
     test_fisher_yates_kolmogorov_smirnov(1000, s, 1000, 0);
+}
+
+
+TEST_F(TestSampleIndices, blocked_saso_locations_are_uniform_within_blocks) {
+    double s = 1e-4;
+    test_blocked_saso_distribution(10, 3, s, 10000, 0);     // blocks of length 4, 3, 3
+    test_blocked_saso_distribution(64, 8, s, 10000, 1);     // equal blocks
+    test_blocked_saso_distribution(100, 7, s, 10000, 2);    // blocks of length 15 and 14
+    test_blocked_saso_distribution(1000, 13, s, 5000, 3);   // blocks of length 77 and 76
 }
