@@ -38,9 +38,8 @@ Why the name RandBLAS?
   libraries that already wrap BLAS might find it straightforward to define similar wrappers for RandBLAS.
 
 DenseDist and SparseDist are simple structs. Why bother having constructors for these classes, when you could just use initialization lists?
-  Both of these types only have four user-decidable parameters.
-  We tried to implement and document these structs only using four members each.
-  This was doable, but very cumbersome.
+  DenseDist has four user-decidable parameters and SparseDist has five.
+  Implementing and documenting these structs with only those parameters as members is doable but very cumbersome.
   In order to write clearer documentation we introduced several additional members whose values are semantically meaningful
   but ultimately dependent on the others.
   Using constructors makes it possible for us to ensure all members are initialized consistently.
@@ -51,7 +50,8 @@ Why don't you automatically scale your sketching operators to give partial isome
   1. Many randomized algorithms have a property where their output is invariant under rescaling of the sketching operators that they use internally.
   2. Sketching operators are easier to describe if we think in terms of their "natural" scales before considering their use as tools for dimension reduction.
      For example, the natural scale for DenseSkOps is to have entries that are sampled iid from a mean-zero and variance-one distribution.
-     The natural scale for SparseSkOps (with major_axis==Short) is for nonzero entries to have absolute value equal to one.
+     The natural scale for SparseSkOps (with major_axis==Short) is for every short-axis vector to have squared norm vec_nnz;
+     the nonzeros have absolute value one unless blocked sampling uses blocks of unequal lengths.
      Describing these operators in their isometric scales would require that we specify dimensions, which dimension is larger than the other,
      and possibly additional tuning parameters (like vec_nnz for SparseSkOps).
   3. It's easier for us to describe how implicit concatenation of sketching operators works (see :ref:`this part <sketch_updates>` of our tutorial)

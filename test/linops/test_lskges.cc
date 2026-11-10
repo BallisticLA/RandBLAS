@@ -55,9 +55,11 @@ class TestLSKGES : public ::testing::Test
         blas::Layout layout,
         int64_t key_index,
         int64_t nnz_index,
-        int threads
+        int threads,
+        RandBLAS::SparseBlocking blocking = RandBLAS::SparseBlocking::Blocked
     ) {
-        SparseDist D0(d, m, vec_nnzs[nnz_index], major_axis);
+        if (major_axis == Axis::Long) blocking = RandBLAS::SparseBlocking::Unblocked;
+        SparseDist D0(d, m, vec_nnzs[nnz_index], major_axis, blocking);
         SparseSkOp<T> S0(D0, keys[key_index]);
         test_left_apply_to_random<T>(1.0, S0, n, 0.0, layout, threads);
     }
@@ -167,6 +169,34 @@ TEST_F(TestLSKGES, sketch_saso_rowMajor_oneThread)
             );
             apply<float>(Axis::Short,
                 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1
+            );
+        }
+    }
+}
+
+TEST_F(TestLSKGES, sketch_unblocked_saso_row_major_one_thread) {
+    const auto unblocked = RandBLAS::SparseBlocking::Unblocked;
+    for (int64_t k_idx : {0, 1, 2}) {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
+            apply<double>(
+                Axis::Short, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1, unblocked
+            );
+            apply<float>(
+                Axis::Short, 19, 201, 12, blas::Layout::RowMajor, k_idx, nz_idx, 1, unblocked
+            );
+        }
+    }
+}
+
+TEST_F(TestLSKGES, sketch_unblocked_saso_col_major_one_thread) {
+    const auto unblocked = RandBLAS::SparseBlocking::Unblocked;
+    for (int64_t k_idx : {0, 1, 2}) {
+        for (int64_t nz_idx: {4, 1, 2, 3, 0}) {
+            apply<double>(
+                Axis::Short, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1, unblocked
+            );
+            apply<float>(
+                Axis::Short, 19, 201, 12, blas::Layout::ColMajor, k_idx, nz_idx, 1, unblocked
             );
         }
     }
@@ -313,6 +343,14 @@ TEST_F(TestLSKGES, lift_laso_colMajor_oneThread)
 ////////////////////////////////////////////////////////////////////////
 
 
+TEST_F(TestLSKGES, subset_rows_s_nondivisible_blocks_colmajor) {
+    // S0 is 10 x 12 with vec_nnz = 10 / 3 = 3, so its blocks have lengths 4, 3, 3;
+    // rows 3 to 5 of S0 straddle the first two blocks.
+    for (uint32_t seed : {0, 1}) {
+        submatrix_S<double>(seed, 3, 12, 10, 12, 3, 0, blas::Layout::ColMajor);
+    }
+}
+
 TEST_F(TestLSKGES, subset_rows_s_colmajor1) 
 {
     for (uint32_t seed : {0})
@@ -370,6 +408,13 @@ TEST_F(TestLSKGES, subset_cols_s_colmajor2)
 //
 ////////////////////////////////////////////////////////////////////////
 
+
+TEST_F(TestLSKGES, subset_rows_s_nondivisible_blocks_rowmajor) {
+    // The operator and window of subset_rows_s_nondivisible_blocks_colmajor.
+    for (uint32_t seed : {0, 1}) {
+        submatrix_S<double>(seed, 3, 12, 10, 12, 3, 0, blas::Layout::RowMajor);
+    }
+}
 
 TEST_F(TestLSKGES, subset_rows_s_rowmajor1) 
 {

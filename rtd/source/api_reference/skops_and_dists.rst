@@ -90,6 +90,9 @@ Sparse sketching, with CountSketch *et al.*
   :animate: fade-in-slide-down
   :color: light
 
+  .. doxygenenum:: RandBLAS::SparseBlocking
+      :project: RandBLAS
+
   .. doxygenstruct:: RandBLAS::SparseDist
       :project: RandBLAS
       :members:

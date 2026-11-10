@@ -50,6 +50,7 @@
 #include <unordered_map>
 #include <vector>
 #include <numeric>
+#include <utility>
 
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -274,6 +275,122 @@ static state_t repeated_fisher_yates(
     return out;
 }
 
+template <typename T, SignedInteger sint_t, typename state_t = RNGState<DefaultRNG>>
+static state_t repeated_blocked_samples(
+    const state_t &state,
+    int64_t vec_nnz,
+    int64_t dim_major,
+    int64_t dim_minor,
+    sint_t *idxs_major,
+    sint_t *idxs_minor,
+    T *vals,
+    int64_t first_block,
+    int64_t num_blocks
+) {
+    // Partition [0, dim_major) into vec_nnz contiguous blocks shared by every
+    // vector; the first dim_major % vec_nnz blocks have one extra coordinate.
+    // Vector i draws one uniform location and one sign per block, using the
+    // counter base + i * vec_nnz + j for block j. That is the same counter
+    // budget as the Fisher-Yates path, so the returned state and submatrix
+    // skipping are unchanged; each counter depends only on (i, j), so the output
+    // does not depend on the thread count. Blocks are visited in increasing
+    // order, so each vector is already sorted. A nonzero in a block of length len
+    // has magnitude sqrt(vec_nnz * len / dim_major), which keeps the expected
+    // short-axis Gram matrix a multiple of the identity; it is exactly 1 when
+    // blocks are equal.
+    //
+    // Only blocks [first_block, first_block + num_blocks) are drawn; vector i
+    // writes them to positions [i * num_blocks, (i + 1) * num_blocks).
+    // Each drawn block keeps its own counter, so a partial range equals the
+    // corresponding entries of a full sample.
+    randblas_error_if(vec_nnz > dim_major);
+    randblas_require(0 <= first_block && 0 <= num_blocks && first_block + num_blocks <= vec_nnz);
+    const int64_t full_incr = safe_int_product(dim_minor, vec_nnz);
+    if (vals != nullptr) {
+        randblas_require(state.len_c >= 4);
+    } else {
+        randblas_require(state.len_c >= 2);
+    }
+    auto end_ctr = state.counter;
+    end_ctr.incr(full_incr);
+    auto out = state_t{end_ctr, state.key};
+
+    if (num_blocks == 0) {
+        return out;
+    }
+    if (vec_nnz == 1) {
+        // One block spans the whole axis, so this is ordinary uniform sampling.
+        sample_singleton_vectors(state, dim_major, dim_minor, idxs_major, idxs_minor, vals);
+        return out;
+    }
+
+    const int64_t block_len = dim_major / vec_nnz;
+    const int64_t num_long_blocks = dim_major % vec_nnz;
+    const int64_t first_start = first_block * block_len + std::min(first_block, num_long_blocks);
+    // Equal blocks skip the division, which some compilers evaluate with a reciprocal.
+    [[maybe_unused]] const T short_scale = (num_long_blocks == 0) ? (T) 1 : static_cast<T>(std::sqrt(
+        static_cast<double>(vec_nnz * block_len) / static_cast<double>(dim_major)
+    ));
+    [[maybe_unused]] const T long_scale = static_cast<T>(std::sqrt(
+        static_cast<double>(vec_nnz * (block_len + 1)) / static_cast<double>(dim_major)
+    ));
+    [[maybe_unused]] const int num_threads = sparse_sampling_thread_count(
+        dim_major, dim_minor, num_blocks, false
+    );
+    const auto base_ctr = state.counter;
+    #pragma omp parallel for num_threads(num_threads) if(num_threads > 1) schedule(static)
+    for (int64_t i = 0; i < dim_minor; ++i) {
+        typename state_t::generator gen;
+        const int64_t offset = i * num_blocks - first_block;
+        auto ctr = base_ctr;
+        ctr.incr(i * vec_nnz + first_block);
+        int64_t block_start = first_start;
+        for (int64_t j = first_block; j < first_block + num_blocks; ++j) {
+            const int64_t len = block_len + ((j < num_long_blocks) ? 1 : 0);
+            auto rv = gen(ctr, state.key);
+            ctr.incr();
+            const std::uint64_t r = promote_uint_pair(rv[0], rv[1]);
+            idxs_major[offset + j] = static_cast<sint_t>(
+                block_start + static_cast<int64_t>(r % static_cast<std::uint64_t>(len))
+            );
+            if constexpr (state_t::len_c >= 4) {
+                // A two-word generator was rejected above when signs are requested.
+                if (vals != nullptr) {
+                    const T scale = (j < num_long_blocks) ? long_scale : short_scale;
+                    vals[offset + j] = (rv[2] % 2 == 0) ? scale : -scale;
+                }
+            }
+            block_start += len;
+        }
+        if (idxs_minor != nullptr) {
+            std::fill(
+                idxs_minor + i * num_blocks, idxs_minor + (i + 1) * num_blocks, static_cast<sint_t>(i)
+            );
+        }
+    }
+    return out;
+}
+
+// Returns {first, count}: the blocks [first, first + count) that meet the window
+// [window_off, window_off + window_len) when a short axis of length dim_major is
+// split into vec_nnz blocks.
+static inline std::pair<int64_t, int64_t> blocks_meeting_window(
+    int64_t dim_major, int64_t vec_nnz, int64_t window_off, int64_t window_len
+) {
+    if (window_len <= 0) {
+        return {0, 0};
+    }
+    const int64_t block_len = dim_major / vec_nnz;
+    const int64_t long_span = (dim_major % vec_nnz) * (block_len + 1);
+    auto block_of = [&](int64_t c) {
+        return (c < long_span)
+            ? c / (block_len + 1)
+            : (dim_major % vec_nnz) + (c - long_span) / block_len;
+    };
+    const int64_t first = block_of(window_off);
+    return {first, block_of(window_off + window_len - 1) - first + 1};
+}
+
 inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t dim_major, int64_t dim_minor) {
     if (major_axis == Axis::Short) {
         return std::pow(vec_nnz, -0.5); 
@@ -285,6 +402,34 @@ inline double isometry_scale(Axis major_axis, int64_t vec_nnz, int64_t dim_major
 }
 
 namespace RandBLAS {
+
+// =============================================================================
+/// Names for the two ways a short-axis-major SparseDist can place the
+/// nonzeros of its short-axis vectors. Let \math{k} be the length of a short-axis
+/// vector and \math{s = \vecnnz.} Both distributions put exactly \math{s}
+/// nonzeros in every short-axis vector, with signs sampled independently and
+/// uniformly, and both have the same isometry scale. They differ in where the
+/// nonzeros go and, when \math{s} does not divide \math{k,} in their magnitudes.
+///
+enum class SparseBlocking : char {
+    // ---------------------------------------------------------------------------
+    ///  Partition \math{\\{0,\ldots,k-1\\}} into \math{s} contiguous blocks that
+    ///  are shared by all short-axis vectors, and place one nonzero in each block,
+    ///  at a location chosen uniformly from that block and independently of every
+    ///  other choice. When \math{s} divides \math{k,} every block has length
+    ///  \math{k/s,} the nonzeros are \math{\pm 1,} and, up to the isometry scale, this is the
+    ///  block construction of Kane and Nelson, which Camaño, Epperly, Meyer, and Tropp call
+    ///  a SparseStack. Otherwise the first \math{k \bmod s} blocks have one more coordinate
+    ///  than the others, and a nonzero in a block of length \math{b} is \math{\pm \sqrt{s b / k}.}
+    ///  These magnitudes keep both expected Gram matrices of a sample proportional to the identity.
+    Blocked = 'B',
+
+    // ---------------------------------------------------------------------------
+    ///  Choose the \math{s} locations uniformly without replacement from
+    ///  \math{\\{0,\ldots,k-1\\},} with nonzeros \math{\pm 1.} This is the distribution
+    ///  RandBLAS used for every short-axis-major SparseDist before SparseBlocking existed.
+    Unblocked = 'U'
+};
 
 // Forward declaration of SparseSkOp. It's returnable by
 // SparseDist.sample(), but its definition involves SparseDist.
@@ -319,12 +464,12 @@ struct SparseDist {
     ///
     ///  To be explicit, let's say that \math{\mtxx} is a sample from \math{\mathcal{V}.}
     ///  
-    ///  If \math{\ttt{major_axis} = \ttt{Short}}, then \math{\mtxx} has exactly \math{\vecnnz} nonzeros,
-    ///  and the locations of those nonzeros are chosen uniformly
-    ///  without replacement from \math{\\{0,\ldots,k-1\\}.} The values of the nonzeros are
-    ///  sampled independently and uniformly from +/- 1.
+    ///  If \math{\ttt{major_axis} = \ttt{Short},} then \math{\mtxx} has exactly \math{\vecnnz} nonzeros.
+    ///  The member \math{\ttt{blocking}} determines how the locations of those nonzeros are
+    ///  chosen. Their signs are sampled independently and uniformly. Their magnitudes are 1
+    ///  except under blocked sampling with unequal blocks; see SparseBlocking.
     ///
-    ///  If \math{\ttt{major_axis} = \ttt{Long}}, then \math{\mtxx} has *at most* \math{\vecnnz} nonzero
+    ///  If \math{\ttt{major_axis} = \ttt{Long},} then \math{\mtxx} has *at most* \math{\vecnnz} nonzero
     ///  entries. The locations of the nonzeros are determined by sampling uniformly
     ///  with replacement from \math{\\{0,\ldots,k-1\\}.}
     ///  If index \math{j} occurs in the sample \math{\ell} times, then
@@ -332,6 +477,16 @@ struct SparseDist {
     ///  \math{-\sqrt{\ell}} with probability 1/2.
     ///
     const Axis major_axis;
+
+    // ---------------------------------------------------------------------------
+    ///  How the nonzeros of a short-axis vector are placed and scaled; see SparseBlocking.
+    ///  Short-axis-major distributions use \math{\ttt{SparseBlocking::Blocked}} unless
+    ///  the constructor is given \math{\ttt{SparseBlocking::Unblocked}.}
+    ///  Long-axis vectors are never blocked, so this member is
+    ///  \math{\ttt{SparseBlocking::Unblocked}} whenever \math{\ttt{major_axis} = \ttt{Long}.}
+    ///
+    ///  Both settings give the same isometry scale.
+    const SparseBlocking blocking;
 
     // ---------------------------------------------------------------------------
     ///  Defined as
@@ -369,6 +524,8 @@ struct SparseDist {
 
     // ---------------------------------------------------------------------------
     ///  Arguments passed to this function are used to initialize members of the same names.
+    ///  The member \math{\ttt{blocking}} is \math{\ttt{SparseBlocking::Blocked}} if
+    ///  \math{\ttt{major_axis} = \ttt{Short}} and \math{\ttt{SparseBlocking::Unblocked}} otherwise.
     ///  The members \math{\ttt{dim_major},} \math{\ttt{dim_minor},} \math{\ttt{isometry_scale},} and \math{\ttt{full_nnz}}
     ///  are automatically initialized to be consistent with these arguments.
     ///  
@@ -381,8 +538,24 @@ struct SparseDist {
         int64_t n_cols,
         int64_t vec_nnz = 4,
         Axis major_axis = Axis::Short
+    ) : SparseDist(
+            n_rows, n_cols, vec_nnz, major_axis,
+            (major_axis == Axis::Short) ? SparseBlocking::Blocked : SparseBlocking::Unblocked
+        ) { }
+
+    // ---------------------------------------------------------------------------
+    ///  This constructor is the same as the four-argument constructor, except that it sets
+    ///  \math{\ttt{blocking}} explicitly. It raises an error if
+    ///  \math{\ttt{major_axis} = \ttt{Long}} and \math{\ttt{blocking} = \ttt{SparseBlocking::Blocked}.}
+    SparseDist(
+        int64_t n_rows,
+        int64_t n_cols,
+        int64_t vec_nnz,
+        Axis major_axis,
+        SparseBlocking blocking
     ) : n_rows(n_rows), n_cols(n_cols),
         major_axis(major_axis),
+        blocking(blocking),
         dim_major((major_axis == Axis::Short) ? std::min(n_rows, n_cols) : std::max(n_rows, n_cols)),
         dim_minor((major_axis == Axis::Short) ? std::max(n_rows, n_cols) : std::min(n_rows, n_cols)),
         isometry_scale(sparse::isometry_scale(major_axis, vec_nnz, dim_major, dim_minor)),
@@ -392,6 +565,7 @@ struct SparseDist {
         randblas_require(n_cols > 0);
         randblas_require(vec_nnz > 0);
         randblas_require(vec_nnz <= dim_major);
+        randblas_require(major_axis == Axis::Short || blocking == SparseBlocking::Unblocked);
     }
 
     // -------------------------------------------------------------------------------------
@@ -402,11 +576,11 @@ struct SparseDist {
     }
 
 
-    // A convenience constructor designed to gracefully handle the common case when someone specifies
+    // Convenience constructors designed to gracefully handle the common case when someone specifies
     // the short-axis-vector length as a floating point multiple of some other integer. We cast both
     // dimensions to int64_t and raise a warning if that cast is lossy.
     //
-    // This function is not part of the public API.
+    // These functions are not part of the public API.
     template <typename ordinal_t1, typename ordinal_t2>
     SparseDist(
         ordinal_t1 n_rows,
@@ -414,6 +588,16 @@ struct SparseDist {
         int64_t vec_nnz = 4,
         Axis major_axis = Axis::Short
     ) : SparseDist(cast_int64t(n_rows), cast_int64t(n_cols), vec_nnz, major_axis) { }
+
+    // The same, with the blocking set explicitly.
+    template <typename ordinal_t1, typename ordinal_t2>
+    SparseDist(
+        ordinal_t1 n_rows,
+        ordinal_t2 n_cols,
+        int64_t vec_nnz,
+        Axis major_axis,
+        SparseBlocking blocking
+    ) : SparseDist(cast_int64t(n_rows), cast_int64t(n_cols), vec_nnz, major_axis, blocking) { }
 };
 
 
@@ -441,9 +625,10 @@ inline state_t repeated_fisher_yates(
 
 template <typename RNG = DefaultRNG>
 RNGState<RNG> compute_next_state(SparseDist dist, RNGState<RNG> state) {
-    // Both _considerate_fisher_yates (SASO with vec_nnz > 1) and
-    // sample_indices_iid_uniform (SASO with vec_nnz == 1, and LASO) consume
-    // exactly one CBRNG counter increment per nonzero.
+    // Blocked SASO sampling, _considerate_fisher_yates (unblocked SASO with
+    // vec_nnz > 1), and sample_indices_iid_uniform (SASO with vec_nnz == 1, and
+    // LASO) each use exactly vec_nnz counters per major-axis vector, so a full
+    // sample advances the counter by full_nnz.
     state.counter.incr(dist.full_nnz);
     return state;
 }
@@ -752,9 +937,9 @@ state_t fill_sparse_unpacked(
     }
 
     // Workspace query. If any of (vals, rows, cols) is null, we do not sample: we just
-    // report the required array length in nnz and return. The worst-case nonzero count
-    // for the requested submatrix is vec_nnz * num_major_sub (every nonzero of each
-    // sampled major-axis vector could land inside the window). Callers can use this to
+    // report the required array length in nnz and return. That length is
+    // vec_nnz * num_major_sub: Phase 1 may write that many entries before compaction,
+    // and no window can hold more nonzeros. Callers can use this to
     // size (vals, rows, cols) from (D, n_rows_sub, n_cols_sub, ro_s, co_s) alone, rather
     // than reconstructing the axis mapping themselves.
     const int64_t lane_cap = safe_int_product(vec_nnz, num_major_sub);
@@ -765,9 +950,9 @@ state_t fill_sparse_unpacked(
     randblas_require(seed_state.len_c >= 4);
 
     // Skip the RNG counter past the num_major_off major-axis vectors we don't need.
-    // Both the Fisher-Yates path (vec_nnz > 1) and the i.i.d.-uniform path (vec_nnz == 1
-    // and LASO) consume exactly vec_nnz counter increments per major-axis vector, so the
-    // skip amount is uniform.
+    // The blocked path, the Fisher-Yates path (unblocked, vec_nnz > 1), and the
+    // i.i.d.-uniform path (vec_nnz == 1 and LASO) reserve exactly vec_nnz counters
+    // per major-axis vector, so the skip amount is uniform.
     state_t work_state = seed_state;
     const int64_t counter_skip = safe_int_product(num_major_off, vec_nnz);
     work_state.counter.incr(counter_skip);
@@ -783,11 +968,24 @@ state_t fill_sparse_unpacked(
     // Fixed lanes let physical threads work independently while logical vector indices
     // determine counter ranges and output positions.
     std::vector<int64_t> lane_counts;
+    int64_t lane_width = vec_nnz;
     state_t end_state;
     if (D.major_axis == Axis::Short) {
-        end_state = sparse::repeated_fisher_yates(
-            work_state, vec_nnz, dim_major, num_major_sub, idxs_major, idxs_minor, vals, true
-        );
+        if (D.blocking == SparseBlocking::Blocked) {
+            // Only the blocks that meet the major-coordinate window are drawn.
+            auto [first_block, num_blocks] = sparse::blocks_meeting_window(
+                dim_major, vec_nnz, dim_major_off, dim_major_sub
+            );
+            lane_width = num_blocks;
+            end_state = sparse::repeated_blocked_samples(
+                work_state, vec_nnz, dim_major, num_major_sub, idxs_major, idxs_minor, vals,
+                first_block, num_blocks
+            );
+        } else {
+            end_state = sparse::repeated_fisher_yates(
+                work_state, vec_nnz, dim_major, num_major_sub, idxs_major, idxs_minor, vals, true
+            );
+        }
         if (dim_major_off == 0 && dim_major_sub == dim_major) {
             nnz = lane_cap;
             return end_state;
@@ -854,8 +1052,8 @@ state_t fill_sparse_unpacked(
     // source, so this serial pass cannot overwrite an unread lane.
     nnz = 0;
     for (int64_t i = 0; i < num_major_sub; ++i) {
-        const int64_t lane_offset = i * vec_nnz;
-        const int64_t lane_count  = (D.major_axis == Axis::Short) ? vec_nnz : lane_counts[i];
+        const int64_t lane_offset = i * lane_width;
+        const int64_t lane_count  = (D.major_axis == Axis::Short) ? lane_width : lane_counts[i];
         for (int64_t j = 0; j < lane_count; ++j) {
             const int64_t read = lane_offset + j;
             const sint_t local_major = idxs_major[read] - static_cast<sint_t>(dim_major_off);
@@ -945,7 +1143,8 @@ void print_sparse(SparseSkOp const &S0) {
     int64_t nnz;
     if (S0.dist.major_axis == Axis::Short) {
         nnz = S0.dist.vec_nnz * MAX(S0.dist.n_rows, S0.dist.n_cols);
-        std::cout << "\tSASO: short-axis-sparse operator" << std::endl;
+        std::cout << "\tSASO: short-axis-sparse operator, "
+                  << ((S0.dist.blocking == SparseBlocking::Blocked) ? "blocked" : "unblocked") << std::endl;
     } else {
         nnz = S0.dist.vec_nnz * MIN(S0.dist.n_rows, S0.dist.n_cols);
         std::cout << "\tLASO: long-axis-sparse operator" << std::endl;
@@ -989,6 +1188,7 @@ namespace RandBLAS::sparse {
 using RandBLAS::SparseSkOp;
 using RandBLAS::SparseDist;
 using RandBLAS::Axis;
+using RandBLAS::SparseBlocking;
 using RandBLAS::fill_sparse_unpacked;
 using RandBLAS::sparse_data::COOMatrix;
 

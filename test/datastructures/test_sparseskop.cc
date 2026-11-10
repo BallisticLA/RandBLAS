@@ -38,10 +38,14 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <set>
+#include <utility>
 #include <vector>
 
 using std::vector;
@@ -56,6 +60,7 @@ using RandBLAS::SignedInteger;
 using RandBLAS::SparseDist;
 using RandBLAS::SparseSkOp;
 using RandBLAS::Axis;
+using RandBLAS::SparseBlocking;
 using RandBLAS::fill_sparse;
 using RandBLAS::fill_sparse_unpacked_nosub;
 
@@ -268,10 +273,10 @@ class TestSparseSkOpConstruction : public ::testing::Test {
     // order-independent (important since SASO/LASO entry order may differ).
     template <typename T, SignedInteger sint_t = int64_t>
     void fill_unpacked_sub_one(
-        Axis major_axis, int64_t vec_nnz, int64_t d, int64_t m,
+        Axis major_axis, SparseBlocking blocking, int64_t vec_nnz, int64_t d, int64_t m,
         int64_t ro_s, int64_t co_s, int64_t n_rows_sub, int64_t n_cols_sub, uint32_t key
     ) {
-        SparseDist D {d, m, vec_nnz, major_axis};
+        SparseDist D {d, m, vec_nnz, major_axis, blocking};
         RNGState<RandBLAS::DefaultRNG> seed(key);
 
         // Full operator via the no-submatrix path.
@@ -330,24 +335,24 @@ class TestSparseSkOpConstruction : public ::testing::Test {
     }
 
     template <typename T, SignedInteger sint_t = int64_t>
-    void fill_unpacked_sub(Axis major_axis, int64_t vec_nnz, int64_t d, int64_t m) {
+    void fill_unpacked_sub(Axis major_axis, SparseBlocking blocking, int64_t vec_nnz, int64_t d, int64_t m) {
         for (auto key : keys) {
             // full-size (regression guard: must reproduce nosub exactly)
-            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 0, 0, d, m, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, blocking, vec_nnz, d, m, 0, 0, d, m, key);
             // corner offsets / partial windows
-            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 1, 0, d - 1, m,     key);
-            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 0, 1, d,     m - 1, key);
-            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 1, 1, d - 1, m - 1, key);
-            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 2, 3, d - 3, m - 4, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, blocking, vec_nnz, d, m, 1, 0, d - 1, m,     key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, blocking, vec_nnz, d, m, 0, 1, d,     m - 1, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, blocking, vec_nnz, d, m, 1, 1, d - 1, m - 1, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, blocking, vec_nnz, d, m, 2, 3, d - 3, m - 4, key);
             // single row / single column
-            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 0, 0, 1, m, key);
-            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 0, 0, d, 1, key);
-            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, d - 1, 0, 1, m, key);
-            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 0, m - 1, d, 1, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, blocking, vec_nnz, d, m, 0, 0, 1, m, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, blocking, vec_nnz, d, m, 0, 0, d, 1, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, blocking, vec_nnz, d, m, d - 1, 0, 1, m, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, blocking, vec_nnz, d, m, 0, m - 1, d, 1, key);
             // 1x1 windows at a few positions (some likely empty for SASO)
-            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, 0, 0, 1, 1, key);
-            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, d - 1, m - 1, 1, 1, key);
-            fill_unpacked_sub_one<T, sint_t>(major_axis, vec_nnz, d, m, d / 2, m / 2, 1, 1, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, blocking, vec_nnz, d, m, 0, 0, 1, 1, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, blocking, vec_nnz, d, m, d - 1, m - 1, 1, 1, key);
+            fill_unpacked_sub_one<T, sint_t>(major_axis, blocking, vec_nnz, d, m, d / 2, m / 2, 1, 1, key);
         }
         return;
     }
@@ -447,18 +452,27 @@ TEST_F(TestSparseSkOpConstruction, sampling_is_thread_count_independent) {
         int64_t n_cols;
         int64_t vec_nnz;
         RandBLAS::Axis major_axis;
+        SparseBlocking blocking;
     };
-    constexpr std::array<Case, 10> cases{{
-        {7, 31, 1, RandBLAS::Axis::Short},
-        {7, 31, 5, RandBLAS::Axis::Short},
-        {31, 7, 5, RandBLAS::Axis::Short},
-        {257, 2048, 1, RandBLAS::Axis::Short},
-        {257, 2048, 12, RandBLAS::Axis::Short},
-        {7, 31, 1, RandBLAS::Axis::Long},
-        {7, 31, 12, RandBLAS::Axis::Long},
-        {31, 7, 12, RandBLAS::Axis::Long},
-        {257, 257, 128, RandBLAS::Axis::Long},
-        {2048, 4096, 1, RandBLAS::Axis::Long}
+    constexpr auto B = SparseBlocking::Blocked;
+    constexpr auto U = SparseBlocking::Unblocked;
+    constexpr std::array<Case, 16> cases{{
+        {7, 31, 1, RandBLAS::Axis::Short, B},
+        {7, 31, 5, RandBLAS::Axis::Short, B},
+        {31, 7, 5, RandBLAS::Axis::Short, B},
+        {257, 2048, 1, RandBLAS::Axis::Short, B},
+        {257, 2048, 12, RandBLAS::Axis::Short, B},
+        {2048, 257, 12, RandBLAS::Axis::Short, B},
+        {7, 31, 1, RandBLAS::Axis::Short, U},
+        {7, 31, 5, RandBLAS::Axis::Short, U},
+        {31, 7, 5, RandBLAS::Axis::Short, U},
+        {257, 2048, 1, RandBLAS::Axis::Short, U},
+        {257, 2048, 12, RandBLAS::Axis::Short, U},
+        {7, 31, 1, RandBLAS::Axis::Long, U},
+        {7, 31, 12, RandBLAS::Axis::Long, U},
+        {31, 7, 12, RandBLAS::Axis::Long, U},
+        {257, 257, 128, RandBLAS::Axis::Long, U},
+        {2048, 4096, 1, RandBLAS::Axis::Long, U}
     }};
     constexpr std::array<int, 3> thread_counts{1, 2, 4};
     const int saved_dynamic = omp_get_dynamic();
@@ -470,7 +484,7 @@ TEST_F(TestSparseSkOpConstruction, sampling_is_thread_count_independent) {
     for (const Case &test_case : cases) {
         RandBLAS::SparseDist dist(
             test_case.n_rows, test_case.n_cols,
-            test_case.vec_nnz, test_case.major_axis
+            test_case.vec_nnz, test_case.major_axis, test_case.blocking
         );
         omp_set_num_threads(1);
         auto expected_full = sample_sparse_snapshot<double>(
@@ -591,8 +605,10 @@ TEST_F(TestSparseSkOpConstruction, respect_ownership) {
 }
 
 TEST_F(TestSparseSkOpConstruction, fill_unpacked_nosub_saso) {
-    unpacked_nosub({10,20,7,Axis::Short});
-    unpacked_nosub({20,10,7,Axis::Short});
+    for (SparseBlocking blocking : {SparseBlocking::Blocked, SparseBlocking::Unblocked}) {
+        unpacked_nosub({10, 20, 7, Axis::Short, blocking});
+        unpacked_nosub({20, 10, 7, Axis::Short, blocking});
+    }
 }
 
 TEST_F(TestSparseSkOpConstruction, fill_unpacked_nosub_laso) {
@@ -601,32 +617,332 @@ TEST_F(TestSparseSkOpConstruction, fill_unpacked_nosub_laso) {
 }
 
 TEST_F(TestSparseSkOpConstruction, fill_unpacked_sub_saso) {
-    for (int64_t vnz : {(int64_t) 1, (int64_t) 2, (int64_t) 4, (int64_t) 7}) {
-        fill_unpacked_sub<float>(Axis::Short, vnz, 7, 13);   // wide
-        fill_unpacked_sub<float>(Axis::Short, vnz, 13, 7);   // tall
-        fill_unpacked_sub<float>(Axis::Short, vnz, 10, 10);  // square
+    for (SparseBlocking blocking : {SparseBlocking::Blocked, SparseBlocking::Unblocked}) {
+        for (int64_t vnz : {(int64_t) 1, (int64_t) 2, (int64_t) 4, (int64_t) 7}) {
+            fill_unpacked_sub<float>(Axis::Short, blocking, vnz, 7, 13);   // wide
+            fill_unpacked_sub<float>(Axis::Short, blocking, vnz, 13, 7);   // tall
+            fill_unpacked_sub<float>(Axis::Short, blocking, vnz, 10, 10);  // square
+        }
     }
 }
 
 TEST_F(TestSparseSkOpConstruction, fill_unpacked_sub_laso) {
     for (int64_t vnz : {(int64_t) 1, (int64_t) 2, (int64_t) 4, (int64_t) 7}) {
-        fill_unpacked_sub<float>(Axis::Long, vnz, 7, 13);    // wide
-        fill_unpacked_sub<float>(Axis::Long, vnz, 13, 7);    // tall
-        fill_unpacked_sub<float>(Axis::Long, vnz, 10, 10);   // square
+        fill_unpacked_sub<float>(Axis::Long, SparseBlocking::Unblocked, vnz, 7, 13);    // wide
+        fill_unpacked_sub<float>(Axis::Long, SparseBlocking::Unblocked, vnz, 13, 7);    // tall
+        fill_unpacked_sub<float>(Axis::Long, SparseBlocking::Unblocked, vnz, 10, 10);   // square
     }
 }
 
 TEST_F(TestSparseSkOpConstruction, fill_unpacked_sub_saso_int32) {
-    for (int64_t vnz : {(int64_t) 1, (int64_t) 2, (int64_t) 4, (int64_t) 7}) {
-        fill_unpacked_sub<float, int>(Axis::Short, vnz, 7, 13);
-        fill_unpacked_sub<float, int>(Axis::Short, vnz, 13, 7);
+    for (SparseBlocking blocking : {SparseBlocking::Blocked, SparseBlocking::Unblocked}) {
+        for (int64_t vnz : {(int64_t) 1, (int64_t) 2, (int64_t) 4, (int64_t) 7}) {
+            fill_unpacked_sub<float, int>(Axis::Short, blocking, vnz, 7, 13);
+            fill_unpacked_sub<float, int>(Axis::Short, blocking, vnz, 13, 7);
+        }
     }
 }
 
 TEST_F(TestSparseSkOpConstruction, fill_unpacked_sub_laso_int32) {
     for (int64_t vnz : {(int64_t) 1, (int64_t) 2, (int64_t) 4, (int64_t) 7}) {
-        fill_unpacked_sub<float, int>(Axis::Long, vnz, 7, 13);
-        fill_unpacked_sub<float, int>(Axis::Long, vnz, 13, 7);
+        fill_unpacked_sub<float, int>(Axis::Long, SparseBlocking::Unblocked, vnz, 7, 13);
+        fill_unpacked_sub<float, int>(Axis::Long, SparseBlocking::Unblocked, vnz, 13, 7);
+    }
+}
+
+// MARK: SASO blocking
+
+// A Philox4x32 that counts its evaluations, so a test can see how many blocks a
+// sampling call draws.
+struct CountingPhilox : r123::Philox4x32 {
+    static inline std::atomic<int64_t> calls{0};
+    ctr_type operator()(ctr_type c, key_type k) const {
+        ++calls;
+        return r123::Philox4x32::operator()(c, k);
+    }
+};
+
+// The block of short-axis coordinates that blocked sampling assigns to entry j
+// of a short-axis vector of length dim_major with vec_nnz nonzeros.
+static std::pair<int64_t, int64_t> saso_block_bounds(int64_t dim_major, int64_t vec_nnz, int64_t j) {
+    const int64_t len = dim_major / vec_nnz;
+    const int64_t num_long = dim_major % vec_nnz;
+    const int64_t start = j * len + std::min(j, num_long);
+    return {start, start + len + ((j < num_long) ? 1 : 0)};
+}
+
+// The magnitude of a blocked nonzero in a block of length len: exactly 1 when the
+// blocks are equal, and otherwise accurate to a few ulps, since compilers may
+// evaluate the quotient with a reciprocal.
+template <typename T>
+static T saso_block_scale(int64_t dim_major, int64_t vec_nnz, int64_t len) {
+    if (dim_major % vec_nnz == 0) {
+        return (T) 1;
+    }
+    return static_cast<T>(std::sqrt(static_cast<double>(vec_nnz * len) / static_cast<double>(dim_major)));
+}
+
+// An independent implementation of blocked sampling, written from the documented
+// counter layout: vector i, block j uses counter (seed counter + i * vec_nnz + j);
+// the first two words of the generator's output there give the location and the
+// third word gives the sign of a value whose magnitude depends on the block length.
+template <typename T, typename sint_t>
+static SparseSnapshot<T, sint_t> reference_blocked_saso(
+    const SparseDist &dist, const RNGState<> &seed
+) {
+    const bool major_is_rows = dist.n_rows <= dist.n_cols;
+    SparseSnapshot<T, sint_t> out{
+        dist.full_nnz, std::vector<T>(dist.full_nnz), std::vector<sint_t>(dist.full_nnz),
+        std::vector<sint_t>(dist.full_nnz), seed
+    };
+    std::vector<sint_t> &major = major_is_rows ? out.rows : out.cols;
+    std::vector<sint_t> &minor = major_is_rows ? out.cols : out.rows;
+    RandBLAS::DefaultRNG gen;
+    for (int64_t i = 0; i < dist.dim_minor; ++i) {
+        for (int64_t j = 0; j < dist.vec_nnz; ++j) {
+            auto ctr = seed.counter;
+            ctr.incr(i * dist.vec_nnz + j);
+            auto rv = gen(ctr, seed.key);
+            auto [lo, hi] = saso_block_bounds(dist.dim_major, dist.vec_nnz, j);
+            const std::uint64_t r = RandBLAS::promote_uint_pair(rv[0], rv[1]);
+            const int64_t e = i * dist.vec_nnz + j;
+            major[e] = static_cast<sint_t>(lo + static_cast<int64_t>(r % static_cast<std::uint64_t>(hi - lo)));
+            minor[e] = static_cast<sint_t>(i);
+            const T scale = saso_block_scale<T>(dist.dim_major, dist.vec_nnz, hi - lo);
+            out.vals[e] = (rv[2] % 2 == 0) ? scale : -scale;
+        }
+    }
+    out.end_state = seed;
+    out.end_state.counter.incr(dist.full_nnz);
+    return out;
+}
+
+template <typename T, typename sint_t>
+static void check_blocked_saso(int64_t n_rows, int64_t n_cols, int64_t vec_nnz, uint32_t key) {
+    SparseDist dist(n_rows, n_cols, vec_nnz, Axis::Short, SparseBlocking::Blocked);
+    RNGState<> seed(key);
+    seed.counter.incr(17);
+    auto actual = sample_sparse_snapshot<T, sint_t>(dist, n_rows, n_cols, 0, 0, seed);
+    auto expected = reference_blocked_saso<T, sint_t>(dist, seed);
+    ASSERT_EQ(actual.nnz, dist.full_nnz);
+    EXPECT_EQ(actual.rows, expected.rows);
+    EXPECT_EQ(actual.cols, expected.cols);
+    EXPECT_EQ(actual.end_state, expected.end_state);
+    EXPECT_EQ(actual.end_state, RandBLAS::compute_next_state(dist, seed));
+    // Signs and equal-block values must match exactly; unequal-block magnitudes to a few ulps.
+    const bool equal_blocks = dist.dim_major % vec_nnz == 0;
+    const T tol = 4 * std::numeric_limits<T>::epsilon();
+    ASSERT_EQ(actual.vals.size(), expected.vals.size());
+    for (size_t e = 0; e < actual.vals.size(); ++e) {
+        ASSERT_EQ(std::signbit(actual.vals[e]), std::signbit(expected.vals[e])) << "entry " << e;
+        if (equal_blocks) {
+            ASSERT_EQ(actual.vals[e], expected.vals[e]) << "entry " << e;
+        } else {
+            ASSERT_NEAR(actual.vals[e], expected.vals[e], tol * std::abs(expected.vals[e])) << "entry " << e;
+        }
+    }
+
+    // Structure: entry j of every vector lies in block j, has the magnitude of
+    // that block (1 when the blocks are equal), and the squared values of every
+    // vector sum to vec_nnz.
+    const bool major_is_rows = n_rows <= n_cols;
+    const auto &major = major_is_rows ? actual.rows : actual.cols;
+    const auto &minor = major_is_rows ? actual.cols : actual.rows;
+    for (int64_t i = 0; i < dist.dim_minor; ++i) {
+        double sum_of_squares = 0.0;
+        for (int64_t j = 0; j < vec_nnz; ++j) {
+            const int64_t e = i * vec_nnz + j;
+            auto [lo, hi] = saso_block_bounds(dist.dim_major, vec_nnz, j);
+            ASSERT_EQ(minor[e], i);
+            ASSERT_GE(major[e], lo);
+            ASSERT_LT(major[e], hi);
+            const T scale = saso_block_scale<T>(dist.dim_major, vec_nnz, hi - lo);
+            if (equal_blocks) {
+                ASSERT_TRUE(actual.vals[e] == (T) 1 || actual.vals[e] == (T) -1);
+            } else {
+                ASSERT_NEAR(std::abs(actual.vals[e]), scale, tol * scale);
+            }
+            sum_of_squares += static_cast<double>(actual.vals[e]) * static_cast<double>(actual.vals[e]);
+        }
+        ASSERT_NEAR(sum_of_squares, static_cast<double>(vec_nnz), 1e-5 * static_cast<double>(vec_nnz));
+    }
+}
+
+TEST_F(TestSparseSkOpConstruction, saso_blocking_defaults_follow_major_axis) {
+    // A short-axis-major distribution is blocked unless the caller asks
+    // otherwise; long-axis vectors are never blocked.
+    EXPECT_EQ(SparseDist(7, 20, 3).blocking, SparseBlocking::Blocked);
+    EXPECT_EQ(SparseDist(20, 7, 3, Axis::Short).blocking, SparseBlocking::Blocked);
+    EXPECT_EQ(SparseDist(7, 20, 3, Axis::Long).blocking, SparseBlocking::Unblocked);
+    EXPECT_EQ(SparseDist(7, 20, 3, Axis::Short, SparseBlocking::Unblocked).blocking, SparseBlocking::Unblocked);
+    // The convenience constructors for non-int64 dimensions forward or resolve the blocking.
+    EXPECT_EQ(SparseDist(7.0, 20.0, 3, Axis::Short, SparseBlocking::Unblocked).blocking, SparseBlocking::Unblocked);
+    EXPECT_EQ(SparseDist(7.0, 20.0, 3).blocking, SparseBlocking::Blocked);
+    // Blocking does not change the isometry scale.
+    EXPECT_EQ(
+        SparseDist(7, 20, 3, Axis::Short, SparseBlocking::Blocked).isometry_scale,
+        SparseDist(7, 20, 3, Axis::Short, SparseBlocking::Unblocked).isometry_scale
+    );
+}
+
+TEST_F(TestSparseSkOpConstruction, long_axis_rejects_blocking) {
+    EXPECT_THROW(SparseDist(7, 20, 3, Axis::Long, SparseBlocking::Blocked), RandBLAS::Error);
+    EXPECT_THROW(SparseDist(20, 7, 3, Axis::Long, SparseBlocking::Blocked), RandBLAS::Error);
+    EXPECT_THROW(SparseDist(7, 20, 1, Axis::Long, SparseBlocking::Blocked), RandBLAS::Error);
+}
+
+TEST_F(TestSparseSkOpConstruction, blocked_saso_matches_reference_sampler) {
+    // Shapes cover wide, tall, and square operators; sparsity levels cover
+    // vec_nnz = 1, divisors and non-divisors of dim_major, and the extremes
+    // vec_nnz = dim_major - 1 and vec_nnz = dim_major. dim_major = 49 and 196 are
+    // lengths d for which d * (1.0 / d) != 1 in double.
+    struct Shape { int64_t n_rows; int64_t n_cols; };
+    for (Shape shape : {Shape{7, 20}, Shape{20, 7}, Shape{12, 12}, Shape{64, 1000}, Shape{1000, 61},
+                        Shape{49, 300}, Shape{400, 196}}) {
+        const int64_t dim_major = std::min(shape.n_rows, shape.n_cols);
+        for (int64_t vec_nnz : {(int64_t) 1, (int64_t) 2, (int64_t) 3, (int64_t) 4, dim_major - 1, dim_major}) {
+            for (uint32_t key : {0u, 42u}) {
+                check_blocked_saso<double, int64_t>(shape.n_rows, shape.n_cols, vec_nnz, key);
+                check_blocked_saso<float, int32_t>(shape.n_rows, shape.n_cols, vec_nnz, key);
+            }
+        }
+    }
+}
+
+TEST_F(TestSparseSkOpConstruction, blocked_saso_windows_match_full_operator) {
+    // Blocked submatrix sampling draws only the blocks that meet the short-axis
+    // window. Check windows that start or end inside a block, lie on block
+    // boundaries, cover a single coordinate, sit in the last block, or are
+    // empty, for a wide and a tall operator with unequal blocks
+    // (100 = 7 * 14 + 2).
+    struct Window { int64_t off; int64_t len; };
+    const std::array<Window, 10> windows{{
+        {0, 0}, {0, 1}, {0, 15}, {15, 15}, {14, 2}, {30, 1}, {40, 25}, {86, 14}, {99, 1}, {100, 0}
+    }};
+    for (uint32_t key : {3u, 11u}) {
+        for (const Window &w : windows) {
+            // wide 100 x 300: the short axis is the rows
+            fill_unpacked_sub_one<double>(Axis::Short, SparseBlocking::Blocked, 7, 100, 300, w.off, 5, w.len, 290, key);
+            // tall 300 x 100: the short axis is the columns
+            fill_unpacked_sub_one<double>(Axis::Short, SparseBlocking::Blocked, 7, 300, 100, 5, w.off, 290, w.len, key);
+        }
+    }
+    // Each submatrix below ends at the last column, so sampling it returns the
+    // state that follows the full operator.
+    SparseDist dist(100, 4000, 7, Axis::Short, SparseBlocking::Blocked);
+    RNGState<> seed(5);
+    seed.counter.incr(9);
+    auto full_state = seed;
+    full_state.counter.incr(4000 * dist.vec_nnz);
+    for (const Window &w : windows) {
+        auto snapshot = sample_sparse_snapshot<double>(dist, w.len, 3990, w.off, 10, seed);
+        EXPECT_EQ(snapshot.end_state, full_state);
+    }
+#if defined(RandBLAS_HAS_OpenMP)
+    // The same windows give identical results and states with one and four threads.
+    const int saved_dynamic = omp_get_dynamic();
+    const int saved_max_threads = omp_get_max_threads();
+    omp_set_dynamic(0);
+    for (const Window &w : windows) {
+        omp_set_num_threads(1);
+        auto expected = sample_sparse_snapshot<double>(dist, w.len, 3990, w.off, 10, seed);
+        omp_set_num_threads(4);
+        auto actual = sample_sparse_snapshot<double>(dist, w.len, 3990, w.off, 10, seed);
+        EXPECT_EQ(actual.nnz, expected.nnz);
+        EXPECT_EQ(actual.rows, expected.rows);
+        EXPECT_EQ(actual.cols, expected.cols);
+        EXPECT_EQ(actual.vals, expected.vals);
+        EXPECT_EQ(actual.end_state, expected.end_state);
+    }
+    omp_set_num_threads(saved_max_threads);
+    omp_set_dynamic(saved_dynamic);
+#endif
+}
+
+TEST_F(TestSparseSkOpConstruction, blocked_saso_window_draws_only_meeting_blocks) {
+    // dim_major = 100 and vec_nnz = 7 give the blocks [0,15) [15,30) [30,44)
+    // [44,58) [58,72) [72,86) [86,100). Each range is (first block, number of blocks).
+    using RandBLAS::sparse::blocks_meeting_window;
+    using Range = std::pair<int64_t, int64_t>;
+    EXPECT_EQ(blocks_meeting_window(100, 7, 0, 0), Range(0, 0));
+    EXPECT_EQ(blocks_meeting_window(100, 7, 0, 15), Range(0, 1));
+    EXPECT_EQ(blocks_meeting_window(100, 7, 14, 2), Range(0, 2));
+    EXPECT_EQ(blocks_meeting_window(100, 7, 30, 1), Range(2, 1));
+    EXPECT_EQ(blocks_meeting_window(100, 7, 40, 25), Range(2, 3));
+    EXPECT_EQ(blocks_meeting_window(100, 7, 44, 1), Range(3, 1));
+    EXPECT_EQ(blocks_meeting_window(100, 7, 86, 14), Range(6, 1));
+    EXPECT_EQ(blocks_meeting_window(100, 7, 99, 1), Range(6, 1));
+    EXPECT_EQ(blocks_meeting_window(100, 7, 0, 100), Range(0, 7));
+
+    // fill_sparse_unpacked draws one location, and so evaluates the generator once,
+    // per vector and meeting block.
+    SparseDist dist(100, 300, 7, Axis::Short, SparseBlocking::Blocked);
+    RNGState<CountingPhilox> seed(5);
+    std::vector<double> vals(dist.full_nnz);
+    std::vector<int64_t> rows(dist.full_nnz);
+    std::vector<int64_t> cols(dist.full_nnz);
+    struct Case { int64_t off; int64_t len; int64_t num_blocks; };
+    for (Case c : {Case{30, 1, 1}, Case{14, 2, 2}, Case{86, 14, 1}, Case{0, 100, 7}, Case{50, 0, 0}}) {
+        CountingPhilox::calls = 0;
+        int64_t nnz = -1;
+        RandBLAS::fill_sparse_unpacked(
+            dist, c.len, 300, c.off, 0, nnz, vals.data(), rows.data(), cols.data(), seed
+        );
+        EXPECT_EQ(CountingPhilox::calls.load(), 300 * c.num_blocks);
+    }
+    // With one nonzero per vector, an empty window draws nothing either.
+    SparseDist dist1(100, 300, 1, Axis::Short, SparseBlocking::Blocked);
+    CountingPhilox::calls = 0;
+    int64_t nnz1 = -1;
+    RandBLAS::fill_sparse_unpacked(
+        dist1, 0, 300, 50, 0, nnz1, vals.data(), rows.data(), cols.data(), seed
+    );
+    EXPECT_EQ(CountingPhilox::calls.load(), 0);
+}
+
+TEST_F(TestSparseSkOpConstruction, saso_blockings_agree_when_vec_nnz_is_one) {
+    // With one nonzero per vector there is a single block, so both blockings
+    // describe the same distribution and draw it from the same counters.
+    for (auto [n_rows, n_cols] : {std::pair<int64_t, int64_t>{7, 31}, {31, 7}, {257, 2048}}) {
+        SparseDist blocked(n_rows, n_cols, 1, Axis::Short, SparseBlocking::Blocked);
+        SparseDist unblocked(n_rows, n_cols, 1, Axis::Short, SparseBlocking::Unblocked);
+        RNGState<> seed(99);
+        auto a = sample_sparse_snapshot<double>(blocked, n_rows, n_cols, 0, 0, seed);
+        auto b = sample_sparse_snapshot<double>(unblocked, n_rows, n_cols, 0, 0, seed);
+        EXPECT_EQ(a.rows, b.rows);
+        EXPECT_EQ(a.cols, b.cols);
+        EXPECT_EQ(a.vals, b.vals);
+        EXPECT_EQ(a.end_state, b.end_state);
+        auto c = sample_sparse_snapshot<double>(blocked, n_rows - 2, n_cols - 3, 1, 2, seed);
+        auto d = sample_sparse_snapshot<double>(unblocked, n_rows - 2, n_cols - 3, 1, 2, seed);
+        EXPECT_EQ(c.rows, d.rows);
+        EXPECT_EQ(c.cols, d.cols);
+        EXPECT_EQ(c.vals, d.vals);
+        EXPECT_EQ(c.end_state, d.end_state);
+    }
+}
+
+TEST_F(TestSparseSkOpConstruction, unblocked_saso_reproduces_previous_default) {
+    // Golden values from the last revision before SparseBlocking existed, when
+    // every short-axis-major SparseDist sampled without replacement. Requesting
+    // SparseBlocking::Unblocked must reproduce those operators exactly.
+    {
+        SparseDist dist(5, 9, 2, Axis::Short, SparseBlocking::Unblocked);
+        auto s = sample_sparse_snapshot<double>(dist, 5, 9, 0, 0, RNGState<>(1));
+        EXPECT_EQ(s.rows, (std::vector<int64_t>{3, 4, 2, 3, 3, 4, 2, 3, 1, 4, 0, 1, 1, 4, 3, 4, 3, 4}));
+        EXPECT_EQ(s.cols, (std::vector<int64_t>{0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8}));
+        EXPECT_EQ(s.vals, (std::vector<double>{1, -1, -1, 1, 1, -1, -1, 1, -1, 1, 1, -1, -1, -1, -1, 1, 1, 1}));
+        EXPECT_EQ(s.end_state.counter.v[0], 18u);
+    }
+    {
+        SparseDist dist(9, 4, 3, Axis::Short, SparseBlocking::Unblocked);
+        RNGState<> seed(7);
+        seed.counter.incr(5);
+        auto s = sample_sparse_snapshot<double>(dist, 9, 4, 0, 0, seed);
+        EXPECT_EQ(s.rows, (std::vector<int64_t>{0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8}));
+        EXPECT_EQ(s.cols, (std::vector<int64_t>{0, 1, 2, 0, 1, 2, 0, 1, 3, 0, 2, 3, 0, 1, 3, 0, 1, 2, 1, 2, 3, 0, 1, 2, 0, 1, 3}));
+        EXPECT_EQ(s.vals, (std::vector<double>{-1, 1, -1, -1, 1, -1, 1, -1, -1, -1, -1, -1, -1, -1, 1, -1, -1, -1, -1, -1, -1, -1, -1, 1, -1, -1, -1}));
+        EXPECT_EQ(s.end_state.counter.v[0], 32u);
     }
 }
 

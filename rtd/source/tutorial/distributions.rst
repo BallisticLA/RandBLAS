@@ -28,7 +28,7 @@ RandBLAS' sketching operators can be divided into two categories.
   :cpp:struct:`RandBLAS::DenseDist` type.
 
   *Sparse* sketching operators have random (but highly structured) sparsity patterns.
-  Their nonzero entries are sampled iid and uniformly from :math:`\{-1,1\}.`
+  Their nonzero entries have independent, uniformly random signs.
   Distributions over these operators are represented with the 
   :cpp:struct:`RandBLAS::SparseDist` type.
 
@@ -90,7 +90,7 @@ sketching operators.
 Distribution parameters
 =======================
 
-Here are example constructor invocations for DenseDist and SparseDist if we include all optional arguments.
+Here are example constructor invocations for DenseDist and SparseDist that pass every argument.
 
 .. code:: c++
 
@@ -100,7 +100,7 @@ Here are example constructor invocations for DenseDist and SparseDist if we incl
     DenseDist  D_dense( d, m, family,  Axis::Long);
 
     int64_t vec_nnz = 4;
-    SparseDist D_sparse(d, m, vec_nnz, Axis::Short);
+    SparseDist D_sparse(d, m, vec_nnz, Axis::Short, SparseBlocking::Blocked);
 
 The first two arguments have *identical* meanings for DenseDist and
 SparseDist; they give the number of rows and columns in the operator.
@@ -148,13 +148,14 @@ See :ref:`this page <sketch_updates>` of the tutorial for more information on th
 
 .. _sparsedist_params:
 
-SparseDist: vec_nnz and major_axis
-----------------------------------
+SparseDist: vec_nnz, major_axis, and blocking
+---------------------------------------------
 
 A SparseDist represents a distribution over sparse matrices with fixed dimensions, where 
 either the rows or the columns are sampled independently from a certain distribution over
 sparse vectors.
-The distribution is determined by the trailing constructor arguments:  :math:`\vecnnz` and :math:`\majoraxis.`
+The distribution is determined by the trailing constructor arguments:  :math:`\vecnnz,` :math:`\majoraxis,`
+and, for short-axis-major distributions, :math:`\ttt{blocking}.`
 
 Let :math:`k = \ttt{dim_major}.`
 If :math:`\majoraxis = \ttt{Short},` this is :math:`\min\{\nrows,\ncols\}.`
@@ -171,10 +172,34 @@ Larger sketch sizes make it possible to "get away with" smaller values of
 
 SparseDist when :math:`\majoraxis = \ttt{Short}.`
 
-  A sample from :math:`\mathcal{V}` has exactly :math:`\vecnnz` nonzeros.
-  The locations of those nonzeros are chosen uniformly
-  without replacement from :math:`\{0,\ldots,k-1\}.` The values of the nonzeros are
-  sampled independently and uniformly from :math:`\pm 1.`
+  A sample from :math:`\mathcal{V}` has exactly :math:`\vecnnz` nonzeros, whose signs are
+  sampled independently and uniformly.
+  The :math:`\ttt{blocking}` argument decides where the nonzeros go and, when :math:`\vecnnz`
+  does not divide :math:`k,` their magnitudes.
+
+  - :math:`\ttt{SparseBlocking::Blocked}` (the default) partitions :math:`\{0,\ldots,k-1\}` into
+    :math:`\vecnnz` contiguous blocks shared by every vector, and places one nonzero in each block,
+    at a location chosen uniformly from that block. When :math:`\vecnnz` divides :math:`k,` every
+    block has length :math:`k/\vecnnz,` the nonzeros are :math:`\pm 1,` and this is the
+    *SparseStack* distribution, up to the isometry scale: :math:`\vecnnz` independent CountSketch
+    operators, each covering :math:`k/\vecnnz` short-axis coordinates, stacked along the short axis.
+    Otherwise the first :math:`k \bmod \vecnnz` blocks have one more coordinate than the rest, and a
+    nonzero in a block of length :math:`b` is :math:`\pm \sqrt{\vecnnz \cdot b / k}.` These
+    magnitudes keep both expected Gram matrices of a sample proportional to the identity.
+  - :math:`\ttt{SparseBlocking::Unblocked}` chooses the locations uniformly without replacement from
+    :math:`\{0,\ldots,k-1\},` with nonzeros :math:`\pm 1.` This is the distribution every
+    short-axis-major SparseDist used before RandBLAS offered blocking.
+
+  The two choices have the same isometry scale. Camaño, Epperly, Meyer, and Tropp report that, in
+  their experience, SparseStacks and the unblocked distribution have similar injectivity, dilation,
+  and downstream accuracy.
+  Blocked sampling makes independent choices and visits the blocks in order,
+  so it needs no permutation workspace, swaps, or sorting. With equal block lengths, the blocked
+  distribution currently also has stronger guarantees than the unblocked one: SparseStacks are
+  known to be oblivious subspace injections with a sketch size proportional to the subspace
+  dimension when :math:`\vecnnz` grows logarithmically in it.
+  See "Faster linear algebra algorithms with structured random matrices"
+  (`arXiv:2508.21189 <https://arxiv.org/abs/2508.21189>`_), Section 3.
 
   Many sketching distributions from the literature fall into this category.
   :math:`\vecnnz = 1` corresponds to the distribution over CountSketch operators.
@@ -193,6 +218,7 @@ SparseDist when :math:`\majoraxis = \ttt{Short}.`
 
 SparseDist when :math:`\majoraxis = \ttt{Long}.` 
 
+  Long-axis vectors are never blocked; requesting :math:`\ttt{SparseBlocking::Blocked}` here is an error.
   A sample :math:`\mtxx` from :math:`\mathcal{V}` has *at most* :math:`\vecnnz` nonzero
   entries. The locations of the nonzeros are determined by sampling uniformly
   with replacement from :math:`\{0,\ldots,k-1\}.`

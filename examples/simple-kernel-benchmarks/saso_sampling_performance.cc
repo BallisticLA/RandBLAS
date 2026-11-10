@@ -31,7 +31,8 @@
 // ============================================================================
 //
 // This benchmark compares RandBLAS::repeated_fisher_yates against plausible
-// C++ implementations for sampling the support of a SASO. If dim_major = n,
+// C++ implementations for sampling the support of an unblocked SASO
+// (SparseBlocking::Unblocked). If dim_major = n,
 // num_major_axis_vectors = r, and each vector has vec_nnz = k nonzeros, every
 // method produces r independent k-subsets of {0, ..., n - 1}.
 //
@@ -56,6 +57,11 @@
 // generate Rademacher values, and sort every major-axis vector by its major
 // coordinate. Both wide (major coordinates are rows) and tall (major
 // coordinates are columns) SASOs are covered when the shape is nonsquare.
+// These tables time RandBLAS's fill_sparse_unpacked twice: with
+// SparseBlocking::Unblocked (the k-subsets above) and with
+// SparseBlocking::Blocked (one location in each of k fixed blocks, which has
+// a different support distribution, scales the values when k does not divide
+// n, and needs no shuffle or sort).
 // Output allocation and correctness checks are outside the timed region.
 // Method-owned workspace allocation remains timed, matching the natural cost
 // of calling each implementation as written.
@@ -67,9 +73,9 @@
 //   * speedup relative to std::sample in the same table
 //
 // The comparison tables force RandBLAS to one OpenMP thread. Scaling mode times
-// only RandBLAS because the competing implementations own one serial RNG
-// engine. The k=1 RandBLAS row uses the library's specialized i.i.d.-uniform
-// path rather than repeated Fisher-Yates.
+// only RandBLAS::repeated_fisher_yates (the unblocked support sampler) because
+// the competing implementations own one serial RNG engine. At k=1 every
+// RandBLAS row uses the library's specialized i.i.d.-uniform path.
 //
 // USAGE:
 //
@@ -99,11 +105,13 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <sstream>
 #include <string>
@@ -223,11 +231,19 @@ static bool support_is_valid(const Config &config, const std::vector<int64_t> &s
     return true;
 }
 
+// Values must be +/- 1, except that blocked sampling with unequal blocks scales a
+// nonzero in a block of length len by sqrt(vec_nnz * len / dim_major), which is
+// checked to a few ulps.
 static bool saso_data_is_valid(
     const Config &config, bool major_is_rows,
     const std::vector<int64_t> &rows, const std::vector<int64_t> &cols,
-    const std::vector<double> &values
+    const std::vector<double> &values,
+    RandBLAS::SparseBlocking blocking = RandBLAS::SparseBlocking::Unblocked
 ) {
+    const bool weighted = blocking == RandBLAS::SparseBlocking::Blocked
+        && config.dim_major % config.vec_nnz != 0;
+    const int64_t block_len = config.dim_major / config.vec_nnz;
+    const int64_t num_long_blocks = config.dim_major % config.vec_nnz;
     const std::vector<int64_t> &major = major_is_rows ? rows : cols;
     const std::vector<int64_t> &minor = major_is_rows ? cols : rows;
     if (!support_is_valid(config, major)) {
@@ -239,7 +255,16 @@ static bool saso_data_is_valid(
             if (minor[offset] != vector) {
                 return false;
             }
-            if (values[offset] != -1.0 && values[offset] != 1.0) {
+            if (weighted) {
+                const int64_t len = block_len + ((entry < num_long_blocks) ? 1 : 0);
+                const double magnitude = std::sqrt(
+                    static_cast<double>(config.vec_nnz * len) / static_cast<double>(config.dim_major)
+                );
+                const double tol = 4 * std::numeric_limits<double>::epsilon() * magnitude;
+                if (std::abs(std::abs(values[offset]) - magnitude) > tol) {
+                    return false;
+                }
+            } else if (values[offset] != -1.0 && values[offset] != 1.0) {
                 return false;
             }
             if (entry > 0 && major[offset - 1] >= major[offset]) {
@@ -391,7 +416,8 @@ static Record benchmark_saso_data_method(
 }
 
 static Record benchmark_randblas_saso_data(
-    const Config &config, bool major_is_rows, int64_t num_trials, uint64_t seed
+    const Config &config, bool major_is_rows, int64_t num_trials, uint64_t seed,
+    RandBLAS::SparseBlocking blocking
 ) {
     int64_t nnz = config.num_major_axis_vectors * config.vec_nnz;
     int64_t n_rows = major_is_rows
@@ -404,7 +430,7 @@ static Record benchmark_randblas_saso_data(
     std::vector<int64_t> cols(nnz, -1);
     std::vector<double> values(nnz, 0.0);
     RandBLAS::SparseDist distribution(
-        n_rows, n_cols, config.vec_nnz, RandBLAS::Axis::Short
+        n_rows, n_cols, config.vec_nnz, RandBLAS::Axis::Short, blocking
     );
     RandBLAS::RNGState<> state(seed);
     int64_t sampled_nnz = nnz;
@@ -418,17 +444,22 @@ static Record benchmark_randblas_saso_data(
 
     sample();
     bool valid = sampled_nnz == nnz
-        && saso_data_is_valid(config, major_is_rows, rows, cols, values);
+        && saso_data_is_valid(config, major_is_rows, rows, cols, values, blocking);
     auto [min_ns, median_ns] = run_trials(sample, num_trials);
 
+    const bool blocked = blocking == RandBLAS::SparseBlocking::Blocked;
     Record record;
-    record.label = "RandBLAS fill unpacked";
+    record.label = blocked ? "RandBLAS blocked fill" : "RandBLAS unblocked fill";
     record.min_ns = min_ns;
     record.median_ns = median_ns;
     record.ns_per_nonzero = static_cast<double>(min_ns) / static_cast<double>(nnz);
-    record.notes = config.vec_nnz == 1
-        ? "fused support/sign; i.i.d. path; sorted"
-        : "fused support/sign; restore swaps; sorted";
+    if (config.vec_nnz == 1) {
+        record.notes = "fused support/sign; i.i.d. path; sorted";
+    } else if (blocked) {
+        record.notes = "one draw per block; no workspace; sorted";
+    } else {
+        record.notes = "fused support/sign; restore swaps; sorted";
+    }
     if (!valid) {
         record.notes = "FAIL: invalid COO data; " + record.notes;
     }
@@ -477,7 +508,10 @@ static std::vector<Record> saso_data_records(
         }
     ));
     records.push_back(benchmark_randblas_saso_data(
-        config, major_is_rows, num_trials, seed
+        config, major_is_rows, num_trials, seed, RandBLAS::SparseBlocking::Unblocked
+    ));
+    records.push_back(benchmark_randblas_saso_data(
+        config, major_is_rows, num_trials, seed, RandBLAS::SparseBlocking::Blocked
     ));
     fill_speedups(records);
     return records;
@@ -554,7 +588,7 @@ static bool run_scaling(
         });
     }
 
-    std::cout << "=== RANDBLAS THREAD SCALING: n=" << config.dim_major
+    std::cout << "=== RANDBLAS repeated_fisher_yates THREAD SCALING: n=" << config.dim_major
               << " r=" << config.num_major_axis_vectors
               << " k=" << config.vec_nnz
               << ", trials=" << num_trials << " ===\n";
