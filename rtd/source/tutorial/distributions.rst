@@ -28,7 +28,7 @@ RandBLAS' sketching operators can be divided into two categories.
   :cpp:struct:`RandBLAS::DenseDist` type.
 
   *Sparse* sketching operators have random (but highly structured) sparsity patterns.
-  Their nonzero entries are sampled iid and uniformly from :math:`\{-1,1\}.`
+  Their nonzero entries have independent, uniformly random signs.
   Distributions over these operators are represented with the 
   :cpp:struct:`RandBLAS::SparseDist` type.
 
@@ -172,20 +172,23 @@ Larger sketch sizes make it possible to "get away with" smaller values of
 
 SparseDist when :math:`\majoraxis = \ttt{Short}.`
 
-  A sample from :math:`\mathcal{V}` has exactly :math:`\vecnnz` nonzeros, whose values are
-  sampled independently and uniformly from :math:`\pm 1.`
-  The :math:`\ttt{blocking}` argument decides where the nonzeros go.
+  A sample from :math:`\mathcal{V}` has exactly :math:`\vecnnz` nonzeros, whose signs are
+  sampled independently and uniformly.
+  The :math:`\ttt{blocking}` argument decides where the nonzeros go and, when :math:`\vecnnz`
+  does not divide :math:`k,` their magnitudes.
 
   - :math:`\ttt{SparseBlocking::Blocked}` (the default) partitions :math:`\{0,\ldots,k-1\}` into
     :math:`\vecnnz` contiguous blocks shared by every vector, and places one nonzero in each block,
-    at a location chosen uniformly from that block.
-    When :math:`\vecnnz` divides :math:`k,` every block has length :math:`k/\vecnnz,` and
-    this is the *SparseStack* distribution, up to the isometry scale: :math:`\vecnnz` independent
-    CountSketch operators, each covering :math:`k/\vecnnz` short-axis coordinates, stacked along the short axis.
-    Otherwise the first :math:`k \bmod \vecnnz` blocks have one more coordinate than the rest.
+    at a location chosen uniformly from that block. When :math:`\vecnnz` divides :math:`k,` every
+    block has length :math:`k/\vecnnz,` the nonzeros are :math:`\pm 1,` and this is the
+    *SparseStack* distribution, up to the isometry scale: :math:`\vecnnz` independent CountSketch
+    operators, each covering :math:`k/\vecnnz` short-axis coordinates, stacked along the short axis.
+    Otherwise the first :math:`k \bmod \vecnnz` blocks have one more coordinate than the rest, and a
+    nonzero in a block of length :math:`b` is :math:`\pm \sqrt{\vecnnz \cdot b / k}.` These
+    magnitudes keep both expected Gram matrices of a sample proportional to the identity.
   - :math:`\ttt{SparseBlocking::Unblocked}` chooses the locations uniformly without replacement from
-    :math:`\{0,\ldots,k-1\}.` This is the distribution every short-axis-major SparseDist used
-    before RandBLAS offered blocking.
+    :math:`\{0,\ldots,k-1\},` with nonzeros :math:`\pm 1.` This is the distribution every
+    short-axis-major SparseDist used before RandBLAS offered blocking.
 
   The two choices have the same isometry scale. Camaño, Epperly, Meyer, and Tropp report that, in
   their experience, SparseStacks and the unblocked distribution have similar injectivity, dilation,

@@ -341,8 +341,9 @@ class TestSampleIndices : public ::testing::Test
     //
 
     // Sample num_vectors blocked short-axis vectors of length dim_major and check
-    // two properties of their distribution: within each block the location is
-    // uniform (a Kolmogorov-Smirnov test per block), and the signs are balanced.
+    // three properties of their distribution: within each block the location is
+    // uniform (a Kolmogorov-Smirnov test per block), the signs are balanced, and
+    // every coordinate has the same second moment, vec_nnz / dim_major.
     static void test_blocked_saso_distribution(int64_t dim_major, int64_t vec_nnz, double significance, int64_t num_vectors, uint32_t seed) {
         using RandBLAS::testing::ks_check_critval;
         using RandBLAS::testing::KolmogorovSmirnovConstants::critical_value_rep_mutator;
@@ -382,14 +383,29 @@ class TestSampleIndices : public ::testing::Test
                 << " block=" << j << " num_vectors=" << num_vectors << std::endl;
         }
 
-        // The count of +1 values is Binomial(nnz, 1/2); allow five standard deviations.
+        // The count of positive values is Binomial(nnz, 1/2); allow five standard deviations.
         int64_t num_positive = 0;
         for (double v : vals) {
-            ASSERT_TRUE(v == 1.0 || v == -1.0);
             num_positive += (v > 0) ? 1 : 0;
         }
         const double frac = static_cast<double>(num_positive) / static_cast<double>(nnz);
         EXPECT_LT(std::abs(frac - 0.5), 5.0 * 0.5 / std::sqrt(static_cast<double>(nnz)));
+
+        // A coordinate in a block of length m has squared value m * s / k with probability
+        // 1 / m and 0 otherwise (s = vec_nnz, k = dim_major), so its squared value has mean
+        // s / k and variance (s / k)^2 (m - 1); allow five standard deviations of the sample mean.
+        vector<double> second_moment(dim_major, 0.0);
+        for (int64_t e = 0; e < nnz; ++e) {
+            second_moment[rows[e]] += vals[e] * vals[e];
+        }
+        const double s_over_k = static_cast<double>(vec_nnz) / static_cast<double>(dim_major);
+        for (int64_t r = 0; r < dim_major; ++r) {
+            const int64_t m = len + ((r < num_long * (len + 1)) ? 1 : 0);
+            const double mean = second_moment[r] / static_cast<double>(num_vectors);
+            const double sd = s_over_k * std::sqrt(static_cast<double>(m - 1) / static_cast<double>(num_vectors));
+            EXPECT_LE(std::abs(mean - s_over_k), 5.0 * sd + 1e-12)
+                << "coordinate " << r << " dim_major=" << dim_major << " vec_nnz=" << vec_nnz;
+        }
     }
 };
 
@@ -654,7 +670,7 @@ TEST_F(TestSampleIndices, fisher_yates_ks_skeptical)
 }
 
 
-TEST_F(TestSampleIndices, blocked_saso_locations_are_uniform_within_blocks) {
+TEST_F(TestSampleIndices, blocked_saso_distribution) {
     double s = 1e-4;
     test_blocked_saso_distribution(10, 3, s, 10000, 0);     // blocks of length 4, 3, 3
     test_blocked_saso_distribution(64, 8, s, 10000, 1);     // equal blocks

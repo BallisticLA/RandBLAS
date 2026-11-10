@@ -671,10 +671,21 @@ static std::pair<int64_t, int64_t> saso_block_bounds(int64_t dim_major, int64_t 
     return {start, start + len + ((j < num_long) ? 1 : 0)};
 }
 
+// The magnitude of a blocked nonzero in a block of length len: exactly 1 when the
+// blocks are equal, and otherwise accurate to a few ulps, since compilers may
+// evaluate the quotient with a reciprocal.
+template <typename T>
+static T saso_block_scale(int64_t dim_major, int64_t vec_nnz, int64_t len) {
+    if (dim_major % vec_nnz == 0) {
+        return (T) 1;
+    }
+    return static_cast<T>(std::sqrt(static_cast<double>(vec_nnz * len) / static_cast<double>(dim_major)));
+}
+
 // An independent implementation of blocked sampling, written from the documented
 // counter layout: vector i, block j uses counter (seed counter + i * vec_nnz + j);
 // the first two words of the generator's output there give the location and the
-// third word gives the sign.
+// third word gives the sign of a value whose magnitude depends on the block length.
 template <typename T, typename sint_t>
 static SparseSnapshot<T, sint_t> reference_blocked_saso(
     const SparseDist &dist, const RNGState<> &seed
@@ -697,7 +708,8 @@ static SparseSnapshot<T, sint_t> reference_blocked_saso(
             const int64_t e = i * dist.vec_nnz + j;
             major[e] = static_cast<sint_t>(lo + static_cast<int64_t>(r % static_cast<std::uint64_t>(hi - lo)));
             minor[e] = static_cast<sint_t>(i);
-            out.vals[e] = (rv[2] % 2 == 0) ? (T) 1 : (T) -1;
+            const T scale = saso_block_scale<T>(dist.dim_major, dist.vec_nnz, hi - lo);
+            out.vals[e] = (rv[2] % 2 == 0) ? scale : -scale;
         }
     }
     out.end_state = seed;
@@ -715,23 +727,44 @@ static void check_blocked_saso(int64_t n_rows, int64_t n_cols, int64_t vec_nnz, 
     ASSERT_EQ(actual.nnz, dist.full_nnz);
     EXPECT_EQ(actual.rows, expected.rows);
     EXPECT_EQ(actual.cols, expected.cols);
-    EXPECT_EQ(actual.vals, expected.vals);
     EXPECT_EQ(actual.end_state, expected.end_state);
     EXPECT_EQ(actual.end_state, RandBLAS::compute_next_state(dist, seed));
+    // Signs and equal-block values must match exactly; unequal-block magnitudes to a few ulps.
+    const bool equal_blocks = dist.dim_major % vec_nnz == 0;
+    const T tol = 4 * std::numeric_limits<T>::epsilon();
+    ASSERT_EQ(actual.vals.size(), expected.vals.size());
+    for (size_t e = 0; e < actual.vals.size(); ++e) {
+        ASSERT_EQ(std::signbit(actual.vals[e]), std::signbit(expected.vals[e])) << "entry " << e;
+        if (equal_blocks) {
+            ASSERT_EQ(actual.vals[e], expected.vals[e]) << "entry " << e;
+        } else {
+            ASSERT_NEAR(actual.vals[e], expected.vals[e], tol * std::abs(expected.vals[e])) << "entry " << e;
+        }
+    }
 
-    // Structure: entry j of every vector lies in block j, and values are +/- 1.
+    // Structure: entry j of every vector lies in block j, has the magnitude of
+    // that block (1 when the blocks are equal), and the squared values of every
+    // vector sum to vec_nnz.
     const bool major_is_rows = n_rows <= n_cols;
     const auto &major = major_is_rows ? actual.rows : actual.cols;
     const auto &minor = major_is_rows ? actual.cols : actual.rows;
     for (int64_t i = 0; i < dist.dim_minor; ++i) {
+        double sum_of_squares = 0.0;
         for (int64_t j = 0; j < vec_nnz; ++j) {
             const int64_t e = i * vec_nnz + j;
             auto [lo, hi] = saso_block_bounds(dist.dim_major, vec_nnz, j);
             ASSERT_EQ(minor[e], i);
             ASSERT_GE(major[e], lo);
             ASSERT_LT(major[e], hi);
-            ASSERT_TRUE(actual.vals[e] == (T) 1 || actual.vals[e] == (T) -1);
+            const T scale = saso_block_scale<T>(dist.dim_major, vec_nnz, hi - lo);
+            if (equal_blocks) {
+                ASSERT_TRUE(actual.vals[e] == (T) 1 || actual.vals[e] == (T) -1);
+            } else {
+                ASSERT_NEAR(std::abs(actual.vals[e]), scale, tol * scale);
+            }
+            sum_of_squares += static_cast<double>(actual.vals[e]) * static_cast<double>(actual.vals[e]);
         }
+        ASSERT_NEAR(sum_of_squares, static_cast<double>(vec_nnz), 1e-5 * static_cast<double>(vec_nnz));
     }
 }
 
@@ -761,9 +794,11 @@ TEST_F(TestSparseSkOpConstruction, long_axis_rejects_blocking) {
 TEST_F(TestSparseSkOpConstruction, blocked_saso_matches_reference_sampler) {
     // Shapes cover wide, tall, and square operators; sparsity levels cover
     // vec_nnz = 1, divisors and non-divisors of dim_major, and the extremes
-    // vec_nnz = dim_major - 1 and vec_nnz = dim_major.
+    // vec_nnz = dim_major - 1 and vec_nnz = dim_major. dim_major = 49 and 196 are
+    // lengths d for which d * (1.0 / d) != 1 in double.
     struct Shape { int64_t n_rows; int64_t n_cols; };
-    for (Shape shape : {Shape{7, 20}, Shape{20, 7}, Shape{12, 12}, Shape{64, 1000}, Shape{1000, 61}}) {
+    for (Shape shape : {Shape{7, 20}, Shape{20, 7}, Shape{12, 12}, Shape{64, 1000}, Shape{1000, 61},
+                        Shape{49, 300}, Shape{400, 196}}) {
         const int64_t dim_major = std::min(shape.n_rows, shape.n_cols);
         for (int64_t vec_nnz : {(int64_t) 1, (int64_t) 2, (int64_t) 3, (int64_t) 4, dim_major - 1, dim_major}) {
             for (uint32_t key : {0u, 42u}) {

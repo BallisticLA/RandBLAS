@@ -53,8 +53,11 @@ Short-axis-sparse operators (SASOs) are blocked by default (`SparseBlocking::Blo
 short axis is split into `vec_nnz` contiguous blocks, the first `dim_major % vec_nnz` of them
 one coordinate longer, and vector `i` draws block `j`'s location and sign from counter
 `initial_counter + i * vec_nnz + j`. That is the same counter budget as unblocked sampling, so
-the returned state and submatrix skipping do not depend on the blocking. Blocked sampling needs
-no workspace, and its vectors come out sorted because blocks are visited in increasing order.
+the returned state and submatrix skipping do not depend on the blocking. A nonzero in a block of
+length `len` has magnitude `sqrt(vec_nnz * len / dim_major)`, which keeps the expected short-axis
+Gram matrix a multiple of the identity; it is set to exactly 1 when the blocks are equal. Blocked
+sampling needs no workspace, and its vectors come out sorted because blocks are visited in
+increasing order.
 It uses the same thread policy as the other paths without the permutation-amortization limit,
 counting the drawn blocks as each vector's work.
 For a submatrix whose short-axis window misses some blocks, only the blocks that meet the window

@@ -396,11 +396,6 @@ enum class Axis : char {
 /// sketch in a way that preserves squared norms in expectation, then you should sketch with 
 /// a scaled sample :math:`\alpha \mtxS` rather than the sample itself.
 ///
-/// One SparseDist configuration is an exception: if :math:`\ttt{blocking} = \ttt{SparseBlocking::Blocked}`
-/// and :math:`\ttt{vec_nnz}` does not divide :math:`\ttt{dim_major},` only the identity that defines the
-/// isometry scale holds. The expected Gram matrix indexed by the short dimension is then diagonal but
-/// not a multiple of the identity. See SparseDist::blocking.
-///
 /// **Programmatic description**
 ///
 /// A variable :math:`\ttt{D}` of a type that conforms to the 

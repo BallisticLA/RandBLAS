@@ -60,7 +60,8 @@
 // These tables time RandBLAS's fill_sparse_unpacked twice: with
 // SparseBlocking::Unblocked (the k-subsets above) and with
 // SparseBlocking::Blocked (one location in each of k fixed blocks, which has
-// a different support distribution and needs no shuffle or sort).
+// a different support distribution, scales the values when k does not divide
+// n, and needs no shuffle or sort).
 // Output allocation and correctness checks are outside the timed region.
 // Method-owned workspace allocation remains timed, matching the natural cost
 // of calling each implementation as written.
@@ -104,11 +105,13 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <sstream>
 #include <string>
@@ -228,11 +231,19 @@ static bool support_is_valid(const Config &config, const std::vector<int64_t> &s
     return true;
 }
 
+// Values must be +/- 1, except that blocked sampling with unequal blocks scales a
+// nonzero in a block of length len by sqrt(vec_nnz * len / dim_major), which is
+// checked to a few ulps.
 static bool saso_data_is_valid(
     const Config &config, bool major_is_rows,
     const std::vector<int64_t> &rows, const std::vector<int64_t> &cols,
-    const std::vector<double> &values
+    const std::vector<double> &values,
+    RandBLAS::SparseBlocking blocking = RandBLAS::SparseBlocking::Unblocked
 ) {
+    const bool weighted = blocking == RandBLAS::SparseBlocking::Blocked
+        && config.dim_major % config.vec_nnz != 0;
+    const int64_t block_len = config.dim_major / config.vec_nnz;
+    const int64_t num_long_blocks = config.dim_major % config.vec_nnz;
     const std::vector<int64_t> &major = major_is_rows ? rows : cols;
     const std::vector<int64_t> &minor = major_is_rows ? cols : rows;
     if (!support_is_valid(config, major)) {
@@ -244,7 +255,16 @@ static bool saso_data_is_valid(
             if (minor[offset] != vector) {
                 return false;
             }
-            if (values[offset] != -1.0 && values[offset] != 1.0) {
+            if (weighted) {
+                const int64_t len = block_len + ((entry < num_long_blocks) ? 1 : 0);
+                const double magnitude = std::sqrt(
+                    static_cast<double>(config.vec_nnz * len) / static_cast<double>(config.dim_major)
+                );
+                const double tol = 4 * std::numeric_limits<double>::epsilon() * magnitude;
+                if (std::abs(std::abs(values[offset]) - magnitude) > tol) {
+                    return false;
+                }
+            } else if (values[offset] != -1.0 && values[offset] != 1.0) {
                 return false;
             }
             if (entry > 0 && major[offset - 1] >= major[offset]) {
@@ -424,7 +444,7 @@ static Record benchmark_randblas_saso_data(
 
     sample();
     bool valid = sampled_nnz == nnz
-        && saso_data_is_valid(config, major_is_rows, rows, cols, values);
+        && saso_data_is_valid(config, major_is_rows, rows, cols, values, blocking);
     auto [min_ns, median_ns] = run_trials(sample, num_trials);
 
     const bool blocked = blocking == RandBLAS::SparseBlocking::Blocked;

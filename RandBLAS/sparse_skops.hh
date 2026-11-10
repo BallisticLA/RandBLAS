@@ -294,7 +294,10 @@ static state_t repeated_blocked_samples(
     // budget as the Fisher-Yates path, so the returned state and submatrix
     // skipping are unchanged; each counter depends only on (i, j), so the output
     // does not depend on the thread count. Blocks are visited in increasing
-    // order, so each vector is already sorted.
+    // order, so each vector is already sorted. A nonzero in a block of length len
+    // has magnitude sqrt(vec_nnz * len / dim_major), which keeps the expected
+    // short-axis Gram matrix a multiple of the identity; it is exactly 1 when
+    // blocks are equal.
     //
     // Only blocks [first_block, first_block + num_blocks) are drawn; vector i
     // writes them to positions [i * num_blocks, (i + 1) * num_blocks).
@@ -324,6 +327,13 @@ static state_t repeated_blocked_samples(
     const int64_t block_len = dim_major / vec_nnz;
     const int64_t num_long_blocks = dim_major % vec_nnz;
     const int64_t first_start = first_block * block_len + std::min(first_block, num_long_blocks);
+    // Equal blocks skip the division, which some compilers evaluate with a reciprocal.
+    [[maybe_unused]] const T short_scale = (num_long_blocks == 0) ? (T) 1 : static_cast<T>(std::sqrt(
+        static_cast<double>(vec_nnz * block_len) / static_cast<double>(dim_major)
+    ));
+    [[maybe_unused]] const T long_scale = static_cast<T>(std::sqrt(
+        static_cast<double>(vec_nnz * (block_len + 1)) / static_cast<double>(dim_major)
+    ));
     [[maybe_unused]] const int num_threads = sparse_sampling_thread_count(
         dim_major, dim_minor, num_blocks, false
     );
@@ -346,7 +356,8 @@ static state_t repeated_blocked_samples(
             if constexpr (state_t::len_c >= 4) {
                 // A two-word generator was rejected above when signs are requested.
                 if (vals != nullptr) {
-                    vals[offset + j] = (rv[2] % 2 == 0) ? (T) 1 : (T) -1;
+                    const T scale = (j < num_long_blocks) ? long_scale : short_scale;
+                    vals[offset + j] = (rv[2] % 2 == 0) ? scale : -scale;
                 }
             }
             block_start += len;
@@ -396,8 +407,9 @@ namespace RandBLAS {
 /// Names for the two ways a short-axis-major SparseDist can place the
 /// nonzeros of its short-axis vectors. Let \math{k} be the length of a short-axis
 /// vector and \math{s = \vecnnz.} Both distributions put exactly \math{s}
-/// nonzeros in every short-axis vector, with values sampled independently and
-/// uniformly from \math{\pm 1.} They differ only in where the nonzeros go.
+/// nonzeros in every short-axis vector, with signs sampled independently and
+/// uniformly, and both have the same isometry scale. They differ in where the
+/// nonzeros go and, when \math{s} does not divide \math{k,} in their magnitudes.
 ///
 enum class SparseBlocking : char {
     // ---------------------------------------------------------------------------
@@ -405,15 +417,17 @@ enum class SparseBlocking : char {
     ///  are shared by all short-axis vectors, and place one nonzero in each block,
     ///  at a location chosen uniformly from that block and independently of every
     ///  other choice. When \math{s} divides \math{k,} every block has length
-    ///  \math{k/s,} and, up to the isometry scale, this is the block construction of
-    ///  Kane and Nelson, which Camaño, Epperly, Meyer, and Tropp call a SparseStack;
-    ///  otherwise the first \math{k \bmod s} blocks have one more coordinate than the others.
+    ///  \math{k/s,} the nonzeros are \math{\pm 1,} and, up to the isometry scale, this is the
+    ///  block construction of Kane and Nelson, which Camaño, Epperly, Meyer, and Tropp call
+    ///  a SparseStack. Otherwise the first \math{k \bmod s} blocks have one more coordinate
+    ///  than the others, and a nonzero in a block of length \math{b} is \math{\pm \sqrt{s b / k}.}
+    ///  These magnitudes keep both expected Gram matrices of a sample proportional to the identity.
     Blocked = 'B',
 
     // ---------------------------------------------------------------------------
     ///  Choose the \math{s} locations uniformly without replacement from
-    ///  \math{\\{0,\ldots,k-1\\}.} This is the distribution RandBLAS used for every
-    ///  short-axis-major SparseDist before SparseBlocking existed.
+    ///  \math{\\{0,\ldots,k-1\\},} with nonzeros \math{\pm 1.} This is the distribution
+    ///  RandBLAS used for every short-axis-major SparseDist before SparseBlocking existed.
     Unblocked = 'U'
 };
 
@@ -452,7 +466,8 @@ struct SparseDist {
     ///  
     ///  If \math{\ttt{major_axis} = \ttt{Short},} then \math{\mtxx} has exactly \math{\vecnnz} nonzeros.
     ///  The member \math{\ttt{blocking}} determines how the locations of those nonzeros are
-    ///  chosen. The values of the nonzeros are sampled independently and uniformly from \math{\pm 1.}
+    ///  chosen. Their signs are sampled independently and uniformly. Their magnitudes are 1
+    ///  except under blocked sampling with unequal blocks; see SparseBlocking.
     ///
     ///  If \math{\ttt{major_axis} = \ttt{Long},} then \math{\mtxx} has *at most* \math{\vecnnz} nonzero
     ///  entries. The locations of the nonzeros are determined by sampling uniformly
@@ -464,18 +479,13 @@ struct SparseDist {
     const Axis major_axis;
 
     // ---------------------------------------------------------------------------
-    ///  How the nonzeros of a short-axis vector are placed; see SparseBlocking.
+    ///  How the nonzeros of a short-axis vector are placed and scaled; see SparseBlocking.
     ///  Short-axis-major distributions use \math{\ttt{SparseBlocking::Blocked}} unless
     ///  the constructor is given \math{\ttt{SparseBlocking::Unblocked}.}
     ///  Long-axis vectors are never blocked, so this member is
     ///  \math{\ttt{SparseBlocking::Unblocked}} whenever \math{\ttt{major_axis} = \ttt{Long}.}
     ///
-    ///  Both settings give the same isometry scale. If \math{\vecnnz} does not divide
-    ///  \math{\ttt{dim_major},} then under blocked sampling a short-axis coordinate in a
-    ///  block of length \math{m} holds a nonzero with probability \math{1/m,} so the
-    ///  expected Gram matrix of a sample \math{\mtxS,} indexed by the short axis (\math{\mtxS{\mtxS}^T} for a wide or
-    ///  square operator, \math{\mtxS^T\mtxS} for a tall one), is diagonal but not a multiple of
-    ///  the identity. The identity that defines \math{\ttt{isometry_scale}} still holds.
+    ///  Both settings give the same isometry scale.
     const SparseBlocking blocking;
 
     // ---------------------------------------------------------------------------
