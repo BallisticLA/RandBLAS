@@ -12,7 +12,10 @@ concurrency:
 jobs:
   tsan:
     name: linux-clang-tsan-openmp
-    runs-on: ubuntu-latest
+    # Pinned: on ubuntu-latest = ubuntu-26.04 (clang 21) TSan reports data races
+    # inside libomp-outlined regions in 330 of 497 tests, on code unchanged since
+    # the last pass; ubuntu-24.04 (clang 18) is the image it last passed on.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
