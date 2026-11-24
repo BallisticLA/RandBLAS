@@ -77,9 +77,10 @@ jobs:
             sanitizer: asan
             openmp: true
 
-          # macOS 14 / Apple Clang / Accelerate — no OpenMP (serial).
-          - label: macos14-appleclang-accelerate-release
-            os: macos-14
+          # macOS 15 / Apple Clang / Accelerate — no OpenMP (serial).
+          # (These two lanes ran on macos-14 until GitHub retired that image.)
+          - label: macos15-appleclang-accelerate-release
+            os: macos-15
             cc: clang
             cxx: clang++
             blas-backend: accelerate
@@ -87,21 +88,15 @@ jobs:
             sanitizer: none
             openmp: false
 
-          # macOS 14 / Apple Clang / Accelerate — Debug + ASan, no OpenMP.
-          - label: macos14-appleclang-accelerate-debug-asan
-            os: macos-14
+          # macOS 15 / Apple Clang / Accelerate — Debug + ASan, no OpenMP.
+          - label: macos15-appleclang-accelerate-debug-asan
+            os: macos-15
             cc: clang
             cxx: clang++
             blas-backend: accelerate
             build-type: Debug
             sanitizer: asan
             openmp: false
-
-          # No macOS 14 Homebrew LLVM lanes: Homebrew ranks macOS 14 as a
-          # Tier 3 platform and no longer ships LLVM bottles for it, so
-          # `brew install llvm` there builds LLVM from source (about two
-          # hours) and then fails at `brew link`. OpenMP coverage on macOS
-          # lives on macOS 15; macOS 14 keeps the Apple Clang lanes above.
 
           # macOS 15 / Homebrew LLVM / Accelerate — track latest macOS runner.
           - label: macos15-llvm-accelerate-release
